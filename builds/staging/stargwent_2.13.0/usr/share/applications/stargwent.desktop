@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Stargwent
+Comment=Stargate-themed tactical card game
+Exec=stargwent
+Icon=stargwent
+Categories=Game;CardGame;
+Terminal=false
+Keywords=Stargate;Card;Strategy;Game;

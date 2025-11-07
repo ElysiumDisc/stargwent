@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-GAME_DIR="/usr/share/stargwent"
-cd "$GAME_DIR"
-exec python3 main.py "$@"

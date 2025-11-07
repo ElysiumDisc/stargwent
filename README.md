@@ -4,7 +4,7 @@
 
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
-![Version](https://img.shields.io/badge/version-0.8-blue)
+![Version](https://img.shields.io/badge/version-2.13.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame](https://img.shields.io/badge/pygame-2.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -36,7 +36,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
-- **250+ Cards** across 5 factions + Neutral cards
+- **218 Cards** across 5 factions + Neutral cards
 - **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
