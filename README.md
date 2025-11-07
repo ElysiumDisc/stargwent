@@ -1006,17 +1006,32 @@ We ship a helper script that assembles a `.deb` for Debian/Ubuntu style systems.
 - `python3` and `python3-pygame` runtime packages
 - `dpkg-deb` (usually provided by the `dpkg` package)
 
-**Usage**
-```bash
-./build_deb.sh [VERSION]
-```
+**How to Build & Release a New Version**
 
-- Run from the project root.
-- Omitting `VERSION` reads the `VERSION` file (if present), otherwise the README badge, and finally falls back to the current date.
-- Packages are staged under `builds/staging/` and the final `.deb` lands in `builds/releases/stargwent_VERSION.deb`.
-- The installer now drops a desktop shortcut (`/usr/share/applications/stargwent.desktop`) and icon (`/usr/share/pixmaps/stargwent.png`) so the game shows up in launchers.
+1. **Edit the version badge** (line 7 of this README):
+   ```markdown
+   ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
+   ```
+   Replace `X.Y.Z` with your new version (e.g., `2.14.0`)
 
-The generated package installs the game to `/usr/share/stargwent` and drops a `stargwent` launcher into `/usr/bin`. After installation you can simply run `stargwent`, or execute `python3 main.py` inside the install directory if you need custom options.
+2. **Build the package** (automatically reads version from README badge):
+   ```bash
+   ./build_deb.sh
+   ```
+   The `.deb` will be created at `builds/releases/stargwent_X.Y.Z.deb`
+
+3. **Commit and push**:
+   ```bash
+   git add -A
+   git commit -m "Update to version X.Y.Z - [description]"
+   git push origin main
+   ```
+
+**Note:** The version badge in this README is the **single source of truth**. The build script automatically reads it, so you only need to update one place.
+
+**Advanced:** You can override the version by passing it directly: `./build_deb.sh 2.14.0`
+
+The generated package installs to `/usr/share/stargwent` with a `stargwent` launcher in `/usr/bin`, desktop shortcut (`/usr/share/applications/stargwent.desktop`), and icon (`/usr/share/pixmaps/stargwent.png`).
 
 ## 📝 License & Credits
 
