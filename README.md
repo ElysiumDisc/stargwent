@@ -833,7 +833,7 @@ assets/
 ├── menu_background.png              # 4K menu background
 ├── deck_building_background.png     # 4K deck builder background
 ├── card_back.png                    # Card back design (200x280) - NEW v2.10!
-├── [card_id].png                    # 250+ card images (200x280)
+├── [card_id].png                    # 218 card images (200x280)
 ├── [card_id]_leader.png             # 35 leader portraits
 ├── leader_bg_[faction]_[leader].png # 35 leader selection backgrounds - NEW v2.10!
 └── dhd_placeholder.png              # DHD button graphic
