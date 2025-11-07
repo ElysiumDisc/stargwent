@@ -4,6 +4,7 @@
 
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
+<!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
 ![Version](https://img.shields.io/badge/version-2.13.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame](https://img.shields.io/badge/pygame-2.6+-red)

@@ -6,16 +6,14 @@ ROOT_DIR="$SCRIPT_DIR"
 
 PKG_NAME="stargwent"
 VERSION="${1:-}"
-VERSION_FILE="$ROOT_DIR/VERSION"
 
-if [[ -z "$VERSION" && -f "$VERSION_FILE" ]]; then
-    VERSION="$(<"$VERSION_FILE")"
-fi
-
+# If no version argument provided, read from README.md badge (single source of truth)
 if [[ -z "$VERSION" ]]; then
     VERSION="$(sed -n 's/.*badge\/version-\([0-9.]\+\)-.*/\1/p' "$ROOT_DIR/README.md" | head -n1)"
     if [[ -z "$VERSION" ]]; then
-        VERSION="$(date +%Y.%m.%d)"
+        echo "Error: Could not find version in README.md badge" >&2
+        echo "Please ensure README.md has: ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)" >&2
+        exit 1
     fi
 fi
 

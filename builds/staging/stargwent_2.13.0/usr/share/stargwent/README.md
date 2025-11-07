@@ -36,7 +36,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
-- **250+ Cards** across 5 factions + Neutral cards
+- **218 Cards** across 5 factions + Neutral cards
 - **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
@@ -833,7 +833,7 @@ assets/
 ├── menu_background.png              # 4K menu background
 ├── deck_building_background.png     # 4K deck builder background
 ├── card_back.png                    # Card back design (200x280) - NEW v2.10!
-├── [card_id].png                    # 250+ card images (200x280)
+├── [card_id].png                    # 218 card images (200x280)
 ├── [card_id]_leader.png             # 35 leader portraits
 ├── leader_bg_[faction]_[leader].png # 35 leader selection backgrounds - NEW v2.10!
 └── dhd_placeholder.png              # DHD button graphic
