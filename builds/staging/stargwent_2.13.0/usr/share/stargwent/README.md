@@ -4,6 +4,7 @@
 
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
+<!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
 ![Version](https://img.shields.io/badge/version-2.13.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame](https://img.shields.io/badge/pygame-2.6+-red)
@@ -41,10 +42,13 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
 - **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
+- **⚡ NEW v2.15: APOPHIS RAID** - If the opponent piles 4+ siege ships, Apophis teleports one to your board once per round.
+- **⚡ NEW v2.15: REFINED DISCARD PANEL** - Dedicated UI panel with safe spacing replaces the old D-key shortcut.
 - **⚡ NEW v2.13: GOA'ULD RING TRANSPORTATION** - Return close combat unit to hand EVERY ROUND!
 - **⚡ NEW v2.13: 3-PHASE RING ANIMATION** - Golden rings descend → activate → ascend with card!
 - **⚡ NEW v2.13: CLOSE COMBAT ONLY** - Rings can only retrieve close range fighters (once per round)!
-- **⚡ NEW v2.12.1: ENHANCED WEATHER DRAGGING** - Drag weather/special cards to ANY row (player or opponent)!
+- **⚡ NEW v2.14: TARGETED WEATHER DEPLOYMENT** - Drag weather cards directly onto opponent lanes (specials still go anywhere)!
+- **⚡ NEW v2.14: EMP & NEBULA VFX** - Electromagnetic Pulse gets pulsing plasma motes; Nebula Fields add drifting pink clouds.
 - **⚡ NEW v2.12.1: VISUAL DROP ZONES** - Blue highlights show all valid targets when dragging weather cards!
 - **⚡ NEW v2.12: FLUID CARD FEEL** - Smooth dragging with easing, hover scale effects, enhanced shadows!
 - **⚡ NEW v2.12: ANIMATED AI TURNS** - 4-phase AI animations: thinking particles → card selection → playing → resolving!
@@ -111,7 +115,9 @@ All abilities renamed and themed around Stargate lore:
 - **Animated Background** - Moving starfield, chevron glows, energy waves
 - **Stargate Activation** - Portal effect when playing cards
 - **Score Animations** - Dramatic pop effects with deltas
-- **Weather Effects** - Animated hazards with row highlighting
+- **Weather Effects** - Row-specific highlights plus custom particle fields
+- **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
+- **Nebula Clouds** - Layered pink fog drifting through affected lanes
 - **Black Hole Animation** - When clearing weather effects
 - **Particle Systems** - Fire explosions, energy bursts, faction-specific effects
 - **DHD Button** - Glowing red center button with chevron ring
@@ -274,10 +280,10 @@ pip install --upgrade pygame-ce
 - Includes Command Network, Naquadah Overload, Ring Transport
 
 #### Weather Cards
-- Affects entire rows for both players
-- Reduces non-Legendary Commander units to 1 power
-- **Ice Planet**, **Nebula**, **Asteroid Storm**, **EMP**
-- Clear with **Wormhole Stabilization** (black hole animation!)
+- Target a specific opponent row (Close/Ranged/Siege) and leave your side untouched
+- Reduces non-Legendary Commander units in that lane to 1 power (Survival Instinct units gain +2)
+- **Ice Planet**, **Nebula**, **Asteroid Storm**, **Electromagnetic Pulse** (glowing green plasma)
+- Clear any hazard with **Wormhole Stabilization** (cinematic black hole collapse)
 
 ---
 
@@ -295,6 +301,7 @@ pip install --upgrade pygame-ce
 *Ancient parasitic overlords*
 - **Style**: Overwhelming numbers, powerful abilities
 - **Leaders**: Apophis, Yu the Great, Sokar, Ba'al, Hathor
+- **Apophis Ability**: If the enemy stacks 4+ ships in Siege, he beams one onto your board
 - **Unlockable**: Ba'al (Clone), Cronus, Anubis, Kvasir
 
 #### **Jaffa** (Free Jaffa Nation) ⚔️
@@ -620,6 +627,8 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **Score Animations** - Pop effects with deltas
 - **Stargate Activation** - Blue portal when playing cards
 - **Weather Effects** - Animated hazards with row highlighting
+- **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
+- **Nebula Clouds** - Layered pink fog drifting through affected lanes
 - **Black Hole** - Wormhole Stabilization animation
 - **Particle Systems** - Fire, energy bursts
 - **Glow Animations** - Pulsing highlights
@@ -1005,17 +1014,32 @@ We ship a helper script that assembles a `.deb` for Debian/Ubuntu style systems.
 - `python3` and `python3-pygame` runtime packages
 - `dpkg-deb` (usually provided by the `dpkg` package)
 
-**Usage**
-```bash
-./build_deb.sh [VERSION]
-```
+**How to Build & Release a New Version**
 
-- Run from the project root.
-- Omitting `VERSION` reads the `VERSION` file (if present), otherwise the README badge, and finally falls back to the current date.
-- Packages are staged under `builds/staging/` and the final `.deb` lands in `builds/releases/stargwent_VERSION.deb`.
-- The installer now drops a desktop shortcut (`/usr/share/applications/stargwent.desktop`) and icon (`/usr/share/pixmaps/stargwent.png`) so the game shows up in launchers.
+1. **Edit the version badge** (line 7 of this README):
+   ```markdown
+   ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
+   ```
+   Replace `X.Y.Z` with your new version (e.g., `2.14.0`)
 
-The generated package installs the game to `/usr/share/stargwent` and drops a `stargwent` launcher into `/usr/bin`. After installation you can simply run `stargwent`, or execute `python3 main.py` inside the install directory if you need custom options.
+2. **Build the package** (automatically reads version from README badge):
+   ```bash
+   ./build_deb.sh
+   ```
+   The `.deb` will be created at `builds/releases/stargwent_X.Y.Z.deb`
+
+3. **Commit and push**:
+   ```bash
+   git add -A
+   git commit -m "Update to version X.Y.Z - [description]"
+   git push origin main
+   ```
+
+**Note:** The version badge in this README is the **single source of truth**. The build script automatically reads it, so you only need to update one place.
+
+**Advanced:** You can override the version by passing it directly: `./build_deb.sh 2.14.0`
+
+The generated package installs to `/usr/share/stargwent` with a `stargwent` launcher in `/usr/bin`, desktop shortcut (`/usr/share/applications/stargwent.desktop`), and icon (`/usr/share/pixmaps/stargwent.png`).
 
 ## 📝 License & Credits
 
@@ -1169,5 +1193,5 @@ Suggestions and feedback welcome!
 
 Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
 
-*v2.13.0 - Goa'uld Ring Transportation: Close combat retrieval every round!*
+*v2.15.0 - Apophis raids siege rows; targeted weather & discard panel refinements!*
 *Click RINGS, select a close combat unit - watch golden rings return it to hand!*
