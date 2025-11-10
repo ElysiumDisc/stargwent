@@ -167,12 +167,9 @@ def draw_card(surface, card, x, y, selected=False, hover_scale=1.0):
     # Draw the card's actual image
     surface.blit(scaled_image, card.rect)
 
-    # Add a highlight for selected card
+    # Add a highlight for selected cards only; keep hover zoom borderless
     if selected:
         pygame.draw.rect(surface, (255, 255, 0), card.rect, width=3, border_radius=5)
-    else:
-        # Keep a thin border around the image
-        pygame.draw.rect(surface, WHITE, card.rect, width=1, border_radius=5)
 
     # Draw card power (bottom center - only for unit cards)
     if card.row not in ["special", "weather"]:
@@ -844,9 +841,9 @@ def draw_leader_inspection_overlay(surface, player, screen_width, screen_height)
     if not player.leader:
         return
     
-    # Semi-transparent background
+    # Keep battlefield visible during leader inspection
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 220))
+    overlay.fill((0, 0, 0, 0))
     surface.blit(overlay, (0, 0))
     
     # Large leader portrait display
@@ -1084,10 +1081,10 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
     return card_rects
 
 def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
-    """Draw full-screen card inspection overlay when spacebar is pressed."""
-    # Semi-transparent background
+    """Draw full-screen card inspection overlay when spacebar/right-click is pressed."""
+    # Keep gameplay view visible while inspecting a card
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 220))
+    overlay.fill((0, 0, 0, 0))
     surface.blit(overlay, (0, 0))
     
     # Large card display
@@ -1445,17 +1442,12 @@ def main():
     ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
     
     # Initialize UI button positions (NEW LAYOUT - Bottom aligned, scaled)
-    # DHD Pass Button - Positioned dynamically within the hand area
+    # DHD Pass Button - anchor to bottom-right corner with slim padding
     DHD_SIZE = int(100 * SCALE_FACTOR)  # DHD is circular, scaled
-    
-    # Calculate Y to vertically center the button in the new hand area
-    hand_area_top = SCREEN_HEIGHT - HAND_Y_OFFSET
-    button_y_center = hand_area_top + (HAND_Y_OFFSET // 2)
-    button_y_top = button_y_center - (DHD_SIZE // 2)
-
+    button_margin = int(20 * SCALE_FACTOR)
     PASS_BUTTON_RECT = pygame.Rect(
-        int(350 * SCALE_FACTOR),  # X position remains the same
-        button_y_top,             # New dynamic Y position
+        SCREEN_WIDTH - DHD_SIZE - button_margin,
+        SCREEN_HEIGHT - DHD_SIZE - button_margin,
         DHD_SIZE,
         DHD_SIZE
     )
