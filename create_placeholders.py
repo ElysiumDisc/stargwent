@@ -756,13 +756,7 @@ def main():
             pygame.image.save(ship_surface, ship_path)
             print(f"  - {ship_path}")
         
-        # Create a couple variations
-        for variant in ["light", "heavy"]:
-            ship_surface = create_ship_placeholder(faction_name, variant)
-            ship_path = os.path.join(ships_dir, f"{faction_id.lower().replace(' ', '_')}_{variant}.png")
-            if should_create_file(ship_path):
-                pygame.image.save(ship_surface, ship_path)
-                print(f"  - {ship_path}")
+        # Skip creating light/heavy variants; only the base faction ship is generated
     
     print("\nGenerating leader portraits...")
     # Leader IDs for each faction (base + ALL unlockable)
