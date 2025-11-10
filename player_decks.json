@@ -1,0 +1,22 @@
+{
+  "Tau'ri": {
+    "leader": "tauri_oneill",
+    "cards": []
+  },
+  "Goa'uld": {
+    "leader": "goauld_apophis",
+    "cards": []
+  },
+  "Jaffa Rebellion": {
+    "leader": "jaffa_tealc",
+    "cards": []
+  },
+  "Lucian Alliance": {
+    "leader": "lucian_vulkar",
+    "cards": []
+  },
+  "Asgard": {
+    "leader": "asgard_freyr",
+    "cards": []
+  }
+}
