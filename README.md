@@ -7,7 +7,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
 ![Version](https://img.shields.io/badge/version-2.15.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
-![Pygame](https://img.shields.io/badge/pygame-2.6+-red)
+![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
 ![Status](https://img.shields.io/badge/status-Complete-brightgreen)
 
@@ -1055,7 +1055,7 @@ The generated package installs to `/usr/share/stargwent` with a `stargwent` laun
 - Future: Replace with commissioned art or community art
 
 ### Development
-- Built with **Python 3.8+** and **Pygame 2.6+**
+- Built with **Python 3.8+** and **Pygame CE 2.5.6+**
 - Inspired by The Witcher 3: Wild Hunt's Gwent
 - Animation system designed for extensibility
 - 90% complete, active development
@@ -1070,7 +1070,7 @@ The generated package installs to `/usr/share/stargwent` with a `stargwent` laun
 ### Special Thanks
 - CD Projekt Red for Gwent game design
 - MGM for Stargate SG-1 universe
-- Pygame community for documentation
+- Pygame CE community for documentation
 - Contributors and playtesters
 
 ---
