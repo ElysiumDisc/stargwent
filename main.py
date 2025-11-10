@@ -5,7 +5,7 @@ import random
 from game import Game
 from cards import ALL_CARDS, reload_card_images
 from ai_opponent import AIController
-from animations import AnimationManager, StargateActivationEffect, GlowAnimation, CardSlideAnimation, ScorchEffect, create_hero_animation, create_ability_animation
+from animations import AnimationManager, StargateActivationEffect, GlowAnimation, CardSlideAnimation, ScorchEffect, AICardPlayAnimation, CardStealAnimation, create_hero_animation, create_ability_animation
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
@@ -296,6 +296,18 @@ def draw_opponent_hand(surface, opponent):
                         (card_x, hand_y, CARD_WIDTH, CARD_HEIGHT), 
                         2, border_radius=8)
 
+def get_opponent_hand_card_center(total_cards, index):
+    """Return the screen center position of an opponent hand slot by index."""
+    hand_y = 10
+    if total_cards <= 0:
+        return (SCREEN_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
+    card_spacing = int(CARD_WIDTH * 0.125)
+    total_width = total_cards * CARD_WIDTH + (total_cards - 1) * card_spacing
+    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 20
+    safe_index = max(0, min(index if index is not None else 0, total_cards - 1))
+    card_x = start_x + safe_index * (CARD_WIDTH + card_spacing)
+    return (card_x + CARD_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
+
 def draw_board(surface, game, selected_card, dragging_card=None):
     """Draws the game board and the cards on it."""
     # Highlight valid target rows with semi-transparent fill and border
@@ -354,10 +366,12 @@ def draw_board(surface, game, selected_card, dragging_card=None):
             
             for i, card in enumerate(cards_in_row):
                 x = start_x + i * (CARD_WIDTH + card_spacing)
-                
+
                 # Use the offset to center the card vertically in its lane
                 card_draw_y = row_rect.top + card_y_offset
                 card.rect.topleft = (x, card_draw_y)
+                if getattr(card, "in_transit", False):
+                    continue
                 draw_card(surface, card, x, card_draw_y)
     
     # Draw weather cards on the right side of affected rows
@@ -781,15 +795,26 @@ def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=Fa
 def draw_card_counters(surface, player, x, y, is_player=True):
     """Draw deck/hand/discard pile counters on the right side."""
     small_font = pygame.font.SysFont("Arial", 20)
-    
-    # Vertical layout on the right
+
+    panel_width = 170
+    panel_height = 100
+    panel_rect = pygame.Rect(x, y, panel_width, panel_height)
+    pygame.draw.rect(surface, (15, 25, 45), panel_rect, border_radius=10)
+    pygame.draw.rect(surface, (60, 90, 140), panel_rect, width=2, border_radius=10)
+
     hand_text = small_font.render(f"Hand: {len(player.hand)}", True, (255, 255, 255))
     deck_text = small_font.render(f"Draw: {len(player.deck)}", True, (255, 255, 255))
-    discard_text = small_font.render(f"Discard: {len(player.discard_pile)}", True, (255, 255, 255))
-    
-    surface.blit(hand_text, (x, y))
-    surface.blit(deck_text, (x, y + 25))
-    surface.blit(discard_text, (x, y + 50))
+    discard_text = small_font.render(f"Discard: {len(player.discard_pile)}", True, (230, 255, 255))
+
+    surface.blit(hand_text, (x + 12, y + 12))
+    surface.blit(deck_text, (x + 12, y + 36))
+
+    discard_rect = pygame.Rect(x + 10, y + 62, panel_width - 20, 26)
+    pygame.draw.rect(surface, (30, 60, 100), discard_rect, border_radius=6)
+    pygame.draw.rect(surface, (90, 130, 185), discard_rect, width=2, border_radius=6)
+    surface.blit(discard_text, (discard_rect.x + 8, discard_rect.y + 4))
+
+    return discard_rect if is_player else None
 
 def draw_leader_portrait(surface, player, x, y, width=100, height=150):
     """Draw leader portrait card and return its rect for click detection."""
@@ -1556,7 +1581,7 @@ def main():
     # Discard pile viewer
     viewing_discard = False  # True when viewing discard pile
     discard_scroll = 0  # Scroll offset for discard viewer
-    discard_rect = pygame.Rect(SCREEN_WIDTH - 150, 50, 120, 40)  # Clickable discard pile area
+    discard_rect = None  # Assigned during draw phase
     
     # Leader ability selection modes
     jonas_peek_active = False  # Jonas Quinn: Showing opponent's next card
@@ -1589,6 +1614,7 @@ def main():
     ai_turn_in_progress = False
     ai_card_to_play = None
     ai_row_to_play = None
+    ai_selected_card_index = None
 
     running = True
     fullscreen = FULLSCREEN
@@ -1656,18 +1682,17 @@ def main():
             # Add new weather effects for affected rows
             for row_name, is_active in game.weather_active.items():
                 if is_active:
-                    # Determine which rect to use (player + opponent rows)
-                    player_row_rect = PLAYER_ROW_RECTS.get(row_name)
-                    opponent_row_rect = OPPONENT_ROW_RECTS.get(row_name)
-                    
-                    # Get weather type from game state
+                    target_flag = game.weather_row_targets.get(row_name)
                     weather_type = game.current_weather_types.get(row_name, "Ice Storm")
                     
-                    # Add effect to both player and opponent rows
-                    if player_row_rect:
-                        anim_manager.add_row_weather(weather_type, player_row_rect, SCREEN_WIDTH)
-                    if opponent_row_rect:
-                        anim_manager.add_row_weather(weather_type, opponent_row_rect, SCREEN_WIDTH)
+                    if target_flag in ("player1", "both"):
+                        player_row_rect = PLAYER_ROW_RECTS.get(row_name)
+                        if player_row_rect:
+                            anim_manager.add_row_weather(weather_type, player_row_rect, SCREEN_WIDTH)
+                    if target_flag in ("player2", "both"):
+                        opponent_row_rect = OPPONENT_ROW_RECTS.get(row_name)
+                        if opponent_row_rect:
+                            anim_manager.add_row_weather(weather_type, opponent_row_rect, SCREEN_WIDTH)
             
             # Handle Clear Weather - show it on all rows for the black hole effect
             if any(game.current_weather_types.get(row) == "Wormhole Stabilization" for row in ["close", "ranged", "siege"]):
@@ -1677,7 +1702,33 @@ def main():
                     anim_manager.add_row_weather("Wormhole Stabilization", middle_row_rect, SCREEN_WIDTH)
             
             previous_weather = game.weather_active.copy()
-        
+
+        # Apophis leader ability - steal ship if conditions met
+        if game.game_state == "playing" and not game.current_player.has_passed:
+            steal_result = game.try_apophis_ship_steal(game.current_player)
+            if steal_result:
+                row_name, stolen_card, start_pos = steal_result
+                ambient_effects.transfer_ship_to_player(stolen_card.name)
+                opponent_rects = OPPONENT_ROW_RECTS if game.current_player == game.player1 else PLAYER_ROW_RECTS
+                if start_pos:
+                    start_center = start_pos
+                else:
+                    start_rect = opponent_rects.get(row_name)
+                    start_center = start_rect.center if start_rect else (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3)
+                target_rects = PLAYER_ROW_RECTS if game.current_player == game.player1 else OPPONENT_ROW_RECTS
+                row_rect = target_rects.get(row_name)
+                end_center = row_rect.center if row_rect else (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+
+                def finish_transfer():
+                    stolen_card.in_transit = False
+
+                if getattr(stolen_card, "image", None):
+                    anim_manager.add_effect(
+                        CardStealAnimation(stolen_card.image, start_center, end_center, on_complete=finish_transfer)
+                    )
+                else:
+                    finish_transfer()
+
         # Update animations
         anim_manager.update(dt)
         ambient_effects.update(dt)
@@ -1759,12 +1810,6 @@ def main():
                                 game.player1.calculate_score()
                                 game.player2.calculate_score()
                 
-                # D key to view discard pile
-                elif event.key == pygame.K_d:
-                    if game.game_state == "playing":
-                        viewing_discard = not viewing_discard
-                        discard_scroll = 0
-                
                 # Game over screen - R to restart
                 if game.game_state == "game_over":
                     if event.key == pygame.K_r:
@@ -1814,7 +1859,7 @@ def main():
                     continue
                 
                 # Click discard pile to view it
-                if discard_rect.collidepoint(event.pos) and not viewing_discard:
+                if discard_rect and discard_rect.collidepoint(event.pos) and not viewing_discard:
                     viewing_discard = True
                     discard_scroll = 0
                 
@@ -2027,23 +2072,32 @@ def main():
                     
                     # Weather and special cards can target any row
                     if dragging_card.row in ["weather", "special"]:
-                        # Check both player and opponent rows
-                        all_rows = {**PLAYER_ROW_RECTS, **OPPONENT_ROW_RECTS}
-                        for row_name, rect in all_rows.items():
-                            if rect.collidepoint(event.pos):
-                                # Weather/Special cards - determine which player's row was clicked
-                                is_opponent_row = rect in OPPONENT_ROW_RECTS.values()
-                                
-                                # Play the card (special cards handle their own logic)
-                                game.play_card(dragging_card, row_name)
-                                played = True
-                                
-                                # Stargate activation effect
-                                effect_x = rect.centerx
-                                effect_y = rect.centery
-                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
-                                anim_manager.add_effect(stargate_effect)
-                                break
+                        if dragging_card.row == "weather":
+                            # Weather cards target the opponent's lanes only
+                            target_rows = OPPONENT_ROW_RECTS if game.current_player == game.player1 else PLAYER_ROW_RECTS
+                            for row_name, rect in target_rows.items():
+                                if rect.collidepoint(event.pos):
+                                    game.play_card(dragging_card, row_name, target_side="opponent")
+                                    played = True
+                                    
+                                    effect_x = rect.centerx
+                                    effect_y = rect.centery
+                                    stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
+                                    anim_manager.add_effect(stargate_effect)
+                                    break
+                        else:
+                            # Special cards can target any row
+                            all_rows = {**PLAYER_ROW_RECTS, **OPPONENT_ROW_RECTS}
+                            for row_name, rect in all_rows.items():
+                                if rect.collidepoint(event.pos):
+                                    game.play_card(dragging_card, row_name)
+                                    played = True
+                                    
+                                    effect_x = rect.centerx
+                                    effect_y = rect.centery
+                                    stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
+                                    anim_manager.add_effect(stargate_effect)
+                                    break
                     else:
                         # Regular unit cards
                         target_rows = OPPONENT_ROW_RECTS if is_spy else PLAYER_ROW_RECTS
@@ -2173,12 +2227,15 @@ def main():
                     # Find card index in hand for animation
                     try:
                         card_index = game.player2.hand.index(card_to_play)
+                        ai_selected_card_index = card_index
                         ai_turn_anim.start_selecting(card_index)
                     except ValueError:
                         # Card not in hand, skip animation
+                        ai_selected_card_index = None
                         ai_turn_anim.finish()
                         ai_turn_in_progress = False
                 else:
+                    ai_selected_card_index = None
                     # AI passes or uses power
                     ai_turn_anim.finish()
                     game.switch_turn()
@@ -2186,12 +2243,25 @@ def main():
             
             elif ai_result == "selecting_done":
                 # Start playing animation
+                if ai_card_to_play and ai_row_to_play:
+                    total_cards = len(game.player2.hand)
+                    start_center = get_opponent_hand_card_center(total_cards, ai_selected_card_index)
+                    ability = ai_card_to_play.ability or ""
+                    target_rects = PLAYER_ROW_RECTS if ("Deep Cover Agent" in ability or ai_card_to_play.row == "weather") else OPPONENT_ROW_RECTS
+                    target_rect = target_rects.get(ai_row_to_play)
+                    if not target_rect:
+                        # Fallback to any matching row rect
+                        target_rect = PLAYER_ROW_RECTS.get(ai_row_to_play) or OPPONENT_ROW_RECTS.get(ai_row_to_play)
+                    end_center = (target_rect.centerx, target_rect.centery) if target_rect else (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                    if ai_card_to_play.image:
+                        anim_manager.add_effect(AICardPlayAnimation(ai_card_to_play.image, start_center, end_center))
                 ai_turn_anim.start_playing(ai_row_to_play)
             
             elif ai_result == "playing_done":
                 # Actually play the card
                 if ai_card_to_play and ai_row_to_play:
                     game.play_card(ai_card_to_play, ai_row_to_play)
+                    ai_selected_card_index = None
                     
                     # Check if AI played a siege card for space battle
                     if ai_row_to_play == 'siege':
@@ -2214,6 +2284,7 @@ def main():
                 ai_turn_anim.finish()
                 game.switch_turn()
                 ai_turn_in_progress = False
+                ai_selected_card_index = None
         
         # Check for score changes and trigger animations
         if game.player1.score != prev_p1_score:
@@ -2423,10 +2494,10 @@ def main():
                                    ability_box_width, ability_box_height, is_opponent=False)
             
             # Card counters - right side, vertical
-            counter_x = SCREEN_WIDTH - 120
-            counter_y_player = SCREEN_HEIGHT - 150
-            counter_y_opponent = 200
-            draw_card_counters(screen, game.player1, counter_x, counter_y_player, is_player=True)
+            counter_x = SCREEN_WIDTH - 260
+            counter_y_player = SCREEN_HEIGHT - HAND_Y_OFFSET - 190
+            counter_y_opponent = 70
+            discard_rect = draw_card_counters(screen, game.player1, counter_x, counter_y_player, is_player=True)
             draw_card_counters(screen, game.player2, counter_x, counter_y_opponent, is_player=False)
         
         # Draw animations and effects on top of everything

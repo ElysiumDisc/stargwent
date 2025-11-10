@@ -142,7 +142,9 @@ class AIStrategy:
         for card in self.ai_player.hand:
             # Get valid rows for this card
             if card.row == "weather":
-                plays.append((card, "weather", self.evaluate_weather_play(card, context)))
+                weather_options = self.evaluate_weather_play(card, context)
+                for row_option, row_score in weather_options:
+                    plays.append((card, row_option, row_score))
             elif card.row == "special":
                 plays.append((card, "close", self.evaluate_special_play(card, context)))
             else:
@@ -256,9 +258,9 @@ class AIStrategy:
         
         return score
     
-    def evaluate_weather_play(self, card, context: dict) -> float:
-        """Evaluate playing a weather card."""
-        score = 0.0
+    def evaluate_weather_play(self, card, context: dict):
+        """Evaluate playing a weather card. Returns list of (row, score)."""
+        results = []
         ability = card.ability or ""
         
         if "Wormhole Stabilization" in ability:
@@ -266,20 +268,26 @@ class AIStrategy:
             our_weather_damage = self.calculate_weather_damage(self.ai_player)
             opp_weather_damage = self.calculate_weather_damage(self.opponent)
             if our_weather_damage > opp_weather_damage:
-                score += (our_weather_damage - opp_weather_damage) * 2
+                score = (our_weather_damage - opp_weather_damage) * 2
+            else:
+                score = -2  # Mild penalty if not needed
+            results.append(("close", score))
         else:
             # Offensive weather
-            # Compare non-hero power in target row
-            target_row = self.get_weather_target_row(ability)
-            if target_row:
-                our_power = self.count_non_hero_power(self.ai_player, target_row)
+            target_rows = self.get_weather_target_rows(ability)
+            if not target_rows and "Electromagnetic Pulse" in ability:
+                target_rows = ["close", "ranged", "siege"]
+            for target_row in target_rows:
                 opp_power = self.count_non_hero_power(self.opponent, target_row)
                 
-                damage_diff = opp_power - our_power
-                if damage_diff > 5:  # Only if it hurts opponent more
-                    score += damage_diff * 1.5
+                damage_diff = opp_power
+                if damage_diff > 5:  # Only if it hurts opponent meaningfully
+                    score = damage_diff * 1.5
+                else:
+                    score = damage_diff - 5  # Slight penalty to discourage poor plays
+                results.append((target_row, score))
         
-        return score
+        return results if results else [("close", -5.0)]
     
     def evaluate_special_play(self, card, context: dict) -> float:
         """Evaluate playing a special card."""
@@ -316,15 +324,15 @@ class AIStrategy:
             return [card.row]
         return []
     
-    def get_weather_target_row(self, ability: str) -> Optional[str]:
-        """Get which row a weather card affects."""
+    def get_weather_target_rows(self, ability: str) -> List[str]:
+        """Get which rows a weather card affects."""
         if "Ice Planet Hazard" in ability:
-            return "close"
+            return ["close"]
         elif "Nebula Interference" in ability:
-            return "ranged"
+            return ["ranged"]
         elif "Asteroid Storm" in ability:
-            return "siege"
-        return None
+            return ["siege"]
+        return []
     
     def calculate_weather_damage(self, player) -> int:
         """Calculate how much weather is hurting a player."""

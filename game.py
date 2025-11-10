@@ -561,13 +561,27 @@ class Game:
         self.game_state = "mulligan"  # Start with mulligan phase
         self.weather_active = {"close": False, "ranged": False, "siege": False}
         self.current_weather_types = {"close": None, "ranged": None, "siege": None}  # Track weather type per row
+        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}  # Which player's lane is affected
         self.weather_cards_on_board = []  # Keep weather cards visible on board
         self.winner = None
         self.round_winner = None  # Track who won last round for missions
         
         # Leader ability tracking
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
-        self.apophis_weather_immunity_used = {self.player1: False, self.player2: False}
+        self.apophis_ship_steal_used = {self.player1: False, self.player2: False}
+
+    def discard_active_weather_cards(self):
+        """Move any weather cards sitting on the board into their owners' discard piles."""
+        if not self.weather_cards_on_board:
+            return
+        for entry in self.weather_cards_on_board:
+            if isinstance(entry, tuple):
+                card, owner = entry
+            else:
+                card = entry
+                owner = self.player1
+            owner.discard_pile.append(card)
+        self.weather_cards_on_board = []
 
     def start_game(self):
         """Starts the game, deals initial hands."""
@@ -613,7 +627,7 @@ class Game:
         if self.current_player.has_passed:
             self.switch_turn() # Skip player if they have passed
 
-    def play_card(self, card, row_name):
+    def play_card(self, card, row_name, target_side=None):
         """Plays a card from the current player's hand to the board."""
         if self.current_player.has_passed:
             return # Passed players can't play cards
@@ -646,7 +660,7 @@ class Game:
             # Handle weather cards
             if card.row == "weather":
                 self.current_player.weather_cards_played += 1
-                self.apply_weather_effect(card)
+                self.apply_weather_effect(card, row_name, target_side or "opponent")
                 # Keep weather card visible on board instead of discarding
                 self.weather_cards_on_board.append((card, self.current_player))
                 self.player1.calculate_score()
@@ -913,7 +927,7 @@ class Game:
         """Get list of valid cards that can be revived by medic."""
         return [c for c in player.discard_pile if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]]
     
-    def apply_weather_effect(self, card):
+    def apply_weather_effect(self, card, target_row=None, target_side="opponent"):
         """Applies weather effects to rows."""
         ability = card.ability or ""
 
@@ -925,8 +939,10 @@ class Game:
 
         if "Wormhole Stabilization" in ability:
             # Clears all weather
+            self.discard_active_weather_cards()
             self.weather_active = {"close": False, "ranged": False, "siege": False}
             self.current_weather_types = {"close": "Wormhole Stabilization", "ranged": "Wormhole Stabilization", "siege": "Wormhole Stabilization"}
+            self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
             for p in [self.player1, self.player2]:
                 p.weather_effects = {"close": False, "ranged": False, "siege": False}
             return
@@ -938,34 +954,50 @@ class Game:
                 if faction_ability.can_block_weather():
                     return
 
-        # Track Apophis one-sided weather protection
-        apophis_protection = set()
-        if "Wormhole Stabilization" not in ability:
-            for player in [self.player1, self.player2]:
-                if has_leader(player, "Apophis") and not self.apophis_weather_immunity_used[player]:
-                    self.apophis_weather_immunity_used[player] = True
-                    apophis_protection.add(player)
-
         # Freyr leader: completely immune to weather
         freyr_owner = next((p for p in [self.player1, self.player2] if has_leader(p, "Freyr")), None)
 
         # Hermiod leader: weather affects only the opponent
         hermiod_targets_opponent_only = has_leader(acting_player, "Hermiod")
 
-        def apply_row_weather(row_key, weather_type):
+        def apply_row_weather(row_key, weather_type, forced_side=None):
             self.weather_active[row_key] = True
             self.current_weather_types[row_key] = weather_type
             for target in [self.player1, self.player2]:
                 target.weather_effects[row_key] = False
-            targets = [self.player1, self.player2]
+
+            side_to_affect = forced_side or target_side or "opponent"
+            if side_to_affect == "self":
+                desired_targets = [acting_player]
+            elif side_to_affect == "both":
+                desired_targets = [acting_player, opponent]
+            else:
+                desired_targets = [opponent]
+
             if hermiod_targets_opponent_only:
-                targets = [opponent]
-            for target in targets:
+                desired_targets = [opponent]
+
+            actual_targets = []
+            for target in desired_targets:
                 if target == freyr_owner:
                     continue
-                if target in apophis_protection:
-                    continue
                 target.weather_effects[row_key] = True
+                actual_targets.append(target)
+
+            if not actual_targets:
+                self.weather_active[row_key] = False
+                self.current_weather_types[row_key] = None
+                self.weather_row_targets[row_key] = None
+                return
+
+            affects_player1 = any(t == self.player1 for t in actual_targets)
+            affects_player2 = any(t == self.player2 for t in actual_targets)
+            if affects_player1 and affects_player2:
+                self.weather_row_targets[row_key] = "both"
+            elif affects_player1:
+                self.weather_row_targets[row_key] = "player1"
+            else:
+                self.weather_row_targets[row_key] = "player2"
 
         if "Ice Planet Hazard" in ability:
             apply_row_weather("close", "Ice Planet Hazard")
@@ -974,9 +1006,36 @@ class Game:
         elif "Asteroid Storm" in ability:
             apply_row_weather("siege", "Asteroid Storm")
         elif "Electromagnetic Pulse" in ability:
-            for row_key in ["close", "ranged", "siege"]:
-                apply_row_weather(row_key, "Electromagnetic Pulse")
-    
+            row_key = target_row if target_row in ["close", "ranged", "siege"] else "close"
+            apply_row_weather(row_key, "Electromagnetic Pulse")
+
+    def try_apophis_ship_steal(self, acting_player):
+        """Apophis leader ability: steal one random siege unit if opponent has >3 ships."""
+        leader_name = acting_player.leader.get('name', '') if acting_player.leader else ''
+        if "Apophis" not in leader_name:
+            return None
+        if self.apophis_ship_steal_used.get(acting_player, False):
+            return None
+
+        opponent = self.player2 if acting_player == self.player1 else self.player1
+        opponent_ships = opponent.board.get("siege", [])
+        if len(opponent_ships) <= 3:
+            return None
+
+        stolen_card = random.choice(opponent_ships)
+        start_pos = None
+        if hasattr(stolen_card, "rect") and stolen_card.rect:
+            start_pos = stolen_card.rect.center
+        stolen_card.in_transit = True
+        opponent.board["siege"].remove(stolen_card)
+        acting_player.board["siege"].append(stolen_card)
+        self.apophis_ship_steal_used[acting_player] = True
+
+        # Recalculate scores after the transfer
+        self.player1.calculate_score()
+        self.player2.calculate_score()
+        return ("siege", stolen_card, start_pos)
+
     def apply_special_effect(self, card, row_name):
         """Applies special card effects."""
         ability = card.ability or ""
@@ -1126,11 +1185,11 @@ class Game:
                 if self.round_number >= 2:  # Rounds 2 and 3
                     self.apply_scorch()  # Trigger scorch effect
 
-        self.round_number += 1
+        self.round_number = min(self.round_number + 1, 3)
         
         # Reset leader ability tracking for new round
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
-        self.apophis_weather_immunity_used = {self.player1: False, self.player2: False}
+        self.apophis_ship_steal_used = {self.player1: False, self.player2: False}
 
         # Check for game over (first to 2 round wins)
         if self.player1.rounds_won >= 2:
@@ -1171,15 +1230,9 @@ class Game:
             p.calculate_score()
         
         # Clear weather cards from board and move to discard
-        for weather_entry in self.weather_cards_on_board:
-            if isinstance(weather_entry, tuple):
-                weather_card, owner = weather_entry
-            else:
-                weather_card = weather_entry
-                owner = self.player1
-            owner.discard_pile.append(weather_card)
-        self.weather_cards_on_board = []
+        self.discard_active_weather_cards()
         self.weather_active = {"close": False, "ranged": False, "siege": False}
+        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
         self.current_weather_types = {"close": None, "ranged": None, "siege": None}
         
         # Draw cards for new round
@@ -1246,6 +1299,7 @@ class Game:
         
         # Clear weather
         self.weather_active = {"close": False, "ranged": False, "siege": False}
+        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
         self.current_weather_types = {"close": None, "ranged": None, "siege": None}
         
         # Reset turn to player 1

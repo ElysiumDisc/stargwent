@@ -19,7 +19,7 @@ BASE_FACTION_LEADERS = {
         {"name": "Dr. Samantha Carter", "ability": "+2 power to all Siege units", "ability_desc": "+2 power to all Siege units", "card_id": "tauri_carter"},
     ],
     FACTION_GOAULD: [
-        {"name": "Apophis", "ability": "First weather card each round affects opponent only", "ability_desc": "The first space hazard each round only affects your opponent", "card_id": "goauld_apophis"},
+        {"name": "Apophis", "ability": "Seize a random enemy ship if they have 4+ in Siege", "ability_desc": "If the opponent has more than 3 siege ships, steal one at the start of your turn", "card_id": "goauld_apophis"},
         {"name": "Lord Yu", "ability": "See opponent's hand when you pass", "ability_desc": "Reveal opponent's hand for 3 seconds when you pass", "card_id": "goauld_yu"},
         {"name": "Sokar", "ability": "+1 power to all Close Combat units", "ability_desc": "+1 power to all Close Combat units", "card_id": "goauld_sokar"},
     ],

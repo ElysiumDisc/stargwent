@@ -57,6 +57,75 @@ class CardSlideAnimation(Animation):
         return (self.current_x, self.current_y)
 
 
+class CardStealAnimation(Animation):
+    """Animates a stolen card flying from opponent to player."""
+    def __init__(self, card_image, start_pos, end_pos, duration=650, on_complete=None):
+        super().__init__(duration)
+        self.card_image = card_image.copy() if card_image else None
+        self.start_x, self.start_y = start_pos
+        self.end_x, self.end_y = end_pos
+        self.current_x = self.start_x
+        self.current_y = self.start_y
+        self.scale = 1.0
+        self.alpha = 255
+        self.on_complete = on_complete
+        self.trail = []
+    
+    def update(self, dt):
+        if not self.card_image:
+            if self.on_complete:
+                self.on_complete()
+                self.on_complete = None
+            return False
+        
+        active = super().update(dt)
+        progress = self.get_progress()
+        eased = 1 - math.pow(1 - progress, 3)
+        
+        arc = math.sin(progress * math.pi) * -60
+        self.current_x = self.start_x + (self.end_x - self.start_x) * eased
+        self.current_y = self.start_y + (self.end_y - self.start_y) * eased + arc
+        self.scale = 1.05
+        self.alpha = int(255 * (1 - progress * 0.2))
+        
+        self.trail.append({
+            'x': self.current_x,
+            'y': self.current_y,
+            'alpha': self.alpha,
+            'age': 0
+        })
+        for particle in self.trail[:]:
+            particle['age'] += dt
+            particle['alpha'] = max(0, particle['alpha'] - dt * 0.4)
+            if particle['alpha'] <= 0:
+                self.trail.remove(particle)
+        
+        if self.finished and self.on_complete:
+            self.on_complete()
+            self.on_complete = None
+        return active
+    
+    def draw(self, surface):
+        if not self.card_image or self.finished:
+            return
+        
+        for particle in self.trail:
+            size = int(40 + particle['age'] * 0.02)
+            trail_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surf, (80, 200, 255, int(particle['alpha'] * 0.4)), (size//2, size//2), size//2)
+            surface.blit(trail_surf, (int(particle['x'] - size//2), int(particle['y'] - size//2)))
+        
+        width, height = self.card_image.get_size()
+        scaled_size = (
+            max(1, int(width * self.scale)),
+            max(1, int(height * self.scale))
+        )
+        scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
+        scaled_card.set_alpha(self.alpha)
+        rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
+        surface.blit(scaled_card, rect)
+
+
 class CardFlipAnimation(Animation):
     """Flips a card (scale effect)."""
     def __init__(self, duration=400):
@@ -197,6 +266,52 @@ class StargateActivationEffect:
         self.particles.draw(surface)
 
 
+class AICardPlayAnimation(Animation):
+    """Floating AI card animation that moves from hand to target row."""
+    def __init__(self, card_image, start_pos, end_pos, duration=600):
+        super().__init__(duration)
+        self.card_image = card_image.copy() if card_image else None
+        self.start_x, self.start_y = start_pos
+        self.end_x, self.end_y = end_pos
+        self.current_x = self.start_x
+        self.current_y = self.start_y
+        self.scale = 1.0
+        self.alpha = 255
+    
+    def ease_out_cubic(self, t):
+        return 1 - pow(1 - t, 3)
+    
+    def update(self, dt):
+        if not self.card_image:
+            return False
+        active = super().update(dt)
+        progress = self.get_progress()
+        eased = self.ease_out_cubic(progress)
+        
+        # Smooth travel with slight arc dip
+        arc_offset = math.sin(eased * math.pi) * -30  # Gentle float-down arc
+        self.current_x = self.start_x + (self.end_x - self.start_x) * eased
+        self.current_y = self.start_y + (self.end_y - self.start_y) * eased + arc_offset
+        
+        # Gentle scale/alpha pulses
+        self.scale = 0.95 + 0.1 * math.sin(progress * math.pi)
+        self.alpha = int(255 * (0.9 + 0.1 * (1 - progress)))
+        return active
+    
+    def draw(self, surface):
+        if not self.card_image or self.finished:
+            return
+        width, height = self.card_image.get_size()
+        scaled_size = (
+            max(1, int(width * self.scale)),
+            max(1, int(height * self.scale))
+        )
+        scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
+        scaled_card.set_alpha(self.alpha)
+        rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
+        surface.blit(scaled_card, rect)
+
+
 class ScorchEffect:
     """Fire effect for Naquadah Overload ability."""
     def __init__(self, x, y, duration=800):
@@ -306,17 +421,21 @@ class RowWeatherEffect:
                 })
         
         elif 'Nebula' in self.weather_type or 'Fog' in self.weather_type.lower():
-            # Nebula/Fog - Slow drifting clouds
-            for _ in range(25):
+            # Nebula/Fog - Smoky pink clouds drifting across the lane
+            cloud_count = max(30, row_width // 50)
+            for _ in range(cloud_count):
                 self.particles.append({
                     'pos': pygame.math.Vector2(
-                        row_x + random.randint(0, row_width),
-                        row_y + random.randint(0, row_height)
+                        row_x + random.uniform(0, row_width),
+                        row_y + random.uniform(0, row_height)
                     ),
-                    'vel': pygame.math.Vector2(random.uniform(0.2, 0.8), random.uniform(-0.1, 0.3)),
-                    'size': random.randint(15, 30),
-                    'color': (150, 100, 180),  # Purple nebula
-                    'alpha': random.randint(30, 60)
+                    'vel': pygame.math.Vector2(random.uniform(-0.2, 0.4), random.uniform(-0.05, 0.05)),
+                    'size': random.randint(18, 40),
+                    'color': (220, 130 + random.randint(-10, 10), 200 + random.randint(-20, 15)),  # Pinkish hue
+                    'alpha': random.randint(35, 70),
+                    'wobble': random.uniform(0, math.pi * 2),
+                    'wobble_speed': random.uniform(0.01, 0.04),
+                    'layer': random.uniform(0.4, 1.0)
                 })
         
         elif 'Solar' in self.weather_type:
@@ -334,6 +453,22 @@ class RowWeatherEffect:
                     'pulse': random.uniform(0, 6.28)
                 })
         
+        elif 'Pulse' in self.weather_type or 'Electromagnetic' in self.weather_type:
+            # Electromagnetic Pulse - floating charged particles
+            particle_count = max(40, row_width // 60)
+            for _ in range(particle_count):
+                self.particles.append({
+                    'pos': pygame.math.Vector2(
+                        row_x + random.uniform(0, row_width),
+                        row_y + random.uniform(0, row_height)
+                    ),
+                    'vel': pygame.math.Vector2(random.uniform(-0.4, 0.4), random.uniform(-0.2, 0.2)),
+                    'size': random.randint(2, 4),
+                    'color': (120, 255, 210),
+                    'base_alpha': random.randint(90, 150),
+                    'pulse_speed': random.uniform(0.06, 0.12),
+                    'pulse_phase': random.uniform(0, math.pi * 2)
+                })
         elif 'Asgard' in self.weather_type or 'Clear' in self.weather_type.lower() or 'Wormhole' in self.weather_type or 'Stabilization' in self.weather_type:
             # Wormhole Stabilization - Black hole vortex effect FROM CENTER OF BOARD
             # Use screen center instead of row center for dramatic effect
@@ -392,6 +527,17 @@ class RowWeatherEffect:
             if 'fade_rate' in particle:
                 particle['alpha'] = max(0, particle['alpha'] - particle['fade_rate'] * (dt / 16.0))
             
+            if 'pulse_speed' in particle:
+                particle['pulse_phase'] = particle.get('pulse_phase', 0) + particle['pulse_speed'] * (dt / 16.0)
+                base_alpha = particle.get('base_alpha', 120)
+                intensity = 0.5 + 0.5 * math.sin(particle['pulse_phase'])
+                particle['alpha'] = int(base_alpha * (0.6 + 0.4 * intensity))
+            
+            if 'wobble_speed' in particle:
+                particle['wobble'] = particle.get('wobble', 0) + particle['wobble_speed'] * (dt / 16.0)
+                particle['pos'].x += math.sin(particle['wobble']) * 0.5
+                particle['alpha'] = max(20, min(120, particle.get('alpha', 60) + math.sin(particle['wobble'] * 0.8) * 5))
+
             # Handle spiral/vortex for clear weather
             if 'spiral_speed' in particle:
                 # Calculate progress (0 to 1)
@@ -454,11 +600,30 @@ class RowWeatherEffect:
                 pulse_alpha = int(alpha * (0.7 + 0.3 * math.sin(particle['pulse'])))
                 alpha = pulse_alpha
             
+            if 'pulse_speed' in particle:
+                glow_radius = particle['size'] + 4
+                glow_surf = pygame.Surface((glow_radius*2, glow_radius*2), pygame.SRCALPHA)
+                inner_color = (*particle['color'], alpha)
+                outer_color = (particle['color'][0], particle['color'][1], particle['color'][2], alpha // 2)
+                pygame.draw.circle(glow_surf, outer_color, (glow_radius, glow_radius), glow_radius, width=0)
+                pygame.draw.circle(glow_surf, inner_color, (glow_radius, glow_radius), particle['size'])
+                surface.blit(glow_surf, (pos[0]-glow_radius, pos[1]-glow_radius))
+                continue
+            
             if 'Nebula' in self.weather_type or 'Fog' in self.weather_type.lower() or self.particles[0]['size'] > 10:
                 # Draw as semi-transparent circles for fog/nebula
                 fog_surf = pygame.Surface((particle['size']*2, particle['size']*2), pygame.SRCALPHA)
                 color = (*particle['color'], alpha)
                 pygame.draw.circle(fog_surf, color, (particle['size'], particle['size']), particle['size'])
+                if 'wobble_speed' in particle:
+                    inner_radius = max(4, int(particle['size'] * 0.6))
+                    inner_color = (
+                        min(255, particle['color'][0] + 30),
+                        min(255, particle['color'][1] + 20),
+                        min(255, particle['color'][2] + 30),
+                        alpha // 2
+                    )
+                    pygame.draw.circle(fog_surf, inner_color, (particle['size'], particle['size']), inner_radius)
                 surface.blit(fog_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
             else:
                 # Draw as small circles or lines
@@ -828,6 +993,7 @@ class BattleShip:
         self.shield_active = False
         self.shield_timer = 0
         self.rotation = 90 if is_player else 270  # Player ships point up (90°), enemy down (270°)
+        self.raw_image = None
         
         # Faction colors (for fallback and effects)
         self.colors = {
@@ -861,16 +1027,25 @@ class BattleShip:
             if os.path.exists(path):
                 try:
                     loaded_img = pygame.image.load(path).convert_alpha()
-                    # Scale to ship size (60x60)
-                    self.image = pygame.transform.scale(loaded_img, (self.size, self.size))
-                    # Rotate based on player side
-                    self.image = pygame.transform.rotate(self.image, self.rotation)
+                    scaled_image = pygame.transform.scale(loaded_img, (self.size, self.size))
+                    self.raw_image = scaled_image
+                    self.image = pygame.transform.rotate(self.raw_image, self.rotation)
                     return
                 except:
                     continue
-        
+    
         # No image found - will use placeholder triangle
+        self.raw_image = None
         self.image = None
+
+    def set_side(self, is_player):
+        """Switch ship to player/enemy side with correct orientation."""
+        if self.is_player == is_player:
+            return
+        self.is_player = is_player
+        self.rotation = 90 if is_player else 270
+        if self.raw_image:
+            self.image = pygame.transform.rotate(self.raw_image, self.rotation)
     
     def update(self, dt, screen_width, screen_height):
         """Update ship position and state."""
@@ -1132,6 +1307,21 @@ class SpaceBattle:
         for ship in self.enemy_ships:
             ship.draw(surface)
 
+    def transfer_ship_to_player(self, ship_name):
+        """Move a ship from enemy fleet to player fleet (used by Apophis ability)."""
+        if not self.round_active:
+            return False
+        for ship in self.enemy_ships:
+            if ship.ship_name == ship_name:
+                self.enemy_ships.remove(ship)
+                ship.set_side(True)
+                ship.y = random.randint(self.screen_height // 2 + 80, self.screen_height - 120)
+                ship.velocity_y = abs(ship.velocity_y)
+                self.player_ships.append(ship)
+                self.lasers = [(laser, target) for laser, target in self.lasers if target != ship]
+                return True
+        return False
+
 
 class AsteroidField:
     """Animated asteroids for round 3 - makes the battle feel more dangerous."""
@@ -1268,6 +1458,10 @@ class AmbientBackgroundEffects:
     def add_ship(self, faction, ship_name, is_player):
         """Add a ship to the space battle."""
         self.space_battle.add_ship(faction, ship_name, is_player)
+    
+    def transfer_ship_to_player(self, ship_name):
+        """Transfer a ship from enemy fleet to player fleet."""
+        self.space_battle.transfer_ship_to_player(ship_name)
     
     def start_round(self, round_number=None):
         """Start a new round of space battle."""
