@@ -145,8 +145,11 @@ DIVIDER_HEIGHT = int(SCREEN_HEIGHT * 0.015) # Thin divider between player/oppone
 TOTAL_BOARD_HEIGHT = (6 * ROW_HEIGHT) + DIVIDER_HEIGHT
 
 # 4. The player's hand area dynamically uses the remaining vertical space
-# Ensure it's at least 150px to accommodate cards
-HAND_Y_OFFSET = max(150, SCREEN_HEIGHT - TOTAL_BOARD_HEIGHT - TOP_UI_MARGIN)
+# Ensure it's large enough to accommodate cards + UI elements (faction power, leader, buttons)
+# Reserve minimum 25% of screen height for hand area, but at least 250px
+min_hand_height = max(250, int(SCREEN_HEIGHT * 0.25))
+calculated_hand_height = SCREEN_HEIGHT - TOTAL_BOARD_HEIGHT - TOP_UI_MARGIN
+HAND_Y_OFFSET = max(min_hand_height, calculated_hand_height)
 
 # 5. Define the Y positions for the top of each row sequentially
 opponent_siege_y = TOP_UI_MARGIN
@@ -864,6 +867,229 @@ def draw_mission_objective(surface, player, x, y):
     elif player.current_mission and player.current_mission.completed:
         completed_text = UI_FONT.render("Mission Completed!", True, (100, 255, 100))
         surface.blit(completed_text, (x, y))
+
+def show_round_winner_announcement(screen, game, screen_width, screen_height):
+    """Show cinematic announcement of who won the round with detailed scoreboard."""
+    # Get the round that just completed
+    completed_round = game.round_number - 1
+    
+    # Determine winner text
+    if game.round_winner == game.player1:
+        winner_text = f"YOU WIN ROUND {completed_round}!"
+        winner_color = (100, 255, 100)
+    elif game.round_winner == game.player2:
+        winner_text = f"OPPONENT WINS ROUND {completed_round}!"
+        winner_color = (255, 100, 100)
+    else:
+        winner_text = f"ROUND {completed_round} DRAW!"
+        winner_color = (255, 255, 100)
+    
+    # Get round history (who won each round so far)
+    # We need to track this - for now infer from rounds_won
+    round_results = []  # Will store who won each round
+    
+    # Reconstruct round results from current state
+    # This is a simplified version - ideally game.py should track round_history
+    p1_rounds = game.player1.rounds_won
+    p2_rounds = game.player2.rounds_won
+    total_rounds_played = completed_round
+    
+    # Build round results (this is an approximation)
+    for i in range(total_rounds_played):
+        if i == completed_round - 1:  # Current round just completed
+            if game.round_winner == game.player1:
+                round_results.append("p1")
+            elif game.round_winner == game.player2:
+                round_results.append("p2")
+            else:
+                round_results.append("draw")
+        else:
+            # For previous rounds, we have to guess based on total wins
+            # This is imperfect but works for display
+            round_results.append("unknown")
+    
+    # Fonts
+    title_font = pygame.font.SysFont("Arial", 72, bold=True)
+    score_font = pygame.font.SysFont("Arial", 48, bold=True)
+    round_font = pygame.font.SysFont("Arial", 36, bold=True)
+    label_font = pygame.font.SysFont("Arial", 32)
+    
+    clock = pygame.time.Clock()
+    duration = 3000  # 3 seconds
+    start_time = pygame.time.get_ticks()
+    
+    while pygame.time.get_ticks() - start_time < duration:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                    return  # Skip animation
+        
+        elapsed = pygame.time.get_ticks() - start_time
+        progress = elapsed / duration
+        
+        # Dark overlay
+        overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 220))
+        screen.blit(overlay, (0, 0))
+        
+        center_x = screen_width // 2
+        center_y = screen_height // 2
+        
+        # Main winner text - slide in from top
+        text_alpha = min(255, int(255 * progress * 2))
+        text_y_offset = int((1 - min(1, progress * 1.5)) * -100)
+        
+        winner_surface = title_font.render(winner_text, True, winner_color)
+        winner_surface.set_alpha(text_alpha)
+        winner_rect = winner_surface.get_rect(center=(center_x, 120 + text_y_offset))
+        screen.blit(winner_surface, winner_rect)
+        
+        # Scoreboard - fade in after title
+        if progress > 0.3:
+            board_alpha = min(255, int(255 * (progress - 0.3) * 2.5))
+            
+            # Scoreboard box
+            board_width = 700
+            board_height = 350
+            board_x = center_x - board_width // 2
+            board_y = center_y - 50
+            
+            board_surf = pygame.Surface((board_width, board_height), pygame.SRCALPHA)
+            board_surf.fill((20, 30, 50, 240))
+            pygame.draw.rect(board_surf, (255, 215, 0), board_surf.get_rect(), width=4, border_radius=15)
+            board_surf.set_alpha(board_alpha)
+            screen.blit(board_surf, (board_x, board_y))
+            
+            # Draw scoreboard content
+            y_offset = board_y + 30
+            
+            # Title
+            scoreboard_title = label_font.render("SCOREBOARD", True, (255, 215, 0))
+            scoreboard_title.set_alpha(board_alpha)
+            title_rect = scoreboard_title.get_rect(center=(center_x, y_offset))
+            screen.blit(scoreboard_title, title_rect)
+            
+            y_offset += 60
+            
+            # Column headers
+            col_header_font = pygame.font.SysFont("Arial", 28, bold=True)
+            player_label = col_header_font.render("PLAYER", True, (200, 200, 200))
+            round1_label = col_header_font.render("R1", True, (200, 200, 200))
+            round2_label = col_header_font.render("R2", True, (200, 200, 200))
+            round3_label = col_header_font.render("R3", True, (200, 200, 200))
+            total_label = col_header_font.render("TOTAL", True, (200, 200, 200))
+            
+            player_label.set_alpha(board_alpha)
+            round1_label.set_alpha(board_alpha)
+            round2_label.set_alpha(board_alpha)
+            round3_label.set_alpha(board_alpha)
+            total_label.set_alpha(board_alpha)
+            
+            screen.blit(player_label, (board_x + 50, y_offset))
+            screen.blit(round1_label, (board_x + 280, y_offset))
+            screen.blit(round2_label, (board_x + 380, y_offset))
+            screen.blit(round3_label, (board_x + 480, y_offset))
+            screen.blit(total_label, (board_x + 580, y_offset))
+            
+            y_offset += 50
+            
+            # Draw separator line
+            line_surf = pygame.Surface((board_width - 40, 3), pygame.SRCALPHA)
+            line_surf.fill((255, 215, 0, board_alpha))
+            screen.blit(line_surf, (board_x + 20, y_offset))
+            
+            y_offset += 20
+            
+            # Player 1 row
+            p1_name = score_font.render("YOU", True, (100, 255, 100))
+            p1_name.set_alpha(board_alpha)
+            screen.blit(p1_name, (board_x + 50, y_offset))
+            
+            # Round scores for Player 1
+            for round_num in range(1, 4):
+                round_x = board_x + 280 + (round_num - 1) * 100
+                
+                if round_num <= completed_round:
+                    # Check if player won this round
+                    won_round = False
+                    if round_num == completed_round and game.round_winner == game.player1:
+                        won_round = True
+                    elif round_num < completed_round:
+                        # For previous rounds, check if they contributed to rounds_won
+                        # This is approximate - ideally we'd track full history
+                        won_round = (round_num <= p1_rounds)
+                    
+                    if won_round:
+                        round_color = (100, 150, 255)  # Blue for won round
+                        round_score = score_font.render("1", True, round_color)
+                    else:
+                        round_color = (150, 150, 150)  # Light grey for lost/draw
+                        round_score = score_font.render("0", True, round_color)
+                else:
+                    # Future round
+                    round_color = (80, 80, 80)
+                    round_score = score_font.render("-", True, round_color)
+                
+                round_score.set_alpha(board_alpha)
+                score_rect = round_score.get_rect(center=(round_x + 20, y_offset + 25))
+                screen.blit(round_score, score_rect)
+            
+            # Total for Player 1
+            p1_total = score_font.render(str(game.player1.rounds_won), True, (255, 215, 0))
+            p1_total.set_alpha(board_alpha)
+            total_rect = p1_total.get_rect(center=(board_x + 600, y_offset + 25))
+            screen.blit(p1_total, total_rect)
+            
+            y_offset += 70
+            
+            # Player 2 row
+            p2_name = score_font.render("OPP", True, (255, 100, 100))
+            p2_name.set_alpha(board_alpha)
+            screen.blit(p2_name, (board_x + 50, y_offset))
+            
+            # Round scores for Player 2
+            for round_num in range(1, 4):
+                round_x = board_x + 280 + (round_num - 1) * 100
+                
+                if round_num <= completed_round:
+                    won_round = False
+                    if round_num == completed_round and game.round_winner == game.player2:
+                        won_round = True
+                    elif round_num < completed_round:
+                        won_round = (round_num <= p2_rounds)
+                    
+                    if won_round:
+                        round_color = (100, 150, 255)  # Blue for won round
+                        round_score = score_font.render("1", True, round_color)
+                    else:
+                        round_color = (150, 150, 150)  # Light grey for lost/draw
+                        round_score = score_font.render("0", True, round_color)
+                else:
+                    round_color = (80, 80, 80)
+                    round_score = score_font.render("-", True, round_color)
+                
+                round_score.set_alpha(board_alpha)
+                score_rect = round_score.get_rect(center=(round_x + 20, y_offset + 25))
+                screen.blit(round_score, score_rect)
+            
+            # Total for Player 2
+            p2_total = score_font.render(str(game.player2.rounds_won), True, (255, 215, 0))
+            p2_total.set_alpha(board_alpha)
+            total_rect = p2_total.get_rect(center=(board_x + 600, y_offset + 25))
+            screen.blit(p2_total, total_rect)
+        
+        # Skip instruction
+        if progress > 0.4:
+            skip_font = pygame.font.SysFont("Arial", 28)
+            skip_text = skip_font.render("Press SPACE to continue", True, (180, 180, 180))
+            skip_text.set_alpha(text_alpha)
+            skip_rect = skip_text.get_rect(center=(center_x, screen_height - 80))
+            screen.blit(skip_text, skip_rect)
+        
+        pygame.display.flip()
+        clock.tick(60)
 
 def show_game_start_animation(screen, game, screen_width, screen_height):
     """Show Stargate activation animation announcing who goes first."""
@@ -1731,19 +1957,25 @@ def main():
     ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
     
     # Initialize UI button positions (NEW LAYOUT - Bottom aligned, scaled)
-    # DHD Pass Button - anchor to bottom-right corner with slim padding
+    # DHD Pass Button - position in bottom-right, ensuring it stays visible
     DHD_SIZE = int(100 * SCALE_FACTOR)  # DHD is circular, scaled
-    button_margin = int(20 * SCALE_FACTOR)
+    button_margin = int(30 * SCALE_FACTOR)
+    
+    # Ensure buttons fit in bottom-right corner with proper spacing from edge
+    # Use larger margins to ensure visibility in fullscreen
+    safe_bottom_margin = max(button_margin, int(SCREEN_HEIGHT * 0.03))  # 3% of screen height
+    safe_right_margin = max(button_margin, int(SCREEN_WIDTH * 0.02))    # 2% of screen width
+    
     PASS_BUTTON_RECT = pygame.Rect(
-        SCREEN_WIDTH - DHD_SIZE - button_margin,
-        SCREEN_HEIGHT - DHD_SIZE - button_margin,
+        SCREEN_WIDTH - DHD_SIZE - safe_right_margin,
+        SCREEN_HEIGHT - DHD_SIZE - safe_bottom_margin,
         DHD_SIZE,
         DHD_SIZE
     )
     
     MULLIGAN_BUTTON_RECT = pygame.Rect(
         SCREEN_WIDTH - int(300 * SCALE_FACTOR),
-        SCREEN_HEIGHT - int(120 * SCALE_FACTOR),
+        SCREEN_HEIGHT - int(160 * SCALE_FACTOR),  # Increased from 140
         int(200 * SCALE_FACTOR),
         int(50 * SCALE_FACTOR)
     )
@@ -1866,17 +2098,22 @@ def main():
     thor_selected_unit = None  # The unit Thor is moving
     
     # Iris Power UI elements
+    # Player faction power - position to stay visible above hand area with safe margin
+    faction_ui_height = 120
+    # Ensure faction power UI is well above the bottom edge
+    safe_margin_from_bottom = int(SCREEN_HEIGHT * 0.03)  # 3% margin from bottom
+    
     player_faction_ui = FactionPowerUI(
         x=150,  # To the right of player leader (which is at x=20, width=100)
-        y=SCREEN_HEIGHT - HAND_Y_OFFSET - 140,  # Above player leader portrait
+        y=SCREEN_HEIGHT - HAND_Y_OFFSET - faction_ui_height - safe_margin_from_bottom,
         width=300,
-        height=120
+        height=faction_ui_height
     )
     ai_faction_ui = FactionPowerUI(
         x=150,  # To the right of AI leader (which is at x=20, width=100)
         y=180,  # Below AI leader (leader is at y=20, height=140, plus "LEADER" text ~15px + margin)
         width=300,
-        height=120
+        height=faction_ui_height
     )
     faction_power_effect = None  # Active Iris Power visual effect
     
@@ -1898,6 +2135,10 @@ def main():
         
         # Check for round changes and reset space battle WITH COOL TRANSITION
         if game.round_number != previous_round:
+            # Show round winner announcement FIRST
+            if hasattr(game, 'round_winner'):
+                show_round_winner_announcement(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+            
             # Show transition message
             transition_font = pygame.font.SysFont("Arial", 80, bold=True)
             if game.round_number == 2:
@@ -2086,16 +2327,19 @@ def main():
                         
                         # Recalculate UI button positions for new resolution
                         DHD_SIZE = int(100 * SCALE_FACTOR)
-                        button_margin = int(20 * SCALE_FACTOR)
+                        button_margin = int(30 * SCALE_FACTOR)
+                        safe_bottom_margin = max(button_margin, int(SCREEN_HEIGHT * 0.03))  # 3% margin
+                        safe_right_margin = max(button_margin, int(SCREEN_WIDTH * 0.02))    # 2% margin
+                        
                         PASS_BUTTON_RECT = pygame.Rect(
-                            SCREEN_WIDTH - DHD_SIZE - button_margin,
-                            SCREEN_HEIGHT - DHD_SIZE - button_margin,
+                            SCREEN_WIDTH - DHD_SIZE - safe_right_margin,
+                            SCREEN_HEIGHT - DHD_SIZE - safe_bottom_margin,
                             DHD_SIZE,
                             DHD_SIZE
                         )
                         MULLIGAN_BUTTON_RECT = pygame.Rect(
                             SCREEN_WIDTH - int(300 * SCALE_FACTOR),
-                            SCREEN_HEIGHT - int(120 * SCALE_FACTOR),
+                            SCREEN_HEIGHT - int(160 * SCALE_FACTOR),
                             int(200 * SCALE_FACTOR),
                             int(50 * SCALE_FACTOR)
                         )
@@ -2113,16 +2357,19 @@ def main():
                         
                         # Recalculate UI button positions for windowed mode
                         DHD_SIZE = int(100 * SCALE_FACTOR)
-                        button_margin = int(20 * SCALE_FACTOR)
+                        button_margin = int(30 * SCALE_FACTOR)
+                        safe_bottom_margin = max(button_margin, int(SCREEN_HEIGHT * 0.03))  # 3% margin
+                        safe_right_margin = max(button_margin, int(SCREEN_WIDTH * 0.02))    # 2% margin
+                        
                         PASS_BUTTON_RECT = pygame.Rect(
-                            SCREEN_WIDTH - DHD_SIZE - button_margin,
-                            SCREEN_HEIGHT - DHD_SIZE - button_margin,
+                            SCREEN_WIDTH - DHD_SIZE - safe_right_margin,
+                            SCREEN_HEIGHT - DHD_SIZE - safe_bottom_margin,
                             DHD_SIZE,
                             DHD_SIZE
                         )
                         MULLIGAN_BUTTON_RECT = pygame.Rect(
                             SCREEN_WIDTH - int(300 * SCALE_FACTOR),
-                            SCREEN_HEIGHT - int(120 * SCALE_FACTOR),
+                            SCREEN_HEIGHT - int(160 * SCALE_FACTOR),
                             int(200 * SCALE_FACTOR),
                             int(50 * SCALE_FACTOR)
                         )

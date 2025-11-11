@@ -1,4 +1,4 @@
-#!/home/mrrobot/stargwent/venv/bin/python3
+#!/home/mrgamer/stargwent/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
