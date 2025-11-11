@@ -107,6 +107,7 @@ All abilities renamed and themed around Stargate lore:
 ### 🎨 Stunning Visual Effects
 - **4K Resolution** - Native 3840×2160 support with perfect scaling
 - **Smooth Card Interactions** - NEW v2.12: Cards follow mouse with easing (not snappy), gentle hover enlargement (8%), dynamic shadows
+- **Juicy Drag FX** - Inspired by John Scolaro's [pygame card experiments](https://johnscolaro.xyz/blog/pygame-cards) and [pygame-examples repo](https://github.com/JohnScolaro/pygame-examples): cards tilt with momentum, glow near drop zones, and leave energy trails while you drag them
 - **AI Turn Animations** - NEW v2.12: 4-phase cinematic AI actions (thinking particles → selection glow → card travel → resolution)
 - **Delta Time Animations** - Frame-rate independent smooth motion at any FPS (30-144Hz)
 - **Stargate Opening** - Epic KAWOOSH vortex animation before game starts

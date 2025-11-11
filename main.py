@@ -2,6 +2,7 @@ import pygame
 import sys
 import math
 import random
+from pygame.math import Vector2
 from game import Game
 from cards import ALL_CARDS, reload_card_images
 from ai_opponent import AIController
@@ -95,6 +96,7 @@ PLAYER_HAND_BG = (40, 40, 50, 150) # Semi-transparent
 SCORE_FONT = pygame.font.SysFont("Arial", int(48 * SCALE_FACTOR), bold=True)
 UI_FONT = pygame.font.SysFont("Arial", int(28 * SCALE_FACTOR))
 POWER_FONT = pygame.font.SysFont("Arial", int(32 * SCALE_FACTOR), bold=True)
+ROW_FONT = pygame.font.SysFont("Arial", max(16, int(16 * SCALE_FACTOR)), bold=True)
 
 # Card & Board dimensions (relative to screen height)
 CARD_WIDTH = int(SCREEN_HEIGHT * 0.093)  # Target: ~100px at 1080p
@@ -140,83 +142,166 @@ OPPONENT_ROW_RECTS = {
     "siege": pygame.Rect(0, opponent_siege_y, SCREEN_WIDTH, ROW_HEIGHT),
 }
 
-def draw_card(surface, card, x, y, selected=False, hover_scale=1.0):
-    """Draws a single card on the given surface with optional hover scaling."""
-    
-    # Apply hover scale if needed
+ROW_SYMBOLS = {
+    "close": "⚔",      # Swords for close combat
+    "ranged": "🏹",    # Bow for ranged
+    "siege": "🎯",     # Target for siege
+    "agile": "↕",      # Up-down for agile
+    "special": "★",    # Star for special
+    "weather": "☁",    # Cloud for weather
+}
+
+ROW_COLORS = {
+    "close": (255, 100, 100),    # Red
+    "ranged": (100, 100, 255),   # Blue
+    "siege": (100, 255, 100),    # Green
+    "agile": (255, 255, 100),    # Yellow
+    "special": (255, 215, 0),    # Gold
+    "weather": (150, 150, 255),  # Light blue
+}
+
+
+def get_row_color(row_name):
+    """Return the theme color for a given row type."""
+    return ROW_COLORS.get(row_name, (200, 200, 255))
+
+
+def _draw_card_details(target_surface, card, rect):
+    """Render card overlays (power pips and row icon)."""
+    if card.row not in ["special", "weather"]:
+        power_text = POWER_FONT.render(str(card.displayed_power), True, WHITE)
+        power_rect = power_text.get_rect(
+            center=(rect.x + rect.width / 2, rect.y + rect.height - 20)
+        )
+        pygame.draw.rect(
+            target_surface,
+            (0, 0, 0, 150),
+            power_rect.inflate(4, 4)
+        )
+        target_surface.blit(power_text, power_rect)
+
+    symbol = ROW_SYMBOLS.get(card.row, "?")
+    color = get_row_color(card.row)
+    symbol_x = rect.x + rect.width - 15
+    symbol_y = rect.y + 15
+    pygame.draw.circle(target_surface, (0, 0, 0, 180), (symbol_x, symbol_y), 12)
+    pygame.draw.circle(
+        target_surface,
+        color,
+        (symbol_x, symbol_y),
+        12,
+        width=2
+    )
+    symbol_text = ROW_FONT.render(symbol, True, color)
+    symbol_rect = symbol_text.get_rect(center=(symbol_x, symbol_y))
+    target_surface.blit(symbol_text, symbol_rect)
+
+
+def _draw_drag_trail(surface, trail_entries):
+    """Draw motion silhouettes that follow the dragged card."""
+    if not trail_entries:
+        return
+
+    for blob in trail_entries:
+        alpha = int(blob.get("alpha", 0))
+        if alpha <= 0:
+            continue
+
+        width_scale = blob.get("width_scale", 1.0)
+        height_scale = blob.get("height_scale", 1.0)
+        width = max(4, int(CARD_WIDTH * width_scale))
+        height = max(4, int(CARD_HEIGHT * height_scale))
+        tint = blob.get("color", (180, 200, 255))
+        trail_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+        pygame.draw.rect(
+            trail_surface,
+            (tint[0], tint[1], tint[2], alpha),
+            trail_surface.get_rect(),
+            border_radius=18
+        )
+        pygame.draw.rect(
+            trail_surface,
+            (255, 255, 255, min(alpha, 140)),
+            trail_surface.get_rect().inflate(-12, -12),
+            border_radius=14
+        )
+
+        pos = blob.get("pos", (0, 0))
+        surface.blit(
+            trail_surface,
+            (int(pos[0] - width // 2), int(pos[1] - height // 2))
+        )
+
+
+def draw_card(surface, card, x, y, selected=False, hover_scale=1.0, tilt_angle=0.0,
+              alpha=255, render_details=True, update_rect=True):
+    """Draws a single card with optional scaling, tilt, and alpha adjustments."""
     if hover_scale != 1.0:
         scaled_width = int(CARD_WIDTH * hover_scale)
         scaled_height = int(CARD_HEIGHT * hover_scale)
-        # Center the scaled card on the original position
         scaled_x = x - (scaled_width - CARD_WIDTH) // 2
         scaled_y = y - (scaled_height - CARD_HEIGHT) // 2
-        card.rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
-        scaled_image = pygame.transform.smoothscale(card.image, (scaled_width, scaled_height))
     else:
-        card.rect.topleft = (x, y)
-        scaled_image = card.image
-    
-    # Draw shadow for depth
+        scaled_width = CARD_WIDTH
+        scaled_height = CARD_HEIGHT
+        scaled_x = x
+        scaled_y = y
+
+    draw_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
+    if update_rect:
+        card.rect = draw_rect.copy()
+
+    scaled_image = pygame.transform.smoothscale(card.image, (scaled_width, scaled_height))
+
+    # Shadow for depth
     if hover_scale > 1.0 or selected:
         shadow_offset = 6 if selected else 4
-        shadow_surf = pygame.Surface((card.rect.width + shadow_offset*2, card.rect.height + shadow_offset*2), pygame.SRCALPHA)
+        shadow_padding = shadow_offset * 2
+        shadow_surf = pygame.Surface(
+            (draw_rect.width + shadow_padding, draw_rect.height + shadow_padding),
+            pygame.SRCALPHA
+        )
         shadow_alpha = 120 if hover_scale > 1.0 else 80
-        pygame.draw.rect(shadow_surf, (0, 0, 0, shadow_alpha), shadow_surf.get_rect(), border_radius=5)
-        surface.blit(shadow_surf, (card.rect.x + shadow_offset, card.rect.y + shadow_offset))
-    
-    # Draw the card's actual image
-    surface.blit(scaled_image, card.rect)
+        pygame.draw.rect(
+            shadow_surf,
+            (0, 0, 0, shadow_alpha),
+            shadow_surf.get_rect(),
+            border_radius=8
+        )
+        surface.blit(shadow_surf, (draw_rect.x + shadow_offset, draw_rect.y + shadow_offset))
 
-    # Add a highlight for selected cards only; keep hover zoom borderless
+    needs_rotation = abs(tilt_angle) > 0.05 or alpha != 255
+    target_rect = draw_rect
+
+    if needs_rotation:
+        temp_surface = pygame.Surface((draw_rect.width, draw_rect.height), pygame.SRCALPHA)
+        temp_surface.blit(scaled_image, (0, 0))
+        if render_details:
+            detail_rect = pygame.Rect(0, 0, draw_rect.width, draw_rect.height)
+            _draw_card_details(temp_surface, card, detail_rect)
+        rotated_surface = pygame.transform.rotozoom(temp_surface, tilt_angle, 1.0)
+        if alpha != 255:
+            rotated_surface.set_alpha(alpha)
+        target_rect = rotated_surface.get_rect(center=draw_rect.center)
+        surface.blit(rotated_surface, target_rect)
+    else:
+        surface.blit(scaled_image, draw_rect)
+        if render_details:
+            _draw_card_details(surface, card, draw_rect)
+
     if selected:
-        pygame.draw.rect(surface, (255, 255, 0), card.rect, width=3, border_radius=5)
+        pygame.draw.rect(surface, (255, 255, 0), target_rect, width=3, border_radius=5)
 
-    # Draw card power (bottom center - only for unit cards)
-    if card.row not in ["special", "weather"]:
-        power_text = POWER_FONT.render(str(card.displayed_power), True, WHITE)
-        power_rect = power_text.get_rect(center=(x + card.rect.width / 2, y + card.rect.height - 20))
-        # Add a small black background for better readability
-        pygame.draw.rect(surface, (0, 0, 0, 150), power_rect.inflate(4, 4))
-        surface.blit(power_text, power_rect)
-    
-    # Draw row type indicator (top-right corner)
-    row_font = pygame.font.SysFont("Arial", 16, bold=True)
-    row_symbols = {
-        "close": "⚔",      # Swords for close combat
-        "ranged": "🏹",    # Bow for ranged
-        "siege": "🎯",     # Target for siege
-        "agile": "↕",      # Up-down for agile
-        "special": "★",    # Star for special
-        "weather": "☁",    # Cloud for weather
-    }
-    
-    row_colors = {
-        "close": (255, 100, 100),    # Red
-        "ranged": (100, 100, 255),   # Blue
-        "siege": (100, 255, 100),    # Green
-        "agile": (255, 255, 100),    # Yellow
-        "special": (255, 215, 0),    # Gold
-        "weather": (150, 150, 255),  # Light blue
-    }
-    
-    symbol = row_symbols.get(card.row, "?")
-    color = row_colors.get(card.row, WHITE)
-    
-    # Draw symbol with background circle
-    symbol_x = x + card.rect.width - 15
-    symbol_y = y + 15
-    pygame.draw.circle(surface, (0, 0, 0, 180), (symbol_x, symbol_y), 12)
-    pygame.draw.circle(surface, color, (symbol_x, symbol_y), 12, width=2)
-    
-    symbol_text = row_font.render(symbol, True, color)
-    symbol_rect = symbol_text.get_rect(center=(symbol_x, symbol_y))
-    surface.blit(symbol_text, symbol_rect)
-
-def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_card=None, hovered_card=None, hover_scale=1.0):
-    """Draws the player's hand and updates card rects."""
+def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_card=None,
+              hovered_card=None, hover_scale=1.0, drag_visuals=None):
+    """Draw the player's hand plus optional drag animations."""
     hand_bg_surface = pygame.Surface((SCREEN_WIDTH, HAND_Y_OFFSET), pygame.SRCALPHA)
     hand_bg_surface.fill(PLAYER_HAND_BG)
     surface.blit(hand_bg_surface, (0, SCREEN_HEIGHT - HAND_Y_OFFSET))
+
+    if drag_visuals and drag_visuals.get("trail"):
+        _draw_drag_trail(surface, drag_visuals.get("trail"))
 
     # Calculate spacing to center hand
     total_cards = len(player.hand)
@@ -260,15 +345,63 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
             pygame.draw.rect(surface, (0, 0, 0), bg_rect)
             surface.blit(hint_text, hint_rect)
     
-    # Draw dragging card on top with slight transparency/glow
+    # Draw dragging card with juicy effects
     if dragging_card and dragging_card in player.hand:
-        # Draw glow/shadow behind
-        glow_surface = pygame.Surface((CARD_WIDTH + 20, CARD_HEIGHT + 20), pygame.SRCALPHA)
-        pygame.draw.rect(glow_surface, (255, 255, 100, 100), glow_surface.get_rect(), border_radius=10)
-        surface.blit(glow_surface, (dragging_card.rect.x - 10, dragging_card.rect.y - 10))
-        
-        # Draw card slightly larger
-        draw_card(surface, dragging_card, dragging_card.rect.x, dragging_card.rect.y, selected=True, hover_scale=1.05)
+        velocity = drag_visuals.get("velocity", Vector2()) if drag_visuals else Vector2()
+        pickup_boost = drag_visuals.get("pickup_boost", 0.0) if drag_visuals else 0.0
+        pulse = drag_visuals.get("pulse", 0.0) if drag_visuals else 0.0
+        speed = velocity.length()
+        lift = min(18, 6 + speed * 0.35 + pickup_boost * 18)
+        wobble = math.sin(pulse * 1.2) * 2
+        tilt = max(-12, min(12, -velocity.x * 1.2))
+        tilt += math.sin(pulse * 1.5) * 1.5
+        dynamic_scale = 1.05 + min(0.05, speed * 0.015) + pickup_boost * 0.08
+
+        row_color = get_row_color(dragging_card.row)
+        glow_alpha = int(90 + min(90, speed * 7) + pickup_boost * 120)
+        glow_size = (int(CARD_WIDTH * 1.45), int(CARD_HEIGHT * 1.25))
+        glow_surface = pygame.Surface(glow_size, pygame.SRCALPHA)
+        pygame.draw.ellipse(glow_surface, (row_color[0], row_color[1], row_color[2], glow_alpha), glow_surface.get_rect())
+        glow_pos = (
+            int(dragging_card.rect.centerx - glow_surface.get_width() // 2),
+            int(dragging_card.rect.centery - glow_surface.get_height() // 2 + 30)
+        )
+        surface.blit(glow_surface, glow_pos)
+
+        shadow_surface = pygame.Surface((glow_size[0], int(glow_size[1] * 0.6)), pygame.SRCALPHA)
+        shadow_alpha = min(210, 80 + speed * 10)
+        pygame.draw.ellipse(shadow_surface, (0, 0, 0, shadow_alpha), shadow_surface.get_rect())
+        shadow_pos = (
+            int(dragging_card.rect.centerx - shadow_surface.get_width() // 2 + velocity.x * 0.8),
+            int(dragging_card.rect.centery - shadow_surface.get_height() // 2 + 45 + abs(velocity.y) * 0.2)
+        )
+        surface.blit(shadow_surface, shadow_pos)
+
+        if pickup_boost > 0.01:
+            flash_surface = pygame.Surface((CARD_WIDTH + 40, CARD_HEIGHT + 40), pygame.SRCALPHA)
+            pygame.draw.rect(
+                flash_surface,
+                (255, 255, 255, int(180 * pickup_boost)),
+                flash_surface.get_rect(),
+                border_radius=30
+            )
+            flash_pos = (
+                int(dragging_card.rect.centerx - flash_surface.get_width() // 2),
+                int(dragging_card.rect.centery - flash_surface.get_height() // 2)
+            )
+            surface.blit(flash_surface, flash_pos)
+
+        draw_card(
+            surface,
+            dragging_card,
+            dragging_card.rect.x,
+            dragging_card.rect.y - lift + wobble,
+            selected=False,
+            hover_scale=dynamic_scale,
+            tilt_angle=tilt,
+            render_details=True,
+            update_rect=False
+        )
 
 def draw_opponent_hand(surface, opponent):
     """Draws the opponent's hand as card backs at the top of the screen."""
@@ -308,8 +441,8 @@ def get_opponent_hand_card_center(total_cards, index):
     card_x = start_x + safe_index * (CARD_WIDTH + card_spacing)
     return (card_x + CARD_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
 
-def draw_board(surface, game, selected_card, dragging_card=None):
-    """Draws the game board and the cards on it."""
+def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_highlight=None):
+    """Draw the game board, including contextual drop highlights."""
     # Highlight valid target rows with semi-transparent fill and border
     if selected_card and selected_card.row not in ["special", "weather"]:
         valid_rows = []
@@ -343,6 +476,15 @@ def draw_board(surface, game, selected_card, dragging_card=None):
             highlight_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
             highlight_surface.fill(fill_color)
             surface.blit(highlight_surface, (rect.x, rect.y))
+
+    if drag_hover_highlight:
+        rect = drag_hover_highlight["rect"]
+        color = drag_hover_highlight["color"]
+        alpha = drag_hover_highlight.get("alpha", 80)
+        hover_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        hover_surface.fill((color[0], color[1], color[2], alpha))
+        surface.blit(hover_surface, rect.topleft)
+        pygame.draw.rect(surface, color, rect, width=4, border_radius=12)
 
     # --- Draw cards on board (centered in their rows) ---
     row_map = {
@@ -1558,6 +1700,12 @@ def main():
     drag_offset = (0, 0)
     drag_target_x = 0
     drag_target_y = 0
+    drag_velocity = Vector2()
+    drag_trail = []
+    drag_trail_emit_ms = 0
+    drag_pickup_flash = 0.0
+    drag_pulse = 0.0
+    drag_hover_highlight = None
     card_hover_scale = 1.0
     target_hover_scale = 1.0
     hovered_card = None
@@ -1732,7 +1880,30 @@ def main():
         # Update animations
         anim_manager.update(dt)
         ambient_effects.update(dt)
-        
+        drag_pulse += dt * 0.005
+        if dragging_card:
+            drag_pickup_flash = max(0.0, drag_pickup_flash - dt / 500.0)
+        else:
+            drag_pickup_flash = max(0.0, drag_pickup_flash - dt / 350.0)
+            drag_velocity *= 0.9
+        drag_trail_emit_ms = max(0, drag_trail_emit_ms - dt)
+        for blob in drag_trail[:]:
+            blob["alpha"] -= dt * 0.35
+            blob["width_scale"] += dt * 0.0008
+            blob["height_scale"] += dt * 0.0006
+            if blob["alpha"] <= 0:
+                drag_trail.remove(blob)
+        if dragging_card:
+            if drag_trail_emit_ms <= 0:
+                drag_trail.append({
+                    "pos": dragging_card.rect.center,
+                    "alpha": 130,
+                    "width_scale": 1.0 + min(0.25, abs(drag_velocity.x) * 0.04),
+                    "height_scale": 1.0 + min(0.2, abs(drag_velocity.y) * 0.03),
+                    "color": get_row_color(dragging_card.row)
+                })
+                drag_trail_emit_ms = 45
+
         # Update card hover scale smoothly
         if abs(card_hover_scale - target_hover_scale) > 0.01:
             card_hover_scale += (target_hover_scale - card_hover_scale) * 0.15
@@ -1966,6 +2137,8 @@ def main():
                         if PASS_BUTTON_RECT.collidepoint(event.pos):
                             selected_card = None
                             dragging_card = None
+                            drag_velocity = Vector2()
+                            drag_pickup_flash = 0.0
                             
                             # Add DHD button press animation
                             dhd_anim = StargateActivationEffect(PASS_BUTTON_RECT.centerx, PASS_BUTTON_RECT.centery, duration=800)
@@ -2048,6 +2221,8 @@ def main():
                                             game.play_card(card, card.row)
                                         selected_card = None
                                         dragging_card = None
+                                        drag_velocity = Vector2()
+                                        drag_pickup_flash = 0.0
                                         break
                                     
                                     # First click or different card - Select it
@@ -2057,10 +2232,17 @@ def main():
                                         # Special/weather cards selected but not auto-played
                                         # Click AGAIN to play, or press SPACE to inspect
                                         dragging_card = None
+                                        drag_velocity = Vector2()
+                                        drag_pickup_flash = 0.0
                                     else:
                                         # Start dragging unit cards
                                         dragging_card = card
                                         drag_offset = (card.rect.x - event.pos[0], card.rect.y - event.pos[1])
+                                        drag_velocity = Vector2()
+                                        drag_trail.clear()
+                                        drag_trail_emit_ms = 0
+                                        drag_pickup_flash = 1.0
+                                        drag_pulse = 0.0
                                     
                                     break
             
@@ -2164,6 +2346,8 @@ def main():
                     if not played:
                         selected_card = None
                     dragging_card = None
+                    drag_velocity = Vector2()
+                    drag_pickup_flash = 0.0
             
             elif event.type == pygame.MOUSEMOTION:
                 # Update dragging position with smooth easing
@@ -2174,6 +2358,11 @@ def main():
                     easing_factor = 0.25  # Lower = smoother but more lag
                     dragging_card.rect.x += (drag_target_x - dragging_card.rect.x) * easing_factor
                     dragging_card.rect.y += (drag_target_y - dragging_card.rect.y) * easing_factor
+                    rel_x, rel_y = getattr(event, "rel", (0, 0))
+                    drag_velocity.x = drag_velocity.x * 0.7 + rel_x * 0.3
+                    drag_velocity.y = drag_velocity.y * 0.7 + rel_y * 0.3
+                else:
+                    drag_velocity *= 0.85
                 
                 # Check for card hover in hand (for scale effect)
                 if not dragging_card and game.game_state == "playing":
@@ -2299,6 +2488,37 @@ def main():
                                             score_x, SCREEN_HEIGHT // 2 - 50)
             prev_p2_score = game.player2.score
 
+        drag_hover_highlight = None
+        if dragging_card and game.game_state == "playing":
+            mouse_pos = pygame.mouse.get_pos()
+            hover_alpha = 80
+            ability = dragging_card.ability or ""
+            if dragging_card.row in ["weather", "special"]:
+                if dragging_card.row == "weather":
+                    target_rects = OPPONENT_ROW_RECTS if game.current_player == game.player1 else PLAYER_ROW_RECTS
+                else:
+                    target_rects = {**PLAYER_ROW_RECTS, **OPPONENT_ROW_RECTS}
+                for row_name, rect in target_rects.items():
+                    if rect.collidepoint(mouse_pos):
+                        color = get_row_color(row_name if row_name in ROW_COLORS else dragging_card.row)
+                        drag_hover_highlight = {"rect": rect, "color": color, "alpha": 100}
+                        break
+            else:
+                is_spy = "Deep Cover Agent" in ability
+                target_rects = OPPONENT_ROW_RECTS if is_spy else PLAYER_ROW_RECTS
+                for row_name, rect in target_rects.items():
+                    if rect.collidepoint(mouse_pos):
+                        color = (255, 120, 120) if is_spy else get_row_color(row_name)
+                        drag_hover_highlight = {"rect": rect, "color": color, "alpha": hover_alpha}
+                        break
+
+        drag_visual_state = {
+            "trail": drag_trail,
+            "velocity": drag_velocity,
+            "pickup_boost": drag_pickup_flash,
+            "pulse": drag_pulse
+        }
+
         # --- Drawing ---
         screen.blit(assets["board"], (0, 0))
         
@@ -2423,10 +2643,18 @@ def main():
             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
         else:
             # Draw normal game UI
-            draw_board(screen, game, selected_card, dragging_card=dragging_card)
+            draw_board(screen, game, selected_card, dragging_card=dragging_card, drag_hover_highlight=drag_hover_highlight)
             draw_scores(screen, game, anim_manager)
             draw_pass_button(screen, game)
-            draw_hand(screen, game.player1, selected_card, dragging_card=dragging_card, hovered_card=hovered_card, hover_scale=card_hover_scale)
+            draw_hand(
+                screen,
+                game.player1,
+                selected_card,
+                dragging_card=dragging_card,
+                hovered_card=hovered_card,
+                hover_scale=card_hover_scale,
+                drag_visuals=drag_visual_state
+            )
             draw_opponent_hand(screen, game.player2)  # Show opponent's hand as card backs
             
             # Draw AI turn animation on top of opponent hand
