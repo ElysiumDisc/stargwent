@@ -27,10 +27,39 @@ except:
         pass  # Not Windows or already set
 
 # Screen dimensions - Auto-detect and scale
-# Get desktop resolution
-display_info = pygame.display.Info()
-DESKTOP_WIDTH = display_info.current_w
-DESKTOP_HEIGHT = display_info.current_h
+# Get desktop resolution ONCE at very first run
+# Store in a temp file to persist across module reloads
+import os
+import tempfile
+_desktop_cache_file = os.path.join(tempfile.gettempdir(), 'stargwent_desktop_cache.txt')
+
+try:
+    # Try to load cached desktop resolution
+    if os.path.exists(_desktop_cache_file):
+        with open(_desktop_cache_file, 'r') as f:
+            cached = f.read().strip().split('x')
+            ORIGINAL_DESKTOP_WIDTH = int(cached[0])
+            ORIGINAL_DESKTOP_HEIGHT = int(cached[1])
+        print(f"🖥️  Using Cached Desktop Resolution: {ORIGINAL_DESKTOP_WIDTH}x{ORIGINAL_DESKTOP_HEIGHT}")
+    else:
+        # First run - detect and cache
+        display_info = pygame.display.Info()
+        ORIGINAL_DESKTOP_WIDTH = display_info.current_w
+        ORIGINAL_DESKTOP_HEIGHT = display_info.current_h
+        # Save to cache file
+        with open(_desktop_cache_file, 'w') as f:
+            f.write(f"{ORIGINAL_DESKTOP_WIDTH}x{ORIGINAL_DESKTOP_HEIGHT}")
+        print(f"🖥️  Detected Original Desktop Resolution: {ORIGINAL_DESKTOP_WIDTH}x{ORIGINAL_DESKTOP_HEIGHT}")
+except Exception as e:
+    # Fallback if caching fails
+    display_info = pygame.display.Info()
+    ORIGINAL_DESKTOP_WIDTH = display_info.current_w
+    ORIGINAL_DESKTOP_HEIGHT = display_info.current_h
+    print(f"🖥️  Desktop Resolution (no cache): {ORIGINAL_DESKTOP_WIDTH}x{ORIGINAL_DESKTOP_HEIGHT}")
+
+# Use cached desktop dimensions
+DESKTOP_WIDTH = ORIGINAL_DESKTOP_WIDTH
+DESKTOP_HEIGHT = ORIGINAL_DESKTOP_HEIGHT
 
 # Target resolution (design is for 4K)
 TARGET_WIDTH = 3840
@@ -1643,7 +1672,7 @@ def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height
 
 def main():
     """Main game loop."""
-    global PASS_BUTTON_RECT, MULLIGAN_BUTTON_RECT, screen, SCREEN_WIDTH, SCREEN_HEIGHT
+    global PASS_BUTTON_RECT, MULLIGAN_BUTTON_RECT, screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR
     
     # Initialize card unlock system
     unlock_system = CardUnlockSystem()
@@ -1816,6 +1845,8 @@ def main():
     ring_transport_selection = False  # When Goa'uld player is choosing card for ring transport
     ring_transport_animation = None  # Active ring transportation animation
     ring_transport_button_rect = None  # Ring button for click detection
+    decoy_drag_target = None  # Card being hovered over when dragging Ring Transport
+    decoy_valid_targets = []  # List of (card, rect) for valid decoy targets
     iris_button_rect = None  # Iris button for click detection
     previous_round = game.round_number  # Track round changes
     previous_weather = {"close": False, "ranged": False, "siege": False}  # Track weather changes
@@ -2023,6 +2054,10 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
+                # Debug: Print all key presses
+                if event.key == pygame.K_F11:
+                    print(f"🔑 DEBUG: F11 key detected (keycode: {event.key})")
+                
                 # ESC to toggle pause menu or close overlays
                 if event.key == pygame.K_ESCAPE:
                     if inspected_card or inspected_leader:
@@ -2036,14 +2071,81 @@ def main():
                     elif game.game_state == "playing":
                         paused = not paused
                 
-                # Toggle fullscreen with F11
-                elif event.key == pygame.K_F11:
+                # Toggle fullscreen with F11 or Alt+Enter
+                elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
+                    print(f"🔑 Fullscreen toggle! Current state: {fullscreen}")
                     fullscreen = not fullscreen
                     if fullscreen:
-                        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                        # Go fullscreen using native desktop resolution
+                        screen = pygame.display.set_mode((DESKTOP_WIDTH, DESKTOP_HEIGHT), pygame.FULLSCREEN)
+                        # Update screen dimensions for UI rendering
+                        SCREEN_WIDTH = DESKTOP_WIDTH
+                        SCREEN_HEIGHT = DESKTOP_HEIGHT
+                        # Recalculate scale factor for fullscreen
+                        SCALE_FACTOR = min(DESKTOP_WIDTH / TARGET_WIDTH, DESKTOP_HEIGHT / TARGET_HEIGHT, 1.0)
+                        
+                        # Recalculate UI button positions for new resolution
+                        DHD_SIZE = int(100 * SCALE_FACTOR)
+                        button_margin = int(20 * SCALE_FACTOR)
+                        PASS_BUTTON_RECT = pygame.Rect(
+                            SCREEN_WIDTH - DHD_SIZE - button_margin,
+                            SCREEN_HEIGHT - DHD_SIZE - button_margin,
+                            DHD_SIZE,
+                            DHD_SIZE
+                        )
+                        MULLIGAN_BUTTON_RECT = pygame.Rect(
+                            SCREEN_WIDTH - int(300 * SCALE_FACTOR),
+                            SCREEN_HEIGHT - int(120 * SCALE_FACTOR),
+                            int(200 * SCALE_FACTOR),
+                            int(50 * SCALE_FACTOR)
+                        )
+                        
+                        print(f"✓ Fullscreen: ON - Resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+                        print(f"  Scale Factor: {SCALE_FACTOR:.2f}")
                     else:
-                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-                    print(f"Fullscreen: {fullscreen} - Resolution: {screen.get_width()}x{screen.get_height()}")
+                        # Restore to windowed mode with original calculated size
+                        original_scale_x = (DESKTOP_WIDTH * 0.95) / TARGET_WIDTH
+                        original_scale_y = (DESKTOP_HEIGHT * 0.95) / TARGET_HEIGHT
+                        SCALE_FACTOR = min(original_scale_x, original_scale_y, 1.0)
+                        SCREEN_WIDTH = int(TARGET_WIDTH * SCALE_FACTOR)
+                        SCREEN_HEIGHT = int(TARGET_HEIGHT * SCALE_FACTOR)
+                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SHOWN | pygame.SCALED)
+                        
+                        # Recalculate UI button positions for windowed mode
+                        DHD_SIZE = int(100 * SCALE_FACTOR)
+                        button_margin = int(20 * SCALE_FACTOR)
+                        PASS_BUTTON_RECT = pygame.Rect(
+                            SCREEN_WIDTH - DHD_SIZE - button_margin,
+                            SCREEN_HEIGHT - DHD_SIZE - button_margin,
+                            DHD_SIZE,
+                            DHD_SIZE
+                        )
+                        MULLIGAN_BUTTON_RECT = pygame.Rect(
+                            SCREEN_WIDTH - int(300 * SCALE_FACTOR),
+                            SCREEN_HEIGHT - int(120 * SCALE_FACTOR),
+                            int(200 * SCALE_FACTOR),
+                            int(50 * SCALE_FACTOR)
+                        )
+                        
+                        print(f"✓ Fullscreen: OFF - Window: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+                
+                # F key = Activate Faction Power
+                elif event.key == pygame.K_f:
+                    if game.game_state == "playing" and game.current_player == game.player1:
+                        if game.player1.faction_power and game.player1.faction_power.is_available():
+                            if game.player1.faction_power.activate(game, game.player1):
+                                # Trigger visual effect
+                                faction_power_effect = FactionPowerEffect(
+                                    game.player1.faction,
+                                    SCREEN_WIDTH // 2,
+                                    SCREEN_HEIGHT // 2,
+                                    SCREEN_WIDTH,
+                                    SCREEN_HEIGHT
+                                )
+                                # Recalculate scores
+                                game.player1.calculate_score()
+                                game.player2.calculate_score()
+                                print(f"✓ Faction Power activated with F key: {game.player1.faction_power.name}")
                 
                 # SPACEBAR = Alternative preview (same as right-click)
                 elif event.key == pygame.K_SPACE:
@@ -2059,19 +2161,6 @@ def main():
                     elif selected_card and game.game_state == "playing":
                         # Preview selected card
                         inspected_card = selected_card
-                    elif game.current_player == game.player1 and game.game_state == "playing":
-                        # Activate Faction Power as alternative
-                        if game.player1.faction_power and game.player1.faction_power.is_available():
-                            if game.player1.faction_power.activate(game, game.player1):
-                                faction_power_effect = FactionPowerEffect(
-                                    game.player1.faction,
-                                    SCREEN_WIDTH // 2,
-                                    SCREEN_HEIGHT // 2,
-                                    SCREEN_WIDTH,
-                                    SCREEN_HEIGHT
-                                )
-                                game.player1.calculate_score()
-                                game.player2.calculate_score()
                 
                 # Game over screen - R to restart
                 if game.game_state == "game_over":
@@ -2370,11 +2459,28 @@ def main():
                                     selected_card = card
                                     
                                     if card.row == "special":
-                                        # Special cards selected but not auto-played
-                                        # Click AGAIN to play, or press SPACE to inspect
-                                        dragging_card = None
-                                        drag_velocity = Vector2()
-                                        drag_pickup_flash = 0.0
+                                        # Special cards - Ring Transport and Command Network can be dragged
+                                        if "Ring Transport" in (card.ability or "") or "Command Network" in (card.ability or ""):
+                                            # Allow dragging these special cards
+                                            dragging_card = card
+                                            drag_offset = (card.rect.x - event.pos[0], card.rect.y - event.pos[1])
+                                            drag_velocity = Vector2()
+                                            drag_trail.clear()
+                                            drag_trail_emit_ms = 0
+                                            drag_pickup_flash = 1.0
+                                            drag_pulse = 0.0
+                                            # Get valid decoy targets for Ring Transport
+                                            if "Ring Transport" in (card.ability or ""):
+                                                decoy_valid_targets = []
+                                                valid_cards = game.get_decoy_valid_cards()
+                                                for valid_card in valid_cards:
+                                                    if hasattr(valid_card, 'rect'):
+                                                        decoy_valid_targets.append((valid_card, valid_card.rect.copy()))
+                                        else:
+                                            # Other special cards: click AGAIN to play, or press SPACE to inspect
+                                            dragging_card = None
+                                            drag_velocity = Vector2()
+                                            drag_pickup_flash = 0.0
                                     else:
                                         # Start dragging unit cards
                                         dragging_card = card
@@ -2420,6 +2526,23 @@ def main():
                                         effect_y = slot_rect.centery
                                         anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
                                         break
+                            elif "Ring Transport" in ability_text:
+                                # Ring Transport - check if dropped on a valid card
+                                if decoy_drag_target:
+                                    # Play the decoy card first
+                                    game.play_card(dragging_card, "special")
+                                    # Apply decoy effect
+                                    if game.apply_decoy(decoy_drag_target):
+                                        # Show ring transport animation
+                                        effect_x = decoy_drag_target.rect.centerx
+                                        effect_y = decoy_drag_target.rect.centery
+                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
+                                        game.player1.calculate_score()
+                                        game.player2.calculate_score()
+                                        game.switch_turn()
+                                        played = True
+                                    decoy_valid_targets = []
+                                    decoy_drag_target = None
                             else:
                                 for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
                                     for row_name, rect in rects.items():
@@ -2521,6 +2644,8 @@ def main():
                     dragging_card = None
                     drag_velocity = Vector2()
                     drag_pickup_flash = 0.0
+                    decoy_valid_targets = []
+                    decoy_drag_target = None
             
             elif event.type == pygame.MOUSEMOTION:
                 # Update dragging position with smooth easing
@@ -2534,8 +2659,18 @@ def main():
                     rel_x, rel_y = getattr(event, "rel", (0, 0))
                     drag_velocity.x = drag_velocity.x * 0.7 + rel_x * 0.3
                     drag_velocity.y = drag_velocity.y * 0.7 + rel_y * 0.3
+                    
+                    # Update Ring Transport decoy target detection
+                    if "Ring Transport" in (dragging_card.ability or ""):
+                        decoy_drag_target = None
+                        mouse_pos = event.pos
+                        for card, rect in decoy_valid_targets:
+                            if rect.collidepoint(mouse_pos):
+                                decoy_drag_target = card
+                                break
                 else:
                     drag_velocity *= 0.85
+                    decoy_drag_target = None
                 
                 # Check for card hover in hand (for scale effect)
                 if not dragging_card and game.game_state in ("playing", "mulligan"):
@@ -2996,6 +3131,46 @@ def main():
                     glow_alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() * 0.005))
                     pygame.draw.rect(glow_surf, (255, 200, 100, glow_alpha), glow_surf.get_rect(), border_radius=10)
                     screen.blit(glow_surf, (card.rect.x - 10, card.rect.y - 10))
+        
+        # Draw visual feedback when dragging Ring Transport over valid targets
+        if dragging_card and "Ring Transport" in (dragging_card.ability or ""):
+            # Highlight valid targets
+            for card, rect in decoy_valid_targets:
+                # Golden glow around valid cards
+                glow_surf = pygame.Surface((rect.width + 20, rect.height + 20), pygame.SRCALPHA)
+                glow_alpha = int(100 + 80 * math.sin(pygame.time.get_ticks() * 0.008))
+                pygame.draw.rect(glow_surf, (100, 200, 255, glow_alpha), glow_surf.get_rect(), border_radius=8)
+                screen.blit(glow_surf, (rect.x - 10, rect.y - 10))
+            
+            # Draw laser beam to hovered target
+            if decoy_drag_target and hasattr(decoy_drag_target, 'rect'):
+                # Animated laser beam from dragged card to target
+                beam_start = (dragging_card.rect.centerx, dragging_card.rect.centery)
+                beam_end = (decoy_drag_target.rect.centerx, decoy_drag_target.rect.centery)
+                
+                # Pulsing beam effect
+                pulse = math.sin(pygame.time.get_ticks() * 0.01) * 0.3 + 0.7
+                beam_color = (int(150 * pulse), int(220 * pulse), int(255 * pulse))
+                beam_width = int(4 + 2 * math.sin(pygame.time.get_ticks() * 0.01))
+                
+                # Draw main beam
+                pygame.draw.line(screen, beam_color, beam_start, beam_end, beam_width)
+                
+                # Draw glow along the beam
+                glow_surf = pygame.Surface((abs(beam_end[0] - beam_start[0]) + 40, 
+                                           abs(beam_end[1] - beam_start[1]) + 40), pygame.SRCALPHA)
+                glow_start = (20, 20) if beam_start[0] < beam_end[0] else (glow_surf.get_width() - 20, 20)
+                glow_end = (glow_surf.get_width() - 20, glow_surf.get_height() - 20) if beam_start[0] < beam_end[0] else (20, glow_surf.get_height() - 20)
+                pygame.draw.line(glow_surf, (*beam_color, int(100 * pulse)), glow_start, glow_end, beam_width + 6)
+                screen.blit(glow_surf, (min(beam_start[0], beam_end[0]) - 20, min(beam_start[1], beam_end[1]) - 20))
+                
+                # Draw glowing circle at target
+                target_glow_size = int(20 + 10 * math.sin(pygame.time.get_ticks() * 0.015))
+                target_glow = pygame.Surface((target_glow_size * 2, target_glow_size * 2), pygame.SRCALPHA)
+                pygame.draw.circle(target_glow, (*beam_color, int(150 * pulse)), 
+                                 (target_glow_size, target_glow_size), target_glow_size)
+                screen.blit(target_glow, (decoy_drag_target.rect.centerx - target_glow_size, 
+                                         decoy_drag_target.rect.centery - target_glow_size))
         
         # Draw card inspection overlay (on top of EVERYTHING)
         if inspected_card:

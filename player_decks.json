@@ -45,7 +45,7 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_yu",
+    "leader": "goauld_sokar",
     "cards": [
       "goauld_glider_swarm_3",
       "goauld_osiris_guard_1",
@@ -91,7 +91,48 @@
   },
   "Jaffa Rebellion": {
     "leader": "jaffa_bratac",
-    "cards": []
+    "cards": [
+      "jaffa_tegaris_ship",
+      "jaffa_chakhal",
+      "jaffa_tokra_infiltrator_1",
+      "jaffa_free_jaffa_3",
+      "jaffa_rebel_infantry_3",
+      "jaffa_cadet_2",
+      "jaffa_bratac",
+      "neutral_clear_weather_3",
+      "jaffa_tealc",
+      "jaffa_rebel_infantry_2",
+      "neutral_biting_frost_3",
+      "jaffa_shalchek_leader",
+      "jaffa_cadet_1",
+      "jaffa_trinium_cannon",
+      "jaffa_rebel_infantry_1",
+      "jaffa_ashrak_recruit",
+      "jaffa_tokra_infiltrator_3",
+      "jaffa_staff_team_1",
+      "jaffa_staff_team_2",
+      "jaffa_rebel_tech_1",
+      "jaffa_zat_op",
+      "jaffa_defector_1",
+      "jaffa_staff_team_3",
+      "jaffa_rebel_tech_3",
+      "jaffa_former_lord_jaffa",
+      "neutral_scorch_3",
+      "jaffa_tokra_infiltrator_2",
+      "jaffa_free_jaffa_1",
+      "jaffa_healer_1",
+      "jaffa_ktau_ally",
+      "jaffa_scout",
+      "jaffa_rebel_tech_2",
+      "jaffa_raknor",
+      "jaffa_cadet_3",
+      "neutral_scorch_1",
+      "jaffa_master_bratac",
+      "jaffa_defector_2",
+      "jaffa_free_jaffa_2",
+      "jaffa_healer_2",
+      "neutral_impenetrable_fog_1"
+    ]
   },
   "Lucian Alliance": {
     "leader": "lucian_vulkar",

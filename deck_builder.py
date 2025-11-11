@@ -342,7 +342,7 @@ class DeckBuilderUI:
                     if self.inspected_card_id:
                         # Browse through cards with mouse wheel when zoomed
                         all_card_ids = self.deck_preview_ids if self.deck_preview_ids else []
-                        if all_card_ids:
+                        if all_card_ids and self.inspected_card_id in all_card_ids:
                             current_idx = all_card_ids.index(self.inspected_card_id)
                             if event.button == 4:  # Scroll up = previous card
                                 new_idx = (current_idx - 1) % len(all_card_ids)
