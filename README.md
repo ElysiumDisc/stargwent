@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-1.5.0-blue)
+![Version](https://img.shields.io/badge/version-1.5.1-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -109,6 +109,7 @@ All abilities renamed and themed around Stargate lore:
 
 ### 🎨 Stunning Visual Effects
 - **4K Resolution** - Native 3840×2160 support with perfect scaling
+- **Naquadah Overload Animation** - Blue energy explosions with shockwave rings appear on rows where highest power units are destroyed
 - **Smooth Card Interactions** - NEW v1.1: Cards follow mouse with easing (not snappy), gentle hover enlargement (8%), dynamic shadows
 - **Juicy Drag FX** - Inspired by John Scolaro's [pygame card experiments](https://johnscolaro.xyz/blog/pygame-cards) and [pygame-examples repo](https://github.com/JohnScolaro/pygame-examples): cards tilt with momentum, glow near drop zones, and leave energy trails while you drag them
 - **AI Turn Animations** - NEW v1.1: 4-phase cinematic AI actions (thinking particles → selection glow → card travel → resolution)
@@ -464,8 +465,9 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - Full UI with colored borders (blue=yours, red=theirs)
 
 #### **Naquadah Overload** 🔥
-- Destroys highest power non-Legendary units
+- Destroys highest power non-Legendary units on the board
 - Affects both players if tied
+- **Blue energy explosions appear ONLY on rows where cards are destroyed**
 - **Merlin's Weapon** variant - Only hits opponent!
 
 #### **Command Network** 📯
@@ -630,6 +632,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 ### In-Game Effects (Action-Based)
 - **Score Animations** - Pop effects with deltas
 - **Stargate Activation** - Blue portal when playing cards
+- **Naquadah Overload** - Blue energy explosions with expanding shockwave rings (only on affected rows)
 - **Weather Effects** - Animated hazards with row highlighting
 - **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
 - **Nebula Clouds** - Layered pink fog drifting through affected lanes
@@ -1197,5 +1200,6 @@ Suggestions and feedback welcome!
 
 Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
 
+*v1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
 *v1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul!*
 *Legendary commanders now crackle with lightning as they land — embrace the spectacle!*

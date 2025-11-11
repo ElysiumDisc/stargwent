@@ -6,7 +6,7 @@ from pygame.math import Vector2
 from game import Game
 from cards import ALL_CARDS, reload_card_images
 from ai_opponent import AIController
-from animations import AnimationManager, StargateActivationEffect, GlowAnimation, CardSlideAnimation, ScorchEffect, AICardPlayAnimation, create_hero_animation, create_ability_animation, LegendaryLightningEffect
+from animations import AnimationManager, StargateActivationEffect, GlowAnimation, CardSlideAnimation, ScorchEffect, NaquadahExplosionEffect, AICardPlayAnimation, create_hero_animation, create_ability_animation, LegendaryLightningEffect
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
@@ -2445,9 +2445,27 @@ def main():
                                     
                                     # --- NEW: Check card for specific animations ---
                                     if "Naquadah Overload" in (dragging_card.ability or ""):
-                                        # If the card is a Naquadah Overload card, trigger the fire effect
-                                        # This will appear in the middle of the board for dramatic effect
-                                        anim_manager.add_effect(ScorchEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, duration=1200))
+                                        # Naquadah Overload: Play card first, then show explosions on affected rows
+                                        game.play_card(dragging_card, row_name)
+                                        
+                                        # Create blue explosions ONLY on rows where cards were destroyed
+                                        for player, destroyed_row in game.last_scorch_positions:
+                                            # Determine which row rect to use
+                                            if player == game.player1:
+                                                row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                                            else:
+                                                row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                                            
+                                            if row_rect:
+                                                anim_manager.add_effect(NaquadahExplosionEffect(
+                                                    SCREEN_WIDTH // 2, 
+                                                    row_rect.centery, 
+                                                    duration=1200
+                                                ))
+                                        
+                                        # Clear the positions for next time
+                                        game.last_scorch_positions = []
+                                        played = True
                                     elif "Legendary Commander" in (dragging_card.ability or ""):
                                         # Legendary Commander card - use unique hero animation
                                         effect_x = rect.centerx
@@ -2604,6 +2622,9 @@ def main():
             elif ai_result == "playing_done":
                 # Actually play the card
                 if ai_card_to_play and ai_row_to_play:
+                    ability = ai_card_to_play.ability or ""
+                    
+                    # Play the card
                     game.play_card(ai_card_to_play, ai_row_to_play)
                     ai_selected_card_index = None
                     
@@ -2615,8 +2636,24 @@ def main():
                     target_rect = OPPONENT_ROW_RECTS.get(ai_row_to_play)
                     effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
                     effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
-                    ability = ai_card_to_play.ability or ""
-                    if "Legendary Commander" in ability:
+                    
+                    # Check for Naquadah Overload
+                    if "Naquadah Overload" in ability:
+                        # Create blue explosions ONLY on rows where cards were destroyed
+                        for player, destroyed_row in game.last_scorch_positions:
+                            if player == game.player1:
+                                row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                            else:
+                                row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                            
+                            if row_rect:
+                                anim_manager.add_effect(NaquadahExplosionEffect(
+                                    SCREEN_WIDTH // 2, 
+                                    row_rect.centery, 
+                                    duration=1200
+                                ))
+                        game.last_scorch_positions = []
+                    elif "Legendary Commander" in ability:
                         hero_anim = create_hero_animation(ai_card_to_play.name, effect_x, effect_y)
                         anim_manager.add_effect(hero_anim)
                         anim_manager.add_effect(LegendaryLightningEffect(ai_card_to_play))

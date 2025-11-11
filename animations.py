@@ -401,6 +401,88 @@ class AICardPlayAnimation(Animation):
         surface.blit(scaled_card, rect)
 
 
+class NaquadahExplosionEffect:
+    """Blue naquadah energy explosion effect for Naquadah Overload ability."""
+    def __init__(self, x, y, duration=1000):
+        self.x = x
+        self.y = y
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+        self.particles = []
+        self.shockwave_radius = 0
+        self.max_shockwave_radius = 150
+        
+        # Create blue energy particles radiating outward
+        for i in range(50):
+            angle = random.uniform(0, 360)
+            speed = random.uniform(2, 6)
+            self.particles.append({
+                'pos': pygame.math.Vector2(x, y),
+                'vel': pygame.math.Vector2(
+                    math.cos(math.radians(angle)) * speed,
+                    math.sin(math.radians(angle)) * speed
+                ),
+                'life': 1.0,
+                'size': random.randint(3, 8),
+                'color': (100 + random.randint(-20, 20), 180 + random.randint(-30, 30), 255)
+            })
+    
+    def update(self, dt):
+        """Update explosion effect."""
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+        
+        progress = self.elapsed / self.duration
+        self.shockwave_radius = self.max_shockwave_radius * progress
+        
+        for particle in self.particles[:]:
+            particle['pos'] += particle['vel'] * (dt / 16.0)
+            particle['life'] -= dt / self.duration
+            particle['vel'] *= 0.98  # Slow down over time
+            if particle['life'] <= 0:
+                self.particles.remove(particle)
+        
+        return True
+    
+    def draw(self, surface):
+        """Draw explosion particles and shockwave."""
+        progress = self.elapsed / self.duration
+        
+        # Draw shockwave ring
+        if progress < 0.5:
+            shockwave_alpha = int((1 - progress * 2) * 200)
+            shockwave_surf = pygame.Surface((int(self.shockwave_radius * 2 + 40), 
+                                            int(self.shockwave_radius * 2 + 40)), pygame.SRCALPHA)
+            center = int(self.shockwave_radius + 20)
+            # Multiple rings for depth
+            for i in range(3):
+                color = (80 + i*20, 150 + i*30, 255, shockwave_alpha // (i+1))
+                radius = int(self.shockwave_radius - i*10)
+                if radius > 0:
+                    pygame.draw.circle(shockwave_surf, color, (center, center), radius, width=4)
+            surface.blit(shockwave_surf, (int(self.x - self.shockwave_radius - 20), 
+                                          int(self.y - self.shockwave_radius - 20)))
+        
+        # Draw energy particles
+        for particle in self.particles:
+            alpha = int(particle['life'] * 255)
+            color = (*particle['color'][:3], alpha)
+            pos = (int(particle['pos'].x), int(particle['pos'].y))
+            size = max(1, int(particle['size'] * particle['life']))
+            
+            # Draw particle with glow
+            particle_surf = pygame.Surface((size*4, size*4), pygame.SRCALPHA)
+            # Outer glow
+            glow_color = (*particle['color'][:3], alpha // 2)
+            pygame.draw.circle(particle_surf, glow_color, (size*2, size*2), size*2)
+            # Inner bright core
+            pygame.draw.circle(particle_surf, color, (size*2, size*2), size)
+            surface.blit(particle_surf, (pos[0]-size*2, pos[1]-size*2))
+
+
 class ScorchEffect:
     """Fire effect for Naquadah Overload ability."""
     def __init__(self, x, y, duration=800):

@@ -568,6 +568,7 @@ class Game:
         self.weather_cards_on_board = {"close": None, "ranged": None, "siege": None}  # Weather visuals per row
         self.winner = None
         self.round_winner = None  # Track who won last round for missions
+        self.last_scorch_positions = []  # Track where Naquadah Overload destroyed cards (player, row_name)
         
         # Leader ability tracking
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
@@ -1098,10 +1099,11 @@ class Game:
             if "Merlin" in card.name or "Anti-Ori" in card.name:
                 # Only affect opponent
                 opponent = self.player2 if self.current_player == self.player1 else self.player1
-                self.apply_scorch_to_player(opponent)
+                destroyed_rows = self.apply_scorch_to_player(opponent)
+                self.last_scorch_positions = [(opponent, row) for row in destroyed_rows]
             else:
                 # Normal scorch - both sides
-                self.apply_scorch()
+                self.last_scorch_positions = self.apply_scorch()
         
         elif "Ring Transport" in ability:
             # Ring Transport is handled in main.py with UI selection
@@ -1173,7 +1175,8 @@ class Game:
         return valid_cards
     
     def apply_scorch(self):
-        """Destroys the highest power non-Legendary Commander units (on both boards if tied)."""
+        """Destroys the highest power non-Legendary Commander units (on both boards if tied).
+        Returns: List of (player, row_name) tuples where cards were destroyed."""
         all_units = []
         for player in [self.player1, self.player2]:
             for row_name, row_cards in player.board.items():
@@ -1182,19 +1185,24 @@ class Game:
                         all_units.append((card, player, row_name))
         
         if not all_units:
-            return
+            return []
         
         max_power = max(card.displayed_power for card, _, _ in all_units)
         units_to_destroy = [(card, player, row) for card, player, row in all_units 
                            if card.displayed_power == max_power]
         
+        destroyed_positions = []
         for card, player, row_name in units_to_destroy:
             if card in player.board[row_name]:
                 player.board[row_name].remove(card)
                 player.discard_pile.append(card)
+                destroyed_positions.append((player, row_name))
+        
+        return destroyed_positions
     
     def apply_scorch_to_player(self, target_player):
-        """Destroys the highest power non-Legendary Commander units for one player only."""
+        """Destroys the highest power non-Legendary Commander units for one player only.
+        Returns: List of row_name strings where cards were destroyed."""
         all_units = []
         for row_name, row_cards in target_player.board.items():
             for card in row_cards:
@@ -1202,16 +1210,20 @@ class Game:
                     all_units.append((card, row_name))
         
         if not all_units:
-            return
+            return []
         
         max_power = max(card.displayed_power for card, _ in all_units)
         units_to_destroy = [(card, row) for card, row in all_units 
                            if card.displayed_power == max_power]
         
+        destroyed_rows = []
         for card, row_name in units_to_destroy:
             if card in target_player.board[row_name]:
                 target_player.board[row_name].remove(card)
                 target_player.discard_pile.append(card)
+                destroyed_rows.append(row_name)
+        
+        return destroyed_rows
 
     def end_round(self):
         """Ends the round, determines winner, and resets for the next."""
