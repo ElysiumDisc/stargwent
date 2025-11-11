@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-1.5.1-blue)
+![Version](https://img.shields.io/badge/version-1.6-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -42,6 +42,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
 - **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
+- **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
+- **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
+- **⚡ NEW v1.6: IMPROVED HAND LAYOUT** - Hand area dynamically reserves 25% of screen height to prevent card cutoff in fullscreen!
 - **⚡ NEW v1.5: APOPHIS WEATHER DECREE** - Once per game Apophis unleashes a random battlefield hazard that blankets both sides and honors weather immunities.
 - **⚡ NEW v1.5: WEATHER & HORN PANELS** - Left-side slots display active weather cards and Commander Horns while doubling as drag-and-drop targets.
 - **⚡ NEW v1.5: LEGENDARY LIGHTNING** - Every Legendary Commander arrival now gets a one-shot lightning outline (player + AI).
@@ -132,6 +135,36 @@ All abilities renamed and themed around Stargate lore:
   - **Lucian Alliance**: Green naquadah shockwave
   - **Jaffa**: Stealth Tel'tak ship delivery
   - **Asgard**: Blue holographic lattice swaps
+
+---
+
+## 📝 Changelog
+
+### Version 1.6 (November 2024)
+**Fullscreen Polish & Round Winner Announcements**
+
+#### UI Improvements
+- ✅ **Fullscreen Bottom UI Fix** - Pass button, Faction Power UI, and all bottom elements now stay properly visible in fullscreen mode
+- ✅ **Safe Margin System** - Implemented 3% bottom margin and 2% right margin to prevent UI cutoff
+- ✅ **Dynamic Hand Area** - Hand area now reserves minimum 25% of screen height (250px minimum) to prevent card cropping
+- ✅ **Improved Button Positioning** - DHD Pass button and Mulligan button repositioned with increased safe spacing
+
+#### Round Winner System
+- ✅ **Cinematic Round Winner Overlay** - Beautiful 3-second announcement showing who won each round
+- ✅ **Detailed Scoreboard** - Displays all 3 rounds with:
+  - **Blue highlights (100, 150, 255)** for won rounds
+  - **Light grey (150, 150, 150)** for lost/draw rounds  
+  - **Dark grey (80, 80, 80)** for future rounds
+  - Total rounds won for each player
+- ✅ **Round-by-Round Tracking** - Shows completed round number (e.g., "YOU WIN ROUND 2!")
+- ✅ **Skip Option** - Press SPACE to continue immediately
+- ✅ **Perfect Timing** - Announcement appears BEFORE hyperspace transition to next round
+
+#### Technical Improvements
+- ✅ **Scale Factor Adjustments** - All UI elements properly scale with fullscreen resolution changes
+- ✅ **F11 Fullscreen Toggle** - Recalculates all margins when switching between windowed/fullscreen
+- ✅ **Faction Power UI Positioning** - Moved up with safe margin calculation to stay visible
+- ✅ **Hand Y Offset Calculation** - Improved formula ensures cards never get cut off at bottom
 
 ---
 
@@ -1200,6 +1233,7 @@ Suggestions and feedback welcome!
 
 Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
 
+*v1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*
 *v1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
 *v1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul!*
 *Legendary commanders now crackle with lightning as they land — embrace the spectacle!*
