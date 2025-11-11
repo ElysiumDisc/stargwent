@@ -1368,6 +1368,9 @@ def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scro
             surface.blit(scaled_image, (x, y))
             pygame.draw.rect(surface, (255, 100, 100), pygame.Rect(x, y, card_width, card_height), width=3)
             
+            # Store rect for click detection
+            card.rect = pygame.Rect(x, y, card_width, card_height)
+            
             # Card name
             name_text = pygame.font.Font(None, 24).render(card.name[:25], True, (255, 255, 255))
             name_rect = name_text.get_rect(center=(x + card_width // 2, y + card_height + 20))
@@ -1375,7 +1378,7 @@ def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scro
     
     # Instructions
     inst_font = pygame.font.Font(None, 32)
-    inst = inst_font.render("Scroll: Mouse Wheel | Close: ESC or Click", True, (200, 200, 200))
+    inst = inst_font.render("Scroll: Mouse Wheel | Right-Click: Inspect | Close: ESC or Click", True, (200, 200, 200))
     inst_rect = inst.get_rect(center=(screen_width // 2, screen_height - 40))
     surface.blit(inst, inst_rect)
 
@@ -1979,8 +1982,33 @@ def main():
                     elif event.key == pygame.K_ESCAPE:
                         running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                # RIGHT CLICK = Card Preview/Zoom
+                # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
+                    # Check if right-clicking discard pile to view it
+                    if discard_rect and discard_rect.collidepoint(event.pos) and not viewing_discard:
+                        viewing_discard = True
+                        discard_scroll = 0
+                        continue
+                    
+                    # Check if right-clicking a card in the discard viewer to inspect it
+                    if viewing_discard:
+                        card_clicked = False
+                        for card in game.player1.discard_pile:
+                            if hasattr(card, 'rect') and card.rect.collidepoint(event.pos):
+                                inspected_card = card
+                                selected_card = None
+                                card_clicked = True
+                                break
+                        
+                        # If clicked on a card, don't close the viewer
+                        if card_clicked:
+                            continue
+                        
+                        # Otherwise close the discard viewer
+                        viewing_discard = False
+                        discard_scroll = 0
+                        continue
+                    
                     # Close any existing previews
                     if inspected_card or inspected_leader:
                         inspected_card = None
@@ -2466,16 +2494,21 @@ def main():
                 ai_selected_card_index = None
         
         # Check for score changes and trigger animations
+        prev_p1_before = prev_p1_score
+        prev_p2_before = prev_p2_score
+
         if game.player1.score != prev_p1_score:
             score_x = SCREEN_WIDTH - int(SCREEN_WIDTH * 0.052)
+            p1_lead_gain = (prev_p1_before <= prev_p2_before) and (game.player1.score > game.player2.score)
             anim_manager.add_score_animation('p1', prev_p1_score, game.player1.score, 
-                                            score_x, SCREEN_HEIGHT // 2 + 50)
+                                            score_x, SCREEN_HEIGHT // 2 + 50, lead_burst=p1_lead_gain)
             prev_p1_score = game.player1.score
         
         if game.player2.score != prev_p2_score:
             score_x = SCREEN_WIDTH - int(SCREEN_WIDTH * 0.052)
+            p2_lead_gain = (prev_p2_before <= prev_p1_before) and (game.player2.score > game.player1.score)
             anim_manager.add_score_animation('p2', prev_p2_score, game.player2.score,
-                                            score_x, SCREEN_HEIGHT // 2 - 50)
+                                            score_x, SCREEN_HEIGHT // 2 - 50, lead_burst=p2_lead_gain)
             prev_p2_score = game.player2.score
 
         drag_hover_highlight = None

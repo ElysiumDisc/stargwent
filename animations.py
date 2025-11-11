@@ -721,7 +721,7 @@ class WeatherEffect:
 
 class ScorePopAnimation(Animation):
     """Dramatic score change animation with pop effect."""
-    def __init__(self, old_value, new_value, x, y, duration=600):
+    def __init__(self, old_value, new_value, x, y, duration=600, lead_burst=False):
         super().__init__(duration)
         self.old_value = old_value
         self.new_value = new_value
@@ -734,6 +734,20 @@ class ScorePopAnimation(Animation):
         self.shake_seed = random.uniform(0, math.pi * 2)
         self.shake_strength = 0.0
         self.shake_freq = random.uniform(4.0, 6.5)
+        self.lead_burst = lead_burst
+        self.burst_particles = []
+        if lead_burst:
+            for _ in range(24):
+                angle = random.uniform(0, math.tau)
+                speed = random.uniform(140, 260)
+                size = random.randint(3, 6)
+                self.burst_particles.append({
+                    "angle": angle,
+                    "speed": speed,
+                    "dist": 0.0,
+                    "alpha": 1.0,
+                    "size": size
+                })
     
     def update(self, dt):
         super().update(dt)
@@ -758,6 +772,12 @@ class ScorePopAnimation(Animation):
             self.alpha = int((progress / 0.1) * 255)
         else:
             self.alpha = 255
+        
+        if self.lead_burst:
+            for particle in self.burst_particles:
+                particle["dist"] += particle["speed"] * (dt / 1000.0)
+                particle["alpha"] = max(0.0, particle["alpha"] - dt / 500.0)
+            self.burst_particles = [p for p in self.burst_particles if p["alpha"] > 0]
         
         return not self.finished
     
@@ -802,6 +822,17 @@ class ScorePopAnimation(Animation):
             glow_color = (*color, int(self.alpha * 0.3))
             pygame.draw.ellipse(glow_surf, glow_color, glow_surf.get_rect())
             surface.blit(glow_surf, (text_rect.x - 10, text_rect.y - 10))
+        
+        if self.lead_burst and self.burst_particles:
+            center = (int(self.x), int(final_y))
+            for particle in self.burst_particles:
+                px = center[0] + math.cos(particle["angle"]) * particle["dist"]
+                py = center[1] + math.sin(particle["angle"]) * particle["dist"]
+                alpha = int(200 * particle["alpha"])
+                color = (120, 190, 255, alpha)
+                burst_surf = pygame.Surface((particle["size"]*2, particle["size"]*2), pygame.SRCALPHA)
+                pygame.draw.circle(burst_surf, color, (particle["size"], particle["size"]), particle["size"])
+                surface.blit(burst_surf, (int(px - particle["size"]), int(py - particle["size"])))
         
         surface.blit(base_text, text_rect)
         
@@ -2391,9 +2422,9 @@ class AnimationManager:
         """Add a visual effect."""
         self.effects.append(effect)
     
-    def add_score_animation(self, player_id, old_score, new_score, x, y):
+    def add_score_animation(self, player_id, old_score, new_score, x, y, lead_burst=False):
         """Add a score change animation."""
-        anim = ScorePopAnimation(old_score, new_score, x, y)
+        anim = ScorePopAnimation(old_score, new_score, x, y, lead_burst=lead_burst)
         self.score_animations[player_id] = anim
     
     def add_row_weather(self, weather_type, row_rect, screen_width):
