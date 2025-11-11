@@ -731,6 +731,9 @@ class ScorePopAnimation(Animation):
         self.scale = 1.0
         self.alpha = 255
         self.offset_y = 0
+        self.shake_seed = random.uniform(0, math.pi * 2)
+        self.shake_strength = 0.0
+        self.shake_freq = random.uniform(4.0, 6.5)
     
     def update(self, dt):
         super().update(dt)
@@ -747,6 +750,8 @@ class ScorePopAnimation(Animation):
         
         # Float up slightly
         self.offset_y = -math.sin(progress * math.pi) * 20
+        # Shake strongest near the start, fade out by the end
+        self.shake_strength = max(0.0, (1.0 - progress) * 4.0)
         
         # Fade in at start
         if progress < 0.1:
@@ -770,29 +775,35 @@ class ScorePopAnimation(Animation):
             color = (255, 255, 255)  # White for no change
         
         # Render score with current scale
-        text = font.render(str(self.current_value), True, color)
+        base_text = font.render(str(self.current_value), True, color)
         
         # Scale the text
         if self.scale != 1.0:
-            new_width = int(text.get_width() * self.scale)
-            new_height = int(text.get_height() * self.scale)
-            text = pygame.transform.scale(text, (new_width, new_height))
+            new_width = max(1, int(base_text.get_width() * self.scale))
+            new_height = max(1, int(base_text.get_height() * self.scale))
+            base_text = pygame.transform.smoothscale(base_text, (new_width, new_height))
         
         # Apply alpha
-        text.set_alpha(self.alpha)
+        base_text.set_alpha(self.alpha)
+        
+        # Compute shake offsets
+        elapsed_sec = self.elapsed / 1000.0
+        shake_phase = self.shake_seed + elapsed_sec * self.shake_freq * 2.5
+        shake_x = math.sin(shake_phase) * self.shake_strength
+        shake_y = math.cos(shake_phase * 0.85) * (self.shake_strength * 0.6)
         
         # Draw with offset
-        final_y = self.y + self.offset_y
-        text_rect = text.get_rect(right=self.x, centery=int(final_y))
+        final_y = self.y + self.offset_y + shake_y
+        text_rect = base_text.get_rect(right=int(self.x + shake_x), centery=int(final_y))
         
         # Add glow effect
         if self.scale > 1.2:
-            glow_surf = pygame.Surface((text.get_width() + 20, text.get_height() + 20), pygame.SRCALPHA)
+            glow_surf = pygame.Surface((base_text.get_width() + 20, base_text.get_height() + 20), pygame.SRCALPHA)
             glow_color = (*color, int(self.alpha * 0.3))
             pygame.draw.ellipse(glow_surf, glow_color, glow_surf.get_rect())
             surface.blit(glow_surf, (text_rect.x - 10, text_rect.y - 10))
         
-        surface.blit(text, text_rect)
+        surface.blit(base_text, text_rect)
         
         # Show delta if significantly changed
         if abs(self.new_value - self.old_value) > 0 and progress < 0.8:

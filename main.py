@@ -357,18 +357,8 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         tilt += math.sin(pulse * 1.5) * 1.5
         dynamic_scale = 1.05 + min(0.05, speed * 0.015) + pickup_boost * 0.08
 
-        row_color = get_row_color(dragging_card.row)
-        glow_alpha = int(90 + min(90, speed * 7) + pickup_boost * 120)
-        glow_size = (int(CARD_WIDTH * 1.45), int(CARD_HEIGHT * 1.25))
-        glow_surface = pygame.Surface(glow_size, pygame.SRCALPHA)
-        pygame.draw.ellipse(glow_surface, (row_color[0], row_color[1], row_color[2], glow_alpha), glow_surface.get_rect())
-        glow_pos = (
-            int(dragging_card.rect.centerx - glow_surface.get_width() // 2),
-            int(dragging_card.rect.centery - glow_surface.get_height() // 2 + 30)
-        )
-        surface.blit(glow_surface, glow_pos)
-
-        shadow_surface = pygame.Surface((glow_size[0], int(glow_size[1] * 0.6)), pygame.SRCALPHA)
+        glow_size = (int(CARD_WIDTH * 1.2), int(CARD_HEIGHT * 0.8))
+        shadow_surface = pygame.Surface((glow_size[0], int(glow_size[1])), pygame.SRCALPHA)
         shadow_alpha = min(210, 80 + speed * 10)
         pygame.draw.ellipse(shadow_surface, (0, 0, 0, shadow_alpha), shadow_surface.get_rect())
         shadow_pos = (
@@ -464,15 +454,15 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
                 highlight_surface.fill(fill_color)
                 surface.blit(highlight_surface, (target_rects[r_name].x, target_rects[r_name].y))
     
-    # NEW: Highlight ALL rows when dragging weather/special cards
+    # Highlight valid drop rows while dragging weather/special cards
     if dragging_card and dragging_card.row in ["weather", "special"]:
-        # Weather/special cards can target any row
-        highlight_color = (100, 150, 255)  # Blue for weather/special
+        highlight_color = (100, 150, 255)
         fill_color = (100, 150, 255, 50)
-        
-        all_rows = {**PLAYER_ROW_RECTS, **OPPONENT_ROW_RECTS}
-        for row_name, rect in all_rows.items():
-            # Draw semi-transparent fill
+        if dragging_card.row == "weather":
+            target_rects = OPPONENT_ROW_RECTS if game.current_player == game.player1 else PLAYER_ROW_RECTS
+        else:
+            target_rects = {**PLAYER_ROW_RECTS, **OPPONENT_ROW_RECTS}
+        for rect in target_rects.values():
             highlight_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
             highlight_surface.fill(fill_color)
             surface.blit(highlight_surface, (rect.x, rect.y))
@@ -2198,8 +2188,8 @@ def main():
                             # Check if clicking on a card in hand
                             for card in game.player1.hand:
                                 if card.rect.collidepoint(event.pos):
-                                    # Check if clicking the same special/weather card again (confirmation)
-                                    if card.row in ["special", "weather"] and selected_card == card:
+                                    # Check if clicking the same special card again (confirmation)
+                                    if card.row == "special" and selected_card == card:
                                         # Second click = confirm and play
                                         # Check if this is a decoy card
                                         if "Ring Transport" in (card.ability or ""):
@@ -2228,8 +2218,8 @@ def main():
                                     # First click or different card - Select it
                                     selected_card = card
                                     
-                                    if card.row in ["special", "weather"]:
-                                        # Special/weather cards selected but not auto-played
+                                    if card.row == "special":
+                                        # Special cards selected but not auto-played
                                         # Click AGAIN to play, or press SPACE to inspect
                                         dragging_card = None
                                         drag_velocity = Vector2()
@@ -2365,7 +2355,7 @@ def main():
                     drag_velocity *= 0.85
                 
                 # Check for card hover in hand (for scale effect)
-                if not dragging_card and game.game_state == "playing":
+                if not dragging_card and game.game_state in ("playing", "mulligan"):
                     mouse_pos = event.pos
                     new_hovered = None
                     for card in game.player1.hand:
@@ -2558,7 +2548,15 @@ def main():
             screen.blit(mulligan_title, (SCREEN_WIDTH // 2 - mulligan_title.get_width() // 2, int(SCREEN_HEIGHT * 0.019)))
             mulligan_subtitle = UI_FONT.render("Click cards to select/deselect, then click Redraw button", True, WHITE)
             screen.blit(mulligan_subtitle, (SCREEN_WIDTH // 2 - mulligan_subtitle.get_width() // 2, int(SCREEN_HEIGHT * 0.046)))
-            draw_hand(screen, game.player1, None, mulligan_selected, dragging_card=None, hovered_card=None, hover_scale=1.0)
+            draw_hand(
+                screen,
+                game.player1,
+                None,
+                mulligan_selected,
+                dragging_card=None,
+                hovered_card=hovered_card,
+                hover_scale=card_hover_scale
+            )
             draw_mulligan_button(screen, mulligan_selected)
         elif game.game_state == "game_over":
             # Draw game over screen
