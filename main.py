@@ -128,83 +128,98 @@ POWER_FONT = pygame.font.SysFont("Arial", int(32 * SCALE_FACTOR), bold=True)
 ROW_FONT = pygame.font.SysFont("Arial", max(16, int(16 * SCALE_FACTOR)), bold=True)
 
 # Card & Board dimensions (relative to screen height)
-CARD_WIDTH = int(SCREEN_HEIGHT * 0.093)  # Target: ~100px at 1080p
-CARD_HEIGHT = int(SCREEN_HEIGHT * 0.139)  # Target: ~150px at 1080p
+CARD_WIDTH = int(SCREEN_HEIGHT * 0.08)  # Made cards slightly smaller
+CARD_HEIGHT = int(SCREEN_HEIGHT * 0.11)
 
-# --- CORRECTED LAYOUT CALCULATION ---
-# Base layout on card size to ensure everything fits properly
+# Mulligan card scaling (to prevent cropping)
+MULLIGAN_CARD_SCALE = 0.8
+MULLIGAN_CARD_WIDTH  = int(CARD_WIDTH * MULLIGAN_CARD_SCALE)
+MULLIGAN_CARD_HEIGHT = int(CARD_HEIGHT * MULLIGAN_CARD_SCALE)
 
-# 1. Define ROW_HEIGHT based on CARD_HEIGHT, adding minimal padding (5% instead of 10%)
-ROW_HEIGHT = int(CARD_HEIGHT * 1.05)
+# ═══════════════════════════════════════════════════════════════
+# UNIFIED GRID SYSTEM - Single Master Coordinate Grid
+# ═══════════════════════════════════════════════════════════════
+# All zones reference this grid (cards, UI, FX layers share one system)
 
-# 2. Define heights for the UI areas
-TOP_UI_MARGIN = int(SCREEN_HEIGHT * 0.06)   # Space for opponent's score, hand, etc.
-DIVIDER_HEIGHT = int(SCREEN_HEIGHT * 0.015) # Thin divider between player/opponent boards
+GRID = {
+    "TOP_MARGIN": 0.12,      # For opponent hand
+    "ROW_HEIGHT": 0.12,
+    "ROW_GAP": 0.005,
+    "DIVIDER": 0.02,
+    "BOTTOM_BAR": 0.12
+}
 
-# 3. Calculate the total height required for the 6-row game board
-TOTAL_BOARD_HEIGHT = (6 * ROW_HEIGHT) + DIVIDER_HEIGHT
+# Build vertical positions incrementally from top to bottom
+y = 0
+opponent_hand_y = int(y); y += SCREEN_HEIGHT * GRID["TOP_MARGIN"]
+opponent_siege_y  = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
+opponent_ranged_y = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
+opponent_close_y  = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
+weather_y         = int(y); y += SCREEN_HEIGHT*(GRID["DIVIDER"]+GRID["ROW_GAP"])
+player_close_y    = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
+player_ranged_y   = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
+player_siege_y    = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
+COMMAND_BAR_Y     = int(SCREEN_HEIGHT * (1 - GRID["BOTTOM_BAR"]))
+COMMAND_BAR_HEIGHT = int(SCREEN_HEIGHT * GRID["BOTTOM_BAR"])
+player_hand_y = player_siege_y # Hand starts right after siege row
 
-# 4. The player's hand area dynamically uses the remaining vertical space
-# Ensure it's large enough to accommodate cards + UI elements (faction power, leader, buttons)
-# Reserve minimum 25% of screen height for hand area, but at least 250px
-min_hand_height = max(250, int(SCREEN_HEIGHT * 0.25))
-calculated_hand_height = SCREEN_HEIGHT - TOTAL_BOARD_HEIGHT - TOP_UI_MARGIN
-HAND_Y_OFFSET = max(min_hand_height, calculated_hand_height)
 
-# 5. Define the Y positions for the top of each row sequentially
-opponent_siege_y = TOP_UI_MARGIN
-opponent_ranged_y = opponent_siege_y + ROW_HEIGHT
-opponent_close_y = opponent_ranged_y + ROW_HEIGHT
+# Derived measurements for compatibility
+ROW_HEIGHT = int(SCREEN_HEIGHT * GRID["ROW_HEIGHT"])
+ROW_GAP = int(SCREEN_HEIGHT * GRID["ROW_GAP"])
+DIVIDER_HEIGHT = int(SCREEN_HEIGHT * GRID["DIVIDER"])
+HAND_HEIGHT = int(SCREEN_HEIGHT * GRID["TOP_MARGIN"])
+TOP_MARGIN = int(SCREEN_HEIGHT * GRID["TOP_MARGIN"])
 
-# Player rows start after the opponent's rows and the central divider
-player_close_y = opponent_close_y + ROW_HEIGHT + DIVIDER_HEIGHT
-player_ranged_y = player_close_y + ROW_HEIGHT
-player_siege_y = player_ranged_y + ROW_HEIGHT
-
-# The height is now ROW_HEIGHT, so the highlight box fills the entire lane
+# Build rectangles for hitboxes and rendering
 PLAYER_ROW_RECTS = {
-    "close": pygame.Rect(0, player_close_y, SCREEN_WIDTH, ROW_HEIGHT),
+    "close":  pygame.Rect(0, player_close_y,  SCREEN_WIDTH, ROW_HEIGHT),
     "ranged": pygame.Rect(0, player_ranged_y, SCREEN_WIDTH, ROW_HEIGHT),
-    "siege": pygame.Rect(0, player_siege_y, SCREEN_WIDTH, ROW_HEIGHT),
+    "siege":  pygame.Rect(0, player_siege_y,  SCREEN_WIDTH, ROW_HEIGHT),
 }
-
 OPPONENT_ROW_RECTS = {
-    "close": pygame.Rect(0, opponent_close_y, SCREEN_WIDTH, ROW_HEIGHT),
+    "close":  pygame.Rect(0, opponent_close_y,  SCREEN_WIDTH, ROW_HEIGHT),
     "ranged": pygame.Rect(0, opponent_ranged_y, SCREEN_WIDTH, ROW_HEIGHT),
-    "siege": pygame.Rect(0, opponent_siege_y, SCREEN_WIDTH, ROW_HEIGHT),
+    "siege":  pygame.Rect(0, opponent_siege_y,  SCREEN_WIDTH, ROW_HEIGHT),
 }
 
-ROW_CARD_OFFSET = (ROW_HEIGHT - CARD_HEIGHT) // 2
+# Card centering (use rect.centery - CARD_HEIGHT // 2 in draw functions)
+HAND_CARD_OFFSET = (HAND_HEIGHT - CARD_HEIGHT) // 2
 
+# Background height for the lower HUD/hand zone
+HAND_Y_OFFSET = SCREEN_HEIGHT - player_hand_y
+
+# Weather zone height (for separator rendering)
+WEATHER_ZONE_HEIGHT = DIVIDER_HEIGHT
+
+# Compute weather & horn slots relative to rows
 WEATHER_SLOT_X = int(SCREEN_WIDTH * 0.035)
-HORN_SLOT_X = WEATHER_SLOT_X + CARD_WIDTH + int(CARD_WIDTH * 0.4)
+HORN_SLOT_X    = WEATHER_SLOT_X + CARD_WIDTH + int(CARD_WIDTH * 0.4)
 
-WEATHER_SLOT_RECTS = {}
+WEATHER_SLOT_RECTS, PLAYER_HORN_SLOT_RECTS, OPPONENT_HORN_SLOT_RECTS = {}, {}, {}
 for shared_row in ["siege", "ranged", "close"]:
-    top_rect = OPPONENT_ROW_RECTS[shared_row]
-    bottom_rect = PLAYER_ROW_RECTS[shared_row]
-    shared_center = (top_rect.centery + bottom_rect.centery) // 2
+    # Weather slots are now centered on the weather divider line
+    center_y = weather_y + (DIVIDER_HEIGHT // 2)
     WEATHER_SLOT_RECTS[shared_row] = pygame.Rect(
-        WEATHER_SLOT_X,
-        shared_center - CARD_HEIGHT // 2,
-        CARD_WIDTH,
-        CARD_HEIGHT
+        WEATHER_SLOT_X, center_y - CARD_HEIGHT // 2, CARD_WIDTH, CARD_HEIGHT
     )
 
+# --- Horn Slots aligned to row center ---
 PLAYER_HORN_SLOT_RECTS = {}
-for row_name, row_rect in PLAYER_ROW_RECTS.items():
-    PLAYER_HORN_SLOT_RECTS[row_name] = pygame.Rect(
+OPPONENT_HORN_SLOT_RECTS = {}
+
+for rname, rect in PLAYER_ROW_RECTS.items():
+    PLAYER_HORN_SLOT_RECTS[rname] = pygame.Rect(
         HORN_SLOT_X,
-        row_rect.top + ROW_CARD_OFFSET,
+        rect.centery - CARD_HEIGHT // 2,
         CARD_WIDTH,
         CARD_HEIGHT
     )
 
-OPPONENT_HORN_SLOT_RECTS = {}
-for row_name, row_rect in OPPONENT_ROW_RECTS.items():
-    OPPONENT_HORN_SLOT_RECTS[row_name] = pygame.Rect(
+for rname, rect in OPPONENT_ROW_RECTS.items():
+    OPPONENT_HORN_SLOT_RECTS[rname] = pygame.Rect(
         HORN_SLOT_X,
-        row_rect.top + ROW_CARD_OFFSET,
+        rect.centery - CARD_HEIGHT // 2,
         CARD_WIDTH,
         CARD_HEIGHT
     )
@@ -386,39 +401,47 @@ def draw_card(surface, card, x, y, selected=False, hover_scale=1.0, tilt_angle=0
 def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_card=None,
               hovered_card=None, hover_scale=1.0, drag_visuals=None):
     """Draw the player's hand plus optional drag animations."""
-    hand_bg_surface = pygame.Surface((SCREEN_WIDTH, HAND_Y_OFFSET), pygame.SRCALPHA)
-    hand_bg_surface.fill(PLAYER_HAND_BG)
-    surface.blit(hand_bg_surface, (0, SCREEN_HEIGHT - HAND_Y_OFFSET))
+    hand_area_height = COMMAND_BAR_Y - player_hand_y
+    if hand_area_height > 0:
+        hand_bg_surface = pygame.Surface((SCREEN_WIDTH, hand_area_height), pygame.SRCALPHA)
+        hand_bg_surface.fill(PLAYER_HAND_BG)
+        surface.blit(hand_bg_surface, (0, player_hand_y))
 
     if drag_visuals and drag_visuals.get("trail"):
         _draw_drag_trail(surface, drag_visuals.get("trail"))
 
+    # Detect mulligan mode and use smaller cards to prevent cropping
+    is_mulligan_mode = mulligan_selected is not None
+    card_w = MULLIGAN_CARD_WIDTH if is_mulligan_mode else CARD_WIDTH
+    card_h = MULLIGAN_CARD_HEIGHT if is_mulligan_mode else CARD_HEIGHT
+    
     # Calculate spacing to center hand
     total_cards = len(player.hand)
-    card_spacing = int(CARD_WIDTH * 0.125)  # Spacing between cards
-    total_width = total_cards * CARD_WIDTH + (total_cards - 1) * card_spacing
-    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 20
+    card_spacing = int(card_w * 0.125)  # Spacing between cards
+    total_width = total_cards * card_w + (total_cards - 1) * card_spacing
+    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 200
     
-    # Calculate vertical centering - ensure cards aren't cut off at bottom
-    hand_area_top = SCREEN_HEIGHT - HAND_Y_OFFSET
-    # Center cards vertically in the hand area, but if they're too tall, align to top with small margin
-    if CARD_HEIGHT < HAND_Y_OFFSET - 20:  # Cards fit with margin
-        card_y = hand_area_top + (HAND_Y_OFFSET - CARD_HEIGHT) // 2
-    else:  # Cards are tall, use top alignment with small margin
-        card_y = hand_area_top + 10
+    # In mulligan mode, center cards vertically better
+    if is_mulligan_mode:
+        card_y = SCREEN_HEIGHT // 2 - card_h // 2
+    else:
+        card_y = COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - card_h) // 2
     
     for i, card in enumerate(player.hand):
         # Skip rendering dragging card in hand (it's rendered separately)
         if card == dragging_card:
             continue
             
-        card_x = start_x + i * (CARD_WIDTH + card_spacing)
+        card_x = start_x + i * (card_w + card_spacing)
         is_selected = (card == selected_card)
         is_mulligan_selected = (mulligan_selected and card in mulligan_selected)
         is_hovered = (card == hovered_card)
         
-        # Apply hover scale to hovered card
-        card_scale = hover_scale if is_hovered else 1.0
+        # Apply hover scale to hovered card (reduced in mulligan mode)
+        if is_mulligan_mode:
+            card_scale = MULLIGAN_CARD_SCALE * (hover_scale if is_hovered else 1.0)
+        else:
+            card_scale = hover_scale if is_hovered else 1.0
         draw_card(surface, card, card_x, card_y, selected=is_selected, hover_scale=card_scale)
         
         # Draw blue border for mulligan selection
@@ -487,8 +510,7 @@ def draw_opponent_hand(surface, opponent):
     """Draws the opponent's hand as card backs at the top of the screen."""
     from cards import get_card_back
     
-    # Opponent hand area at top
-    hand_y = 10
+    hand_y = opponent_hand_y + HAND_CARD_OFFSET
     total_cards = len(opponent.hand)
     
     if total_cards == 0:
@@ -575,7 +597,7 @@ def draw_horn_slots(surface, game):
 
 def get_opponent_hand_card_center(total_cards, index):
     """Return the screen center position of an opponent hand slot by index."""
-    hand_y = 10
+    hand_y = opponent_hand_y + HAND_CARD_OFFSET
     if total_cards <= 0:
         return (SCREEN_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
     card_spacing = int(CARD_WIDTH * 0.125)
@@ -585,11 +607,92 @@ def get_opponent_hand_card_center(total_cards, index):
     card_x = start_x + safe_index * (CARD_WIDTH + card_spacing)
     return (card_x + CARD_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
 
+def draw_weather_separator(surface):
+    """Draw the weather row separator between enemy and player boards (Witcher 3 style)."""
+    separator_rect = pygame.Rect(0, weather_y, SCREEN_WIDTH, WEATHER_ZONE_HEIGHT)
+    
+    # Dark semi-transparent background
+    separator_surface = pygame.Surface((SCREEN_WIDTH, WEATHER_ZONE_HEIGHT), pygame.SRCALPHA)
+    separator_surface.fill((20, 30, 50, 180))
+    surface.blit(separator_surface, (0, weather_y))
+    
+    # Subtle top and bottom borders
+    pygame.draw.line(surface, (80, 100, 140), (0, weather_y), (SCREEN_WIDTH, weather_y), 2)
+    pygame.draw.line(surface, (80, 100, 140), (0, weather_y + WEATHER_ZONE_HEIGHT), 
+                     (SCREEN_WIDTH, weather_y + WEATHER_ZONE_HEIGHT), 2)
+
+
+def draw_lane_labels(surface):
+    """Draw faded lane labels beneath cards (Witcher 3 style)."""
+    label_font = pygame.font.SysFont("Arial", 28, bold=True)
+    
+    # Draw labels for each row on the right side
+    label_x = SCREEN_WIDTH - 150
+    
+    # Enemy rows
+    for row_name, row_rect in OPPONENT_ROW_RECTS.items():
+        symbol = ROW_SYMBOLS.get(row_name, "?")
+        label_text = label_font.render(f"{symbol} {row_name.upper()}", True, (100, 100, 120, 150))
+        label_y = row_rect.centery - label_text.get_height() // 2
+        surface.blit(label_text, (label_x, label_y))
+    
+    # Player rows
+    for row_name, row_rect in PLAYER_ROW_RECTS.items():
+        symbol = ROW_SYMBOLS.get(row_name, "?")
+        label_text = label_font.render(f"{symbol} {row_name.upper()}", True, (100, 100, 120, 150))
+        label_y = row_rect.centery - label_text.get_height() // 2
+        surface.blit(label_text, (label_x, label_y))
+
+
 def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_highlight=None,
                drag_row_highlights=None):
     """Draw the game board, including contextual drop highlights."""
+    draw_weather_separator(surface)
+    draw_lane_labels(surface)
     draw_weather_slots(surface, game)
     draw_horn_slots(surface, game)
+
+    # Draw row scores
+    row_score_font = pygame.font.SysFont("Arial", 24, bold=True)
+    row_score_x = HORN_SLOT_X + CARD_WIDTH + 30
+
+    for player, rects in [(game.player1, PLAYER_ROW_RECTS), (game.player2, OPPONENT_ROW_RECTS)]:
+        for row_name, row_rect in rects.items():
+            row_score = sum(c.displayed_power for c in player.board.get(row_name, []))
+            
+            if row_score > 0:
+                row_color = get_row_color(row_name)
+                score_text = row_score_font.render(str(row_score), True, WHITE)
+                
+                circle_radius = 18
+                circle_center = (row_score_x + circle_radius, row_rect.centery)
+                
+                # Draw a semi-transparent background circle
+                bg_circle_surf = pygame.Surface((circle_radius * 2, circle_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(bg_circle_surf, (*row_color, 180), (circle_radius, circle_radius), circle_radius)
+                surface.blit(bg_circle_surf, (circle_center[0] - circle_radius, circle_center[1] - circle_radius))
+
+                # Draw border
+                pygame.draw.circle(surface, row_color, circle_center, circle_radius, width=2)
+                
+                score_rect = score_text.get_rect(center=circle_center)
+                surface.blit(score_text, score_rect)
+    
+    # Darken inactive lanes (Witcher 3 polish)
+    if game.player1.has_passed or game.current_player != game.player1:
+        for row_name, row_rect in PLAYER_ROW_RECTS.items():
+            dark_surface = pygame.Surface((row_rect.width, row_rect.height), pygame.SRCALPHA)
+            dark_surface.fill((0, 0, 0, 40))
+            surface.blit(dark_surface, row_rect.topleft)
+    
+    # Subtle glow on active player's lanes (Witcher 3 polish)
+    if game.current_player == game.player1 and not game.player1.has_passed:
+        glow_alpha = 30
+        for row_name, row_rect in PLAYER_ROW_RECTS.items():
+            glow_surface = pygame.Surface((row_rect.width, row_rect.height), pygame.SRCALPHA)
+            glow_surface.fill((100, 150, 255, glow_alpha))
+            surface.blit(glow_surface, row_rect.topleft)
+    
     # Highlight valid target rows with semi-transparent fill and border
     if selected_card and selected_card.row not in ["special", "weather"]:
         valid_rows = []
@@ -630,7 +733,8 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
             highlight_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
             highlight_surface.fill((color[0], color[1], color[2], alpha))
             surface.blit(highlight_surface, rect.topleft)
-            pygame.draw.rect(surface, color, rect, width=3, border_radius=12)
+            inflate_y = int(SCREEN_HEIGHT*0.006)
+            pygame.draw.rect(surface, color, rect.inflate(0, inflate_y), width=3, border_radius=6)
 
     if drag_hover_highlight:
         rect = drag_hover_highlight["rect"]
@@ -639,16 +743,14 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
         hover_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
         hover_surface.fill((color[0], color[1], color[2], alpha))
         surface.blit(hover_surface, rect.topleft)
-        pygame.draw.rect(surface, color, rect, width=4, border_radius=12)
+        inflate_y = int(SCREEN_HEIGHT*0.006)
+        pygame.draw.rect(surface, color, rect.inflate(0, inflate_y), width=4, border_radius=6)
 
     # --- Draw cards on board (centered in their rows) ---
     row_map = {
         game.player2: OPPONENT_ROW_RECTS,
         game.player1: PLAYER_ROW_RECTS,
     }
-
-    # This offset will center the TALLER cards within their SHORTER row space
-    card_y_offset = (ROW_HEIGHT - CARD_HEIGHT) // 2
 
     card_spacing = int(CARD_WIDTH * 0.125)  # Spacing between cards on board
     for player, rects in row_map.items():
@@ -664,30 +766,15 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
             for i, card in enumerate(cards_in_row):
                 x = start_x + i * (CARD_WIDTH + card_spacing)
 
-                # Use the offset to center the card vertically in its lane
-                card_draw_y = row_rect.top + card_y_offset
+                # Center cards vertically within the row
+                card_draw_y = row_rect.centery - CARD_HEIGHT // 2
                 card.rect.topleft = (x, card_draw_y)
                 if getattr(card, "in_transit", False):
                     continue
                 draw_card(surface, card, x, card_draw_y)
     
-def draw_scores(surface, game, anim_manager=None):
+def draw_scores(surface, game, anim_manager=None, p1_score_x=0, p1_score_y=0, p2_score_x=0, p2_score_y=0):
     """Draws the player scores and rounds won next to leader portraits."""
-    
-    # Leader portraits are at:
-    # AI: x=20, y=20, width=100, height=140
-    # Player: x=20, y=SCREEN_HEIGHT - HAND_Y_OFFSET + 20, width=100, height=140
-    
-    # Position scores next to leader portraits (to the right)
-    score_x_offset = 130  # Right after the 100px wide leader portrait + 30px margin
-    
-    # Player 2 (AI/Opponent) - Top
-    p2_score_x = 20 + score_x_offset
-    p2_score_y = 40
-    
-    # Player 1 (Human) - Bottom
-    p1_score_x = 20 + score_x_offset
-    p1_score_y = SCREEN_HEIGHT - HAND_Y_OFFSET + 40
     
     # If we have active score animations, draw them instead
     if anim_manager and anim_manager.score_animations:
@@ -708,34 +795,6 @@ def draw_scores(surface, game, anim_manager=None):
     p2_rounds_text = UI_FONT.render(f"Rounds Won: {game.player2.rounds_won}", True, WHITE)
     surface.blit(p1_rounds_text, (p1_score_x, p1_score_y + 55))
     surface.blit(p2_rounds_text, (p2_score_x, p2_score_y + 55))
-    
-    # Row Scores (still show for reference, but more compact)
-    # Player row scores at bottom-center
-    row_score_y = SCREEN_HEIGHT - 50
-    center_x = SCREEN_WIDTH // 2
-    
-    # Calculate row totals
-    p1_siege_total = sum(c.displayed_power for c in game.player1.board.get("siege", []))
-    p1_ranged_total = sum(c.displayed_power for c in game.player1.board.get("ranged", []))
-    p1_close_total = sum(c.displayed_power for c in game.player1.board.get("close", []))
-    
-    # Draw row score boxes (small, compact)
-    row_font = pygame.font.SysFont("Arial", 20, bold=True)
-    
-    # Siege
-    siege_x = center_x - 150
-    siege_text = row_font.render(f"🎯: {p1_siege_total}", True, (100, 255, 100))
-    surface.blit(siege_text, (siege_x, row_score_y))
-    
-    # Ranged
-    ranged_x = center_x - 50
-    ranged_text = row_font.render(f"🏹: {p1_ranged_total}", True, (100, 100, 255))
-    surface.blit(ranged_text, (ranged_x, row_score_y))
-    
-    # Close
-    close_x = center_x + 50
-    close_text = row_font.render(f"⚔: {p1_close_total}", True, (255, 100, 100))
-    surface.blit(close_text, (close_x, row_score_y))
 
 def draw_pass_button(surface, game):
     """Draws the DHD-style pass button."""
@@ -1268,12 +1327,26 @@ def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=Fa
     name_rect = name_text.get_rect(center=(width // 2, 20))
     box_surface.blit(name_text, name_rect)
     
-    # Ability description
-    ability_font = pygame.font.SysFont("Arial", 18)
-    ability_text = ability_font.render(player.leader['ability'], True, (200, 255, 200))
-    ability_rect = ability_text.get_rect(center=(width // 2, height - 20))
-    box_surface.blit(ability_text, ability_rect)
+    # Ability description (wrapped)
+    ability_font = pygame.font.SysFont("Arial", 16)
+    words = player.leader['ability'].split(' ')
+    lines = []
+    current_line = ""
+    for word in words:
+        if ability_font.size(current_line + " " + word)[0] < width - 20:
+            current_line += " " + word
+        else:
+            lines.append(current_line.strip())
+            current_line = word
+    lines.append(current_line.strip())
     
+    line_y = name_rect.bottom + 5
+    for i, line in enumerate(lines):
+        if line:
+            ability_text = ability_font.render(line, True, (200, 255, 200))
+            ability_rect = ability_text.get_rect(center=(width // 2, line_y + i * 15))
+            box_surface.blit(ability_text, ability_rect)
+
     # Blit to main surface
     surface.blit(box_surface, (x, y))
     
@@ -1956,23 +2029,7 @@ def main():
     ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
     ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
     
-    # Initialize UI button positions (NEW LAYOUT - Bottom aligned, scaled)
-    # DHD Pass Button - position in bottom-right, ensuring it stays visible
-    DHD_SIZE = int(100 * SCALE_FACTOR)  # DHD is circular, scaled
-    button_margin = int(30 * SCALE_FACTOR)
-    
-    # Ensure buttons fit in bottom-right corner with proper spacing from edge
-    # Use larger margins to ensure visibility in fullscreen
-    safe_bottom_margin = max(button_margin, int(SCREEN_HEIGHT * 0.03))  # 3% of screen height
-    safe_right_margin = max(button_margin, int(SCREEN_WIDTH * 0.02))    # 2% of screen width
-    
-    PASS_BUTTON_RECT = pygame.Rect(
-        SCREEN_WIDTH - DHD_SIZE - safe_right_margin,
-        SCREEN_HEIGHT - DHD_SIZE - safe_bottom_margin,
-        DHD_SIZE,
-        DHD_SIZE
-    )
-    
+    # Initialize Mulligan button near bottom-right (stays above player hand zone)
     MULLIGAN_BUTTON_RECT = pygame.Rect(
         SCREEN_WIDTH - int(300 * SCALE_FACTOR),
         SCREEN_HEIGHT - int(160 * SCALE_FACTOR),  # Increased from 140
@@ -2097,25 +2154,47 @@ def main():
     thor_move_mode = False  # Thor: Selecting unit to move
     thor_selected_unit = None  # The unit Thor is moving
     
-    # Iris Power UI elements
-    # Player faction power - position to stay visible above hand area with safe margin
-    faction_ui_height = 120
-    # Ensure faction power UI is well above the bottom edge
-    safe_margin_from_bottom = int(SCREEN_HEIGHT * 0.03)  # 3% margin from bottom
+    # ═════════════════════════════════════════════════════════════
+    # UI Element Positions
+    # ═════════════════════════════════════════════════════════════
     
-    player_faction_ui = FactionPowerUI(
-        x=150,  # To the right of player leader (which is at x=20, width=100)
-        y=SCREEN_HEIGHT - HAND_Y_OFFSET - faction_ui_height - safe_margin_from_bottom,
-        width=300,
-        height=faction_ui_height
-    )
+    # --- AI UI (Top-Left) ---
+    ai_leader_x = 60
+    ai_leader_y = 40
+    ai_score_x = ai_leader_x + 110
+    ai_score_y = ai_leader_y + 20
     ai_faction_ui = FactionPowerUI(
-        x=150,  # To the right of AI leader (which is at x=20, width=100)
-        y=180,  # Below AI leader (leader is at y=20, height=140, plus "LEADER" text ~15px + margin)
-        width=300,
-        height=faction_ui_height
+        x=ai_leader_x,
+        y=ai_leader_y + 190, # Below leader portrait and text
+        width=260,
+        height=100
     )
+
+    # --- Player UI (Bottom) ---
+    # Left side
+    player_leader_x = 60
+    player_leader_y = COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - 140) // 2
+    player_faction_ui = FactionPowerUI(
+        x = player_leader_x + 110,
+        y = COMMAND_BAR_Y + 10,
+        width = 280,
+        height = int(COMMAND_BAR_HEIGHT * 0.8)
+    )
+    # Right side
+    p1_score_x = SCREEN_WIDTH - 450
+    p1_score_y = COMMAND_BAR_Y + 20
+    pass_button_size = int(100 * SCALE_FACTOR)
+    PASS_BUTTON_RECT = pygame.Rect(
+        SCREEN_WIDTH - 180,
+        COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - pass_button_size) // 2,
+        pass_button_size,
+        pass_button_size
+    )
+    
     faction_power_effect = None  # Active Iris Power visual effect
+    
+    # Debug overlay toggle (F3 key)
+    debug_overlay_enabled = False
     
     clock = pygame.time.Clock()
     
@@ -2295,8 +2374,13 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
+                # F3 - Toggle debug overlay
+                if event.key == pygame.K_F3:
+                    debug_overlay_enabled = not debug_overlay_enabled
+                    print(f"🔍 Debug Overlay: {'ENABLED' if debug_overlay_enabled else 'DISABLED'}")
+                
                 # Debug: Print all key presses
-                if event.key == pygame.K_F11:
+                elif event.key == pygame.K_F11:
                     print(f"🔑 DEBUG: F11 key detected (keycode: {event.key})")
                 
                 # ESC to toggle pause menu or close overlays
@@ -3256,7 +3340,14 @@ def main():
             # Draw normal game UI
             draw_board(screen, game, selected_card, dragging_card=dragging_card,
                        drag_hover_highlight=drag_hover_highlight, drag_row_highlights=drag_row_highlights)
-            draw_scores(screen, game, anim_manager)
+            draw_scores(screen, game, anim_manager, p1_score_x=p1_score_x, p1_score_y=p1_score_y, p2_score_x=ai_score_x, p2_score_y=ai_score_y)
+            
+            # Draw command bar background (visual separation)
+            command_bar_surface = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
+            command_bar_surface.fill((10, 20, 35, 200))
+            pygame.draw.line(command_bar_surface, (80, 120, 180), (0, 0), (SCREEN_WIDTH, 0), 2)
+            screen.blit(command_bar_surface, (0, COMMAND_BAR_Y))
+            
             draw_pass_button(screen, game)
             draw_hand(
                 screen,
@@ -3293,13 +3384,9 @@ def main():
             round_rect = round_text.get_rect(center=(SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.06))) # Increased from 0.046
             screen.blit(round_text, round_rect)
             
-            # Leader portraits - AI top-left, Player bottom-left
-            ai_leader_x = 20
-            ai_leader_y = 20
+            # Leader portraits - AI top-left, Player bottom-left (Witcher 3 style)
             ai_leader_rect = draw_leader_portrait(screen, game.player2, ai_leader_x, ai_leader_y, 100, 140)
             
-            player_leader_x = 20
-            player_leader_y = SCREEN_HEIGHT - HAND_Y_OFFSET + 20 # Position inside the hand area
             player_leader_rect = draw_leader_portrait(screen, game.player1, player_leader_x, player_leader_y, 100, 140)
             
             # Iris button (Tau'ri only, below "LEADER" text)
@@ -3321,21 +3408,21 @@ def main():
             ability_box_width = 400
             ability_box_height = 60
             
-            # AI leader ability (top center)
-            ai_ability_x = (SCREEN_WIDTH - ability_box_width) // 2
-            ai_ability_y = 20
-            ai_ability_rect = draw_leader_ability_box(screen, game.player2, ai_ability_x, ai_ability_y, 
-                                   ability_box_width, ability_box_height, is_opponent=True)
+            # AI leader ability box removed for cleaner UI
+            # ai_ability_x = ai_leader_x
+            # ai_ability_y = ai_leader_y + 150 # Below leader portrait
+            # ai_ability_rect = draw_leader_ability_box(screen, game.player2, ai_ability_x, ai_ability_y, 
+            #                        ability_box_width, ability_box_height, is_opponent=True)
             
-            # Player leader ability (bottom center, above hand)
+            # Player leader ability (bottom center, above hand with more clearance)
             player_ability_x = (SCREEN_WIDTH - ability_box_width) // 2
-            player_ability_y = SCREEN_HEIGHT - HAND_Y_OFFSET - 80
+            player_ability_y = player_hand_y - ability_box_height - 20
             player_ability_rect = draw_leader_ability_box(screen, game.player1, player_ability_x, player_ability_y, 
                                    ability_box_width, ability_box_height, is_opponent=False)
             
             # Card counters - right side, vertical
             counter_x = SCREEN_WIDTH - 260
-            counter_y_player = SCREEN_HEIGHT - HAND_Y_OFFSET - 190
+            counter_y_player = COMMAND_BAR_Y + 20
             counter_y_opponent = 70
             discard_rect = draw_card_counters(screen, game.player1, counter_x, counter_y_player, is_player=True)
             draw_card_counters(screen, game.player2, counter_x, counter_y_opponent, is_player=False)

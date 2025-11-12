@@ -338,30 +338,41 @@ class FactionPowerUI:
             y_offset += 18
         
         # Activate button (if available)
-        if faction_power.is_available():
-            button_color = (200, 50, 50) if self.button_hovered else (150, 30, 30)
-            pygame.draw.rect(surface, button_color, self.button_rect, border_radius=5)
-            pygame.draw.rect(surface, (255, 100, 100), self.button_rect, width=2, border_radius=5)
+        if is_player:
+            if faction_power.is_available():
+                button_color = (200, 50, 50) if self.button_hovered else (150, 30, 30)
+                pygame.draw.rect(surface, button_color, self.button_rect, border_radius=5)
+                pygame.draw.rect(surface, (255, 100, 100), self.button_rect, width=2, border_radius=5)
+                
+                button_font = pygame.font.SysFont("Arial", 16, bold=True)
+                button_text = button_font.render("ACTIVATE", True, (255, 255, 255))
+                text_rect = button_text.get_rect(center=self.button_rect.center)
+                surface.blit(button_text, text_rect)
+                
+                # Hotkey hint
+                hint_font = pygame.font.SysFont("Arial", 11)
+                hint_text = hint_font.render("(Press F)", True, (200, 200, 200))
+                hint_rect = hint_text.get_rect(center=(self.button_rect.centerx, self.button_rect.bottom + 10))
+                surface.blit(hint_text, hint_rect)
+            else:
+                # Used indicator - ONCE PER GAME
+                used_color = (80, 80, 80)
+                pygame.draw.rect(surface, used_color, self.button_rect, border_radius=5)
+                
+                used_font = pygame.font.SysFont("Arial", 12, bold=True)
+                used_text = used_font.render("USED", True, (150, 150, 150))
+                text_rect = used_text.get_rect(center=self.button_rect.center)
+                surface.blit(used_text, text_rect)
+        else: # is not player (is AI)
+            # Just show status, no button
+            status_font = pygame.font.SysFont("Arial", 16, bold=True)
+            if faction_power.is_available():
+                status_text = status_font.render("READY", True, (100, 255, 100))
+            else:
+                status_text = status_font.render("USED", True, (150, 150, 150))
             
-            button_font = pygame.font.SysFont("Arial", 16, bold=True)
-            button_text = button_font.render("ACTIVATE", True, (255, 255, 255))
-            text_rect = button_text.get_rect(center=self.button_rect.center)
-            surface.blit(button_text, text_rect)
-            
-            # Hotkey hint
-            hint_font = pygame.font.SysFont("Arial", 11)
-            hint_text = hint_font.render("(Press SPACE)", True, (200, 200, 200))
-            hint_rect = hint_text.get_rect(center=(self.button_rect.centerx, self.button_rect.bottom + 10))
-            surface.blit(hint_text, hint_rect)
-        else:
-            # Used indicator - ONCE PER GAME
-            used_color = (80, 80, 80)
-            pygame.draw.rect(surface, used_color, self.button_rect, border_radius=5)
-            
-            used_font = pygame.font.SysFont("Arial", 12, bold=True)
-            used_text = used_font.render("USED", True, (150, 150, 150))
-            text_rect = used_text.get_rect(center=self.button_rect.center)
-            surface.blit(used_text, text_rect)
+            status_rect = status_text.get_rect(center=self.button_rect.center)
+            surface.blit(status_text, status_rect)
     
     def draw_iris_icon(self, surface, x, y, is_active):
         """Draw a stylized iris/chevron icon."""

@@ -64,34 +64,43 @@ class AIStrategy:
         
         # Decide target round if not already decided
         if self.power_round_target is None:
-            # 60% chance round 1, 40% chance round 2
-            self.power_round_target = 1 if random.random() < 0.6 else 2
-        
-        # Only use in target round
+            # 70% chance round 1, 30% chance round 2
+            self.power_round_target = 1 if random.random() < 0.7 else 2
+
+        # --- Force usage if not used by end of round 2 ---
+        # If it's round 2, opponent has passed, and we haven't used power, use it now if we have cards.
+        if context['round_number'] == 2 and not self.power_used and context['opponent_passed'] and context['cards_on_board'] > 0:
+            return True
+
+        # --- Force usage in round 3 if not used ---
+        if context['round_number'] == 3 and not self.power_used and context['cards_on_board'] > 0:
+            return True
+
+        # Only use in target round (original logic)
         if context['round_number'] != self.power_round_target:
             return False
         
         # Use power when:
-        # - We have board presence (3+ cards)
+        # - We have board presence (2+ cards)
         # - Score is close (within 15 points)
         # - Or we're losing and need a swing
         
-        if context['cards_on_board'] < 3:
+        if context['cards_on_board'] < 2: # Lowered from 3
             return False  # Wait until we have more cards on board
         
         score_diff = context['score_diff']
         
         # If losing badly, use power to swing
-        if score_diff < -10:
+        if score_diff < -8: # Lowered from -10
             return True
         
         # If close game, use power
         if abs(score_diff) <= 15:
-            return random.random() < 0.7  # 70% chance
+            return random.random() < 0.75  # Increased from 0.7
         
         # If winning moderately, save it for later (but we're at target round)
         if score_diff > 10:
-            return random.random() < 0.3  # 30% chance
+            return random.random() < 0.4  # Increased from 0.3
         
         return False
     

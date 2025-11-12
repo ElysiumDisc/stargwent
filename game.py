@@ -356,7 +356,6 @@ class Player:
         self.units_played_this_round = 0  # Track for Gerak and Ka'lel abilities
         self.hand_revealed = False  # Track if opponent can see this player's hand
         self.reveal_next_round = False  # Pending reveal flag for Yu ability
-        self.loki_stolen_power = 0  # Track power stolen by Loki leader ability
         self.plays_this_turn = 0  # Track plays for Rak'nor ability
         
         # Stargate mechanics
@@ -540,9 +539,6 @@ class Player:
         for row in self.board.values():
             for card in row:
                 self.score += card.displayed_power
-        
-        # Add Loki stolen power bonus
-        self.score += self.loki_stolen_power
 
     def draw_cards(self, num=1):
         """Draws a number of cards from the deck to the hand."""
@@ -777,9 +773,12 @@ class Game:
                 if all_opponent_units:
                     strongest = max(all_opponent_units, key=lambda c: c.displayed_power)
                     if strongest.displayed_power > 1:
-                        strongest.displayed_power -= 1
-                        player.loki_stolen_power += 1  # Track stolen power for score calculation
-                        print(f"Loki stole 1 power from {strongest.name} (now {strongest.displayed_power})")
+                        strongest.power -= 1
+                        # Add power to a random friendly unit
+                        friendly_units = [c for row in player.board.values() for c in row if "Legendary Commander" not in (c.ability or "")]
+                        if friendly_units:
+                            random.choice(friendly_units).power += 1
+                        print(f"Loki stole 1 power from {strongest.name} (now {strongest.power})")
 
 
             # Trigger Gate Reinforcement ability
@@ -1283,7 +1282,6 @@ class Game:
             pending_reveal = getattr(p, "reveal_next_round", False)
             p.hand_revealed = pending_reveal  # Carry Yu intel into next round
             p.reveal_next_round = False
-            p.loki_stolen_power = 0  # Reset Loki stolen power for new round
             
             # Reset Ring Transportation for new round (Goa'uld)
             if p.ring_transportation:

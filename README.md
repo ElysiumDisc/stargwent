@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-1.6-blue)
+![Version](https://img.shields.io/badge/version-1.7-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -42,6 +42,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
 - **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
+- **⚡ NEW v1.7: WITCHER 3 GWENT LAYOUT** - Complete visual restructure matching authentic Gwent board design with clear separation, proper lane spacing, and fixed hand positioning!
 - **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
 - **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
 - **⚡ NEW v1.6: IMPROVED HAND LAYOUT** - Hand area dynamically reserves 25% of screen height to prevent card cutoff in fullscreen!
@@ -139,6 +140,42 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 1.7 (November 2025)
+**Stargwent Gwent-Style Balanced Layout**
+
+#### Visual Layout Overhaul
+- ✅ **Balanced Board Design** - Gwent-inspired layout with proper spacing for all elements
+- ✅ **Clear Separation** - Opponent hand, rows, weather separator, player rows, and player hand all clearly separated
+- ✅ **Dynamic Scaling** - All layout elements scale with screen height for perfect 4K/windowed support
+- ✅ **No Overlap** - Opponent hand floats above their siege row, player hand detached from player siege row
+- ✅ **Weather Separator** - Visible 5% screen height divider between factions (dark backdrop with borders)
+- ✅ **Lane Labels** - Faded row labels (⚔ CLOSE, 🏹 RANGED, ⚙ SIEGE) on right side
+- ✅ **Unified Command Bar** - Bottom-right "command zone" with Faction Power and Pass button aligned
+
+#### Layout Specifications
+- ✅ **ROW_HEIGHT**: 9.5% screen height (perfectly fits cards with breathing room)
+- ✅ **ROW_GAP**: 1.2% screen height (clean spacing between lanes)
+- ✅ **DIVIDER_HEIGHT**: 5% screen height (prominent weather separator)
+- ✅ **TOP_MARGIN**: 7% + card height + 2% (space for opponent hand)
+- ✅ **HAND_Y_OFFSET**: 18% screen height (generous player hand area)
+- ✅ **Opponent Rows**: Start after opponent hand with proper margin
+- ✅ **Player Rows**: Start after weather separator with clean gaps
+
+#### UI Improvements
+- ✅ **Command Bar Positioning** - Faction Power and Pass button form right-side control zone
+- ✅ **Player Faction Power** - Left of Pass button at `x=SCREEN_WIDTH-780`, `y=COMMAND_BAR_Y`
+- ✅ **AI Faction Power** - Top-left at `x=140`, `y=TOP_MARGIN+10`
+- ✅ **Pass Button (DHD)** - Bottom-right with safe margins (already positioned correctly)
+- ✅ **Leader Portraits** - Player bottom-left, AI top-left (unchanged)
+
+#### Visual Polish
+- ✅ **Active Player Glow** - Subtle blue glow (alpha 30) on active player's lanes
+- ✅ **Inactive Lane Darkening** - Vignette effect when player has passed
+- ✅ **Weather Separator Visual** - Semi-transparent dark bar with subtle borders
+- ✅ **Score Positioning** - Next to leader portraits with proper alignment
+
+---
 
 ### Version 1.6 (November 2024)
 **Fullscreen Polish & Round Winner Announcements**
@@ -705,6 +742,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **Card Type Tabs** - Filter by Units, Special, Weather, All
 
 ### In-Game Keyboard Hotkeys
+- **F3** - Toggle debug overlay (shows all zone boundaries and alignments)
 - **SPACEBAR** - Activate Faction Power OR preview selected card
 - **D** - View discard pile (scroll with mouse wheel, ESC to close)
 - **ESC** - Close overlays / Pause menu
@@ -1137,6 +1175,7 @@ Suggestions and feedback welcome!
 | **Preview Card** | **Right click any card** |
 | Pass Turn | Click DHD button (glowing red center) |
 | **Activate Faction Power** | **Press SPACEBAR or click ACTIVATE** |
+| **Debug Overlay** | **F3 (toggle zone boundaries)** |
 | View Discard | Press D |
 | Inspect Leader | Right click leader portrait |
 | Drag Card (Deck Builder) | LEFT CLICK + DRAG |
@@ -1233,6 +1272,7 @@ Suggestions and feedback welcome!
 
 Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
 
+*v1.7 - Witcher 3 Gwent Layout: Authentic board design with clear separation, proper lane spacing, weather separator, and fixed hand positioning!*
 *v1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*
 *v1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
 *v1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul!*
