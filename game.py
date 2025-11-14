@@ -484,17 +484,6 @@ class Player:
             # Loki: Steal 1 power from opponent's strongest (done per turn, tracked separately)
             # This is applied when card is played, not in score calculation
 
-        # Apply weather effects (reduces non-Legendary Commander cards to 1 power)
-        for row_name, row_cards in self.board.items():
-            if self.weather_effects[row_name]:
-                for card in row_cards:
-                    if "Legendary Commander" not in (card.ability or ""):
-                        # Survival Instinct units get stronger in weather
-                        if "Survival Instinct" in (card.ability or ""):
-                            card.displayed_power = card.power + 2
-                        else:
-                            card.displayed_power = 1
-
         # Apply Tactical Formation ability
         for row_name, row_cards in self.board.items():
             bond_groups = {}
@@ -546,6 +535,17 @@ class Player:
         # Apply Artifact Effects
         for artifact in self.artifacts:
             artifact.apply_effect(None, self)
+
+        # Apply weather effects last so nothing can override them
+        for row_name, row_cards in self.board.items():
+            if self.weather_effects[row_name]:
+                for card in row_cards:
+                    if "Legendary Commander" in (card.ability or ""):
+                        continue
+                    if "Survival Instinct" in (card.ability or ""):
+                        card.displayed_power = card.power + 2
+                    else:
+                        card.displayed_power = 1
 
         # Sum the final scores
         self.score = 0

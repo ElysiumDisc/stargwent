@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import string
 from dataclasses import dataclass, field
+import math
 from pathlib import Path
 from textwrap import wrap
 from typing import Dict, List, Optional, Tuple
@@ -184,6 +185,181 @@ LEADER_NOTES = {
     },
 }
 
+BASE_FRAME_SIZE = (3840, 2160)
+GATE_CENTER = (1887, 1005)
+GATE_RADIUS = 455
+LEFT_PANEL_RECTS = {
+    "upper": (216, 466, 559, 360),
+    "lower": (216, 865, 559, 360),
+    "stack": (216, 1268, 441, 640),
+}
+RIGHT_STACK_RECTS = [
+    (3231, 520, 332, 170),
+    (3231, 730, 332, 170),
+    (3231, 940, 332, 170),
+    (3231, 1150, 332, 170),
+    (3231, 1360, 332, 170),
+    (3231, 1570, 332, 170),
+]
+STATUS_BAR_RECT = (1200, 1800, 1400, 285)
+CHEVRON_POLYGONS = [
+    [
+        (1178, 929),
+        (1180, 915),
+        (1201, 783),
+        (1202, 779),
+        (1203, 778),
+        (1204, 778),
+        (1217, 784),
+        (1221, 786),
+        (1292, 823),
+        (1318, 837),
+        (1326, 842),
+        (1329, 845),
+        (1329, 847),
+        (1327, 860),
+        (1320, 902),
+        (1319, 907),
+        (1318, 909),
+        (1316, 911),
+        (1312, 912),
+        (1296, 915),
+    ],
+    [
+        (2441, 843),
+        (2445, 840),
+        (2455, 834),
+        (2464, 829),
+        (2475, 823),
+        (2553, 781),
+        (2563, 776),
+        (2564, 776),
+        (2565, 777),
+        (2566, 780),
+        (2569, 795),
+        (2591, 922),
+        (2592, 929),
+        (2592, 930),
+        (2591, 931),
+        (2586, 931),
+        (2553, 926),
+        (2474, 914),
+        (2461, 912),
+        (2456, 911),
+    ],
+    [
+        (2371, 1322),
+        (2372, 1319),
+        (2373, 1317),
+        (2379, 1307),
+        (2384, 1299),
+        (2396, 1280),
+        (2406, 1265),
+        (2407, 1264),
+        (2410, 1264),
+        (2480, 1281),
+        (2544, 1297),
+        (2544, 1299),
+        (2542, 1303),
+        (2539, 1308),
+        (2469, 1420),
+        (2462, 1430),
+        (2460, 1430),
+        (2457, 1427),
+        (2449, 1418),
+        (2410, 1371),
+    ],
+    [
+        (1356, 522),
+        (1357, 520),
+        (1366, 512),
+        (1468, 429),
+        (1473, 425),
+        (1476, 423),
+        (1477, 423),
+        (1478, 424),
+        (1481, 430),
+        (1498, 475),
+        (1521, 536),
+        (1524, 544),
+        (1527, 553),
+        (1527, 555),
+        (1526, 557),
+        (1525, 558),
+        (1513, 568),
+        (1484, 592),
+        (1479, 596),
+        (1477, 597),
+    ],
+    [
+        (1814, 293),
+        (1821, 292),
+        (1962, 292),
+        (1971, 293),
+        (1972, 294),
+        (1968, 307),
+        (1953, 352),
+        (1933, 411),
+        (1929, 422),
+        (1927, 426),
+        (1925, 428),
+        (1860, 428),
+        (1858, 426),
+        (1857, 424),
+        (1852, 410),
+        (1845, 390),
+        (1844, 387),
+        (1818, 308),
+        (1815, 298),
+        (1814, 294),
+    ],
+    [
+        (2241, 552),
+        (2242, 549),
+        (2246, 539),
+        (2273, 473),
+        (2292, 427),
+        (2293, 425),
+        (2295, 423),
+        (2297, 424),
+        (2303, 429),
+        (2399, 512),
+        (2409, 521),
+        (2413, 525),
+        (2409, 529),
+        (2406, 531),
+        (2297, 596),
+        (2295, 597),
+        (2292, 598),
+        (2291, 598),
+        (2287, 595),
+        (2281, 590),
+    ],
+    [
+        (1233, 1287),
+        (1234, 1286),
+        (1238, 1285),
+        (1276, 1278),
+        (1287, 1276),
+        (1370, 1261),
+        (1371, 1261),
+        (1373, 1263),
+        (1375, 1266),
+        (1380, 1275),
+        (1386, 1286),
+        (1401, 1314),
+        (1404, 1320),
+        (1404, 1322),
+        (1401, 1326),
+        (1320, 1412),
+        (1308, 1424),
+        (1306, 1424),
+        (1304, 1421),
+        (1299, 1412),
+    ],
+]
+SCANLINE_SPACING = 6
+
 
 @dataclass
 class SpecNode:
@@ -238,20 +414,22 @@ class RulesMenuScreen:
     def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
-        self.background = (6, 10, 22)
-        self.panel_color = (20, 28, 50)
-        self.card_bg = (30, 38, 65)
-        self.card_hover = (55, 80, 130)
-        self.text_color = (230, 235, 245)
-        self.muted_color = (170, 180, 200)
-        self.highlight = (120, 190, 255)
+        self.bg_color = (2, 5, 12)
+        self.text_color = (192, 255, 249)
+        self.muted_color = (90, 150, 170)
+        self.accent_color = (72, 220, 255)
+        self.deep_accent = (0, 160, 210)
+        self.chevron_color = (255, 90, 90)
         self.warning_color = (255, 120, 120)
-
-        self.title_font = pygame.font.SysFont("Impact, Arial Black, Arial", 64, bold=True)
-        self.tab_font = pygame.font.SysFont("Arial", 22, bold=True)
-        self.body_font = pygame.font.SysFont("Arial", 22)
-        self.small_font = pygame.font.SysFont("Arial", 18)
-        self.mono_font = pygame.font.SysFont("Consolas, Menlo, Courier", 18)
+        self.shadow_color = (5, 20, 35)
+        base_title = pygame.font.SysFont("BankGothic Md BT, Orbitron, Eurostile, Arial", 48)
+        base_body = pygame.font.SysFont("Eurostile, Orbitron, Arial", 24)
+        base_small = pygame.font.SysFont("Eurostile, Orbitron, Arial", 18)
+        base_mono = pygame.font.SysFont("Consolas, Menlo, Courier", 18)
+        self.title_font = base_title
+        self.body_font = base_body
+        self.small_font = base_small
+        self.mono_font = base_mono
 
         self.spec = self._load_spec()
         self.tabs = self.spec.find_tabs()
@@ -271,8 +449,19 @@ class RulesMenuScreen:
         self.leader_images = self._load_leader_portraits()
         self.card_images = self._load_card_images()
         self.background_image = self._load_background()
-        self.background_scaled = None
-        self._refresh_background()
+        self.background_scaled: Optional[pygame.Surface] = None
+
+        # Dynamic HUD geometry (filled in by _refresh_layout)
+        self.scale_x = 1.0
+        self.scale_y = 1.0
+        self.scale = 1.0
+        self.left_panels: Dict[str, pygame.Rect] = {}
+        self.right_slots: List[pygame.Rect] = []
+        self.bottom_status_rect = pygame.Rect(0, 0, 0, 0)
+        self.viewport_rect = pygame.Rect(0, 0, 0, 0)
+        self.viewport_mask: Optional[pygame.Surface] = None
+        self.scanline_surface: Optional[pygame.Surface] = None
+        self.chevron_slots: List[Dict] = []
 
         # UI state
         self.scroll_offsets: Dict[int, float] = {}
@@ -281,16 +470,21 @@ class RulesMenuScreen:
         self.active_faction = FACTION_DISPLAY[0]
         self.leader_faction = FACTION_DISPLAY[0]
         self.leader_category = "base"
+        self.leader_selected: Optional[Dict] = None
+        self.leader_page_offset = 0
         self.ability_search = ""
         self.ability_letter = "All"
         self.card_faction = FACTION_DISPLAY[0]
         self.card_section = "Core Deck"
         self.card_search = ""
         self.card_selected: Optional[Dict] = None
+        self.card_list_offset = 0
         self.lore_faction = FACTION_DISPLAY[0]
+        self.status_message = "IDLE"
         initial_sections = list(self.card_data.get(self.card_faction, {}).keys())
         if initial_sections:
             self.card_section = initial_sections[0]
+        self._refresh_layout()
 
     # ---------- Data parsing ----------
 
@@ -412,14 +606,6 @@ class RulesMenuScreen:
                 return None
         return None
 
-    def _refresh_background(self):
-        if self.background_image:
-            self.background_scaled = pygame.transform.smoothscale(
-                self.background_image, (self.width, self.height)
-            )
-        else:
-            self.background_scaled = None
-
     def _extract_card_id(self, text: str) -> str:
         marker = "ID:"
         if marker not in text:
@@ -504,9 +690,15 @@ class RulesMenuScreen:
         base = self.card_images.get(card_id)
         if not base:
             return None
-        if base.get_size() == size:
+        base_w, base_h = base.get_size()
+        max_w, max_h = size
+        if max_w <= 0 or max_h <= 0:
             return base
-        return pygame.transform.smoothscale(base, size)
+        scale = min(max_w / base_w, max_h / base_h)
+        new_size = (max(1, int(base_w * scale)), max(1, int(base_h * scale)))
+        if new_size == base.get_size():
+            return base
+        return pygame.transform.smoothscale(base, new_size)
 
     # ---------- Utility parsing helpers ----------
 
@@ -537,12 +729,156 @@ class RulesMenuScreen:
                 return tab
         return SpecNode(title, 0)
 
+    # ---------- Layout Helpers ----------
+
+    def _refresh_layout(self):
+        if self.background_image:
+            scaled = pygame.transform.smoothscale(self.background_image, (self.width, self.height))
+            scaled = scaled.convert()
+            scaled.set_colorkey((0, 0, 0))
+            self.background_scaled = scaled
+        else:
+            self.background_scaled = None
+        self.scale_x = self.width / BASE_FRAME_SIZE[0]
+        self.scale_y = self.height / BASE_FRAME_SIZE[1]
+        self.scale = (self.scale_x + self.scale_y) * 0.5
+        self._init_fonts()
+        self.left_panels = {name: self._scale_rect(rect) for name, rect in LEFT_PANEL_RECTS.items()}
+        self.right_slots = [self._scale_rect(rect) for rect in RIGHT_STACK_RECTS]
+        self.bottom_status_rect = self._scale_rect(STATUS_BAR_RECT)
+        center = self._scale_point(GATE_CENTER)
+        radius = max(60, int(self.scale * GATE_RADIUS))
+        self.viewport_rect = pygame.Rect(
+            int(center[0] - radius),
+            int(center[1] - radius),
+            radius * 2,
+            radius * 2,
+        )
+        self._rebuild_viewport_mask()
+        self._rebuild_scanlines()
+        self._build_chevron_slots()
+        self._sync_leader_selection()
+        self._ensure_card_selection()
+
+    def _init_fonts(self):
+        base = max(0.65, min(self.scale * 1.4, 2.4))
+        self.title_font = pygame.font.SysFont(
+            "BankGothic Md BT, Orbitron, Eurostile, Arial", max(32, int(46 * base))
+        )
+        self.body_font = pygame.font.SysFont("Eurostile, Orbitron, Arial", max(18, int(24 * base)))
+        self.small_font = pygame.font.SysFont("Eurostile, Orbitron, Arial", max(14, int(18 * base)))
+        self.mono_font = pygame.font.SysFont("Consolas, Menlo, Courier", max(14, int(18 * base)))
+
+    def _scale_point(self, point: Tuple[float, float]) -> Tuple[float, float]:
+        return (point[0] * self.scale_x, point[1] * self.scale_y)
+
+    def _scale_rect(self, rect_data: Tuple[int, int, int, int]) -> pygame.Rect:
+        x, y, w, h = rect_data
+        return pygame.Rect(
+            int(x * self.scale_x),
+            int(y * self.scale_y),
+            max(4, int(w * self.scale_x)),
+            max(4, int(h * self.scale_y)),
+        )
+
+    def _scale_polygon(self, polygon: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        return [(int(px * self.scale_x), int(py * self.scale_y)) for px, py in polygon]
+
+    def _rebuild_viewport_mask(self):
+        size = (self.viewport_rect.width, self.viewport_rect.height)
+        mask = pygame.Surface(size, pygame.SRCALPHA)
+        pygame.draw.circle(mask, (255, 255, 255, 255), (size[0] // 2, size[1] // 2), size[0] // 2)
+        self.viewport_mask = mask
+
+    def _rebuild_scanlines(self):
+        size = (self.viewport_rect.width, self.viewport_rect.height)
+        pattern = pygame.Surface(size, pygame.SRCALPHA)
+        for y in range(0, size[1], SCANLINE_SPACING):
+            pygame.draw.line(pattern, (0, 120, 180, 40), (0, y), (size[0], y))
+        self.scanline_surface = pattern
+
+    def _build_chevron_slots(self):
+        center = self._scale_point(GATE_CENTER)
+        slots = []
+        for poly in CHEVRON_POLYGONS:
+            scaled = self._scale_polygon(poly)
+            cx = sum(pt[0] for pt in scaled) / len(scaled)
+            cy = sum(pt[1] for pt in scaled) / len(scaled)
+            angle = math.degrees(math.atan2(cy - center[1], cx - center[0])) % 360
+            slots.append((angle, {"polygon": scaled, "tabs": [], "current_index": 0}))
+        slots.sort(key=lambda entry: entry[0])
+        ordered = [payload for _, payload in slots]
+        for idx in range(len(self.tab_titles)):
+            target = ordered[idx % len(ordered)]
+            target["tabs"].append(idx)
+        self.chevron_slots = ordered
+        self._sync_chevron_state()
+
+    def _sync_chevron_state(self):
+        for slot in self.chevron_slots:
+            slot["current_index"] = 0
+            if self.active_tab in slot["tabs"]:
+                slot["current_index"] = slot["tabs"].index(self.active_tab)
+
+    def _sync_leader_selection(self):
+        leaders = self.leader_data.get(self.leader_faction, {}).get(self.leader_category, [])
+        self.leader_page_offset = 0
+        self.leader_selected = leaders[0] if leaders else None
+
+    def _ensure_card_selection(self):
+        entries = self.card_data.get(self.card_faction, {}).get(self.card_section, [])
+        filtered = [entry for entry in entries if self.card_search.lower() in entry["name"].lower()]
+        if not filtered:
+            self.card_selected = None
+            self.card_list_offset = 0
+            return
+        self.card_list_offset = min(self.card_list_offset, max(0, len(filtered) - 1))
+        if not self.card_selected or self.card_selected not in filtered:
+            self.card_selected = filtered[0]
+
+    def _set_active_tab(self, index: int):
+        index = max(0, min(len(self.tab_titles) - 1, index))
+        if index == self.active_tab:
+            return
+        self.active_tab = index
+        self.scroll_offsets.setdefault(index, 0)
+        self._sync_chevron_state()
+        self._set_status(self.tab_titles[index])
+
+    def _activate_chevron(self, slot_index: int):
+        if slot_index < 0 or slot_index >= len(self.chevron_slots):
+            return
+        slot = self.chevron_slots[slot_index]
+        if not slot["tabs"]:
+            return
+        next_index = (slot["current_index"] + 1) % len(slot["tabs"])
+        slot["current_index"] = next_index
+        self._set_active_tab(slot["tabs"][next_index])
+
+    def _set_status(self, text: str):
+        self.status_message = text
+
+    def _point_in_polygon(self, pos: Tuple[int, int], polygon: List[Tuple[int, int]]) -> bool:
+        x, y = pos
+        inside = False
+        j = len(polygon) - 1
+        for i in range(len(polygon)):
+            xi, yi = polygon[i]
+            xj, yj = polygon[j]
+            intersects = ((yi > y) != (yj > y)) and (
+                x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-6) + xi
+            )
+            if intersects:
+                inside = not inside
+            j = i
+        return inside
+
     # ---------- Event Handling ----------
 
     def resize(self, width: int, height: int):
         self.width = width
         self.height = height
-        self._refresh_background()
+        self._refresh_layout()
 
     def handle_event(self, event) -> Optional[str]:
         if event.type == pygame.KEYDOWN:
@@ -579,54 +915,88 @@ class RulesMenuScreen:
                 self.ability_search = self.ability_search[:-1]
             else:
                 self.ability_search += text
+            self.scroll_offsets[self.active_tab] = 0
         elif tab_type == "cards" and field == "search":
             if backspace:
                 self.card_search = self.card_search[:-1]
             else:
                 self.card_search += text
+            self.card_list_offset = 0
+            self._ensure_card_selection()
 
     def _handle_click(self, pos):
         for hit in reversed(self.hit_regions):
-            rect = hit["rect"]
-            if rect.collidepoint(pos):
-                action = hit["type"]
-                if action == "tab":
-                    self.active_tab = hit["index"]
-                elif action == "faction":
-                    self.active_faction = hit["name"]
-                elif action == "leader_faction":
-                    self.leader_faction = hit["name"]
-                elif action == "leader_category":
-                    self.leader_category = hit["category"]
-                elif action == "ability_letter":
-                    self.ability_letter = hit["letter"]
-                    self.scroll_offsets[self.active_tab] = 0
-                elif action == "card_faction":
-                    self.card_faction = hit["name"]
-                    sections = list(self.card_data.get(self.card_faction, {}).keys())
-                    if sections and self.card_section not in sections:
-                        self.card_section = sections[0]
-                    self.card_selected = None
-                elif action == "card_section":
-                    self.card_section = hit["section"]
-                    self.card_selected = None
-                elif action == "card_entry":
-                    self.card_selected = hit["entry"]
-                elif action == "lore_faction":
-                    self.lore_faction = hit["name"]
-                elif action == "input":
-                    self.active_input = (hit["tab_type"], hit["field"])
-                self.hit_regions.clear()
+            polygon = hit.get("polygon")
+            rect = hit.get("rect")
+            if polygon and self._point_in_polygon(pos, polygon):
+                self._process_hit(hit)
                 return
-        # click outside inputs -> clear focus
+            if rect and rect.collidepoint(pos):
+                self._process_hit(hit)
+                return
         self.active_input = None
+
+    def _process_hit(self, hit: Dict):
+        action = hit["type"]
+        if action == "chevron":
+            self._activate_chevron(hit["slot"])
+        elif action == "faction":
+            self.active_faction = hit["name"]
+            self.scroll_offsets[self.active_tab] = 0
+            self._set_status(f"{self.active_faction} directives active")
+        elif action == "leader_faction":
+            self.leader_faction = hit["name"]
+            self._sync_leader_selection()
+            self._set_status(f"Leader roster: {self.leader_faction}")
+        elif action == "leader_category":
+            self.leader_category = hit["category"]
+            self._sync_leader_selection()
+            label = "Base" if hit["category"] == "base" else "Unlockable"
+            self._set_status(f"{self.leader_faction} {label} Leaders")
+        elif action == "leader_select":
+            self.leader_selected = hit["entry"]
+            self._set_status(f"Leader locked: {self.leader_selected['name']}")
+        elif action == "leader_scroll":
+            leaders = self.leader_data.get(self.leader_faction, {}).get(self.leader_category, [])
+            if leaders:
+                max_offset = max(0, len(leaders) - len(self.right_slots))
+                self.leader_page_offset = max(0, min(max_offset, self.leader_page_offset + hit["delta"]))
+        elif action == "ability_letter":
+            self.ability_letter = hit["letter"]
+            self.scroll_offsets[self.active_tab] = 0
+        elif action == "card_faction":
+            self.card_faction = hit["name"]
+            sections = list(self.card_data.get(self.card_faction, {}).keys())
+            if sections and self.card_section not in sections:
+                self.card_section = sections[0]
+            self.card_list_offset = 0
+            self._ensure_card_selection()
+            self._set_status(f"{self.card_faction} deck manifest")
+        elif action == "card_section":
+            self.card_section = hit["section"]
+            self.card_list_offset = 0
+            self._ensure_card_selection()
+        elif action == "card_entry":
+            self.card_selected = hit["entry"]
+            self._set_status(f"Card ready: {self.card_selected['name']}")
+        elif action == "card_scroll":
+            entries = self.card_data.get(self.card_faction, {}).get(self.card_section, [])
+            filtered = [entry for entry in entries if self.card_search.lower() in entry["name"].lower()]
+            max_offset = max(0, len(filtered) - hit.get("page", 1))
+            self.card_list_offset = max(0, min(max_offset, self.card_list_offset + hit["delta"]))
+        elif action == "lore_faction":
+            self.lore_faction = hit["name"]
+        elif action == "input":
+            self.active_input = (hit["tab_type"], hit["field"])
+        self.hit_regions.clear()
 
     def _handle_scroll(self, delta: int):
         tab_title = self.tab_titles[self.active_tab]
         behavior = TAB_BEHAVIOR.get(tab_title, "text")
-        if behavior in {"text", "abilities"}:
+        step = 35 if behavior in {"text", "abilities", "lore"} else 45
+        if behavior in {"text", "abilities", "lore", "faction"}:
             self.scroll_offsets[self.active_tab] = max(
-                0, self.scroll_offsets.get(self.active_tab, 0) - delta * 30
+                0, self.scroll_offsets.get(self.active_tab, 0) - delta * step
             )
         elif behavior == "cards":
             self.scroll_offsets[self.active_tab] = max(
@@ -636,334 +1006,523 @@ class RulesMenuScreen:
     # ---------- Drawing ----------
 
     def draw(self, surface: pygame.Surface):
-        if self.background_scaled:
-            surface.blit(self.background_scaled, (0, 0))
-        else:
-            surface.fill(self.background)
+        surface.fill(self.bg_color)
         self.hit_regions.clear()
-        self._draw_header(surface)
-        self._draw_tab_bar(surface)
+        self._draw_soft_grid(surface)
         tab_title = self.tab_titles[self.active_tab]
         behavior = TAB_BEHAVIOR.get(tab_title, "text")
+        self._draw_header(surface)
+        self._draw_left_controls(surface, behavior)
+        self._draw_right_controls(surface, behavior)
+        self._draw_viewport(surface, behavior)
+        self._draw_status_bar(surface)
+        self._draw_chevrons(surface)
+        if self.background_scaled:
+            surface.blit(self.background_scaled, (0, 0))
+
+    def _draw_soft_grid(self, surface: pygame.Surface):
+        spacing = max(80, int(140 * self.scale))
+        glow = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for y in range(0, self.height, spacing):
+            pygame.draw.line(glow, (0, 60, 120, 25), (0, y), (self.width, y))
+        for x in range(0, self.width, spacing):
+            pygame.draw.line(glow, (0, 60, 120, 25), (x, 0), (x, self.height))
+        surface.blit(glow, (0, 0))
+
+    def _draw_header(self, surface: pygame.Surface):
+        tab_title = self.tab_titles[self.active_tab]
+        title = self.title_font.render("STARGWENT RULE COMPENDIUM", True, self.accent_color)
+        surface.blit(title, title.get_rect(center=(self.width // 2, int(70 * self.scale_y) + 30)))
+        subtitle = self.small_font.render(f"{tab_title} — scroll inner gate for data", True, self.muted_color)
+        surface.blit(subtitle, subtitle.get_rect(center=(self.width // 2, int(70 * self.scale_y) + 70)))
+
+    def _draw_left_controls(self, surface: pygame.Surface, behavior: str):
+        upper = self.left_panels.get("upper")
+        lower = self.left_panels.get("lower")
+        stack = self.left_panels.get("stack")
         if behavior == "faction":
-            self._draw_faction_tab(surface)
+            if upper:
+                self._panel_label(surface, upper, "Factions")
+                self._draw_menu(surface, upper, [f["name"] for f in self.faction_cards], self.active_faction, "faction")
+            if lower:
+                self._draw_panel_hint(surface, lower, "Scroll gate to read passive, power, and tactics.")
         elif behavior == "leaders":
-            self._draw_leader_tab(surface)
+            if upper:
+                self._panel_label(surface, upper, "Leader Faction")
+                self._draw_menu(surface, upper, FACTION_DISPLAY, self.leader_faction, "leader_faction")
+            if lower:
+                self._panel_label(surface, lower, "Roster Tier")
+                toggles = [("Base", "base"), ("Unlock", "unlockable")]
+                self._draw_toggle_buttons(surface, lower, toggles, self.leader_category, "leader_category")
         elif behavior == "abilities":
-            self._draw_ability_tab(surface)
+            if upper:
+                self._panel_label(surface, upper, "Ability Search")
+                self._draw_search_box(surface, upper, self.ability_search or "type to filter", "abilities")
+            if lower:
+                self._panel_label(surface, lower, "Alphabet Filter")
+                self._draw_letter_grid(surface, lower)
         elif behavior == "cards":
-            self._draw_card_tab(surface)
+            if upper:
+                self._panel_label(surface, upper, "Card Faction")
+                self._draw_menu(surface, upper, FACTION_DISPLAY, self.card_faction, "card_faction")
+            if lower:
+                self._panel_label(surface, lower, "Deck Section")
+                sections = list(self.card_data.get(self.card_faction, {}).keys())
+                self._draw_toggle_buttons(surface, lower, [(s, s) for s in sections], self.card_section, "card_section")
+            if stack:
+                self._panel_label(surface, stack, "Card Manifest")
+                self._draw_card_list_panel(surface, stack)
         elif behavior == "lore":
-            self._draw_lore_tab(surface)
+            if upper:
+                self._panel_label(surface, upper, "Faction Selection")
+                self._draw_menu(surface, upper, FACTION_DISPLAY, self.lore_faction, "lore_faction")
+            if lower:
+                self._draw_panel_hint(surface, lower, "Gate viewport shows lore + signature strategy.")
         else:
-            self._draw_text_tab(surface, self.general_sections.get(tab_title, {}))
+            if upper:
+                self._draw_panel_hint(surface, upper, "Chevron ring now controls tabs. Use scroll for long entries.")
+            if lower:
+                self._draw_panel_hint(surface, lower, "Left panels host filters + references for each tab.")
 
-    def _draw_header(self, surface):
-        title = self.title_font.render("STARGWENT RULE COMPENDIUM", True, self.text_color)
-        surface.blit(title, title.get_rect(midtop=(self.width // 2, 10)))
-        subtitle = self.small_font.render("Tab navigation • Click panels for details • ESC to return", True, self.muted_color)
-        surface.blit(subtitle, subtitle.get_rect(midtop=(self.width // 2, 70)))
+    def _draw_right_controls(self, surface: pygame.Surface, behavior: str):
+        if behavior == "leaders":
+            self._draw_leader_thumbnails(surface)
+        elif behavior == "cards":
+            self._draw_card_art_panel(surface)
+        elif behavior == "abilities":
+            if self.right_slots:
+                hint_rect = self.right_slots[0]
+                self._panel_label(surface, hint_rect, "Diagnostics")
+                self._draw_panel_hint(surface, hint_rect, "Use letter grid or search field to filter abilities.")
 
-    def _draw_tab_bar(self, surface):
-        x = 60
-        y = 100
-        for idx, title in enumerate(self.tab_titles):
-            text = self.tab_font.render(title.replace("Tab ", ""), True, self.text_color)
-            padding = 20
-            rect = pygame.Rect(x, y, text.get_width() + padding, 36)
-            color = self.highlight if idx == self.active_tab else self.panel_color
-            pygame.draw.rect(surface, color, rect, border_radius=12)
-            surface.blit(text, (rect.x + padding / 2, rect.y + 8))
-            self.hit_regions.append({"type": "tab", "index": idx, "rect": rect})
-            x += rect.width + 10
+    def _draw_viewport(self, surface: pygame.Surface, behavior: str):
+        viewport = pygame.Surface(self.viewport_rect.size, pygame.SRCALPHA)
+        tab_title = self.tab_titles[self.active_tab]
+        if behavior == "faction":
+            self._draw_faction_content(viewport)
+        elif behavior == "leaders":
+            self._draw_leader_content(viewport)
+        elif behavior == "abilities":
+            self._draw_ability_content(viewport)
+        elif behavior == "cards":
+            self._draw_card_content(viewport)
+        elif behavior == "lore":
+            self._draw_lore_content(viewport)
+        else:
+            self._draw_text_content(viewport, self.general_sections.get(tab_title, {}))
+        if self.viewport_mask:
+            viewport.blit(self.viewport_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        if self.scanline_surface:
+            viewport.blit(self.scanline_surface, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        previous_clip = surface.get_clip()
+        surface.set_clip(self.viewport_rect)
+        surface.blit(viewport, self.viewport_rect.topleft)
+        surface.set_clip(previous_clip)
 
-    def _draw_text_tab(self, surface, data: Dict):
-        panel = pygame.Rect(50, 150, self.width - 100, self.height - 190)
-        pygame.draw.rect(surface, self.panel_color, panel, border_radius=18)
-        x = panel.x + 24
-        y = panel.y + 24 - self.scroll_offsets.get(self.active_tab, 0)
+    def _draw_status_bar(self, surface: pygame.Surface):
+        rect = self.bottom_status_rect
+        pygame.draw.rect(surface, self.accent_color, rect, 2)
+        tab_label = self.small_font.render(self.tab_titles[self.active_tab], True, self.text_color)
+        status_label = self.small_font.render(self.status_message, True, self.text_color)
+        surface.blit(tab_label, (rect.x + 18, rect.y + 12))
+        surface.blit(status_label, (rect.x + 18, rect.y + 18 + tab_label.get_height()))
+
+    def _draw_chevrons(self, surface: pygame.Surface):
+        layer = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for idx, slot in enumerate(self.chevron_slots):
+            polygon = slot["polygon"]
+            active_tab = slot["tabs"][slot["current_index"]] if slot["tabs"] else None
+            active = active_tab == self.active_tab
+            fill_alpha = 110 if active else 40
+            stroke_color = self.chevron_color if active else (120, 40, 40)
+            pygame.draw.polygon(layer, (*stroke_color, fill_alpha), polygon)
+            pygame.draw.polygon(layer, (*stroke_color, 200), polygon, 2)
+            if slot["tabs"]:
+                label = "/".join(str(t + 1) for t in slot["tabs"])
+                cx = sum(pt[0] for pt in polygon) / len(polygon)
+                cy = sum(pt[1] for pt in polygon) / len(polygon)
+                text = self.small_font.render(label, True, self.text_color)
+                layer.blit(text, text.get_rect(center=(cx, cy)))
+            self.hit_regions.append({"type": "chevron", "slot": idx, "polygon": polygon})
+        surface.blit(layer, (0, 0))
+
+    def _draw_text_content(self, view: pygame.Surface, data: Dict):
+        column_x, column_width, top, area_height = self._viewport_safe_area(view)
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        y = top + 10 - offset
+        content_height = 0
         overview = data.get("overview", [])
-        items = data.get("items", [])
         for paragraph in overview:
-            y = self._render_wrapped(surface, paragraph, (x, y), panel.width - 48, self.body_font, self.text_color)
-            y += 10
-        card_width = (panel.width - 72) // 2
-        card_height = 120
-        cols = 2
-        for idx, item in enumerate(items):
-            col = idx % cols
-            row = idx // cols
-            card_x = x + col * (card_width + 24)
-            card_y = y + row * (card_height + 16)
-            card_rect = pygame.Rect(card_x, card_y, card_width, card_height)
-            pygame.draw.rect(surface, self.card_bg, card_rect, border_radius=12)
-            title_text = self.small_font.render(item["title"], True, self.highlight)
-            surface.blit(title_text, (card_rect.x + 12, card_rect.y + 8))
-            self._render_wrapped(
-                surface,
-                item["body"],
-                (card_rect.x + 12, card_rect.y + 36),
-                card_width - 24,
-                self.small_font,
-                self.text_color,
-            )
-
-    def _draw_faction_tab(self, surface):
-        panel = pygame.Rect(50, 150, self.width - 100, self.height - 190)
-        pygame.draw.rect(surface, self.panel_color, panel, border_radius=18)
-        if not self.faction_cards:
-            msg = "Faction data missing from rules_menu_spec.md."
-            self._render_wrapped(surface, msg, (panel.x + 20, panel.y + 20), panel.width - 40, self.body_font, self.warning_color)
-            return
-        button_rects = []
-        for idx, faction in enumerate(self.faction_cards):
-            rect = pygame.Rect(panel.x + 20, panel.y + 20 + idx * 60, 180, 44)
-            color = self.highlight if faction["name"] == self.active_faction else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=10)
-            label = self.small_font.render(faction["name"], True, self.text_color)
-            surface.blit(label, (rect.x + 12, rect.y + 10))
-            self.hit_regions.append({"type": "faction", "name": faction["name"], "rect": rect})
-            button_rects.append(rect)
-
-        active = next((f for f in self.faction_cards if f["name"] == self.active_faction), self.faction_cards[0])
-        info_rect = pygame.Rect(panel.x + 220, panel.y + 20, panel.width - 240, panel.height - 40)
-        pygame.draw.rect(surface, self.card_bg, info_rect, border_radius=16)
-
-        y = info_rect.y + 20
-        for label, key in [("Passive Ability", "Passive"), ("Faction Power", "Power"), ("Unique Mechanics", "Unique"), ("Strategy", "Strategy")]:
-            title = self.small_font.render(label, True, self.muted_color)
-            surface.blit(title, (info_rect.x + 20, y))
+            start_y = y
             y = self._render_wrapped(
-                surface,
-                active.get(key, ""),
-                (info_rect.x + 20, y + 20),
-                info_rect.width - 40,
+                view,
+                paragraph,
+                (column_x + column_width // 2, y),
+                column_width,
                 self.body_font,
                 self.text_color,
-            ) + 16
-
-    def _draw_leader_tab(self, surface):
-        panel = pygame.Rect(40, 150, self.width - 80, self.height - 190)
-        pygame.draw.rect(surface, self.panel_color, panel, border_radius=18)
-
-        # Faction buttons
-        fx = panel.x + 20
-        fy = panel.y + 20
-        for faction in FACTION_DISPLAY:
-            rect = pygame.Rect(fx, fy, 150, 40)
-            color = self.highlight if faction == self.leader_faction else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=8)
-            text = self.small_font.render(faction, True, self.text_color)
-            surface.blit(text, (rect.x + 12, rect.y + 10))
-            self.hit_regions.append({"type": "leader_faction", "name": faction, "rect": rect})
-            fx += rect.width + 10
-
-        # Category toggles
-        cat_y = panel.y + 80
-        for idx, category in enumerate(["base", "unlockable"]):
-            rect = pygame.Rect(panel.x + 20 + idx * 140, cat_y, 130, 32)
-            color = self.highlight if self.leader_category == category else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=8)
-            label = "Base" if category == "base" else "Unlockable"
-            text = self.small_font.render(label, True, self.text_color)
-            surface.blit(text, (rect.x + 10, rect.y + 8))
-            self.hit_regions.append({"type": "leader_category", "category": category, "rect": rect})
-
-        leaders = self.leader_data.get(self.leader_faction, {}).get(self.leader_category, [])
-        grid_rect = pygame.Rect(panel.x + 20, panel.y + 120, panel.width - 40, panel.height - 160)
-        pygame.draw.rect(surface, self.card_bg, grid_rect, border_radius=12)
-        cols = 2
-        card_w = (grid_rect.width - 30) // cols
-        card_h = 200
-        for idx, leader in enumerate(leaders):
-            col = idx % cols
-            row = idx // cols
-            rect = pygame.Rect(grid_rect.x + 10 + col * (card_w + 10), grid_rect.y + 10 + row * (card_h + 10), card_w, card_h)
-            pygame.draw.rect(surface, self.panel_color, rect, border_radius=10)
-            portrait = self.leader_images.get(leader.get("card_id"))
-            if portrait:
-                surface.blit(portrait, (rect.x + 10, rect.y + 10))
-            title = self.small_font.render(leader["name"], True, self.highlight)
-            text_x = rect.x + 10 + (portrait.get_width() + 12 if portrait else 0)
-            surface.blit(title, (text_x, rect.y + 12))
-            ability = leader.get("ability_desc") or leader.get("ability", "")
-            y = self._render_wrapped(surface, ability, (text_x, rect.y + 42), card_w - (text_x - rect.x) - 12, self.small_font, self.text_color)
-            notes = LEADER_NOTES.get(leader["name"], {})
-            timing = notes.get("timing", "")
-            synergy = notes.get("synergy", "")
-            self._render_wrapped(surface, f"Timing: {timing}", (text_x, y + 10), card_w - (text_x - rect.x) - 12, self.small_font, self.muted_color)
-            self._render_wrapped(surface, f"Synergy: {synergy}", (text_x, y + 46), card_w - (text_x - rect.x) - 12, self.small_font, self.muted_color)
-
-    def _draw_ability_tab(self, surface):
-        panel = pygame.Rect(50, 150, self.width - 100, self.height - 190)
-        pygame.draw.rect(surface, self.panel_color, panel, border_radius=18)
-
-        search_rect = pygame.Rect(panel.x + 20, panel.y + 20, 260, 32)
-        pygame.draw.rect(surface, self.card_bg, search_rect, border_radius=8)
-        label = self.small_font.render(f"Search: {self.ability_search}", True, self.text_color)
-        surface.blit(label, (search_rect.x + 10, search_rect.y + 7))
-        self.hit_regions.append({"type": "input", "tab_type": "abilities", "field": "search", "rect": search_rect})
-
-        # Alphabet filter
-        letters = ["All"] + list(string.ascii_uppercase)
-        lx = search_rect.right + 20
-        ly = panel.y + 20
-        for letter in letters:
-            rect = pygame.Rect(lx, ly, 32, 32)
-            color = self.highlight if self.ability_letter == letter else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=6)
-            text = self.small_font.render(letter[0], True, self.text_color)
-            surface.blit(text, (rect.x + 8, rect.y + 6))
-            self.hit_regions.append({"type": "ability_letter", "letter": letter, "rect": rect})
-            lx += 36
-
-        list_rect = pygame.Rect(panel.x + 20, panel.y + 70, panel.width - 40, panel.height - 90)
-        pygame.draw.rect(surface, self.card_bg, list_rect, border_radius=12)
-        filtered = self._filter_abilities()
-        total_height = len(filtered) * 130
-        view_height = list_rect.height - 20
-        max_offset = max(0, total_height - view_height)
-        offset = min(self.scroll_offsets.get(self.active_tab, 0), max_offset)
-        self.scroll_offsets[self.active_tab] = offset
-        clip = surface.get_clip()
-        inner_clip = list_rect.inflate(-10, -10)
-        surface.set_clip(inner_clip)
-        y = list_rect.y + 10 - offset
-        for ability in filtered:
-            row_rect = pygame.Rect(list_rect.x + 10, y, list_rect.width - 20, 120)
-            pygame.draw.rect(surface, self.panel_color, row_rect, border_radius=10)
-            title = self.small_font.render(ability["name"], True, self.highlight)
-            surface.blit(title, (row_rect.x + 10, row_rect.y + 8))
-            self._render_wrapped(surface, f"Effect: {ability['effect']}", (row_rect.x + 10, row_rect.y + 34), row_rect.width - 20, self.small_font, self.text_color)
-            self._render_wrapped(surface, f"Timing: {ability['timing']}", (row_rect.x + 10, row_rect.y + 60), row_rect.width - 20, self.small_font, self.muted_color)
-            self._render_wrapped(surface, f"Synergy: {ability['synergy']}", (row_rect.x + 10, row_rect.y + 86), row_rect.width - 20, self.small_font, self.muted_color)
-            y += 130
-        surface.set_clip(clip)
-
-    def _draw_card_tab(self, surface):
-        panel = pygame.Rect(30, 150, self.width - 60, self.height - 190)
-        pygame.draw.rect(surface, self.panel_color, panel, border_radius=18)
-
-        # Faction selectors
-        fx = panel.x + 20
-        for faction in FACTION_DISPLAY:
-            rect = pygame.Rect(fx, panel.y + 20, 140, 36)
-            color = self.highlight if faction == self.card_faction else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=8)
-            text = self.small_font.render(faction, True, self.text_color)
-            surface.blit(text, (rect.x + 10, rect.y + 8))
-            self.hit_regions.append({"type": "card_faction", "name": faction, "rect": rect})
-            fx += rect.width + 8
-
-        # Section toggle
-        sections = list(self.card_data.get(self.card_faction, {}).keys())
-        sx = panel.x + 20
-        sy = panel.y + 70
-        for section in sections:
-            rect = pygame.Rect(sx, sy, 200, 30)
-            color = self.highlight if section == self.card_section else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=8)
-            text = self.small_font.render(section, True, self.text_color)
-            surface.blit(text, (rect.x + 10, rect.y + 6))
-            self.hit_regions.append({"type": "card_section", "section": section, "rect": rect})
-            sx += rect.width + 10
-
-        # Search box
-        search_rect = pygame.Rect(panel.x + 20, sy + 40, 260, 32)
-        pygame.draw.rect(surface, self.card_bg, search_rect, border_radius=8)
-        label = self.small_font.render(f"Search: {self.card_search}", True, self.text_color)
-        surface.blit(label, (search_rect.x + 10, search_rect.y + 7))
-        self.hit_regions.append({"type": "input", "tab_type": "cards", "field": "search", "rect": search_rect})
-
-        list_rect = pygame.Rect(panel.x + 20, search_rect.bottom + 10, 360, panel.height - 150)
-        detail_rect = pygame.Rect(list_rect.right + 20, list_rect.y, panel.width - list_rect.width - 60, list_rect.height)
-        pygame.draw.rect(surface, self.card_bg, list_rect, border_radius=10)
-        pygame.draw.rect(surface, self.card_bg, detail_rect, border_radius=10)
-
-        entries = self.card_data.get(self.card_faction, {}).get(self.card_section, [])
-        filtered = [entry for entry in entries if self.card_search.lower() in entry["name"].lower()]
-        total_height = len(filtered) * 46
-        view_height = list_rect.height - 20
-        max_offset = max(0, total_height - view_height)
-        offset = min(self.scroll_offsets.get(self.active_tab, 0), max_offset)
-        self.scroll_offsets[self.active_tab] = offset
-        clip = surface.get_clip()
-        surface.set_clip(list_rect.inflate(-8, -8))
-        y = list_rect.y + 10 - offset
-        for entry in filtered:
-            row_rect = pygame.Rect(list_rect.x + 8, y, list_rect.width - 16, 40)
-            color = self.highlight if self.card_selected == entry else self.panel_color
-            pygame.draw.rect(surface, color, row_rect, border_radius=6)
-            card_id = entry.get("card_id")
-            art = self._get_card_art(card_id, (32, 48))
-            text_x = row_rect.x + 10
-            if art:
-                surface.blit(art, (row_rect.x + 8, row_rect.y - 4))
-                text_x = row_rect.x + 8 + art.get_width() + 10
-            text = self.small_font.render(entry["name"], True, self.text_color)
-            surface.blit(text, (text_x, row_rect.y + 10))
-            self.hit_regions.append({"type": "card_entry", "entry": entry, "rect": row_rect})
-            y += 46
-        surface.set_clip(clip)
-
-        if self.card_selected:
-            card_id = self.card_selected.get("card_id")
-            art = self._get_card_art(card_id, (220, 330))
-            text_x = detail_rect.x + 10
-            text_y = detail_rect.y + 10
-            clip = surface.get_clip()
-            surface.set_clip(detail_rect.inflate(-8, -8))
-            if art:
-                surface.blit(art, (detail_rect.x + 10, detail_rect.y + 10))
-                text_x = detail_rect.x + 10 + art.get_width() + 20
+                align_center=True,
+            ) + 20
+            content_height += y - start_y
+        for item in data.get("items", []):
+            start_y = y
+            card_rect = pygame.Rect(column_x, y, column_width, 150)
+            pygame.draw.rect(view, self.accent_color, card_rect, 2)
+            title = self.small_font.render(item["title"], True, self.accent_color)
+            view.blit(title, (card_rect.x + 16, card_rect.y + 14))
             self._render_wrapped(
-                surface,
-                self.card_selected["body"],
-                (text_x, text_y),
-                detail_rect.width - (text_x - detail_rect.x) - 10,
+                view,
+                item["body"],
+                (card_rect.x + card_rect.width // 2, card_rect.y + 48),
+                card_rect.width - 32,
                 self.small_font,
                 self.text_color,
+                align_center=True,
             )
-            surface.set_clip(clip)
-        else:
-            text = "Select a card entry to view the full rule text."
-            self._render_wrapped(surface, text, (detail_rect.x + 10, detail_rect.y + 10), detail_rect.width - 20, self.small_font, self.muted_color)
+            y += 170
+            content_height += y - start_y
+        self._update_scroll_limit(content_height, area_height)
 
-    def _draw_lore_tab(self, surface):
-        panel = pygame.Rect(50, 150, self.width - 100, self.height - 190)
-        pygame.draw.rect(surface, self.panel_color, panel, border_radius=18)
-        fx = panel.x + 20
-        fy = panel.y + 20
-        for faction in FACTION_DISPLAY:
-            rect = pygame.Rect(fx, fy, 150, 36)
-            color = self.highlight if faction == self.lore_faction else self.card_bg
-            pygame.draw.rect(surface, color, rect, border_radius=8)
-            text = self.small_font.render(faction, True, self.text_color)
-            surface.blit(text, (rect.x + 10, rect.y + 8))
-            self.hit_regions.append({"type": "lore_faction", "name": faction, "rect": rect})
-            fx += rect.width + 8
+    def _draw_faction_content(self, view: pygame.Surface):
+        active = next((f for f in self.faction_cards if f["name"] == self.active_faction), None)
+        if not active:
+            self._render_wrapped(view, "No faction data.", (40, 60), view.get_width() - 80, self.body_font, self.warning_color)
+            return
+        column_x, column_width, top, area_height = self._viewport_safe_area(view)
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        y = top + 10 - offset
+        content_height = 0
+        for label, key in [
+            ("Passive Ability", "Passive"),
+            ("Faction Power", "Power"),
+            ("Unique Mechanics", "Unique"),
+            ("Strategy", "Strategy"),
+        ]:
+            heading = self.small_font.render(label.upper(), True, self.muted_color)
+            view.blit(heading, (column_x, y))
+            start_y = y
+            y = self._render_wrapped(
+                view,
+                active.get(key, ""),
+                (column_x + column_width // 2, y + 26),
+                column_width,
+                self.body_font,
+                self.text_color,
+                align_center=True,
+            ) + 30
+            content_height += y - start_y
+        self._update_scroll_limit(content_height, area_height)
 
+    def _draw_leader_content(self, view: pygame.Surface):
+        leader = self.leader_selected
+        if not leader:
+            self._render_wrapped(view, "No leader unlocked in this category.", (40, 60), view.get_width() - 80, self.body_font, self.warning_color)
+            return
+        column_x, column_width, top, area_height = self._viewport_safe_area(view)
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        y = top + 10 - offset
+        content_height = 0
+        title = self.body_font.render(leader["name"], True, self.accent_color)
+        view.blit(title, (column_x, y))
+        y += title.get_height() + 12
+        content_height += title.get_height() + 12
+        ability = leader.get("ability_desc") or leader.get("ability", "")
+        start_y = y
+        y = self._render_wrapped(
+            view,
+            ability,
+            (column_x + column_width // 2, y),
+            column_width,
+            self.body_font,
+            self.text_color,
+            align_center=True,
+        ) + 20
+        content_height += y - start_y
+        notes = LEADER_NOTES.get(leader["name"], {})
+        for label in ("timing", "synergy"):
+            if notes.get(label):
+                heading = self.small_font.render(label.capitalize(), True, self.muted_color)
+                view.blit(heading, (column_x, y))
+                start_y = y
+                y = self._render_wrapped(
+                    view,
+                    notes[label],
+                    (column_x + column_width // 2, y + 20),
+                    column_width,
+                    self.small_font,
+                    self.text_color,
+                    align_center=True,
+                ) + 16
+                content_height += y - start_y
+        self._update_scroll_limit(content_height, area_height)
+
+    def _draw_ability_content(self, view: pygame.Surface):
+        abilities = self._filter_abilities()
+        column_x, column_width, top, area_height = self._viewport_safe_area(view)
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        y = top + 10 - offset
+        content_height = 0
+        for ability in abilities:
+            card_rect = pygame.Rect(column_x, y, column_width, 120)
+            pygame.draw.rect(view, self.deep_accent, card_rect, 2)
+            name = self.small_font.render(ability["name"], True, self.accent_color)
+            view.blit(name, (card_rect.x + 16, card_rect.y + 10))
+            center_x = card_rect.x + card_rect.width // 2
+            self._render_wrapped(
+                view,
+                f"Effect: {ability['effect']}",
+                (center_x, card_rect.y + 36),
+                card_rect.width - 32,
+                self.small_font,
+                self.text_color,
+                align_center=True,
+            )
+            self._render_wrapped(
+                view,
+                f"Timing: {ability['timing']}",
+                (center_x, card_rect.y + 66),
+                card_rect.width - 32,
+                self.small_font,
+                self.muted_color,
+                align_center=True,
+            )
+            self._render_wrapped(
+                view,
+                f"Synergy: {ability['synergy']}",
+                (center_x, card_rect.y + 92),
+                card_rect.width - 32,
+                self.small_font,
+                self.muted_color,
+                align_center=True,
+            )
+            y += 140
+            content_height += 140
+        self._update_scroll_limit(content_height, area_height)
+
+    def _draw_card_content(self, view: pygame.Surface):
+        if not self.card_selected:
+            self._render_wrapped(view, "Select a card from the left manifest.", (40, 60), view.get_width() - 80, self.body_font, self.muted_color)
+            return
+        card = self.card_selected
+        column_x, column_width, top, area_height = self._viewport_safe_area(view)
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        y = top + 10 - offset
+        content_height = 0
+        title = self.body_font.render(card["name"], True, self.accent_color)
+        view.blit(title, (column_x + column_width // 2 - title.get_width() // 2, y))
+        y += title.get_height() + 6
+        content_height += title.get_height() + 6
+        meta = self.small_font.render(f"Section: {self.card_section}  |  Faction: {self.card_faction}", True, self.muted_color)
+        view.blit(meta, (column_x + column_width // 2 - meta.get_width() // 2, y))
+        y += meta.get_height() + 14
+        content_height += meta.get_height() + 14
+        start_y = y
+        y = self._render_wrapped(
+            view,
+            card["body"],
+            (column_x + column_width // 2, y),
+            column_width,
+            self.body_font,
+            self.text_color,
+            align_center=True,
+        )
+        content_height += y - start_y
+        self._update_scroll_limit(content_height, area_height)
+
+    def _draw_lore_content(self, view: pygame.Surface):
         info = self.lore_entries.get(self.lore_faction, {})
-        rect = pygame.Rect(panel.x + 20, panel.y + 70, panel.width - 40, panel.height - 100)
-        pygame.draw.rect(surface, self.card_bg, rect, border_radius=12)
+        column_x, column_width, top, area_height = self._viewport_safe_area(view)
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        y = top + 10 - offset
+        content_height = 0
+        for label in ["Lore", "Signature Strategy"]:
+            heading = self.small_font.render(label.upper(), True, self.muted_color)
+            view.blit(heading, (column_x + column_width // 2 - heading.get_width() // 2, y))
+            start_y = y
+            y = self._render_wrapped(
+                view,
+                info.get(label, "No entry."),
+                (column_x + column_width // 2, y + 24),
+                column_width,
+                self.body_font,
+                self.text_color,
+                align_center=True,
+            ) + 24
+            content_height += y - start_y
+        self._update_scroll_limit(content_height, area_height)
+
+    def _viewport_safe_area(self, view: pygame.Surface) -> Tuple[int, int, int, int]:
+        width = view.get_width()
+        radius = width // 2
+        margin = max(50, int(radius * 0.32))
+        column_width = max(220, width - margin * 2)
+        column_x = (width - column_width) // 2
+        available_height = width - margin * 2
+        return column_x, column_width, margin, available_height
+
+    def _update_scroll_limit(self, content_height: float, area_height: float):
+        offset = self.scroll_offsets.get(self.active_tab, 0)
+        max_offset = max(0, content_height - area_height)
+        self.scroll_offsets[self.active_tab] = max(0, min(max_offset, offset))
+
+    def _panel_label(self, surface: pygame.Surface, rect: pygame.Rect, text: str):
+        if not rect:
+            return
+        label = self.small_font.render(text.upper(), True, self.accent_color)
+        surface.blit(label, (rect.x, rect.y - label.get_height() - 6))
+
+    def _draw_panel_hint(self, surface: pygame.Surface, rect: pygame.Rect, text: str):
+        if not rect:
+            return
+        hint_rect = pygame.Rect(rect.x + 10, rect.y + 10, rect.width - 20, rect.height - 20)
+        pygame.draw.rect(surface, self.deep_accent, hint_rect, 1)
+        self._render_wrapped(surface, text, (hint_rect.x + 8, hint_rect.y + 8), hint_rect.width - 16, self.small_font, self.muted_color)
+
+    def _draw_menu(self, surface: pygame.Surface, rect: pygame.Rect, items: List[str], active: str, action_type: str):
+        if not rect:
+            return
         y = rect.y + 16
-        for key in ["Lore", "Signature Strategy"]:
-            title = self.small_font.render(key, True, self.highlight)
-            surface.blit(title, (rect.x + 16, y))
-            y = self._render_wrapped(surface, info.get(key, "No entry in spec."), (rect.x + 16, y + 22), rect.width - 32, self.body_font, self.text_color) + 16
+        for item in items:
+            item_rect = pygame.Rect(rect.x + 10, y, rect.width - 20, self.small_font.get_linesize() + 8)
+            selected = item == active
+            color = self.accent_color if selected else self.deep_accent
+            pygame.draw.rect(surface, color, item_rect, 2)
+            text = self.small_font.render(item, True, self.text_color if selected else self.muted_color)
+            surface.blit(text, (item_rect.x + 8, item_rect.y + 2))
+            self.hit_regions.append({"type": action_type, "name": item, "rect": item_rect})
+            y += item_rect.height + 10
 
-        leaders = self.leader_data.get(self.lore_faction, {})
-        for bucket_name, bucket in leaders.items():
-            label = "Base Leaders" if bucket_name == "base" else "Unlockables"
-            title = self.small_font.render(label, True, self.muted_color)
-            surface.blit(title, (rect.x + 16, y))
-            y += 22
-            for leader in bucket:
-                bio = LEADER_NOTES.get(leader["name"], {}).get("synergy", "See leader tab for details.")
-                text = f"- {leader['name']}: {bio}"
-                y = self._render_wrapped(surface, text, (rect.x + 32, y), rect.width - 48, self.small_font, self.text_color) + 6
+    def _draw_toggle_buttons(self, surface: pygame.Surface, rect: pygame.Rect, options: List[Tuple[str, str]], active_value: str, action_type: str):
+        if not rect:
+            return
+        button_width = max(120, rect.width // max(1, len(options)) - 10)
+        x = rect.x + 10
+        for label, value in options:
+            button = pygame.Rect(x, rect.y + 16, button_width, 32)
+            selected = value == active_value
+            color = self.accent_color if selected else self.deep_accent
+            pygame.draw.rect(surface, color, button, 2)
+            text = self.small_font.render(label, True, self.text_color if selected else self.muted_color)
+            surface.blit(text, (button.x + 10, button.y + 6))
+            payload = {"type": action_type, "rect": button}
+            if action_type == "leader_category":
+                payload["category"] = value
+            elif action_type == "card_section":
+                payload["section"] = value
+            else:
+                payload["value"] = value
+            self.hit_regions.append(payload)
+            x += button_width + 12
 
-    # ---------- Helper methods ----------
+    def _draw_search_box(self, surface: pygame.Surface, rect: pygame.Rect, value: str, tab_type: str):
+        box = pygame.Rect(rect.x + 10, rect.y + 16, rect.width - 20, 36)
+        pygame.draw.rect(surface, self.accent_color, box, 2)
+        text = self.small_font.render(value, True, self.text_color)
+        surface.blit(text, (box.x + 10, box.y + 6))
+        self.hit_regions.append({"type": "input", "tab_type": tab_type, "field": "search", "rect": box})
+
+    def _draw_letter_grid(self, surface: pygame.Surface, rect: pygame.Rect):
+        letters = ["All"] + list(string.ascii_uppercase)
+        cols = max(6, rect.width // 40)
+        x = rect.x + 10
+        y = rect.y + 16
+        for idx, letter in enumerate(letters):
+            cell = pygame.Rect(x, y, 34, 28)
+            active = self.ability_letter == letter
+            color = self.accent_color if active else self.deep_accent
+            pygame.draw.rect(surface, color, cell, 2)
+            text = self.small_font.render(letter[0], True, self.text_color if active else self.muted_color)
+            surface.blit(text, (cell.x + 8, cell.y + 4))
+            self.hit_regions.append({"type": "ability_letter", "letter": letter, "rect": cell})
+            x += 38
+            if (idx + 1) % cols == 0:
+                x = rect.x + 10
+                y += 32
+
+    def _draw_card_list_panel(self, surface: pygame.Surface, rect: pygame.Rect):
+        entries = self.card_data.get(self.card_faction, {}).get(self.card_section, [])
+        filtered = [entry for entry in entries if self.card_search.lower() in entry["name"].lower()]
+        row_height = self.small_font.get_linesize() + 10
+        visible_count = max(1, (rect.height - 80) // row_height)
+        max_offset = max(0, len(filtered) - visible_count)
+        self.card_list_offset = max(0, min(max_offset, self.card_list_offset))
+        start = self.card_list_offset
+        display = filtered[start : start + visible_count]
+        y = rect.y + 20
+        for entry in display:
+            row = pygame.Rect(rect.x + 10, y, rect.width - 20, row_height)
+            selected = entry is self.card_selected
+            color = self.accent_color if selected else self.deep_accent
+            pygame.draw.rect(surface, color, row, 2)
+            text = self.small_font.render(entry["name"], True, self.text_color if selected else self.muted_color)
+            surface.blit(text, (row.x + 8, row.y + 2))
+            self.hit_regions.append({"type": "card_entry", "entry": entry, "rect": row})
+            y += row_height + 6
+        if start > 0:
+            up = pygame.Rect(rect.right - 40, rect.y + 16, 24, 20)
+            pygame.draw.polygon(surface, self.accent_color, [(up.centerx, up.y), (up.left, up.bottom), (up.right, up.bottom)], 2)
+            self.hit_regions.append({"type": "card_scroll", "delta": -1, "page": visible_count, "rect": up})
+        if start + visible_count < len(filtered):
+            down = pygame.Rect(rect.right - 40, rect.bottom - 36, 24, 20)
+            pygame.draw.polygon(surface, self.accent_color, [(down.left, down.y), (down.right, down.y), (down.centerx, down.bottom)], 2)
+            self.hit_regions.append({"type": "card_scroll", "delta": 1, "page": visible_count, "rect": down})
+
+    def _draw_leader_thumbnails(self, surface: pygame.Surface):
+        if not self.right_slots:
+            return
+        leaders = self.leader_data.get(self.leader_faction, {}).get(self.leader_category, [])
+        slots = self.right_slots
+        visible = leaders[self.leader_page_offset : self.leader_page_offset + len(slots)]
+        for idx, slot in enumerate(slots):
+            pygame.draw.rect(surface, self.deep_accent, slot, 2)
+            if idx >= len(visible):
+                continue
+            leader = visible[idx]
+            portrait = self.leader_images.get(leader.get("card_id"))
+            if portrait:
+                max_w = max(20, slot.width - 24)
+                max_h = max(20, slot.height - 60)
+                pw, ph = portrait.get_size()
+                scale = min(max_w / pw, max_h / ph)
+                new_size = (max(1, int(pw * scale)), max(1, int(ph * scale)))
+                img = portrait if new_size == portrait.get_size() else pygame.transform.smoothscale(portrait, new_size)
+                img_rect = img.get_rect(midtop=(slot.centerx, slot.y + 10))
+                surface.blit(img, img_rect)
+            name = self.small_font.render(leader["name"], True, self.text_color)
+            surface.blit(name, (slot.x + 10, slot.bottom - name.get_height() - 12))
+            self.hit_regions.append({"type": "leader_select", "entry": leader, "rect": slot})
+        if leaders:
+            max_offset = max(0, len(leaders) - len(slots))
+            if self.leader_page_offset > 0:
+                up = pygame.Rect(slots[0].centerx - 12, slots[0].y - 30, 24, 18)
+                pygame.draw.polygon(surface, self.accent_color, [(up.centerx, up.y), (up.left, up.bottom), (up.right, up.bottom)], 2)
+                self.hit_regions.append({"type": "leader_scroll", "delta": -1, "rect": up})
+            if self.leader_page_offset < max_offset:
+                down = pygame.Rect(slots[-1].centerx - 12, slots[-1].bottom + 12, 24, 18)
+                pygame.draw.polygon(surface, self.accent_color, [(down.left, down.y), (down.right, down.y), (down.centerx, down.bottom)], 2)
+                self.hit_regions.append({"type": "leader_scroll", "delta": 1, "rect": down})
+
+    def _draw_card_art_panel(self, surface: pygame.Surface):
+        if not self.card_selected or not self.right_slots:
+            return
+        art_slot = self.right_slots[0]
+        pygame.draw.rect(surface, self.deep_accent, art_slot, 2)
+        art = self._get_card_art(self.card_selected.get("card_id"), (art_slot.width - 20, art_slot.height - 40))
+        if art:
+            center = (int(art_slot.centerx), int(art_slot.y + art_slot.height / 2 - 10))
+            art_pos = art.get_rect(center=center)
+            surface.blit(art, art_pos.topleft)
+        text_slot = self.right_slots[1] if len(self.right_slots) > 1 else None
+        if text_slot:
+            pygame.draw.rect(surface, self.deep_accent, text_slot, 2)
+            lines = [
+                f"ID: {self.card_selected.get('card_id') or 'unknown'}",
+                f"Section: {self.card_section}",
+                f"Faction: {self.card_faction}",
+            ]
+            y = text_slot.y + 10
+            for line in lines:
+                y = self._render_wrapped(surface, line, (text_slot.x + 10, y), text_slot.width - 20, self.small_font, self.text_color) + 6
 
     def _filter_abilities(self) -> List[Dict[str, str]]:
         results = self.ability_entries
@@ -981,12 +1540,19 @@ class RulesMenuScreen:
         width: int,
         font: pygame.font.Font,
         color: Tuple[int, int, int],
+        align_center: bool = False,
     ) -> int:
         x, y = pos
         if not text:
             return y
-        for line in wrap(text, max(1, width // max(1, font.size("M")[0]))):
-            surface.blit(font.render(line, True, color), (x, y))
+        max_chars = max(1, width // max(1, font.size("M")[0]))
+        for line in wrap(text, max_chars):
+            rendered = font.render(line, True, color)
+            if align_center:
+                line_x = x - rendered.get_width() // 2
+            else:
+                line_x = x
+            surface.blit(rendered, (line_x, y))
             y += font.get_linesize()
         return y
 
