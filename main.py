@@ -4,13 +4,21 @@ import math
 import random
 from pygame.math import Vector2
 from game import Game
-from cards import ALL_CARDS, reload_card_images
+from cards import (
+    ALL_CARDS,
+    reload_card_images,
+    FACTION_TAURI,
+    FACTION_GOAULD,
+    FACTION_JAFFA,
+    FACTION_LUCIAN,
+    FACTION_ASGARD,
+)
 from ai_opponent import AIController
 from animations import AnimationManager, StargateActivationEffect, GlowAnimation, CardSlideAnimation, ScorchEffect, NaquadahExplosionEffect, AICardPlayAnimation, create_hero_animation, create_ability_animation, LegendaryLightningEffect
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
-from power import FACTION_POWERS, FactionPowerUI, FactionPowerEffect
+from power import FACTION_POWERS, FactionPowerEffect
 from deck_persistence import record_victory, record_defeat, check_leader_unlock, get_persistence
 
 # Initialize Pygame
@@ -130,6 +138,7 @@ ROW_FONT = pygame.font.SysFont("Arial", max(16, int(16 * SCALE_FACTOR)), bold=Tr
 # Card & Board dimensions (relative to screen height)
 CARD_WIDTH = int(SCREEN_HEIGHT * 0.08)  # Made cards slightly smaller
 CARD_HEIGHT = int(SCREEN_HEIGHT * 0.11)
+HISTORY_ENTRY_HEIGHT = max(36, int(CARD_HEIGHT * 0.3))
 
 # Mulligan card scaling (to prevent cropping)
 MULLIGAN_CARD_SCALE = 0.8
@@ -137,101 +146,124 @@ MULLIGAN_CARD_WIDTH  = int(CARD_WIDTH * MULLIGAN_CARD_SCALE)
 MULLIGAN_CARD_HEIGHT = int(CARD_HEIGHT * MULLIGAN_CARD_SCALE)
 
 # ═══════════════════════════════════════════════════════════════
-# UNIFIED GRID SYSTEM - Single Master Coordinate Grid
+# LAYOUT SYSTEM - Percentage-based 4K blueprint
 # ═══════════════════════════════════════════════════════════════
-# All zones reference this grid (cards, UI, FX layers share one system)
 
-GRID = {
-    "TOP_MARGIN": 0.12,      # For opponent hand
-    "ROW_HEIGHT": 0.12,
-    "ROW_GAP": 0.005,
-    "DIVIDER": 0.02,
-    "BOTTOM_BAR": 0.12
+COLUMN_RANGES = {
+    "leader": (0.00, 0.12),
+    "horn": (0.12, 0.20),
+    "playfield": (0.20, 0.85),
+    "hud": (0.85, 1.00),
 }
 
-# Build vertical positions incrementally from top to bottom
-y = 0
-opponent_hand_y = int(y); y += SCREEN_HEIGHT * GRID["TOP_MARGIN"]
-opponent_siege_y  = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
-opponent_ranged_y = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
-opponent_close_y  = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
-weather_y         = int(y); y += SCREEN_HEIGHT*(GRID["DIVIDER"]+GRID["ROW_GAP"])
-player_close_y    = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
-player_ranged_y   = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
-player_siege_y    = int(y); y += SCREEN_HEIGHT*(GRID["ROW_HEIGHT"]+GRID["ROW_GAP"])
-COMMAND_BAR_Y     = int(SCREEN_HEIGHT * (1 - GRID["BOTTOM_BAR"]))
-COMMAND_BAR_HEIGHT = int(SCREEN_HEIGHT * GRID["BOTTOM_BAR"])
-player_hand_y = player_siege_y # Hand starts right after siege row
-
-
-# Derived measurements for compatibility
-ROW_HEIGHT = int(SCREEN_HEIGHT * GRID["ROW_HEIGHT"])
-ROW_GAP = int(SCREEN_HEIGHT * GRID["ROW_GAP"])
-DIVIDER_HEIGHT = int(SCREEN_HEIGHT * GRID["DIVIDER"])
-HAND_HEIGHT = int(SCREEN_HEIGHT * GRID["TOP_MARGIN"])
-TOP_MARGIN = int(SCREEN_HEIGHT * GRID["TOP_MARGIN"])
-
-# Build rectangles for hitboxes and rendering
-PLAYER_ROW_RECTS = {
-    "close":  pygame.Rect(0, player_close_y,  SCREEN_WIDTH, ROW_HEIGHT),
-    "ranged": pygame.Rect(0, player_ranged_y, SCREEN_WIDTH, ROW_HEIGHT),
-    "siege":  pygame.Rect(0, player_siege_y,  SCREEN_WIDTH, ROW_HEIGHT),
-}
-OPPONENT_ROW_RECTS = {
-    "close":  pygame.Rect(0, opponent_close_y,  SCREEN_WIDTH, ROW_HEIGHT),
-    "ranged": pygame.Rect(0, opponent_ranged_y, SCREEN_WIDTH, ROW_HEIGHT),
-    "siege":  pygame.Rect(0, opponent_siege_y,  SCREEN_WIDTH, ROW_HEIGHT),
+ROW_RANGES = {
+    "opponent_hand": (0.03, 0.11),
+    "opponent_siege": (0.12, 0.215),
+    "opponent_ranged": (0.23, 0.325),
+    "opponent_close": (0.34, 0.435),
+    "weather": (0.435, 0.505),
+    "player_close": (0.515, 0.61),
+    "player_ranged": (0.625, 0.72),
+    "player_siege": (0.735, 0.83),
+    "player_hand": (0.84, 0.91),
+    "command_bar": (0.91, 0.97),
 }
 
-# Card centering (use rect.centery - CARD_HEIGHT // 2 in draw functions)
-HAND_CARD_OFFSET = (HAND_HEIGHT - CARD_HEIGHT) // 2
+def pct_x(value: float) -> int:
+    return int(SCREEN_WIDTH * value)
 
-# Background height for the lower HUD/hand zone
-HAND_Y_OFFSET = SCREEN_HEIGHT - player_hand_y
+def pct_y(value: float) -> int:
+    return int(SCREEN_HEIGHT * value)
 
-# Weather zone height (for separator rendering)
-WEATHER_ZONE_HEIGHT = DIVIDER_HEIGHT
-
-# Compute weather & horn slots relative to rows
-WEATHER_SLOT_X = int(SCREEN_WIDTH * 0.035)
-HORN_SLOT_X    = WEATHER_SLOT_X + CARD_WIDTH + int(CARD_WIDTH * 0.4)
-
-WEATHER_SLOT_RECTS, PLAYER_HORN_SLOT_RECTS, OPPONENT_HORN_SLOT_RECTS = {}, {}, {}
-for shared_row in ["siege", "ranged", "close"]:
-    # Weather slots are now centered on the weather divider line
-    center_y = weather_y + (DIVIDER_HEIGHT // 2)
-    WEATHER_SLOT_RECTS[shared_row] = pygame.Rect(
-        WEATHER_SLOT_X, center_y - CARD_HEIGHT // 2, CARD_WIDTH, CARD_HEIGHT
+def rect_from_percent(x_range, y_range):
+    return pygame.Rect(
+        pct_x(x_range[0]),
+        pct_y(y_range[0]),
+        max(1, pct_x(x_range[1] - x_range[0])),
+        max(1, pct_y(y_range[1] - y_range[0])),
     )
 
-# --- Horn Slots aligned to row center ---
-PLAYER_HORN_SLOT_RECTS = {}
-OPPONENT_HORN_SLOT_RECTS = {}
+PLAYFIELD_RANGE = COLUMN_RANGES["playfield"]
+opponent_hand_area_y = pct_y(ROW_RANGES["opponent_hand"][0])
+player_hand_area_y = pct_y(ROW_RANGES["player_hand"][0])
+OPPONENT_HAND_HEIGHT = pct_y(ROW_RANGES["opponent_hand"][1] - ROW_RANGES["opponent_hand"][0])
+PLAYER_HAND_HEIGHT = pct_y(ROW_RANGES["player_hand"][1] - ROW_RANGES["player_hand"][0])
+COMMAND_BAR_Y = pct_y(ROW_RANGES["command_bar"][0])
+COMMAND_BAR_HEIGHT = max(1, pct_y(ROW_RANGES["command_bar"][1] - ROW_RANGES["command_bar"][0]))
+weather_y = pct_y(ROW_RANGES["weather"][0])
+WEATHER_ZONE_HEIGHT = max(1, pct_y(ROW_RANGES["weather"][1] - ROW_RANGES["weather"][0]))
+ROW_HEIGHT = max(1, pct_y(ROW_RANGES["player_close"][1] - ROW_RANGES["player_close"][0]))
+HAND_Y_OFFSET = SCREEN_HEIGHT - player_hand_area_y
+
+# Build rectangles for hitboxes and rendering (restricted to playfield)
+PLAYER_ROW_RECTS = {
+    "close":  rect_from_percent(PLAYFIELD_RANGE, ROW_RANGES["player_close"]),
+    "ranged": rect_from_percent(PLAYFIELD_RANGE, ROW_RANGES["player_ranged"]),
+    "siege":  rect_from_percent(PLAYFIELD_RANGE, ROW_RANGES["player_siege"]),
+}
+OPPONENT_ROW_RECTS = {
+    "close":  rect_from_percent(PLAYFIELD_RANGE, ROW_RANGES["opponent_close"]),
+    "ranged": rect_from_percent(PLAYFIELD_RANGE, ROW_RANGES["opponent_ranged"]),
+    "siege":  rect_from_percent(PLAYFIELD_RANGE, ROW_RANGES["opponent_siege"]),
+}
+
+PLAYFIELD_LEFT = PLAYER_ROW_RECTS["close"].x
+PLAYFIELD_WIDTH = PLAYER_ROW_RECTS["close"].width
+HUD_LEFT = pct_x(COLUMN_RANGES["hud"][0])
+HUD_WIDTH = max(1, pct_x(COLUMN_RANGES["hud"][1] - COLUMN_RANGES["hud"][0]))
+LEADER_COLUMN_X = pct_x(COLUMN_RANGES["leader"][0])
+LEADER_COLUMN_WIDTH = max(1, pct_x(COLUMN_RANGES["leader"][1] - COLUMN_RANGES["leader"][0]))
+LEADER_COLUMN_HEIGHT = SCREEN_HEIGHT
+LEADER_SECTION_HEIGHT = LEADER_COLUMN_HEIGHT // 2
+LEADER_TOP_RECT = pygame.Rect(
+    LEADER_COLUMN_X,
+    0,
+    LEADER_COLUMN_WIDTH,
+    LEADER_SECTION_HEIGHT
+)
+LEADER_BOTTOM_RECT = pygame.Rect(
+    LEADER_COLUMN_X,
+    SCREEN_HEIGHT - LEADER_SECTION_HEIGHT,
+    LEADER_COLUMN_WIDTH,
+    LEADER_SECTION_HEIGHT
+)
+HORN_COLUMN_X = pct_x(COLUMN_RANGES["horn"][0])
+HORN_COLUMN_WIDTH = max(1, pct_x(COLUMN_RANGES["horn"][1] - COLUMN_RANGES["horn"][0]))
+HAND_REGION_LEFT = pct_x(0.15)
+HAND_REGION_WIDTH = max(1, pct_x(0.70))
+
+# Compute weather & horn slots relative to rows
+WEATHER_SLOT_X = pct_x(0.02)
+HORN_SLOT_WIDTH = min(max(1, int(CARD_WIDTH * 1.1)), HORN_COLUMN_WIDTH)
+HORN_SLOT_X = HORN_COLUMN_X + (HORN_COLUMN_WIDTH - HORN_SLOT_WIDTH) // 2
+
+WEATHER_SLOT_RECTS, PLAYER_HORN_SLOT_RECTS, OPPONENT_HORN_SLOT_RECTS = {}, {}, {}
+for idx, shared_row in enumerate(["siege", "ranged", "close"]):
+    slot_center_y = weather_y + int(((idx + 0.5) / 3.0) * WEATHER_ZONE_HEIGHT)
+    WEATHER_SLOT_RECTS[shared_row] = pygame.Rect(
+        WEATHER_SLOT_X,
+        slot_center_y - CARD_HEIGHT // 2,
+        CARD_WIDTH,
+        CARD_HEIGHT
+    )
 
 for rname, rect in PLAYER_ROW_RECTS.items():
     PLAYER_HORN_SLOT_RECTS[rname] = pygame.Rect(
         HORN_SLOT_X,
-        rect.centery - CARD_HEIGHT // 2,
-        CARD_WIDTH,
-        CARD_HEIGHT
+        rect.y,
+        HORN_SLOT_WIDTH,
+        rect.height
     )
 
 for rname, rect in OPPONENT_ROW_RECTS.items():
     OPPONENT_HORN_SLOT_RECTS[rname] = pygame.Rect(
         HORN_SLOT_X,
-        rect.centery - CARD_HEIGHT // 2,
-        CARD_WIDTH,
-        CARD_HEIGHT
+        rect.y,
+        HORN_SLOT_WIDTH,
+        rect.height
     )
 
-ROW_SYMBOLS = {
-    "close": "⚔",      # Swords for close combat
-    "ranged": "🏹",    # Bow for ranged
-    "siege": "🎯",     # Target for siege
-    "agile": "↕",      # Up-down for agile
-    "special": "★",    # Star for special
-    "weather": "☁",    # Cloud for weather
-}
+HUD_PASS_BUTTON_RECT = None
 
 ROW_COLORS = {
     "close": (255, 100, 100),    # Red
@@ -240,6 +272,14 @@ ROW_COLORS = {
     "agile": (255, 255, 100),    # Yellow
     "special": (255, 215, 0),    # Gold
     "weather": (150, 150, 255),  # Light blue
+}
+
+FACTION_GLOW_COLORS = {
+    FACTION_TAURI: (0x2D, 0x50, 0xAA),
+    FACTION_GOAULD: (0xA0, 0x19, 0x1E),
+    FACTION_JAFFA: (0xC8, 0xA0, 0x28),
+    FACTION_LUCIAN: (0x6E, 0x37, 0xAA),
+    FACTION_ASGARD: (0x7D, 0xC8, 0xFF),
 }
 
 
@@ -284,22 +324,6 @@ def _draw_card_details(target_surface, card, rect):
             power_rect.inflate(4, 4)
         )
         target_surface.blit(power_text, power_rect)
-
-    symbol = ROW_SYMBOLS.get(card.row, "?")
-    color = get_row_color(card.row)
-    symbol_x = rect.x + rect.width - 15
-    symbol_y = rect.y + 15
-    pygame.draw.circle(target_surface, (0, 0, 0, 180), (symbol_x, symbol_y), 12)
-    pygame.draw.circle(
-        target_surface,
-        color,
-        (symbol_x, symbol_y),
-        12,
-        width=2
-    )
-    symbol_text = ROW_FONT.render(symbol, True, color)
-    symbol_rect = symbol_text.get_rect(center=(symbol_x, symbol_y))
-    target_surface.blit(symbol_text, symbol_rect)
 
 
 def _draw_drag_trail(surface, trail_entries):
@@ -398,67 +422,94 @@ def draw_card(surface, card, x, y, selected=False, hover_scale=1.0, tilt_angle=0
     if selected:
         pygame.draw.rect(surface, (255, 255, 0), target_rect, width=3, border_radius=5)
 
+def _compute_hand_positions(card_count, card_width, card_gap):
+    """Return evenly spaced or accordion-style hand positions."""
+    if card_count <= 0:
+        return [], False
+
+    card_full = card_width + card_gap
+    total_width = card_count * card_width + (card_count - 1) * card_gap
+    region_left = HAND_REGION_LEFT
+    region_width = HAND_REGION_WIDTH
+
+    if total_width <= region_width:
+        start_x = region_left + (region_width - total_width) // 2
+        spacing = card_full
+        accordion = False
+    else:
+        overlap = (total_width - region_width) / max(1, card_count - 1)
+        spacing = card_full - overlap
+        min_spacing = max(8, int(card_width * 0.35))
+        if spacing < min_spacing:
+            spacing = min_spacing
+        render_width = (card_count - 1) * spacing + card_width
+        start_x = region_left if render_width >= region_width else region_left + (region_width - render_width) // 2
+        accordion = True
+
+    positions = [start_x + i * spacing for i in range(card_count)]
+    return positions, accordion
+
 def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_card=None,
               hovered_card=None, hover_scale=1.0, drag_visuals=None):
     """Draw the player's hand plus optional drag animations."""
-    hand_area_height = COMMAND_BAR_Y - player_hand_y
+    hand_area_height = COMMAND_BAR_Y - player_hand_area_y
     if hand_area_height > 0:
         hand_bg_surface = pygame.Surface((SCREEN_WIDTH, hand_area_height), pygame.SRCALPHA)
         hand_bg_surface.fill(PLAYER_HAND_BG)
-        surface.blit(hand_bg_surface, (0, player_hand_y))
+        surface.blit(hand_bg_surface, (0, player_hand_area_y))
 
     if drag_visuals and drag_visuals.get("trail"):
         _draw_drag_trail(surface, drag_visuals.get("trail"))
 
-    # Detect mulligan mode and use smaller cards to prevent cropping
     is_mulligan_mode = mulligan_selected is not None
     card_w = MULLIGAN_CARD_WIDTH if is_mulligan_mode else CARD_WIDTH
     card_h = MULLIGAN_CARD_HEIGHT if is_mulligan_mode else CARD_HEIGHT
-    
-    # Calculate spacing to center hand
     total_cards = len(player.hand)
-    card_spacing = int(card_w * 0.125)  # Spacing between cards
-    total_width = total_cards * card_w + (total_cards - 1) * card_spacing
-    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 200
-    
-    # In mulligan mode, center cards vertically better
+    card_spacing = int(card_w * 0.125)
+
+    if is_mulligan_mode:
+        total_width = total_cards * card_w + (total_cards - 1) * card_spacing
+        start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else HAND_REGION_LEFT
+        card_positions = [start_x + i * (card_w + card_spacing) for i in range(total_cards)]
+        accordion_active = False
+    else:
+        card_positions, accordion_active = _compute_hand_positions(total_cards, card_w, card_spacing)
+
     if is_mulligan_mode:
         card_y = SCREEN_HEIGHT // 2 - card_h // 2
     else:
         card_y = COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - card_h) // 2
     
     for i, card in enumerate(player.hand):
-        # Skip rendering dragging card in hand (it's rendered separately)
         if card == dragging_card:
             continue
-            
-        card_x = start_x + i * (card_w + card_spacing)
+        if i >= len(card_positions):
+            continue
+        card_x = card_positions[i]
         is_selected = (card == selected_card)
         is_mulligan_selected = (mulligan_selected and card in mulligan_selected)
         is_hovered = (card == hovered_card)
         
-        # Apply hover scale to hovered card (reduced in mulligan mode)
         if is_mulligan_mode:
             card_scale = MULLIGAN_CARD_SCALE * (hover_scale if is_hovered else 1.0)
         else:
-            card_scale = hover_scale if is_hovered else 1.0
-        draw_card(surface, card, card_x, card_y, selected=is_selected, hover_scale=card_scale)
+            base_scale = 0.95 if accordion_active else 1.0
+            card_scale = base_scale * (hover_scale if is_hovered else 1.0)
+        edge_alpha = 205 if (accordion_active and (i == 0 or i == len(player.hand) - 1)) else 255
+        draw_y = card_y - (int(25 * SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0)
+        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha)
         
-        # Draw blue border for mulligan selection
         if is_mulligan_selected:
             pygame.draw.rect(surface, (100, 100, 255), card.rect, width=4, border_radius=5)
         
-        # Special/Weather cards - show "CLICK AGAIN TO PLAY" if selected
         if is_selected and card.row in ["special", "weather"]:
             hint_font = pygame.font.SysFont("Arial", 16, bold=True)
             hint_text = hint_font.render("CLICK AGAIN TO PLAY", True, (255, 255, 0))
             hint_rect = hint_text.get_rect(center=(card.rect.centerx, card.rect.top - 15))
-            # Black background for readability
             bg_rect = hint_rect.inflate(10, 4)
             pygame.draw.rect(surface, (0, 0, 0), bg_rect)
             surface.blit(hint_text, hint_rect)
     
-    # Draw dragging card with juicy effects
     if dragging_card and dragging_card in player.hand:
         velocity = drag_visuals.get("velocity", Vector2()) if drag_visuals else Vector2()
         pickup_boost = drag_visuals.get("pickup_boost", 0.0) if drag_visuals else 0.0
@@ -510,21 +561,24 @@ def draw_opponent_hand(surface, opponent):
     """Draws the opponent's hand as card backs at the top of the screen."""
     from cards import get_card_back
     
-    hand_y = opponent_hand_y + HAND_CARD_OFFSET
+    hand_area_height = OPPONENT_HAND_HEIGHT
+    hand_y = opponent_hand_area_y + (hand_area_height - CARD_HEIGHT) // 2
     total_cards = len(opponent.hand)
     
     if total_cards == 0:
         return
     
     card_spacing = int(CARD_WIDTH * 0.125)
-    total_width = total_cards * CARD_WIDTH + (total_cards - 1) * card_spacing
-    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 20
+    card_positions, accordion_active = _compute_hand_positions(total_cards, CARD_WIDTH, card_spacing)
     
     # Get card back image
     card_back_image = get_card_back(CARD_WIDTH, CARD_HEIGHT)
     
     for i, card in enumerate(opponent.hand):
-        card_x = start_x + i * (CARD_WIDTH + card_spacing)
+        if i >= len(card_positions):
+            continue
+        card_x = card_positions[i]
+        alpha = 205 if accordion_active and (i == 0 or i == total_cards - 1) else 255
         if opponent.hand_revealed:
             draw_card(
                 surface,
@@ -532,13 +586,17 @@ def draw_opponent_hand(surface, opponent):
                 card_x,
                 hand_y,
                 render_details=True,
-                update_rect=False
+                update_rect=False,
+                alpha=alpha
             )
             pygame.draw.rect(surface, (255, 215, 0), 
                              (card_x, hand_y, CARD_WIDTH, CARD_HEIGHT), 
                              2, border_radius=8)
         else:
-            surface.blit(card_back_image, (card_x, hand_y))
+            temp_surface = card_back_image.copy()
+            if alpha < 255:
+                temp_surface.set_alpha(alpha)
+            surface.blit(temp_surface, (card_x, hand_y))
             pygame.draw.rect(surface, (100, 150, 200), 
                             (card_x, hand_y, CARD_WIDTH, CARD_HEIGHT), 
                             2, border_radius=8)
@@ -559,124 +617,598 @@ def draw_weather_slots(surface, game):
         card = entry.get("card") if entry else None
         if card:
             draw_card(surface, card, slot_rect.x, slot_rect.y, render_details=False, update_rect=False)
-        else:
-            symbol = ROW_SYMBOLS.get(row_name, "?")
-            symbol_text = ROW_FONT.render(symbol, True, border_color)
-            symbol_rect = symbol_text.get_rect(center=slot_rect.center)
-            surface.blit(symbol_text, symbol_rect)
 
 
 def draw_horn_slots(surface, game):
     """Render Commander Horn drop slots for each row."""
-    def render_slot(slot_rect, active, card, is_player_side):
+    def render_slot(slot_rect, active, card, faction_color):
         slot_surface = pygame.Surface((slot_rect.width, slot_rect.height), pygame.SRCALPHA)
-        base_color = (60, 40, 20, 200) if is_player_side else (35, 45, 65, 190)
-        glow_color = (255, 215, 0) if active else (150, 120, 80)
-        slot_surface.fill(base_color)
-        pygame.draw.rect(slot_surface, glow_color, slot_surface.get_rect(), width=3 if active else 2, border_radius=12)
+        slot_surface.fill((30, 30, 40, 120))
+        pygame.draw.rect(slot_surface, (15, 15, 20, 200), slot_surface.get_rect().inflate(-6, -6), border_radius=10)
         surface.blit(slot_surface, slot_rect.topleft)
+
+        pulse = (math.sin(pygame.time.get_ticks() / 250.0) + 1) * 0.5
+        outline_color = faction_color if active else tuple(int(c * 0.7) for c in faction_color)
+        outline_alpha = 220 if active else int(130 + 80 * pulse)
+        outline_surface = pygame.Surface((slot_rect.width, slot_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(outline_surface, (*outline_color, outline_alpha), outline_surface.get_rect(), width=3, border_radius=14)
+        surface.blit(outline_surface, slot_rect.topleft)
+
         if card:
-            draw_card(surface, card, slot_rect.x, slot_rect.y, render_details=False, update_rect=False)
+            draw_card(
+                surface,
+                card,
+                slot_rect.x + (slot_rect.width - CARD_WIDTH) // 2,
+                slot_rect.centery - CARD_HEIGHT // 2,
+                render_details=False,
+                update_rect=False
+            )
         else:
-            horn_text = ROW_FONT.render("H", True, glow_color)
+            horn_text = ROW_FONT.render("H", True, outline_color)
             horn_rect = horn_text.get_rect(center=slot_rect.center)
             surface.blit(horn_text, horn_rect)
     
+    player_color = FACTION_GLOW_COLORS.get(game.player1.faction, (255, 215, 0))
+    opponent_color = FACTION_GLOW_COLORS.get(game.player2.faction, (255, 215, 0))
+
     if hasattr(game.player1, "horn_slots"):
         for row_name, slot_rect in PLAYER_HORN_SLOT_RECTS.items():
             render_slot(slot_rect,
                         game.player1.horn_effects.get(row_name, False),
                         game.player1.horn_slots.get(row_name),
-                        True)
+                        player_color)
     if hasattr(game.player2, "horn_slots"):
         for row_name, slot_rect in OPPONENT_HORN_SLOT_RECTS.items():
             render_slot(slot_rect,
                         game.player2.horn_effects.get(row_name, False),
                         game.player2.horn_slots.get(row_name),
-                        False)
+                        opponent_color)
+
+def _render_sg1_score_box(tint, row_box, score, surface, is_player):
+    """Draw Stargate-inspired border/panel for per-row scores."""
+    score_font = pygame.font.SysFont("Arial", max(24, int(28 * SCALE_FACTOR)), bold=True)
+    box_surface = pygame.Surface((row_box.width, row_box.height), pygame.SRCALPHA)
+    fill_alpha = 215 if is_player else 170
+    box_surface.fill((*tint, fill_alpha))
+    border_rect = box_surface.get_rect()
+    pygame.draw.rect(box_surface, (255, 255, 255, 45), border_rect, border_radius=18)
+    pygame.draw.rect(box_surface, (20, 30, 45, 180), border_rect.inflate(-4, -4), width=3, border_radius=14)
+    notch_color = (180, 220, 255, 160)
+    notch = 18
+    pygame.draw.line(box_surface, notch_color, (notch, 4), (border_rect.width - notch, 4), 3)
+    pygame.draw.line(box_surface, notch_color, (4, border_rect.height - 4), (border_rect.width - 4, border_rect.height - 4), 3)
+    pygame.draw.line(box_surface, notch_color, (4, border_rect.height - 4), (4, border_rect.height - 20), 3)
+    pygame.draw.line(box_surface, notch_color, (border_rect.width - 4, border_rect.height - 4), (border_rect.width - 4, 20), 3)
+    surface.blit(box_surface, row_box.topleft)
+    score_color = WHITE if score > 0 else (200, 200, 200)
+    score_text = score_font.render(str(score), True, score_color)
+    score_rect = score_text.get_rect(center=row_box.center)
+    surface.blit(score_text, score_rect)
+
+
+def draw_row_score_boxes(surface, game):
+    """Render per-row score boxes inside the HUD column."""
+    box_width = int(HUD_WIDTH * 0.32)
+    box_height = max(30, int(ROW_HEIGHT * 0.35))
+    box_x = HUD_LEFT + int(HUD_WIDTH * 0.03)
+
+    for player, rects in [(game.player2, OPPONENT_ROW_RECTS), (game.player1, PLAYER_ROW_RECTS)]:
+        for row_name, row_rect in rects.items():
+            score = sum(c.displayed_power for c in player.board.get(row_name, []))
+            center_y = row_rect.centery
+            row_box = pygame.Rect(box_x, center_y - box_height // 2, box_width, box_height)
+            tint = get_row_color(row_name)
+            _render_sg1_score_box(tint, row_box, score, surface, player == game.player1)
+
+def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None):
+    """Draw the scrollable history feed in the HUD column."""
+    history_font = pygame.font.SysFont("Arial", max(14, int(16 * SCALE_FACTOR)))
+    panel_surface = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+    panel_surface.fill((10, 18, 32, 200))
+    pygame.draw.rect(panel_surface, (80, 120, 180, 220), panel_surface.get_rect(), width=2, border_radius=12)
+    surface.blit(panel_surface, panel_rect.topleft)
+
+    padding = 10
+    entries = game.history
+    icon_width = 12
+    line_height = history_font.get_linesize()
+    entry_base_height = HISTORY_ENTRY_HEIGHT
+    text_block_width = max(40, panel_rect.width - 2 * padding - icon_width - 18)
+
+    def wrap_text(text):
+        words = text.split()
+        if not words:
+            return [""]
+        lines = []
+        current = words[0]
+        for word in words[1:]:
+            candidate = f"{current} {word}"
+            if history_font.size(candidate)[0] <= text_block_width:
+                current = candidate
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
+        return lines
+
+    formatted_entries = []
+    content_height = 0
+    for entry in entries:
+        wrapped_lines = wrap_text(entry.description)
+        text_block_height = len(wrapped_lines) * line_height + 12
+        entry_height = max(entry_base_height, text_block_height)
+        formatted_entries.append((entry, entry_height, wrapped_lines))
+        content_height += entry_height
+
+    max_scroll = max(0, content_height + padding - panel_rect.height)
+    scroll = max(0, min(scroll_offset, max_scroll))
+
+    hitboxes = []
+    surface.set_clip(panel_rect)
+    y_cursor = panel_rect.bottom - padding - scroll
+    player_color = FACTION_GLOW_COLORS.get(game.player1.faction, (100, 200, 255))
+    ai_color = FACTION_GLOW_COLORS.get(game.player2.faction, (255, 120, 120))
+
+    for entry, entry_height, wrapped_lines in reversed(formatted_entries):
+        y_cursor -= entry_height
+        entry_rect = pygame.Rect(panel_rect.x + padding, y_cursor,
+                                 panel_rect.width - 2 * padding, entry_height - 4)
+        if entry_rect.bottom < panel_rect.top + padding:
+            continue
+        if entry_rect.top > panel_rect.bottom:
+            continue
+
+        owner_color = player_color if entry.owner == "player" else ai_color
+        hovered = hover_pos and entry_rect.collidepoint(hover_pos)
+        entry_surface = pygame.Surface((entry_rect.width, entry_rect.height), pygame.SRCALPHA)
+        entry_surface.fill((owner_color[0], owner_color[1], owner_color[2], 160 if hovered else 120))
+        pygame.draw.rect(entry_surface, owner_color, entry_surface.get_rect(), width=2, border_radius=8)
+
+        icon_rect = pygame.Rect(8, 6, icon_width, entry_rect.height - 12)
+        pygame.draw.rect(entry_surface, (255, 255, 255, 90), icon_rect, border_radius=4)
+
+        for idx, line in enumerate(wrapped_lines):
+            text_surface = history_font.render(line, True, WHITE)
+            text_rect = text_surface.get_rect()
+            text_rect.topleft = (icon_rect.right + 8, 6 + idx * line_height)
+            entry_surface.blit(text_surface, text_rect)
+
+        surface.blit(entry_surface, entry_rect.topleft)
+        hitboxes.append((entry, entry_rect.copy()))
+
+    surface.set_clip(None)
+    return hitboxes, max_scroll
+
+def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_power_ready=False, hover_pos=None):
+    """Render the left column stack (ability/faction/special buttons + leader portrait)."""
+    faction_color = FACTION_GLOW_COLORS.get(player.faction, (200, 200, 200))
+    padding = max(12, int(area_rect.width * 0.05))
+    column_left = area_rect.x + padding
+    column_right = area_rect.right - padding
+    column_width = max(1, column_right - column_left)
+    column_center_x = column_left + column_width // 2
+    spacing = max(10, min(15, int(12 * SCALE_FACTOR)))
+
+    # Keep leader portrait locked to the same dimensions as battlefield cards.
+    leader_width = CARD_WIDTH
+    leader_height = CARD_HEIGHT
+
+    # Ability strip shares space with counters on the right.
+    ability_height = max(int(CARD_HEIGHT * 0.22), 56)
+    min_ability_width = max(int(CARD_WIDTH * 0.9), 140)
+    counter_gap = spacing
+    base_counter_width = int(column_width * 0.32)
+    max_counter_width = max(0, column_width - min_ability_width - counter_gap)
+    counter_width = min(base_counter_width, max_counter_width)
+    if counter_width <= 0:
+        counter_width = 0
+        counter_gap = 0
+    ability_area_width = column_width - counter_width - counter_gap
+    ability_width = min(ability_area_width, max(min_ability_width, ability_area_width))
+    ability_x = column_left + max(0, (ability_area_width - ability_width) // 2)
+
+    faction_size = max(int(CARD_WIDTH * 0.65), 72)
+    special_size = max(int(CARD_WIDTH * 0.5), 60)
+
+    # Determine if this player has a special faction button (Iris, Rings, etc.).
+    special_info = None
+    if player.faction == FACTION_TAURI:
+        special_info = {
+            "kind": "iris",
+            "ready": player.iris_defense.is_available(),
+            "active": player.iris_defense.is_active()
+        }
+    elif getattr(player, "ring_transportation", None):
+        special_info = {
+            "kind": "rings",
+            "ready": player.ring_transportation.can_use(),
+            "active": player.ring_transportation.animation_in_progress
+        }
+
+    element_heights = [ability_height, faction_size]
+    if special_info:
+        element_heights.append(special_size)
+    element_heights.append(leader_height)
+    stack_height = sum(element_heights) + spacing * (len(element_heights) - 1)
+    available_top = area_rect.top + padding
+    available_bottom = area_rect.bottom - padding
+    max_top = max(available_top, available_bottom - stack_height)
+    y_cursor = area_rect.centery - stack_height // 2
+    y_cursor = max(available_top, min(y_cursor, max_top))
+
+    ability_rect = pygame.Rect(ability_x, y_cursor, ability_width, ability_height)
+    counter_rect = None
+    if counter_width > 0:
+        counter_rect = pygame.Rect(column_right - counter_width, ability_rect.y, counter_width, ability_height)
+
+    # Ability button with icon (no text).
+    ability_surface = pygame.Surface((ability_rect.width, ability_rect.height), pygame.SRCALPHA)
+    ability_surface.fill((20, 28, 46, 235))
+    ability_border = faction_color if ability_ready else (80, 80, 90)
+    if hover_pos and ability_rect.collidepoint(hover_pos):
+        ability_border = tuple(min(255, c + 35) for c in ability_border)
+    pygame.draw.rect(ability_surface, ability_border, ability_surface.get_rect(), width=4, border_radius=16)
+
+    # Stargate-inspired chevrons to indicate the leader ability button.
+    icon_rect = ability_surface.get_rect()
+    chevron_color = ability_border if ability_ready else (130, 130, 140)
+    chevron_height = max(6, icon_rect.height // 6)
+    chevron_width = max(20, int(icon_rect.width * 0.55))
+    chevron_start_y = icon_rect.centery - chevron_height - chevron_height // 2
+    for i in range(3):
+        top = chevron_start_y + i * chevron_height
+        points = [
+            (icon_rect.centerx - chevron_width // 2, top),
+            (icon_rect.centerx + chevron_width // 2, top),
+            (icon_rect.centerx, top + chevron_height)
+        ]
+        pygame.draw.polygon(ability_surface, chevron_color, points)
+    surface.blit(ability_surface, ability_rect.topleft)
+
+    # Card/Deck counters stay compact on the right.
+    discard_hit_rect = None
+    if counter_rect:
+        counter_items = [
+            ("HAND", len(player.hand)),
+            ("DRAW", len(player.deck)),
+            ("DISC", len(player.discard_pile)),
+        ]
+        counter_font = pygame.font.SysFont("Arial", max(12, int(14 * SCALE_FACTOR)), bold=True)
+        slot_height = counter_rect.height // len(counter_items)
+        for idx, (label, value) in enumerate(counter_items):
+            slot = pygame.Rect(counter_rect.x,
+                               counter_rect.y + idx * slot_height,
+                               counter_rect.width,
+                               slot_height - max(2, spacing // 3))
+            slot_surface = pygame.Surface((slot.width, slot.height), pygame.SRCALPHA)
+            slot_surface.fill((16, 24, 40, 210))
+            pygame.draw.rect(slot_surface, (70, 110, 180), slot_surface.get_rect(), width=2, border_radius=6)
+            text = counter_font.render(f"{label}: {value}", True, WHITE)
+            slot_surface.blit(text, text.get_rect(center=slot_surface.get_rect().center))
+            surface.blit(slot_surface, slot.topleft)
+            if label == "DISC":
+                discard_hit_rect = slot.copy()
+
+    y_cursor = ability_rect.bottom + spacing
+
+    # Faction power button (full-size circle) centered in the column.
+    faction_rect = pygame.Rect(0, y_cursor, faction_size, faction_size)
+    faction_rect.centerx = column_center_x
+    faction_surface = pygame.Surface((faction_rect.width, faction_rect.height), pygame.SRCALPHA)
+    pygame.draw.circle(faction_surface, (30, 40, 60), faction_surface.get_rect().center, faction_rect.width // 2)
+    glow_alpha = 230 if faction_power_ready else 130
+    if hover_pos and faction_rect.collidepoint(hover_pos):
+        glow_alpha = min(255, glow_alpha + 40)
+    pygame.draw.circle(
+        faction_surface,
+        (*faction_color, glow_alpha),
+        faction_surface.get_rect().center,
+        faction_rect.width // 2,
+        width=5
+    )
+    pygame.draw.circle(faction_surface, faction_color,
+                       faction_surface.get_rect().center, int(faction_rect.width * 0.35), width=4)
+    surface.blit(faction_surface, faction_rect.topleft)
+
+    # Total score box lives to the right of the faction power circle.
+    score_rect_width = max(0, column_right - (faction_rect.right + spacing))
+    score_rect = pygame.Rect(faction_rect.right + spacing,
+                             faction_rect.y,
+                             score_rect_width,
+                             faction_rect.height)
+    if score_rect.width > 0:
+        score_surface = pygame.Surface((score_rect.width, score_rect.height), pygame.SRCALPHA)
+        score_surface.fill((20, 30, 50, 210))
+        pygame.draw.rect(score_surface, faction_color, score_surface.get_rect(), width=4, border_radius=12)
+        score_font = pygame.font.SysFont("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
+        score_text = score_font.render(str(player.score), True, WHITE)
+        score_surface.blit(score_text, score_text.get_rect(center=score_surface.get_rect().center))
+        surface.blit(score_surface, score_rect.topleft)
+    else:
+        score_rect = None
+
+    y_cursor = faction_rect.bottom + spacing
+
+    # Special faction button (Iris, Rings, etc.) appears above the leader portrait.
+    special_rect = None
+    special_kind = None
+    if special_info:
+        special_rect = pygame.Rect(0, y_cursor, special_size, special_size)
+        special_rect.centerx = column_center_x
+        special_surface = pygame.Surface((special_rect.width, special_rect.height), pygame.SRCALPHA)
+        base_color = (28, 36, 50)
+        ready_color = faction_color if special_info["ready"] else (90, 90, 100)
+        if special_info["active"]:
+            ready_color = (255, 120, 100)
+        pygame.draw.circle(special_surface, base_color,
+                           special_surface.get_rect().center, special_rect.width // 2)
+        pygame.draw.circle(
+            special_surface,
+            ready_color,
+            special_surface.get_rect().center,
+            special_rect.width // 2,
+            width=4
+        )
+
+        # Iconography per special kind.
+        center = special_surface.get_rect().center
+        if special_info["kind"] == "iris":
+            blade_radius = int(special_rect.width * 0.35)
+            for angle in range(0, 360, 45):
+                radians = math.radians(angle)
+                dx = int(math.cos(radians) * blade_radius)
+                dy = int(math.sin(radians) * blade_radius)
+                pygame.draw.line(
+                    special_surface,
+                    ready_color,
+                    (center[0], center[1]),
+                    (center[0] + dx, center[1] + dy),
+                    width=3
+                )
+        else:
+            inner_radius = int(special_rect.width * 0.18)
+            for i in range(3):
+                pygame.draw.circle(
+                    special_surface,
+                    ready_color,
+                    center,
+                    inner_radius + i * 6,
+                    width=2
+                )
+
+        if hover_pos and special_rect.collidepoint(hover_pos):
+            hover_color = tuple(min(255, c + 40) for c in ready_color[:3])
+            pygame.draw.circle(
+                special_surface,
+                hover_color,
+                special_surface.get_rect().center,
+                special_rect.width // 2,
+                width=2
+            )
+        surface.blit(special_surface, special_rect.topleft)
+        special_kind = special_info["kind"]
+        y_cursor = special_rect.bottom + spacing
+
+    # Leader portrait occupies full card dimensions (no forced squishing).
+    portrait_rect = pygame.Rect(
+        column_center_x - leader_width // 2,
+        y_cursor,
+        leader_width,
+        leader_height
+    )
+    leader_rect = draw_leader_portrait(
+        surface,
+        player,
+        portrait_rect.x,
+        portrait_rect.y,
+        portrait_rect.width,
+        portrait_rect.height,
+        show_label=False
+    )
+
+    return {
+        "leader_rect": leader_rect or portrait_rect,
+        "ability_rect": ability_rect,
+        "faction_rect": faction_rect,
+        "score_rect": score_rect,
+        "discard_rect": discard_hit_rect,
+        "special_rect": special_rect,
+        "special_kind": special_kind,
+    }
+
+
+def build_button_info_popup(kind, owner, anchor_rect, special_kind=None):
+    """Create metadata describing the info popup for leader column buttons."""
+    if not owner or not anchor_rect:
+        return None
+
+    color = FACTION_GLOW_COLORS.get(owner.faction, (255, 215, 0))
+    title = "Info"
+    lines = []
+
+    if kind == "ability":
+        leader_data = owner.leader or {}
+        leader_name = leader_data.get("name", "Leader")
+        ability_name = leader_data.get("ability", "Leader Ability")
+        ability_desc = leader_data.get("ability_desc", ability_name)
+        title = f"{leader_name} — Ability"
+        lines = [ability_name, ability_desc]
+    elif kind == "faction":
+        power = getattr(owner, "faction_power", None)
+        if power:
+            title = f"{power.name}"
+            lines = [power.description]
+        else:
+            title = f"{owner.faction} Power"
+            lines = ["This faction has no special power assigned."]
+    elif kind == "special":
+        if special_kind == "iris" and hasattr(owner, "iris_defense"):
+            status = "Active" if owner.iris_defense.is_active() else ("Ready" if owner.iris_defense.is_available() else "Spent")
+            title = "Tau'ri Iris Defense"
+            lines = [
+                "Blocks the next enemy card as it emerges from the wormhole.",
+                f"Status: {status}"
+            ]
+        elif special_kind == "rings" and getattr(owner, "ring_transportation", None):
+            rt = owner.ring_transportation
+            if rt.animation_in_progress:
+                status = "Transferring..."
+            elif rt.can_use():
+                status = "Ready this round"
+            else:
+                status = "Used this round"
+            title = "Goa'uld Ring Transportation"
+            lines = [
+                "Return one of your close-combat units to hand once per round.",
+                f"Status: {status}"
+            ]
+        else:
+            return None
+    else:
+        return None
+
+    clean_lines = [line for line in lines if line]
+    if not clean_lines:
+        clean_lines = ["No additional details available."]
+
+    return {
+        "title": title,
+        "lines": clean_lines,
+        "anchor": anchor_rect.copy(),
+        "color": color,
+        "kind": kind,
+        "special_kind": special_kind,
+        "owner": owner,
+        "expires_at": pygame.time.get_ticks() + 5000,
+    }
+
+
+def draw_button_info_popup(surface, popup):
+    """Render the compact info popup near a leader column button."""
+    if not popup:
+        return
+
+    anchor_rect = popup.get("anchor")
+    if not anchor_rect:
+        return
+
+    padding = 14
+    title_font = pygame.font.SysFont("Arial", max(20, int(20 * SCALE_FACTOR)), bold=True)
+    body_font = pygame.font.SysFont("Arial", max(14, int(16 * SCALE_FACTOR)))
+    max_text_width = max(int(320 * SCALE_FACTOR), 240)
+
+    def wrap_line(text):
+        words = text.split()
+        lines = []
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}".strip()
+            if body_font.size(candidate)[0] <= max_text_width - padding * 2:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        if not lines:
+            lines.append("")
+        return lines
+
+    wrapped_lines = []
+    for entry in popup.get("lines", []):
+        wrapped_lines.extend(wrap_line(entry))
+
+    title_surface = title_font.render(popup.get("title", "Info"), True, popup.get("color", (255, 215, 0)))
+    widest_line = title_surface.get_width()
+    for line in wrapped_lines:
+        line_width = body_font.size(line)[0]
+        widest_line = max(widest_line, line_width)
+
+    popup_width = min(max_text_width, max(widest_line + padding * 2, int(260 * SCALE_FACTOR)))
+    body_line_height = body_font.get_linesize()
+    popup_height = padding * 2 + title_surface.get_height()
+    if wrapped_lines:
+        popup_height += 8 + len(wrapped_lines) * body_line_height
+
+    popup_rect = pygame.Rect(0, 0, popup_width, popup_height)
+    place_right = anchor_rect.right + popup_width + 20 <= SCREEN_WIDTH
+    if place_right:
+        popup_rect.left = anchor_rect.right + 18
+    else:
+        popup_rect.right = anchor_rect.left - 18
+    popup_rect.top = max(20, min(anchor_rect.centery - popup_height // 2, SCREEN_HEIGHT - popup_height - 20))
+
+    popup_surface = pygame.Surface((popup_width, popup_height), pygame.SRCALPHA)
+    popup_surface.fill((12, 20, 34, 235))
+    pygame.draw.rect(popup_surface, popup.get("color", (255, 215, 0)),
+                     popup_surface.get_rect(), width=3, border_radius=12)
+
+    y_cursor = padding
+    popup_surface.blit(title_surface, (padding, y_cursor))
+    y_cursor += title_surface.get_height() + 8
+
+    for line in wrapped_lines:
+        text_surface = body_font.render(line, True, (225, 230, 240))
+        popup_surface.blit(text_surface, (padding, y_cursor))
+        y_cursor += body_line_height
+
+    surface.blit(popup_surface, popup_rect.topleft)
 
 def get_opponent_hand_card_center(total_cards, index):
     """Return the screen center position of an opponent hand slot by index."""
-    hand_y = opponent_hand_y + HAND_CARD_OFFSET
-    if total_cards <= 0:
-        return (SCREEN_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
+    hand_area_height = OPPONENT_HAND_HEIGHT
+    hand_y = opponent_hand_area_y + (hand_area_height - CARD_HEIGHT) // 2
     card_spacing = int(CARD_WIDTH * 0.125)
-    total_width = total_cards * CARD_WIDTH + (total_cards - 1) * card_spacing
-    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 20
-    safe_index = max(0, min(index if index is not None else 0, total_cards - 1))
-    card_x = start_x + safe_index * (CARD_WIDTH + card_spacing)
+    positions, _ = _compute_hand_positions(total_cards, CARD_WIDTH, card_spacing)
+    if not positions:
+        return (HAND_REGION_LEFT, hand_y + CARD_HEIGHT // 2)
+    safe_index = max(0, min(index if index is not None else 0, len(positions) - 1))
+    card_x = positions[safe_index]
     return (card_x + CARD_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
 
-def draw_weather_separator(surface):
-    """Draw the weather row separator between enemy and player boards (Witcher 3 style)."""
-    separator_rect = pygame.Rect(0, weather_y, SCREEN_WIDTH, WEATHER_ZONE_HEIGHT)
-    
-    # Dark semi-transparent background
-    separator_surface = pygame.Surface((SCREEN_WIDTH, WEATHER_ZONE_HEIGHT), pygame.SRCALPHA)
-    separator_surface.fill((20, 30, 50, 180))
-    surface.blit(separator_surface, (0, weather_y))
-    
-    # Subtle top and bottom borders
-    pygame.draw.line(surface, (80, 100, 140), (0, weather_y), (SCREEN_WIDTH, weather_y), 2)
-    pygame.draw.line(surface, (80, 100, 140), (0, weather_y + WEATHER_ZONE_HEIGHT), 
-                     (SCREEN_WIDTH, weather_y + WEATHER_ZONE_HEIGHT), 2)
+def draw_weather_separator(surface, game):
+    """Draw the weather lane plus glowing turn divider strip."""
+    zone_rect = pygame.Rect(0, weather_y, SCREEN_WIDTH, WEATHER_ZONE_HEIGHT)
+    zone_surface = pygame.Surface(zone_rect.size, pygame.SRCALPHA)
+    zone_surface.fill((18, 28, 48, 220))
+    surface.blit(zone_surface, zone_rect.topleft)
+
+    pygame.draw.line(surface, (70, 90, 140), zone_rect.topleft, (zone_rect.right, zone_rect.top), 2)
+    pygame.draw.line(surface, (70, 90, 140), (zone_rect.left, zone_rect.bottom), (zone_rect.right, zone_rect.bottom), 2)
+
+    divider_height = min(WEATHER_ZONE_HEIGHT, pct_y(0.03))
+    divider_rect = pygame.Rect(
+        zone_rect.left,
+        zone_rect.bottom - divider_height,
+        zone_rect.width,
+        divider_height
+    )
+    divider_surface = pygame.Surface(divider_rect.size, pygame.SRCALPHA)
+    divider_surface.fill((255, 170, 60, 90))
+    pygame.draw.rect(divider_surface, (255, 210, 120, 200), divider_surface.get_rect(), width=3, border_radius=6)
+    surface.blit(divider_surface, divider_rect.topleft)
+
+    turn_text = "YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN"
+    turn_color = (120, 255, 160) if game.current_player == game.player1 else (255, 140, 140)
+    turn_font = pygame.font.SysFont("Arial", max(26, int(30 * SCALE_FACTOR)), bold=True)
+    turn_surface = turn_font.render(turn_text, True, turn_color)
+    turn_rect = turn_surface.get_rect(center=divider_rect.center)
+    surface.blit(turn_surface, turn_rect)
 
 
 def draw_lane_labels(surface):
-    """Draw faded lane labels beneath cards (Witcher 3 style)."""
-    label_font = pygame.font.SysFont("Arial", 28, bold=True)
-    
-    # Draw labels for each row on the right side
-    label_x = SCREEN_WIDTH - 150
-    
-    # Enemy rows
-    for row_name, row_rect in OPPONENT_ROW_RECTS.items():
-        symbol = ROW_SYMBOLS.get(row_name, "?")
-        label_text = label_font.render(f"{symbol} {row_name.upper()}", True, (100, 100, 120, 150))
-        label_y = row_rect.centery - label_text.get_height() // 2
-        surface.blit(label_text, (label_x, label_y))
-    
-    # Player rows
-    for row_name, row_rect in PLAYER_ROW_RECTS.items():
-        symbol = ROW_SYMBOLS.get(row_name, "?")
-        label_text = label_font.render(f"{symbol} {row_name.upper()}", True, (100, 100, 120, 150))
-        label_y = row_rect.centery - label_text.get_height() // 2
-        surface.blit(label_text, (label_x, label_y))
+    """Lane labels intentionally suppressed for cleaner UI."""
+    return
 
 
 def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_highlight=None,
                drag_row_highlights=None):
     """Draw the game board, including contextual drop highlights."""
-    draw_weather_separator(surface)
+    draw_weather_separator(surface, game)
     draw_lane_labels(surface)
     draw_weather_slots(surface, game)
     draw_horn_slots(surface, game)
-
-    # Draw row scores
-    row_score_font = pygame.font.SysFont("Arial", 24, bold=True)
-    row_score_x = HORN_SLOT_X + CARD_WIDTH + 30
-
-    for player, rects in [(game.player1, PLAYER_ROW_RECTS), (game.player2, OPPONENT_ROW_RECTS)]:
-        for row_name, row_rect in rects.items():
-            row_score = sum(c.displayed_power for c in player.board.get(row_name, []))
-            
-            if row_score > 0:
-                row_color = get_row_color(row_name)
-                score_text = row_score_font.render(str(row_score), True, WHITE)
-                
-                circle_radius = 18
-                circle_center = (row_score_x + circle_radius, row_rect.centery)
-                
-                # Draw a semi-transparent background circle
-                bg_circle_surf = pygame.Surface((circle_radius * 2, circle_radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(bg_circle_surf, (*row_color, 180), (circle_radius, circle_radius), circle_radius)
-                surface.blit(bg_circle_surf, (circle_center[0] - circle_radius, circle_center[1] - circle_radius))
-
-                # Draw border
-                pygame.draw.circle(surface, row_color, circle_center, circle_radius, width=2)
-                
-                score_rect = score_text.get_rect(center=circle_center)
-                surface.blit(score_text, score_rect)
     
     # Darken inactive lanes (Witcher 3 polish)
     if game.player1.has_passed or game.current_player != game.player1:
@@ -761,8 +1293,12 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
             
             # Calculate total width and center cards
             total_width = len(cards_in_row) * CARD_WIDTH + (len(cards_in_row) - 1) * card_spacing
-            start_x = (SCREEN_WIDTH - total_width) // 2
-            
+            available_width = PLAYFIELD_WIDTH
+            if total_width <= available_width:
+                start_x = PLAYFIELD_LEFT + (available_width - total_width) // 2
+            else:
+                start_x = PLAYFIELD_LEFT
+
             for i, card in enumerate(cards_in_row):
                 x = start_x + i * (CARD_WIDTH + card_spacing)
 
@@ -773,40 +1309,42 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
                     continue
                 draw_card(surface, card, x, card_draw_y)
     
-def draw_scores(surface, game, anim_manager=None, p1_score_x=0, p1_score_y=0, p2_score_x=0, p2_score_y=0):
+def draw_scores(surface, game, anim_manager=None, p1_score_x=0, p1_score_y=0, p2_score_x=0, p2_score_y=0, render_static=True):
     """Draws the player scores and rounds won next to leader portraits."""
-    
-    # If we have active score animations, draw them instead
     if anim_manager and anim_manager.score_animations:
         anim_manager.draw_score_animations(surface, SCORE_FONT)
-    else:
-        # Player 1 Total Score (next to leader, bottom)
-        p1_color = (100, 255, 100) if game.player1.score > game.player2.score else WHITE
-        p1_score_text = SCORE_FONT.render(f"Score: {game.player1.score}", True, p1_color)
-        surface.blit(p1_score_text, (p1_score_x, p1_score_y))
-        
-        # Player 2 Total Score (next to leader, top)
-        p2_color = (100, 255, 100) if game.player2.score > game.player1.score else WHITE
-        p2_score_text = SCORE_FONT.render(f"Score: {game.player2.score}", True, p2_color)
-        surface.blit(p2_score_text, (p2_score_x, p2_score_y))
+        if not render_static:
+            return
+    elif not render_static:
+        return
 
-    # Rounds Won (below scores, next to leaders)
+    p1_color = (100, 255, 100) if game.player1.score > game.player2.score else WHITE
+    p1_score_text = SCORE_FONT.render(f"Score: {game.player1.score}", True, p1_color)
+    surface.blit(p1_score_text, (p1_score_x, p1_score_y))
+    
+    p2_color = (100, 255, 100) if game.player2.score > game.player1.score else WHITE
+    p2_score_text = SCORE_FONT.render(f"Score: {game.player2.score}", True, p2_color)
+    surface.blit(p2_score_text, (p2_score_x, p2_score_y))
+
     p1_rounds_text = UI_FONT.render(f"Rounds Won: {game.player1.rounds_won}", True, WHITE)
     p2_rounds_text = UI_FONT.render(f"Rounds Won: {game.player2.rounds_won}", True, WHITE)
     surface.blit(p1_rounds_text, (p1_score_x, p1_score_y + 55))
     surface.blit(p2_rounds_text, (p2_score_x, p2_score_y + 55))
 
-def draw_pass_button(surface, game):
+def draw_pass_button(surface, game, button_rect=None):
     """Draws the DHD-style pass button."""
-    center_x = PASS_BUTTON_RECT.centerx
-    center_y = PASS_BUTTON_RECT.centery
+    if not button_rect:
+        return
+    target_rect = button_rect
+    center_x = target_rect.centerx
+    center_y = target_rect.centery
     
     # Base state
     can_pass = game.current_player == game.player1 and not game.player1.has_passed
     
     # Outer DHD ring (scaled)
-    outer_radius = int(50 * SCALE_FACTOR)
-    inner_radius = int(35 * SCALE_FACTOR)
+    outer_radius = max(20, min(target_rect.width, target_rect.height) // 2)
+    inner_radius = max(10, int(outer_radius * 0.7))
     
     # Outer ring color (bronze/metallic)
     outer_color = (120, 100, 80)
@@ -1236,79 +1774,6 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
     # Brief pause before game starts
     pygame.time.wait(300)
 
-def draw_iris_button(surface, player, x, y):
-    """Draw Iris defense button (Tau'ri only)."""
-    if player.faction != "Tau'ri":
-        return None
-    
-    button_width = 100
-    button_height = 50
-    button_rect = pygame.Rect(x, y, button_width, button_height)
-    
-    # Button color based on state
-    if player.iris_defense.is_active():
-        color = (255, 100, 100)  # Red - active/blocking
-        text = "IRIS ON"
-    elif player.iris_defense.is_available():
-        color = (100, 200, 255)  # Blue - available
-        text = "IRIS"
-    else:
-        color = (80, 80, 80)  # Gray - used
-        text = "IRIS USED"
-    
-    # Draw button
-    pygame.draw.rect(surface, color, button_rect, border_radius=5)
-    pygame.draw.rect(surface, (255, 215, 0), button_rect, width=2, border_radius=5)
-    
-    # Text
-    font = pygame.font.SysFont("Arial", 18, bold=True)
-    button_text = font.render(text, True, (255, 255, 255))
-    text_rect = button_text.get_rect(center=button_rect.center)
-    surface.blit(button_text, text_rect)
-    
-    # Removed "(Press I)" hint text during gameplay for cleaner UI
-    
-    return button_rect
-
-def draw_ring_transport_button(surface, player, x, y):
-    """Draw Ring Transportation button (Goa'uld only)."""
-    if player.faction != "Goa'uld" or not player.ring_transportation:
-        return None
-    
-    button_width = 120
-    button_height = 50
-    button_rect = pygame.Rect(x, y, button_width, button_height)
-    
-    # Button color based on state
-    if player.ring_transportation.animation_in_progress:
-        color = (255, 200, 100)  # Gold - animating
-        text = "RINGS..."
-    elif player.ring_transportation.can_use():
-        color = (200, 100, 50)  # Orange - available
-        text = "RINGS"
-    else:
-        color = (80, 80, 80)  # Gray - used
-        text = "USED"
-    
-    # Draw button with Goa'uld theme
-    pygame.draw.rect(surface, color, button_rect, border_radius=5)
-    pygame.draw.rect(surface, (255, 200, 100), button_rect, width=2, border_radius=5)
-    
-    # Draw three small ring symbols on button
-    if player.ring_transportation.can_use() or player.ring_transportation.animation_in_progress:
-        for i in range(3):
-            ring_x = x + 20 + i * 30
-            ring_y = y + button_height // 2
-            pygame.draw.circle(surface, (255, 220, 150), (ring_x, ring_y), 8, width=2)
-    
-    # Text
-    font = pygame.font.SysFont("Arial", 16, bold=True)
-    button_text = font.render(text, True, (255, 255, 255))
-    text_rect = button_text.get_rect(center=button_rect.center)
-    surface.blit(button_text, text_rect)
-    
-    return button_rect
-
 def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=False):
     """Draw clickable leader ability box with Stargate theme."""
     if not player.leader:
@@ -1352,31 +1817,7 @@ def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=Fa
     
     return pygame.Rect(x, y, width, height)  # Return rect for click detection
 
-def draw_card_counters(surface, player, x, y, is_player=True):
-    """Draw deck/hand/discard pile counters on the right side."""
-    small_font = pygame.font.SysFont("Arial", 20)
-
-    panel_width = 170
-    panel_height = 100
-    panel_rect = pygame.Rect(x, y, panel_width, panel_height)
-    pygame.draw.rect(surface, (15, 25, 45), panel_rect, border_radius=10)
-    pygame.draw.rect(surface, (60, 90, 140), panel_rect, width=2, border_radius=10)
-
-    hand_text = small_font.render(f"Hand: {len(player.hand)}", True, (255, 255, 255))
-    deck_text = small_font.render(f"Draw: {len(player.deck)}", True, (255, 255, 255))
-    discard_text = small_font.render(f"Discard: {len(player.discard_pile)}", True, (230, 255, 255))
-
-    surface.blit(hand_text, (x + 12, y + 12))
-    surface.blit(deck_text, (x + 12, y + 36))
-
-    discard_rect = pygame.Rect(x + 10, y + 62, panel_width - 20, 26)
-    pygame.draw.rect(surface, (30, 60, 100), discard_rect, border_radius=6)
-    pygame.draw.rect(surface, (90, 130, 185), discard_rect, width=2, border_radius=6)
-    surface.blit(discard_text, (discard_rect.x + 8, discard_rect.y + 4))
-
-    return discard_rect if is_player else None
-
-def draw_leader_portrait(surface, player, x, y, width=100, height=150):
+def draw_leader_portrait(surface, player, x, y, width=100, height=150, show_label=True):
     """Draw leader portrait card and return its rect for click detection."""
     if not player.leader:
         return None
@@ -1414,10 +1855,10 @@ def draw_leader_portrait(surface, player, x, y, width=100, height=150):
         pygame.draw.rect(surface, (60, 60, 80), leader_rect)
         pygame.draw.rect(surface, (255, 215, 0), leader_rect, width=3)
     
-    # Leader label below
-    name_text = UI_FONT.render("LEADER", True, (255, 215, 0))
-    name_rect = name_text.get_rect(center=(x + width // 2, y + height + 15))
-    surface.blit(name_text, name_rect)
+    if show_label:
+        name_text = UI_FONT.render("LEADER", True, (255, 215, 0))
+        name_rect = name_text.get_rect(center=(x + width // 2, y + height + 15))
+        surface.blit(name_text, name_rect)
     
     return leader_rect
 
@@ -1971,7 +2412,7 @@ def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height
 
 def main():
     """Main game loop."""
-    global PASS_BUTTON_RECT, MULLIGAN_BUTTON_RECT, screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR
+    global MULLIGAN_BUTTON_RECT, screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR
     
     # Initialize card unlock system
     unlock_system = CardUnlockSystem()
@@ -2094,6 +2535,10 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif event.type == pygame.MOUSEWHEEL:
+                if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
+                    history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
+                    history_manual_scroll = True
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_SPACE:
                     matchup_anim.finished = True  # Allow skipping
@@ -2154,41 +2599,29 @@ def main():
     thor_move_mode = False  # Thor: Selecting unit to move
     thor_selected_unit = None  # The unit Thor is moving
     
-    # ═════════════════════════════════════════════════════════════
-    # UI Element Positions
-    # ═════════════════════════════════════════════════════════════
-    
-    # --- AI UI (Top-Left) ---
-    ai_leader_x = 60
-    ai_leader_y = 40
-    ai_score_x = ai_leader_x + 110
-    ai_score_y = ai_leader_y + 20
-    ai_faction_ui = FactionPowerUI(
-        x=ai_leader_x,
-        y=ai_leader_y + 190, # Below leader portrait and text
-        width=260,
-        height=100
-    )
+    # History/column state
+    history_scroll_offset = 0
+    history_scroll_limit = 0
+    history_manual_scroll = False
+    history_entry_hitboxes = []
+    history_panel_rect = None
+    player_faction_button_rect = None
+    player_ability_ready = False
+    ai_ability_ready = False
+    ai_faction_button_rect = None
+    player_special_button_rect = None
+    player_special_button_kind = None
+    ai_special_button_rect = None
+    ai_special_button_kind = None
+    button_info_popup = None
 
-    # --- Player UI (Bottom) ---
-    # Left side
-    player_leader_x = 60
-    player_leader_y = COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - 140) // 2
-    player_faction_ui = FactionPowerUI(
-        x = player_leader_x + 110,
-        y = COMMAND_BAR_Y + 10,
-        width = 280,
-        height = int(COMMAND_BAR_HEIGHT * 0.8)
-    )
-    # Right side
-    p1_score_x = SCREEN_WIDTH - 450
-    p1_score_y = COMMAND_BAR_Y + 20
-    pass_button_size = int(100 * SCALE_FACTOR)
-    PASS_BUTTON_RECT = pygame.Rect(
-        SCREEN_WIDTH - 180,
-        COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - pass_button_size) // 2,
-        pass_button_size,
-        pass_button_size
+    # Pass buttons (command bar + HUD)
+    hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
+    HUD_PASS_BUTTON_RECT = pygame.Rect(
+        HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
+        pct_y(0.94) - hud_pass_button_size // 2,
+        hud_pass_button_size,
+        hud_pass_button_size
     )
     
     faction_power_effect = None  # Active Iris Power visual effect
@@ -2211,6 +2644,13 @@ def main():
     
     while running:
         dt = clock.tick(60)  # 60 FPS, returns milliseconds since last frame
+        if getattr(game, "history_dirty", False):
+            if not history_manual_scroll:
+                history_scroll_offset = 0
+            game.history_dirty = False
+        history_entry_hitboxes = []
+        player_ability_ready = not game.leader_ability_used.get(game.player1, False)
+        ai_ability_ready = not game.leader_ability_used.get(game.player2, False)
         
         # Check for round changes and reset space battle WITH COOL TRANSITION
         if game.round_number != previous_round:
@@ -2366,8 +2806,6 @@ def main():
         
         # Update Iris Power UI hover states
         mouse_pos = pygame.mouse.get_pos()
-        player_faction_ui.update(mouse_pos)
-        ai_faction_ui.update(mouse_pos)
         
         # Event handling
         for event in pygame.event.get():
@@ -2410,16 +2848,12 @@ def main():
                         SCALE_FACTOR = min(DESKTOP_WIDTH / TARGET_WIDTH, DESKTOP_HEIGHT / TARGET_HEIGHT, 1.0)
                         
                         # Recalculate UI button positions for new resolution
-                        DHD_SIZE = int(100 * SCALE_FACTOR)
-                        button_margin = int(30 * SCALE_FACTOR)
-                        safe_bottom_margin = max(button_margin, int(SCREEN_HEIGHT * 0.03))  # 3% margin
-                        safe_right_margin = max(button_margin, int(SCREEN_WIDTH * 0.02))    # 2% margin
-                        
-                        PASS_BUTTON_RECT = pygame.Rect(
-                            SCREEN_WIDTH - DHD_SIZE - safe_right_margin,
-                            SCREEN_HEIGHT - DHD_SIZE - safe_bottom_margin,
-                            DHD_SIZE,
-                            DHD_SIZE
+                        hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
+                        HUD_PASS_BUTTON_RECT = pygame.Rect(
+                            HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
+                            pct_y(0.94) - hud_pass_button_size // 2,
+                            hud_pass_button_size,
+                            hud_pass_button_size
                         )
                         MULLIGAN_BUTTON_RECT = pygame.Rect(
                             SCREEN_WIDTH - int(300 * SCALE_FACTOR),
@@ -2440,16 +2874,12 @@ def main():
                         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SHOWN | pygame.SCALED)
                         
                         # Recalculate UI button positions for windowed mode
-                        DHD_SIZE = int(100 * SCALE_FACTOR)
-                        button_margin = int(30 * SCALE_FACTOR)
-                        safe_bottom_margin = max(button_margin, int(SCREEN_HEIGHT * 0.03))  # 3% margin
-                        safe_right_margin = max(button_margin, int(SCREEN_WIDTH * 0.02))    # 2% margin
-                        
-                        PASS_BUTTON_RECT = pygame.Rect(
-                            SCREEN_WIDTH - DHD_SIZE - safe_right_margin,
-                            SCREEN_HEIGHT - DHD_SIZE - safe_bottom_margin,
-                            DHD_SIZE,
-                            DHD_SIZE
+                        hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
+                        HUD_PASS_BUTTON_RECT = pygame.Rect(
+                            HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
+                            pct_y(0.94) - hud_pass_button_size // 2,
+                            hud_pass_button_size,
+                            hud_pass_button_size
                         )
                         MULLIGAN_BUTTON_RECT = pygame.Rect(
                             SCREEN_WIDTH - int(300 * SCALE_FACTOR),
@@ -2472,6 +2902,11 @@ def main():
                                     SCREEN_HEIGHT // 2,
                                     SCREEN_WIDTH,
                                     SCREEN_HEIGHT
+                                )
+                                game.add_history_event(
+                                    "faction_power",
+                                    f"{game.player1.name} used {game.player1.faction_power.name}",
+                                    "player"
                                 )
                                 # Recalculate scores
                                 game.player1.calculate_score()
@@ -2500,12 +2935,24 @@ def main():
                         return
                     elif event.key == pygame.K_ESCAPE:
                         running = False
+            elif event.type == pygame.MOUSEWHEEL:
+                if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
+                    history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
+                    history_manual_scroll = True
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button in (4, 5):
+                    if history_panel_rect and history_panel_rect.collidepoint(event.pos):
+                        delta = HISTORY_ENTRY_HEIGHT if event.button == 4 else -HISTORY_ENTRY_HEIGHT
+                        history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - delta))
+                        history_manual_scroll = True
+                    continue
                 if event.button == 1:
+                    button_info_popup = None
                     if (player_ability_rect and player_ability_rect.collidepoint(event.pos)
                             and game.game_state == "playing"
                             and game.current_player == game.player1
-                            and not game.player1.has_passed):
+                            and not game.player1.has_passed
+                            and player_ability_ready):
                         ability_result = game.activate_leader_ability(game.player1)
                         if ability_result:
                             ability_name = ability_result.get("ability", game.player1.leader.get('ability', 'Leader Ability'))
@@ -2527,6 +2974,42 @@ def main():
                         continue
                 # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
+                    button_info_popup = None
+                    popup_targets = []
+                    if player_ability_rect:
+                        popup_targets.append(("ability", game.player1, player_ability_rect, None))
+                    if ai_ability_rect:
+                        popup_targets.append(("ability", game.player2, ai_ability_rect, None))
+                    if player_faction_button_rect:
+                        popup_targets.append(("faction", game.player1, player_faction_button_rect, None))
+                    if ai_faction_button_rect:
+                        popup_targets.append(("faction", game.player2, ai_faction_button_rect, None))
+                    if player_special_button_rect and player_special_button_kind:
+                        popup_targets.append(("special", game.player1, player_special_button_rect, player_special_button_kind))
+                    if ai_special_button_rect and ai_special_button_kind:
+                        popup_targets.append(("special", game.player2, ai_special_button_rect, ai_special_button_kind))
+
+                    popup_triggered = False
+                    for kind, owner, rect, special_kind in popup_targets:
+                        if rect and rect.collidepoint(event.pos):
+                            new_popup = build_button_info_popup(kind, owner, rect, special_kind)
+                            if new_popup:
+                                button_info_popup = new_popup
+                            popup_triggered = True
+                            break
+                    if popup_triggered:
+                        continue
+
+                    history_clicked = False
+                    for entry, rect in history_entry_hitboxes:
+                        if rect.collidepoint(event.pos):
+                            history_clicked = True
+                            if getattr(entry, "card_ref", None):
+                                inspected_card = entry.card_ref
+                                selected_card = None
+                            break
+                    if history_clicked:
+                        continue
                     # Check if right-clicking discard pile to view it
                     if discard_rect and discard_rect.collidepoint(event.pos) and not viewing_discard:
                         viewing_discard = True
@@ -2613,23 +3096,27 @@ def main():
                     pass
                 
                 # Check if clicking Faction Power button (player only)
-                if game.game_state == "playing" and game.current_player == game.player1:
-                    if game.player1.faction_power and player_faction_ui.handle_click(event.pos):
-                        if game.player1.faction_power.is_available():
-                            # Activate Faction Power
-                            if game.player1.faction_power.activate(game, game.player1):
-                                # Trigger visual effect
-                                faction_power_effect = FactionPowerEffect(
-                                    game.player1.faction,
-                                    SCREEN_WIDTH // 2,
-                                    SCREEN_HEIGHT // 2,
-                                    SCREEN_WIDTH,
-                                    SCREEN_HEIGHT
-                                )
-                                # Recalculate scores
-                                game.player1.calculate_score()
-                                game.player2.calculate_score()
-                                continue
+                if (game.game_state == "playing"
+                        and game.current_player == game.player1
+                        and player_faction_button_rect
+                        and player_faction_button_rect.collidepoint(event.pos)):
+                    if game.player1.faction_power and game.player1.faction_power.is_available():
+                        if game.player1.faction_power.activate(game, game.player1):
+                            faction_power_effect = FactionPowerEffect(
+                                game.player1.faction,
+                                SCREEN_WIDTH // 2,
+                                SCREEN_HEIGHT // 2,
+                                SCREEN_WIDTH,
+                                SCREEN_HEIGHT
+                            )
+                            game.add_history_event(
+                                "faction_power",
+                                f"{game.player1.name} used {game.player1.faction_power.name}",
+                                "player"
+                            )
+                            game.player1.calculate_score()
+                            game.player2.calculate_score()
+                    continue
                 
                 # Check if clicking on leader portraits (for inspection)
                 if player_leader_rect and player_leader_rect.collidepoint(event.pos):
@@ -2694,18 +3181,20 @@ def main():
                 # Playing phase - START DRAG
                 elif game.game_state == "playing":
                     if game.current_player == game.player1 and not game.player1.has_passed:
-                        # Check if clicking on pass button (DHD)
-                        if PASS_BUTTON_RECT.collidepoint(event.pos):
+                        # Check if clicking on pass buttons
+                        pass_clicked = False
+                        if HUD_PASS_BUTTON_RECT and HUD_PASS_BUTTON_RECT.collidepoint(event.pos):
                             selected_card = None
                             dragging_card = None
                             drag_velocity = Vector2()
                             drag_pickup_flash = 0.0
-                            
-                            # Add DHD button press animation
-                            dhd_anim = StargateActivationEffect(PASS_BUTTON_RECT.centerx, PASS_BUTTON_RECT.centery, duration=800)
-                            anim_manager.add_effect(dhd_anim)
-                            
+                            anim_manager.add_effect(StargateActivationEffect(HUD_PASS_BUTTON_RECT.centerx,
+                                                                             HUD_PASS_BUTTON_RECT.centery,
+                                                                             duration=800))
                             game.pass_turn()
+                            pass_clicked = True
+                        if pass_clicked:
+                            continue
                         # Iris button click (Tau'ri only)
                         elif iris_button_rect and iris_button_rect.collidepoint(event.pos):
                             if game.player1.iris_defense.is_available():
@@ -3066,6 +3555,7 @@ def main():
                     ai_selected_card_index = None
                     # AI passes or uses power
                     ai_turn_anim.finish()
+                    game.last_turn_actor = game.player2
                     game.switch_turn()
                     ai_turn_in_progress = False
             
@@ -3209,32 +3699,22 @@ def main():
         # --- Drawing ---
         screen.blit(assets["board"], (0, 0))
         
-        # Draw lane separators (horizontal lines between rows)
-        # These lines match the actual row rectangles used for card placement
-        separator_color = (100, 150, 200, 150)  # Semi-transparent blue
+        separator_color = (100, 150, 200, 150)
         separator_width = 3
         glow_color = (150, 200, 255, 80)
-        
-        # Draw separator at the bottom of each row rect
-        all_row_rects = list(OPPONENT_ROW_RECTS.values()) + list(PLAYER_ROW_RECTS.values())
-        
-        for row_rect in all_row_rects:
-            y_pos = row_rect.bottom  # Bottom edge of each row rectangle
-            
-            # Shift opponent's lines down for better visibility
+        x_start = PLAYFIELD_LEFT
+        x_end = PLAYFIELD_LEFT + PLAYFIELD_WIDTH
+
+        for row_rect in list(OPPONENT_ROW_RECTS.values()) + list(PLAYER_ROW_RECTS.values()):
+            y_pos = row_rect.bottom
             if row_rect in OPPONENT_ROW_RECTS.values():
-                y_pos += 8  # Adds a small gap below opponent cards
-            
-            # Glow effect (slightly above the main line)
-            pygame.draw.line(screen, glow_color, (0, y_pos - 2), (SCREEN_WIDTH, y_pos - 2), 1)
-            pygame.draw.line(screen, glow_color, (0, y_pos - 1), (SCREEN_WIDTH, y_pos - 1), 1)
-            
-            # Main separator line
-            pygame.draw.line(screen, separator_color, (0, y_pos), (SCREEN_WIDTH, y_pos), separator_width)
-            
-            # Glow effect (slightly below the main line)
-            pygame.draw.line(screen, glow_color, (0, y_pos + separator_width), (SCREEN_WIDTH, y_pos + separator_width), 1)
-            pygame.draw.line(screen, glow_color, (0, y_pos + separator_width + 1), (SCREEN_WIDTH, y_pos + separator_width + 1), 1)
+                y_pos += 8
+
+            pygame.draw.line(screen, glow_color, (x_start, y_pos - 2), (x_end, y_pos - 2), 1)
+            pygame.draw.line(screen, glow_color, (x_start, y_pos - 1), (x_end, y_pos - 1), 1)
+            pygame.draw.line(screen, separator_color, (x_start, y_pos), (x_end, y_pos), separator_width)
+            pygame.draw.line(screen, glow_color, (x_start, y_pos + separator_width), (x_end, y_pos + separator_width), 1)
+            pygame.draw.line(screen, glow_color, (x_start, y_pos + separator_width + 1), (x_end, y_pos + separator_width + 1), 1)
         
         # Draw ambient background effects
         ambient_effects.draw(screen)
@@ -3255,6 +3735,7 @@ def main():
                 hover_scale=card_hover_scale
             )
             draw_mulligan_button(screen, mulligan_selected)
+            history_panel_rect = None
         elif game.game_state == "game_over":
             # Draw game over screen
             game_over_text = SCORE_FONT.render("GAME OVER", True, WHITE)
@@ -3336,19 +3817,46 @@ def main():
             
             restart_text = UI_FONT.render("Press R to restart or ESC to quit", True, WHITE)
             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
+            history_panel_rect = None
         else:
-            # Draw normal game UI
             draw_board(screen, game, selected_card, dragging_card=dragging_card,
                        drag_hover_highlight=drag_hover_highlight, drag_row_highlights=drag_row_highlights)
-            draw_scores(screen, game, anim_manager, p1_score_x=p1_score_x, p1_score_y=p1_score_y, p2_score_x=ai_score_x, p2_score_y=ai_score_y)
-            
-            # Draw command bar background (visual separation)
+            draw_scores(screen, game, anim_manager, render_static=False)
+
+            history_rect = pygame.Rect(
+                HUD_LEFT + int(HUD_WIDTH * 0.42),
+                pct_y(0.12),
+                max(50, int(HUD_WIDTH * 0.55)),
+                pct_y(0.80) - pct_y(0.12)
+            )
+            history_panel_rect = history_rect
+            history_entry_hitboxes, history_scroll_limit = draw_history_panel(
+                screen,
+                game,
+                history_rect,
+                history_scroll_offset,
+                pygame.mouse.get_pos()
+            )
+            history_scroll_offset = max(0, min(history_scroll_offset, history_scroll_limit))
+            if history_manual_scroll and history_scroll_offset <= 0:
+                history_manual_scroll = False
+
+            draw_row_score_boxes(screen, game)
+
+            round_font = pygame.font.SysFont("Arial", max(28, int(30 * SCALE_FACTOR)), bold=True)
+            round_text = round_font.render(f"Round {game.round_number}", True, WHITE)
+            screen.blit(round_text, (HUD_LEFT + int(HUD_WIDTH * 0.1), pct_y(0.05)))
+            turn_color = (120, 255, 160) if game.current_player == game.player1 else (255, 140, 140)
+            turn_text = UI_FONT.render("YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN", True, turn_color)
+            screen.blit(turn_text, (HUD_LEFT + int(HUD_WIDTH * 0.1), pct_y(0.05) + round_text.get_height() + 6))
+
             command_bar_surface = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
             command_bar_surface.fill((10, 20, 35, 200))
             pygame.draw.line(command_bar_surface, (80, 120, 180), (0, 0), (SCREEN_WIDTH, 0), 2)
             screen.blit(command_bar_surface, (0, COMMAND_BAR_Y))
-            
-            draw_pass_button(screen, game)
+
+            draw_pass_button(screen, game, HUD_PASS_BUTTON_RECT)
+
             draw_hand(
                 screen,
                 game.player1,
@@ -3358,74 +3866,53 @@ def main():
                 hover_scale=card_hover_scale,
                 drag_visuals=drag_visual_state
             )
-            draw_opponent_hand(screen, game.player2)  # Show opponent's hand as card backs
-            
-            # Draw AI turn animation on top of opponent hand
+            draw_opponent_hand(screen, game.player2)
+
+            mouse_pos = pygame.mouse.get_pos()
+            ai_area = LEADER_TOP_RECT.copy()
+            player_area = LEADER_BOTTOM_RECT.copy()
+            ai_stack = draw_leader_column(
+                screen,
+                game.player2,
+                ai_area,
+                ability_ready=ai_ability_ready,
+                faction_power_ready=bool(game.player2.faction_power and game.player2.faction_power.is_available()),
+                hover_pos=mouse_pos
+            )
+            player_stack = draw_leader_column(
+                screen,
+                game.player1,
+                player_area,
+                ability_ready=player_ability_ready,
+                faction_power_ready=bool(game.player1.faction_power and game.player1.faction_power.is_available()),
+                hover_pos=mouse_pos
+            )
+
+            ai_leader_rect = ai_stack["leader_rect"]
+            ai_ability_rect = ai_stack["ability_rect"]
+            ai_faction_button_rect = ai_stack["faction_rect"]
+            ai_special_button_rect = ai_stack.get("special_rect")
+            ai_special_button_kind = ai_stack.get("special_kind")
+            player_leader_rect = player_stack["leader_rect"]
+            player_ability_rect = player_stack["ability_rect"]
+            player_faction_button_rect = player_stack["faction_rect"]
+            player_special_button_rect = player_stack.get("special_rect")
+            player_special_button_kind = player_stack.get("special_kind")
+            discard_rect = player_stack.get("discard_rect") or discard_rect
+
+            iris_button_rect = player_special_button_rect if player_special_button_kind == "iris" else None
+            ring_transport_button_rect = player_special_button_rect if player_special_button_kind == "rings" else None
+
             if ai_turn_in_progress:
-                # Get opponent hand area for animation
                 total_cards = len(game.player2.hand)
                 if total_cards > 0:
                     card_spacing = int(CARD_WIDTH * 0.125)
-                    total_width = total_cards * CARD_WIDTH + (total_cards - 1) * card_spacing
-                    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else 20
-                    opponent_hand_area = pygame.Rect(start_x, 10, total_width, CARD_HEIGHT)
+                    positions, _ = _compute_hand_positions(total_cards, CARD_WIDTH, card_spacing)
+                    left_edge = positions[0]
+                    right_edge = positions[-1] + CARD_WIDTH
+                    opponent_hand_area = pygame.Rect(left_edge, opponent_hand_area_y,
+                                                     right_edge - left_edge, CARD_HEIGHT)
                     ai_turn_anim.draw(screen, UI_FONT, opponent_hand_area)
-            
-            # Show current turn indicator (top center)
-            if game.current_player == game.player1:
-                turn_text = UI_FONT.render("YOUR TURN", True, (100, 255, 100))
-            else:
-                turn_text = UI_FONT.render("OPPONENT'S TURN", True, (255, 100, 100))
-            turn_rect = turn_text.get_rect(center=(SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.03))) # Increased from 0.019
-            screen.blit(turn_text, turn_rect)
-            
-            # Show round number (next to turn indicator)
-            round_text = UI_FONT.render(f"Round {game.round_number}", True, WHITE)
-            round_rect = round_text.get_rect(center=(SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.06))) # Increased from 0.046
-            screen.blit(round_text, round_rect)
-            
-            # Leader portraits - AI top-left, Player bottom-left (Witcher 3 style)
-            ai_leader_rect = draw_leader_portrait(screen, game.player2, ai_leader_x, ai_leader_y, 100, 140)
-            
-            player_leader_rect = draw_leader_portrait(screen, game.player1, player_leader_x, player_leader_y, 100, 140)
-            
-            # Iris button (Tau'ri only, below "LEADER" text)
-            # LEADER text is at player_leader_rect.bottom + 15, so button goes below that
-            iris_button_rect = draw_iris_button(screen, game.player1, player_leader_rect.centerx - 50, player_leader_rect.bottom + 40)
-            
-            # Ring Transportation button (Goa'uld only, same position as Iris)
-            ring_transport_button_rect = draw_ring_transport_button(screen, game.player1, player_leader_rect.centerx - 60, player_leader_rect.bottom + 40)
-            
-            # Faction Power UI - Player (bottom right area)
-            if game.player1.faction_power:
-                player_faction_ui.draw(screen, game.player1.faction_power, is_player=True)
-            
-            # Faction Power UI - AI (top right area) - show but don't allow interaction
-            if game.player2.faction_power:
-                ai_faction_ui.draw(screen, game.player2.faction_power, is_player=False)
-            
-            # Leader ability boxes - centered, AI top, Player bottom
-            ability_box_width = 400
-            ability_box_height = 60
-            
-            # AI leader ability box removed for cleaner UI
-            # ai_ability_x = ai_leader_x
-            # ai_ability_y = ai_leader_y + 150 # Below leader portrait
-            # ai_ability_rect = draw_leader_ability_box(screen, game.player2, ai_ability_x, ai_ability_y, 
-            #                        ability_box_width, ability_box_height, is_opponent=True)
-            
-            # Player leader ability (bottom center, above hand with more clearance)
-            player_ability_x = (SCREEN_WIDTH - ability_box_width) // 2
-            player_ability_y = player_hand_y - ability_box_height - 20
-            player_ability_rect = draw_leader_ability_box(screen, game.player1, player_ability_x, player_ability_y, 
-                                   ability_box_width, ability_box_height, is_opponent=False)
-            
-            # Card counters - right side, vertical
-            counter_x = SCREEN_WIDTH - 260
-            counter_y_player = COMMAND_BAR_Y + 20
-            counter_y_opponent = 70
-            discard_rect = draw_card_counters(screen, game.player1, counter_x, counter_y_player, is_player=True)
-            draw_card_counters(screen, game.player2, counter_x, counter_y_opponent, is_player=False)
         
         # Draw animations and effects on top of everything
         anim_manager.draw_effects(screen)
@@ -3529,6 +4016,7 @@ def main():
                         game.trigger_medic(game.player1, card)
                         game.player1.calculate_score()
                         game.player2.calculate_score()
+                        game.last_turn_actor = game.player1
                         game.switch_turn()
                         medic_selection_mode = False
                         medic_card_played = None
@@ -3551,6 +4039,7 @@ def main():
                         if game.apply_decoy(card):
                             game.player1.calculate_score()
                             game.player2.calculate_score()
+                            game.last_turn_actor = game.player1
                             game.switch_turn()
                             decoy_selection_mode = False
                             decoy_card_played = None
@@ -3655,6 +4144,14 @@ def main():
         # Discard pile viewer overlay
         if viewing_discard:
             draw_discard_viewer(screen, game.player1.discard_pile, SCREEN_WIDTH, SCREEN_HEIGHT, discard_scroll)
+
+        # Context popup for leader column buttons
+        if button_info_popup and not paused and not inspected_card and not inspected_leader:
+            expires_at = button_info_popup.get("expires_at")
+            if expires_at and pygame.time.get_ticks() > expires_at:
+                button_info_popup = None
+            else:
+                draw_button_info_popup(screen, button_info_popup)
         
         # Pause menu overlay
         if paused:

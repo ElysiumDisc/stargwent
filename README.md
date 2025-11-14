@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-1.7-blue)
+![Version](https://img.shields.io/badge/version-1.9-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -40,6 +40,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **218 Cards** across 5 factions + Neutral cards
 - **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
+- **⚡ NEW v1.9: RULE MENU COMPENDIUM** - In-game `RULE MENU` button that opens the fully formatted rulebook generated from live card data.
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
 - **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
 - **⚡ NEW v1.7: WITCHER 3 GWENT LAYOUT** - Complete visual restructure matching authentic Gwent board design with clear separation, proper lane spacing, and fixed hand positioning!
@@ -140,6 +141,15 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 1.8 (December 2025)
+**Preparations for Command Horn & HUD Overhaul**
+
+- ✅ **Documentation Refresh** – README bumped to v1.8 to track the upcoming board/HUD rebuild work.
+- ✅ **Spec Alignment** – Codex plan captured for the new percentage-based layout, accordion hands, right-HUD history column, and AI faction-power parity; implementation will land in the next tagged build.
+- ℹ️ **Gameplay Code** – Currently identical to v1.7 so existing saves, decks, and ESC pause behavior remain untouched while we stage the next wave of UI fixes.
+
+---
 
 ### Version 1.7 (November 2025)
 **Stargwent Gwent-Style Balanced Layout**
@@ -243,6 +253,10 @@ pip install --upgrade pygame-ce
 2. **Select Faction** - Choose Tau'ri, Goa'uld, Jaffa, Lucian, or Asgard
 3. **Select Leader** - Pick leader with unique ability
 4. **Play!** - Start your first match
+
+### Rule Menu & Docs
+- **In-game reference:** From the Main Menu choose **RULE MENU** to browse the animated handbook (Basic Rules, Card Glossary, Lore, etc.) without leaving the game.
+- **Regenerate the guide:** After editing cards, leaders, or abilities run `python scripts/generate_rules_spec.py` to rebuild `docs/rules_menu_spec.md`, which the viewer loads at runtime.
 
 ---
 
@@ -370,6 +384,7 @@ pip install --upgrade pygame-ce
 *Human ingenuity and determination*
 - **Style**: Balanced units, strong heroes
 - **Leaders**: Col. O'Neill, Gen. Hammond, Dr. Carter, Dr. Jackson, Teal'c
+- **Signature Twist**: Col. Jack O'Neill now summons a temporary 6-power clone at the start of every round—perfect disposable muscle that vaporizes after three of your turns.
 - **Unlockable**: Jonas Quinn, Catherine Langford, Gen. Landry, Dr. McKay
 
 #### **Goa'uld** (System Lords) 👑

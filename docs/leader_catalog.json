@@ -1,0 +1,242 @@
+{
+  "FACTION_TAURI": {
+    "base": [
+      {
+        "name": "Col. Jack O'Neill",
+        "ability": "Summon a temporary Jack O'Neill clone token to the close row",
+        "ability_desc": "Summon a temporary Jack O'Neill clone for 3 turns",
+        "card_id": "tauri_oneill"
+      },
+      {
+        "name": "Gen. George Hammond",
+        "ability": "Your first unit each round gets +3 power",
+        "ability_desc": "Your first unit played each round gets +3 power",
+        "card_id": "tauri_hammond"
+      },
+      {
+        "name": "Dr. Samantha Carter",
+        "ability": "+2 power to all Siege units",
+        "ability_desc": "+2 power to all Siege units",
+        "card_id": "tauri_carter"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Gen. Landry",
+        "ability": "+1 power to all units each round they survive",
+        "ability_desc": "+1 power to all units for each round they survive on the board",
+        "card_id": "tauri_landry"
+      },
+      {
+        "name": "Dr. McKay",
+        "ability": "Draw 2 cards when you pass",
+        "ability_desc": "Draw 2 cards when you pass your turn",
+        "card_id": "tauri_mckay"
+      },
+      {
+        "name": "Jonas Quinn",
+        "ability": "Premonition: See opponent's next card",
+        "ability_desc": "See the next card your opponent will play",
+        "card_id": "tauri_quinn"
+      },
+      {
+        "name": "Catherine Langford",
+        "ability": "Archaeological Insight: All Neutral cards cost no resources",
+        "ability_desc": "Play Neutral cards without restrictions",
+        "card_id": "tauri_langford"
+      }
+    ]
+  },
+  "FACTION_GOAULD": {
+    "base": [
+      {
+        "name": "Apophis",
+        "ability": "Once per game, unleash a random weather storm",
+        "ability_desc": "Activate a random battlefield weather that hits both sides once per game",
+        "card_id": "goauld_apophis"
+      },
+      {
+        "name": "Lord Yu",
+        "ability": "See opponent's hand next round when you pass",
+        "ability_desc": "When you pass, the opponent's entire next-round hand is revealed until the round ends",
+        "card_id": "goauld_yu"
+      },
+      {
+        "name": "Sokar",
+        "ability": "+1 power to all Close Combat units",
+        "ability_desc": "+1 power to all Close Combat units",
+        "card_id": "goauld_sokar"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Ba'al",
+        "ability": "Clone technology: Copy highest power unit",
+        "ability_desc": "At round start, copy your highest power unit",
+        "card_id": "goauld_baal"
+      },
+      {
+        "name": "Anubis",
+        "ability": "Ascended power: Naquadah Overload every 2 rounds",
+        "ability_desc": "Automatically trigger Naquadah Overload at start of rounds 2 and 3",
+        "card_id": "goauld_anubis"
+      },
+      {
+        "name": "Hathor",
+        "ability": "Seduction: Steal opponent's lowest card to your hand",
+        "ability_desc": "At round start, steal opponent's lowest power unit from their board",
+        "card_id": "goauld_hathor_unlock"
+      },
+      {
+        "name": "Cronus",
+        "ability": "Ancient Goa'uld: All units gain +1 power per round number",
+        "ability_desc": "Units get +1 in round 1, +2 in round 2, +3 in round 3",
+        "card_id": "goauld_cronus"
+      }
+    ]
+  },
+  "FACTION_JAFFA": {
+    "base": [
+      {
+        "name": "Teal'c",
+        "ability": "Draw 1 card when winning a round",
+        "ability_desc": "Draw 1 card when winning a round",
+        "card_id": "jaffa_tealc"
+      },
+      {
+        "name": "Bra'tac",
+        "ability": "All Agile cards gain +1 power",
+        "ability_desc": "All Agile cards gain +1 power",
+        "card_id": "jaffa_bratac"
+      },
+      {
+        "name": "Rak'nor",
+        "ability": "Can play 2 cards on your first turn each round",
+        "ability_desc": "Can play 2 cards on your first turn of each round",
+        "card_id": "jaffa_raknor"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Master Bra'tac",
+        "ability": "Final stand: Units get +3 power in final round",
+        "ability_desc": "+3 power to all units in round 3",
+        "card_id": "jaffa_master_bratac"
+      },
+      {
+        "name": "Ka'lel",
+        "ability": "Warrior training: First 3 units each round get +2 power",
+        "ability_desc": "The first 3 units you play each round gain +2 power",
+        "card_id": "jaffa_kalel"
+      },
+      {
+        "name": "Gerak",
+        "ability": "Free Jaffa: Draw 1 card for every 2 units played",
+        "ability_desc": "Draw 1 card for every 2 units you play in a round",
+        "card_id": "jaffa_gerak"
+      },
+      {
+        "name": "Ishta",
+        "ability": "Hak'tyl resistance: All Gate Reinforcement units gain +2 power",
+        "ability_desc": "Units with Gate Reinforcement ability get +2 power",
+        "card_id": "jaffa_ishta"
+      }
+    ]
+  },
+  "FACTION_LUCIAN": {
+    "base": [
+      {
+        "name": "Vulkar",
+        "ability": "Spy cards draw 3 instead of 2",
+        "ability_desc": "Deep Cover Agents draw 3 cards instead of 2",
+        "card_id": "lucian_vulkar"
+      },
+      {
+        "name": "Sodan Master",
+        "ability": "+3 power to highest unit in each row",
+        "ability_desc": "+3 power to your highest unit in each row",
+        "card_id": "lucian_sodan_master"
+      },
+      {
+        "name": "Ba'al Clone",
+        "ability": "+2 power to all Ranged units",
+        "ability_desc": "+2 power to all Ranged units",
+        "card_id": "lucian_baal_clone"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Netan",
+        "ability": "Smuggling: Add random card from neutral pool each round",
+        "ability_desc": "Gain 1 random Neutral card at start of each round",
+        "card_id": "lucian_netan"
+      },
+      {
+        "name": "Vala Mal Doran",
+        "ability": "Treasure hunter: Reveal 3 cards, keep 1",
+        "ability_desc": "Once per game, look at top 3 cards of deck and keep one",
+        "card_id": "lucian_vala"
+      },
+      {
+        "name": "Anateo",
+        "ability": "Black market: Medical Evac ability every round",
+        "ability_desc": "Can use Medical Evac ability once per round without card",
+        "card_id": "lucian_anateo"
+      },
+      {
+        "name": "Kiva",
+        "ability": "Surprise attack: Play 2 cards on first turn",
+        "ability_desc": "Can play 2 cards on your first turn of the game",
+        "card_id": "lucian_kiva"
+      }
+    ]
+  },
+  "FACTION_ASGARD": {
+    "base": [
+      {
+        "name": "Freyr",
+        "ability": "Immune to weather effects",
+        "ability_desc": "Immune to all space hazards (weather effects)",
+        "card_id": "asgard_freyr"
+      },
+      {
+        "name": "Loki",
+        "ability": "Steal 1 power from opponent's strongest unit",
+        "ability_desc": "Steal 1 power from opponent's strongest unit each turn",
+        "card_id": "asgard_loki"
+      },
+      {
+        "name": "Heimdall",
+        "ability": "Your Legendary Commanders get +3 power",
+        "ability_desc": "Your Legendary Commanders get +3 power",
+        "card_id": "asgard_heimdall"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Thor Supreme Commander",
+        "ability": "Beam technology: Move any unit once per round",
+        "ability_desc": "Once per round, move any unit to a different row",
+        "card_id": "asgard_thor"
+      },
+      {
+        "name": "Hermiod",
+        "ability": "Shields up: Weather affects opponent only",
+        "ability_desc": "Weather cards you play only affect your opponent",
+        "card_id": "asgard_hermiod"
+      },
+      {
+        "name": "Penegal",
+        "ability": "Cloning bay: Revive one unit at start of each round",
+        "ability_desc": "Revive 1 random unit from discard at start of rounds 2 and 3",
+        "card_id": "asgard_penegal"
+      },
+      {
+        "name": "Aegir",
+        "ability": "High Council: +2 power to all Legendary Commanders",
+        "ability_desc": "+2 power to all your Legendary Commander cards",
+        "card_id": "asgard_aegir"
+      }
+    ]
+  }
+}

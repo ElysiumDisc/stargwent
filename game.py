@@ -1,5 +1,6 @@
 import random
 import copy
+import time
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
@@ -198,6 +199,18 @@ class Artifact:
         self.name = name
         self.description = description
         self.effect_func = effect_func
+
+
+class GameHistoryEntry:
+    """Data container describing a single log entry for the HUD history feed."""
+    def __init__(self, event_type, description, owner, card_ref=None, icon=None, row=None):
+        self.event_type = event_type
+        self.description = description
+        self.owner = owner  # 'player' or 'ai'
+        self.card_ref = card_ref
+        self.icon = icon
+        self.row = row
+        self.timestamp = time.time()
     
     def apply_effect(self, game, player):
         """Apply the artifact's effect."""
@@ -546,6 +559,33 @@ class Player:
             if self.deck:
                 self.hand.append(self.deck.pop())
 
+    def spawn_oneill_clone(self):
+        """Summon a temporary Jack O'Neill clone token to the close row."""
+        if self.faction != FACTION_TAURI:
+            return
+        from cards import Card
+        clone = Card(
+            "token_oneill_clone",
+            "Jack O'Neill Clone",
+            self.faction,
+            6,
+            "close",
+            "Temporary Clone",
+        )
+        clone.is_oneill_clone = True
+        clone.clone_turns_remaining = 4  # removed when about to take 4th turn
+        self.board["close"].append(clone)
+
+    def decrement_clone_tokens(self):
+        """Reduce lifetime on O'Neill clones and remove expired ones."""
+        for row_name, row_cards in self.board.items():
+            for card in list(row_cards):
+                if getattr(card, "is_oneill_clone", False):
+                    card.clone_turns_remaining -= 1
+                    if card.clone_turns_remaining <= 1:
+                        row_cards.remove(card)
+                        self.discard_pile.append(card)
+
 class Game:
     """Manages the overall game state and logic."""
     def __init__(self, player1_faction=FACTION_TAURI, player1_deck=None, player1_leader=None,
@@ -565,10 +605,42 @@ class Game:
         self.winner = None
         self.round_winner = None  # Track who won last round for missions
         self.last_scorch_positions = []  # Track where Naquadah Overload destroyed cards (player, row_name)
+        self.history = []
+        self.history_dirty = False
         
         # Leader ability tracking
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
         self.leader_ability_used = {self.player1: False, self.player2: False}
+        self.last_turn_actor = None
+
+    def _owner_label(self, player):
+        return "player" if player == self.player1 else "ai"
+
+    def add_history_event(self, event_type, description, owner, card_ref=None, icon=None, row=None):
+        """Append a new entry to the history log."""
+        entry = GameHistoryEntry(event_type, description, owner, card_ref=card_ref, icon=icon, row=row)
+        self.history.append(entry)
+        if len(self.history) > 200:
+            self.history.pop(0)
+        self.history_dirty = True
+        return entry
+
+    def _log_card_play(self, player, card, row_name=None, note=None):
+        """Helper to log standard card plays."""
+        desc = f"{player.name} played {card.name}"
+        if row_name:
+            desc += f" → {row_name.title()}"
+        if note:
+            desc += f" ({note})"
+        self.add_history_event("card_play", desc, self._owner_label(player), card_ref=card, row=row_name)
+
+    def _apply_leader_round_start_effects(self, player):
+        """Handle leader-specific triggers that occur at round start."""
+        if not player.leader:
+            return
+        leader_name = player.leader.get('name', '')
+        if "O'Neill" in leader_name:
+            player.spawn_oneill_clone()
 
     def discard_active_weather_cards(self):
         """Move any weather cards sitting on the board into their owners' discard piles."""
@@ -621,9 +693,14 @@ class Game:
     def end_mulligan_phase(self):
         """Ends mulligan phase and starts the game."""
         self.game_state = "playing"
+        for player in [self.player1, self.player2]:
+            self._apply_leader_round_start_effects(player)
 
     def switch_turn(self):
         """Switches the turn to the other player, handling passed players."""
+        if self.last_turn_actor:
+            self.last_turn_actor.decrement_clone_tokens()
+            self.last_turn_actor = None
         if self.player1.has_passed and self.player2.has_passed:
             self.end_round()
             return
@@ -668,6 +745,7 @@ class Game:
 
         if card in self.current_player.hand:
             self.current_player.hand.remove(card)
+            self.last_turn_actor = player
             
             # Handle weather cards
             if card.row == "weather":
@@ -677,6 +755,8 @@ class Game:
                 if "Wormhole Stabilization" not in ability:
                     for affected_row in affected_rows:
                         self._set_weather_slot(affected_row, {"card": card, "owner": self.current_player})
+                note = f"Weather → {', '.join(r.title() for r in affected_rows)}" if affected_rows else "Weather"
+                self._log_card_play(player, card, note=note)
                 self.player1.calculate_score()
                 self.player2.calculate_score()
                 player.plays_this_turn += 1
@@ -687,6 +767,7 @@ class Game:
             if card.row == "special":
                 self.apply_special_effect(card, row_name)
                 self.current_player.discard_pile.append(card)
+                self._log_card_play(player, card, row_name=row_name, note="Special")
                 self.player1.calculate_score()
                 self.player2.calculate_score()
                 player.plays_this_turn += 1
@@ -701,10 +782,12 @@ class Game:
                 valid_rows = [card.row]
             else:
                 self.current_player.hand.append(card)  # Return card if invalid
+                self.last_turn_actor = None
                 return
             
             if row_name not in valid_rows:
                 self.current_player.hand.append(card)  # Return card if invalid
+                self.last_turn_actor = None
                 return
 
             player = self.current_player
@@ -728,6 +811,7 @@ class Game:
                 player.draw_cards(draw_amount)
 
             target_player.board[row_name].append(card)
+            self._log_card_play(player, card, row_name=row_name)
             
             # Track cards played this round for leader abilities
             self.cards_played_this_round[player] += 1
@@ -811,19 +895,21 @@ class Game:
     def pass_turn(self):
         """The current player passes their turn."""
         if not self.current_player.has_passed:
-            self.current_player.has_passed = True
+            passing_player = self.current_player
+            passing_player.has_passed = True
+            self.add_history_event("pass", f"{passing_player.name} passed", self._owner_label(passing_player))
             
             # Apply leader abilities when passing
-            if self.current_player.leader:
-                leader_name = self.current_player.leader.get('name', '')
+            if passing_player.leader:
+                leader_name = passing_player.leader.get('name', '')
                 # Dr. McKay: Draw 2 cards when you pass
                 if "McKay" in leader_name:
-                    self.current_player.draw_cards(2)
+                    passing_player.draw_cards(2)
                 # Lord Yu: Reveal opponent's hand when you pass
                 elif "Yu" in leader_name:
-                    opponent = self.player2 if self.current_player == self.player1 else self.player1
+                    opponent = self.player2 if passing_player == self.player1 else self.player1
                     opponent.reveal_next_round = True
-            
+            self.last_turn_actor = passing_player
             self.switch_turn()
 
     def trigger_muster(self, played_card, player, row_name):
@@ -842,9 +928,19 @@ class Game:
             player.deck.remove(card)
             player.board[row_name].append(card)
         
+        total_mustered = len(cards_from_hand) + len(cards_from_deck) + 1
+
+        # Life Force Drain siphons enemy strength and boosts the muster group
+        if "Life Force Drain" in (played_card.ability or ""):
+            self.trigger_life_force_drain(player, played_card, total_mustered)
+        
+        # System Lord's Curse weakens the opposing row after the muster resolves
+        if "System Lord's Curse" in (played_card.ability or ""):
+            self.trigger_system_lords_curse(player, row_name)
+        
         # Check for Vampire ability (life steal)
         if "Vampire" in (played_card.ability or ""):
-            self.trigger_vampire(player, len(cards_from_hand) + len(cards_from_deck) + 1)
+            self.trigger_vampire(player, total_mustered)
         
         # Check for Crone ability (weaken opponent)
         if "Crone" in (played_card.ability or ""):
@@ -880,6 +976,45 @@ class Game:
                 new_power = max(1, card.power - 1)
                 card.power = new_power
                 card.displayed_power = new_power
+    
+    def trigger_life_force_drain(self, player, played_card, num_cards):
+        """Life Force Drain: steal 1 power from random enemy unit per muster copy and funnel to the squad."""
+        opponent = self.player2 if player == self.player1 else self.player1
+        muster_group = []
+        for row_cards in player.board.values():
+            for card in row_cards:
+                if card.name == played_card.name:
+                    muster_group.append(card)
+        if not muster_group:
+            muster_group = [played_card]
+        
+        for _ in range(num_cards):
+            drainable_units = []
+            for row_cards in opponent.board.values():
+                for card in row_cards:
+                    if "Legendary Commander" in (card.ability or ""):
+                        continue
+                    if card.power > 1:
+                        drainable_units.append(card)
+            if not drainable_units:
+                break
+            target = random.choice(drainable_units)
+            target.power = max(1, target.power - 1)
+            target.displayed_power = min(target.displayed_power, target.power)
+            
+            recipient = random.choice(muster_group)
+            recipient.power += 1
+            recipient.displayed_power += 1
+    
+    def trigger_system_lords_curse(self, player, row_name):
+        """System Lord's Curse: weaken opposing units in the mirrored row by 1 (min 1)."""
+        opponent = self.player2 if player == self.player1 else self.player1
+        for card in opponent.board.get(row_name, []):
+            if "Legendary Commander" in (card.ability or ""):
+                continue
+            new_power = max(1, card.power - 1)
+            card.power = new_power
+            card.displayed_power = min(card.displayed_power, new_power)
     
     def trigger_summon_shield_maidens(self, player, row_name):
         """Deploy Clones: Add 2 Shield Maiden tokens (2 power each) to the row."""
@@ -1092,12 +1227,22 @@ class Game:
             if row_name in ["close", "ranged", "siege"]:
                 self.current_player.horn_effects[row_name] = True
                 self.current_player.horn_slots[row_name] = card
+                self.add_history_event(
+                    "horn",
+                    f"{self.current_player.name} activated a Horn on {row_name.title()}",
+                    self._owner_label(self.current_player),
+                    card_ref=card,
+                    row=row_name
+                )
         
         elif "Naquadah Overload" in ability:
-            # Check if this is Merlin's Weapon (one-sided scorch)
-            if "Merlin" in card.name or "Anti-Ori" in card.name:
-                # Only affect opponent
-                opponent = self.player2 if self.current_player == self.player1 else self.player1
+            opponent = self.player2 if self.current_player == self.player1 else self.player1
+            # Ancient Drone variant: destroy the lowest enemy unit only
+            if "Destroy lowest enemy unit" in ability:
+                destroyed_rows = self.destroy_lowest_enemy_unit(opponent)
+                self.last_scorch_positions = [(opponent, row) for row in destroyed_rows]
+            # Merlin's Weapon (one-sided scorch)
+            elif "Merlin" in card.name or "Anti-Ori" in card.name:
                 destroyed_rows = self.apply_scorch_to_player(opponent)
                 self.last_scorch_positions = [(opponent, row) for row in destroyed_rows]
             else:
@@ -1223,6 +1368,25 @@ class Game:
                 destroyed_rows.append(row_name)
         
         return destroyed_rows
+    
+    def destroy_lowest_enemy_unit(self, target_player):
+        """Destroy the single lowest-power non-Hero unit for a targeted player."""
+        eligible = []
+        for row_name, row_cards in target_player.board.items():
+            for card in row_cards:
+                if "Legendary Commander" in (card.ability or ""):
+                    continue
+                eligible.append((card, row_name))
+        if not eligible:
+            return []
+        min_power = min(card.displayed_power for card, _ in eligible)
+        lowest = [(card, row) for card, row in eligible if card.displayed_power == min_power]
+        victim, victim_row = random.choice(lowest)
+        if victim in target_player.board[victim_row]:
+            target_player.board[victim_row].remove(victim)
+            target_player.discard_pile.append(victim)
+            return [victim_row]
+        return []
 
     def end_round(self):
         """Ends the round, determines winner, and resets for the next."""
@@ -1347,6 +1511,7 @@ class Game:
             # Apply faction round-start abilities (draw bonuses etc.)
             if p.faction_ability and hasattr(p.faction_ability, 'apply_round_start'):
                 p.faction_ability.apply_round_start(self, p)
+            self._apply_leader_round_start_effects(p)
             
             # Reset round-specific abilities
             if p.faction_ability:

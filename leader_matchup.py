@@ -346,14 +346,14 @@ class LeaderMatchupAnimation:
         self.l1_start_x = -self.card_width
         self.l1_start_y = screen_height // 2 - self.card_height // 2
         self.l1_collision_x = screen_width // 2 - self.card_width // 2 - 50
-        self.l1_end_x = 50
+        self.l1_end_x = self.center_x - self.card_width - 80
         self.l1_end_y = screen_height - self.card_height - 50
         
         # Leader 2 (opponent) - starts off screen right, ends top left
         self.l2_start_x = screen_width + self.card_width
         self.l2_start_y = screen_height // 2 - self.card_height // 2
         self.l2_collision_x = screen_width // 2 + self.card_width // 2 + 50
-        self.l2_end_x = 50
+        self.l2_end_x = self.center_x + 80
         self.l2_end_y = 50
         
         # Lightning bolts

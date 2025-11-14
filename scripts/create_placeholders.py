@@ -349,6 +349,65 @@ def create_menu_background():
     return None
 
 
+def create_rule_menu_background():
+    """Creates a dedicated background for the in-game rule compendium."""
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+    
+    # Deep gradient backdrop
+    top_color = (10, 16, 32)
+    bottom_color = (4, 4, 12)
+    for y in range(BOARD_HEIGHT):
+        t = y / BOARD_HEIGHT
+        color = (
+            int(top_color[0] * (1 - t) + bottom_color[0] * t),
+            int(top_color[1] * (1 - t) + bottom_color[1] * t),
+            int(top_color[2] * (1 - t) + bottom_color[2] * t),
+        )
+        pygame.draw.line(surface, color, (0, y), (BOARD_WIDTH, y))
+
+    # Subtle starfield
+    for _ in range(600):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        brightness = random.randint(120, 200)
+        size = random.choice([1, 1, 2])
+        pygame.draw.circle(surface, (brightness, brightness, brightness), (x, y), size)
+
+    # Blueprint grid overlay
+    grid_surf = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    grid_color = (40, 80, 140, 30)
+    grid_spacing = 100
+    for x in range(0, BOARD_WIDTH, grid_spacing):
+        pygame.draw.line(grid_surf, grid_color, (x, 0), (x, BOARD_HEIGHT), 1)
+    for y in range(0, BOARD_HEIGHT, grid_spacing):
+        pygame.draw.line(grid_surf, grid_color, (0, y), (BOARD_WIDTH, y), 1)
+    surface.blit(grid_surf, (0, 0))
+
+    # Center holographic panel
+    panel_width = int(BOARD_WIDTH * 0.75)
+    panel_height = int(BOARD_HEIGHT * 0.8)
+    panel_surf = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+    pygame.draw.rect(panel_surf, (20, 40, 70, 200), panel_surf.get_rect(), border_radius=30)
+    pygame.draw.rect(panel_surf, (120, 190, 255, 60), panel_surf.get_rect(), width=4, border_radius=30)
+    surface.blit(panel_surf, ((BOARD_WIDTH - panel_width) // 2, (BOARD_HEIGHT - panel_height) // 2))
+
+    # Corner chevrons
+    chevron_color = (100, 160, 220, 180)
+    chevron_surf = pygame.Surface((200, 200), pygame.SRCALPHA)
+    pygame.draw.polygon(chevron_surf, chevron_color, [(0, 0), (60, 0), (0, 60)])
+    surface.blit(chevron_surf, (40, 40))
+    surface.blit(pygame.transform.flip(chevron_surf, True, False), (BOARD_WIDTH - 240, 40))
+    surface.blit(pygame.transform.flip(chevron_surf, False, True), (40, BOARD_HEIGHT - 240))
+    surface.blit(pygame.transform.flip(chevron_surf, True, True), (BOARD_WIDTH - 240, BOARD_HEIGHT - 240))
+
+    path = os.path.join(ASSETS_DIR, "rule_menu_bg.png")
+    if should_create_file(path):
+        pygame.image.save(surface, path)
+        print(f"Created rule menu background: {path}")
+        return path
+    return None
+
+
 def create_custom_font():
     """Creates a placeholder custom font file."""
     # For now, just create a text file documenting what font to use
@@ -786,6 +845,7 @@ def main():
     print("\nGenerating other assets...")
     create_board_image()
     create_menu_background()
+    create_rule_menu_background()
     create_deck_building_background()
     create_custom_font()
     create_card_back_image()
@@ -794,8 +854,8 @@ def main():
     base_cards = len(ALL_CARDS)
     unlockable_cards = len(UNLOCKABLE_CARDS)
     num_leaders = sum(len(l) for l in leaders.values())
-    num_ships = len(factions_for_ships) * 3
-    num_other = 4  # board, menu, deck bg, card back
+    num_ships = len(factions_for_ships)  # One ship per faction
+    num_other = 5  # board, menu, rule menu, deck bg, card back
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
     
@@ -811,7 +871,7 @@ def main():
     print(f"  Leader Portraits: {num_leaders}")
     print(f"  Leader Backgrounds: {leader_backgrounds}")
     print(f"  Leader Matchups: {num_matchups}")
-    print(f"  Ships: {num_ships} (3 per faction)")
+    print(f"  Ships: {num_ships} (1 per faction)")
     print(f"  Other: {num_other} (board, menu, deck bg, card back) + 1 font config")
     print(f"  Total Images: {total_images + num_matchups}")
 

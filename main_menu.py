@@ -11,6 +11,7 @@ import random
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 from deck_builder import FACTION_LEADERS, MIN_DECK_SIZE, MAX_DECK_SIZE, validate_deck
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
+from rules_menu import run_rules_menu
 
 # Save file for custom decks
 CUSTOM_DECKS_FILE = "player_decks.json"
@@ -113,6 +114,7 @@ class MainMenu:
         self.options = [
             {'text': 'NEW GAME', 'action': 'new_game'},
             {'text': 'DECK BUILDING', 'action': 'deck_building'},
+            {'text': 'RULE MENU', 'action': 'rules_menu'},
             {'text': 'QUIT', 'action': 'quit'}
         ]
         
@@ -616,6 +618,8 @@ def run_main_menu(screen, unlock_system):
                 result = run_deck_builder(screen, for_new_game=False)  # Not for new game, just deck customization
                 # If result is None, user clicked MAIN MENU or ESC - just continue showing main menu
                 # (Don't return None here, that would quit the game!)
+            elif action == 'rules_menu':
+                run_rules_menu(screen)
             elif action == 'quit':
                 return None
         
@@ -875,4 +879,3 @@ def show_stargate_opening(screen):
         pygame.display.flip()
     
     return True
-

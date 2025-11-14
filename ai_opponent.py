@@ -14,7 +14,6 @@ class AIStrategy:
         self.opponent = game.player1  # Assume AI is always player2
         self.difficulty = "medium"  # easy, medium, hard
         self.power_used = False  # Track if faction power has been used
-        self.power_round_target = None  # Which round to use power (decided at game start)
     
     def decide_action(self) -> Tuple[str, Optional[object], Optional[str]]:
         """
@@ -55,53 +54,21 @@ class AIStrategy:
         }
     
     def should_use_power(self, context: dict) -> bool:
-        """Decide if AI should use faction power this turn.
-        Power is used once per game, strategically in round 1 or 2."""
-        
-        # Already used power
-        if self.power_used:
+        """Simple heuristic: use power when behind or late in the game."""
+        if self.power_used or not self.ai_player.faction_power:
             return False
-        
-        # Decide target round if not already decided
-        if self.power_round_target is None:
-            # 70% chance round 1, 30% chance round 2
-            self.power_round_target = 1 if random.random() < 0.7 else 2
-
-        # --- Force usage if not used by end of round 2 ---
-        # If it's round 2, opponent has passed, and we haven't used power, use it now if we have cards.
-        if context['round_number'] == 2 and not self.power_used and context['opponent_passed'] and context['cards_on_board'] > 0:
-            return True
-
-        # --- Force usage in round 3 if not used ---
-        if context['round_number'] == 3 and not self.power_used and context['cards_on_board'] > 0:
-            return True
-
-        # Only use in target round (original logic)
-        if context['round_number'] != self.power_round_target:
+        if not self.ai_player.faction_power.is_available():
             return False
-        
-        # Use power when:
-        # - We have board presence (2+ cards)
-        # - Score is close (within 15 points)
-        # - Or we're losing and need a swing
-        
-        if context['cards_on_board'] < 2: # Lowered from 3
-            return False  # Wait until we have more cards on board
-        
-        score_diff = context['score_diff']
-        
-        # If losing badly, use power to swing
-        if score_diff < -8: # Lowered from -10
+
+        # If we're significantly behind, fire immediately
+        if context['score_diff'] < -15:
             return True
-        
-        # If close game, use power
-        if abs(score_diff) <= 15:
-            return random.random() < 0.75  # Increased from 0.7
-        
-        # If winning moderately, save it for later (but we're at target round)
-        if score_diff > 10:
-            return random.random() < 0.4  # Increased from 0.3
-        
+
+        # Near the end of the round or running low on cards
+        late_round = context['round_number'] >= 3 or context['ai_cards_left'] <= 3
+        if late_round:
+            return True
+
         return False
     
     def should_pass(self, context: dict) -> bool:
@@ -397,7 +364,12 @@ class AIController:
                 self.ai_player.power_used = True
                 self.strategy.power_used = True
                 if self.ai_player.faction_power:
-                    self.ai_player.faction_power.activate(self.game, self.ai_player)
+                    if self.ai_player.faction_power.activate(self.game, self.ai_player):
+                        self.game.add_history_event(
+                            "faction_power",
+                            f"{self.ai_player.name} used {self.ai_player.faction_power.name}",
+                            "ai"
+                        )
             return (None, None)
         
         return (None, None)
