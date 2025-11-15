@@ -1557,7 +1557,7 @@ class RulesMenuScreen:
         return y
 
 
-def run_rules_menu(screen: pygame.Surface):
+def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
     viewer = RulesMenuScreen(screen.get_width(), screen.get_height())
     clock = pygame.time.Clock()
     while True:
@@ -1566,7 +1566,10 @@ def run_rules_menu(screen: pygame.Surface):
                 return None
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT):
-                    pygame.display.toggle_fullscreen()
+                    if toggle_fullscreen_callback:
+                        toggle_fullscreen_callback()
+                    else:
+                        pygame.display.toggle_fullscreen()
                     screen = pygame.display.get_surface()
                     viewer.resize(screen.get_width(), screen.get_height())
                     continue

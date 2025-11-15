@@ -40,6 +40,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **218 Cards** across 5 factions + Neutral cards
 - **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
+- **⚡ NEW v1.9: Universal Leader Matchups** - One cinematic Stargate template replaces thousands of PNGs while preserving collision, Event Horizon effects, and lore quotes.
+- **⚡ NEW v1.9: Retro Neon Nameplates** - Leader names now render in a retro cyberpunk font with faction-colored glow + scanlines for every matchup.
+- **⚡ NEW v1.9: Seamless Fullscreen** - Toggle with F11/Alt+Enter or launch via `--fullscreen`; mode persists from menus through combat.
 - **⚡ NEW v1.9: RULE MENU COMPENDIUM** - In-game `RULE MENU` button that opens the fully formatted rulebook generated from live card data.
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
 - **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
@@ -124,6 +127,7 @@ All abilities renamed and themed around Stargate lore:
 - **Planet Emergence** - Beautiful planet appearance in round 3
 - **Animated Background** - Moving starfield, chevron glows, energy waves
 - **Stargate Activation** - Portal effect when playing cards
+- **Retro Neon Leader HUD** - Universal matchup template overlays glowing faction-colored typography and scanlines across the Stargate event horizon for every confrontation.
 - **Score Animations** - Dramatic pop effects with deltas
 - **Weather Effects** - Row-specific highlights plus custom particle fields
 - **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
@@ -141,6 +145,15 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 1.9 (January 2026)
+**Universal Matchups & Fullscreen Persistence**
+
+- ✅ **Retro Neon Matchup HUD** – Leader names now use a retro cyberpunk font with faction-colored glow, scanlines, and proper portrait scaling for every confrontation.
+- ✅ **Single Template Background** – `universal_leader_matchup_bg.png` replaces thousands of matchup PNGs; create_placeholders now generates the shared template and cleans up aliases automatically.
+- ✅ **Persistent Fullscreen** – Toggling fullscreen via F11/Alt+Enter (or launching with `python main.py --fullscreen` / `STARGWENT_FULLSCREEN=1`) keeps the entire experience in the chosen mode—from menus, to deck builder, to battle.
+- ✅ **Card Reload Safety** – Switching display modes re-renders the board and reloads card assets so everything stays crisp in both windowed and fullscreen sessions.
+- ✅ **Leader Background Alias Fix** – Master Bra'tac now reuses `leader_bg_jaffa_bratac.png`, preventing mismatched filenames and keeping the deck builder happy.
 
 ### Version 1.8 (December 2025)
 **Preparations for Command Horn & HUD Overhaul**
@@ -243,10 +256,14 @@ python create_placeholders.py
 
 # 6. Run the game!
 python main.py
-`
+
+# Optional: start directly in fullscreen (persists for the whole session)
+python main.py --fullscreen
+
 # 7. Update pygame-ce
 pip install --upgrade pygame-ce
 
+Set `STARGWENT_FULLSCREEN=1` before running `python main.py` if you prefer forcing fullscreen without passing the CLI flag each time.
 
 ### First Launch
 1. **Main Menu** - Select "NEW GAME"
@@ -761,7 +778,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **SPACEBAR** - Activate Faction Power OR preview selected card
 - **D** - View discard pile (scroll with mouse wheel, ESC to close)
 - **ESC** - Close overlays / Pause menu
-- **F11** - Toggle fullscreen
+- **F11 / Alt+Enter** - Toggle fullscreen (mode persists across menus/matchups; also selectable via `--fullscreen` or `STARGWENT_FULLSCREEN=1`)
 - **R** - Restart (game over)
 - **Arrow Keys / WASD** - Navigate menus
 - **1/2/3** - Quick select rewards
@@ -794,8 +811,8 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **Faction Powers Renamed** - IrisPower → FactionPower throughout codebase
 - **Tau'ri Iris Defense** - Kept separate and working (click Iris button)
 - **Unstable Naquadah Fixed** - Lucian faction power now properly damages units
-- **Leader Matchup PNG Support** - Loads custom PNG backgrounds for each leader combination
-- **Placeholder Generation** - Run `create_placeholders.py` to generate all matchup backgrounds
+- **Universal Leader Matchups** - Cinematic intro now renders from a single `universal_leader_matchup_bg.png` with faction-colored neon typography and dynamically scaled portraits.
+- **Placeholder Generation** - Run `create_placeholders.py` to (re)create the universal template plus all cards/portraits (including Bra'tac alias cleanup).
 - **Simplified Keyboard** - Only essential keys: D (discard), Space (preview/power), ESC (close/pause)
 
 #### **NEW v0.9: Cinematic & Polish Updates**

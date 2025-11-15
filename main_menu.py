@@ -588,7 +588,7 @@ class DeckCustomizationUI:
             surface.blit(name_text, (x + 5, y + 5))
 
 
-def run_main_menu(screen, unlock_system):
+def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     """Run the main menu loop."""
     # CRITICAL: Reload card images at menu start to ensure proper loading
     print("Main Menu: Reloading card images for current screen size...")
@@ -606,8 +606,13 @@ def run_main_menu(screen, unlock_system):
                 return None
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F11:
-                    # Toggle fullscreen
-                    pygame.display.toggle_fullscreen()
+                    # Toggle fullscreen using shared callback if available
+                    if toggle_fullscreen_callback:
+                        toggle_fullscreen_callback()
+                        screen = pygame.display.get_surface()
+                        main_menu = MainMenu(screen.get_width(), screen.get_height())
+                    else:
+                        pygame.display.toggle_fullscreen()
             
             action = main_menu.handle_event(event)
             if action == 'new_game':
@@ -619,7 +624,7 @@ def run_main_menu(screen, unlock_system):
                 # If result is None, user clicked MAIN MENU or ESC - just continue showing main menu
                 # (Don't return None here, that would quit the game!)
             elif action == 'rules_menu':
-                run_rules_menu(screen)
+                run_rules_menu(screen, toggle_fullscreen_callback)
             elif action == 'quit':
                 return None
         

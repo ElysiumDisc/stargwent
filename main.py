@@ -14,7 +14,20 @@ from cards import (
     FACTION_ASGARD,
 )
 from ai_opponent import AIController
-from animations import AnimationManager, StargateActivationEffect, GlowAnimation, CardSlideAnimation, ScorchEffect, NaquadahExplosionEffect, AICardPlayAnimation, create_hero_animation, create_ability_animation, LegendaryLightningEffect
+from animations import (
+    AnimationManager,
+    StargateActivationEffect,
+    GlowAnimation,
+    CardSlideAnimation,
+    ScorchEffect,
+    NaquadahExplosionEffect,
+    AICardPlayAnimation,
+    create_hero_animation,
+    create_ability_animation,
+    LegendaryLightningEffect,
+    ClearWeatherBlackHole,
+    MeteorShowerImpactEffect,
+)
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
@@ -82,7 +95,68 @@ SCALE_FACTOR = min(SCALE_X, SCALE_Y, 1.0)  # Don't scale up, only down
 # Final screen size (scaled to fit)
 SCREEN_WIDTH = int(TARGET_WIDTH * SCALE_FACTOR)
 SCREEN_HEIGHT = int(TARGET_HEIGHT * SCALE_FACTOR)
-FULLSCREEN = False
+
+WINDOWED_WIDTH = SCREEN_WIDTH
+WINDOWED_HEIGHT = SCREEN_HEIGHT
+WINDOWED_SCALE_FACTOR = SCALE_FACTOR
+WINDOWED_FLAGS = pygame.SHOWN | pygame.SCALED if SCALE_FACTOR < 1.0 else pygame.SHOWN
+
+# Allow forcing fullscreen via CLI/env for streamers/setups
+DEFAULT_FULLSCREEN = (
+    "--fullscreen" in sys.argv or
+    os.environ.get("STARGWENT_FULLSCREEN", "").lower() in {"1", "true", "yes"}
+)
+FULLSCREEN = DEFAULT_FULLSCREEN
+screen = None
+
+
+def set_display_mode(fullscreen_enabled, *, reload_cards=False):
+    """Centralized fullscreen toggling that keeps dimensions in sync."""
+    global screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN
+    FULLSCREEN = fullscreen_enabled
+    if fullscreen_enabled:
+        SCREEN_WIDTH = DESKTOP_WIDTH
+        SCREEN_HEIGHT = DESKTOP_HEIGHT
+        SCALE_FACTOR = min(DESKTOP_WIDTH / TARGET_WIDTH, DESKTOP_HEIGHT / TARGET_HEIGHT, 1.0)
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
+        pygame.display.set_caption("Stargwent - Fullscreen")
+    else:
+        SCREEN_WIDTH = WINDOWED_WIDTH
+        SCREEN_HEIGHT = WINDOWED_HEIGHT
+        SCALE_FACTOR = WINDOWED_SCALE_FACTOR
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), WINDOWED_FLAGS)
+        if WINDOWED_FLAGS & pygame.SCALED:
+            pygame.display.set_caption(f"Stargwent - Scaled to {SCREEN_WIDTH}x{SCREEN_HEIGHT} (from 4K)")
+        else:
+            pygame.display.set_caption("Stargwent - 4K (3840x2160)")
+    if reload_cards:
+        reload_card_images()
+
+
+def sync_fullscreen_from_surface():
+    """Ensure FULLSCREEN flag matches current SDL state (handles menu toggles)."""
+    surface = pygame.display.get_surface()
+    if not surface:
+        return
+    is_fullscreen = bool(surface.get_flags() & pygame.FULLSCREEN)
+    if is_fullscreen != FULLSCREEN:
+        set_display_mode(is_fullscreen, reload_cards=True)
+
+
+def toggle_fullscreen_mode():
+    """Flip fullscreen state respecting all UI/layout updates."""
+    set_display_mode(not FULLSCREEN, reload_cards=True)
+
+
+def enforce_display_mode():
+    """Ensure the active SDL surface matches our desired fullscreen flag."""
+    surface = pygame.display.get_surface()
+    if not surface:
+        return
+    actual_fullscreen = bool(surface.get_flags() & pygame.FULLSCREEN)
+    if actual_fullscreen != FULLSCREEN:
+        set_display_mode(FULLSCREEN, reload_cards=True)
+
 
 print(f"Display Detection:")
 print(f"  Desktop: {DESKTOP_WIDTH}x{DESKTOP_HEIGHT}")
@@ -90,14 +164,14 @@ print(f"  Target: {TARGET_WIDTH}x{TARGET_HEIGHT}")
 print(f"  Scale Factor: {SCALE_FACTOR:.2f}")
 print(f"  Window Size: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
 
-# Create the screen - Auto-scaled
-if SCALE_FACTOR < 1.0:
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SHOWN | pygame.SCALED)
-    pygame.display.set_caption(f"Stargwent - Scaled to {SCREEN_WIDTH}x{SCREEN_HEIGHT} (from 4K)")
-    print(f"✓ Using hardware scaling for better performance")
+set_display_mode(FULLSCREEN)
+
+if FULLSCREEN:
+    print("✓ Fullscreen mode enabled on launch")
+elif WINDOWED_FLAGS & pygame.SCALED:
+    print("✓ Using hardware scaling for better performance")
 else:
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SHOWN)
-    pygame.display.set_caption("Stargwent - 4K (3840x2160)")
+    print("✓ Running at native 4K resolution")
 
 # Set custom window icon
 try:
@@ -2419,7 +2493,7 @@ def main():
     deck_manager = DeckManager(unlock_system)
     
     # --- SHOW MAIN MENU FIRST ---
-    menu_result = run_main_menu(screen, unlock_system)
+    menu_result = run_main_menu(screen, unlock_system, toggle_fullscreen_mode)
     
     if menu_result != 'new_game':
         # User quit or closed window
@@ -2431,6 +2505,9 @@ def main():
         # User closed window during animation
         pygame.quit()
         sys.exit()
+    
+    # Sync display mode in case menu/rules toggled fullscreen
+    sync_fullscreen_from_surface()
     
     # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
     deck_selection = run_deck_builder(screen)
@@ -2645,6 +2722,7 @@ def main():
     fullscreen = FULLSCREEN
     
     while running:
+        enforce_display_mode()
         dt = clock.tick(60)  # 60 FPS, returns milliseconds since last frame
         if getattr(game, "history_dirty", False):
             if not history_manual_scroll:
@@ -2838,59 +2916,28 @@ def main():
                 
                 # Toggle fullscreen with F11 or Alt+Enter
                 elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
-                    print(f"🔑 Fullscreen toggle! Current state: {fullscreen}")
-                    fullscreen = not fullscreen
-                    if fullscreen:
-                        # Go fullscreen using native desktop resolution
-                        screen = pygame.display.set_mode((DESKTOP_WIDTH, DESKTOP_HEIGHT), pygame.FULLSCREEN)
-                        # Update screen dimensions for UI rendering
-                        SCREEN_WIDTH = DESKTOP_WIDTH
-                        SCREEN_HEIGHT = DESKTOP_HEIGHT
-                        # Recalculate scale factor for fullscreen
-                        SCALE_FACTOR = min(DESKTOP_WIDTH / TARGET_WIDTH, DESKTOP_HEIGHT / TARGET_HEIGHT, 1.0)
-                        
-                        # Recalculate UI button positions for new resolution
-                        hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
-                        HUD_PASS_BUTTON_RECT = pygame.Rect(
-                            HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
-                            pct_y(0.94) - hud_pass_button_size // 2,
-                            hud_pass_button_size,
-                            hud_pass_button_size
-                        )
-                        MULLIGAN_BUTTON_RECT = pygame.Rect(
-                            SCREEN_WIDTH - int(300 * SCALE_FACTOR),
-                            SCREEN_HEIGHT - int(160 * SCALE_FACTOR),
-                            int(200 * SCALE_FACTOR),
-                            int(50 * SCALE_FACTOR)
-                        )
-                        
-                        print(f"✓ Fullscreen: ON - Resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
-                        print(f"  Scale Factor: {SCALE_FACTOR:.2f}")
-                    else:
-                        # Restore to windowed mode with original calculated size
-                        original_scale_x = (DESKTOP_WIDTH * 0.95) / TARGET_WIDTH
-                        original_scale_y = (DESKTOP_HEIGHT * 0.95) / TARGET_HEIGHT
-                        SCALE_FACTOR = min(original_scale_x, original_scale_y, 1.0)
-                        SCREEN_WIDTH = int(TARGET_WIDTH * SCALE_FACTOR)
-                        SCREEN_HEIGHT = int(TARGET_HEIGHT * SCALE_FACTOR)
-                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SHOWN | pygame.SCALED)
-                        
-                        # Recalculate UI button positions for windowed mode
-                        hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
-                        HUD_PASS_BUTTON_RECT = pygame.Rect(
-                            HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
-                            pct_y(0.94) - hud_pass_button_size // 2,
-                            hud_pass_button_size,
-                            hud_pass_button_size
-                        )
-                        MULLIGAN_BUTTON_RECT = pygame.Rect(
-                            SCREEN_WIDTH - int(300 * SCALE_FACTOR),
-                            SCREEN_HEIGHT - int(160 * SCALE_FACTOR),
-                            int(200 * SCALE_FACTOR),
-                            int(50 * SCALE_FACTOR)
-                        )
-                        
-                        print(f"✓ Fullscreen: OFF - Window: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+                    print(f"🔑 Fullscreen toggle requested. Current state: {FULLSCREEN}")
+                    toggle_fullscreen_mode()
+                    fullscreen = FULLSCREEN
+                    
+                    # Recalculate UI button positions for new resolution
+                    hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
+                    HUD_PASS_BUTTON_RECT = pygame.Rect(
+                        HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
+                        pct_y(0.94) - hud_pass_button_size // 2,
+                        hud_pass_button_size,
+                        hud_pass_button_size
+                    )
+                    MULLIGAN_BUTTON_RECT = pygame.Rect(
+                        SCREEN_WIDTH - int(300 * SCALE_FACTOR),
+                        SCREEN_HEIGHT - int(160 * SCALE_FACTOR),
+                        int(200 * SCALE_FACTOR),
+                        int(50 * SCALE_FACTOR)
+                    )
+                    
+                    mode_label = "ON" if fullscreen else "OFF"
+                    print(f"✓ Fullscreen: {mode_label} - Resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+                    print(f"  Scale Factor: {SCALE_FACTOR:.2f}")
                 
                 # F key = Activate Faction Power
                 elif event.key == pygame.K_f:
@@ -3267,7 +3314,6 @@ def main():
                                         else:
                                             # Check if this is Wormhole Stabilization (Clear Weather)
                                             if "Wormhole Stabilization" in (card.ability or ""):
-                                                from animations import ClearWeatherBlackHole
                                                 black_hole_anim = ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                                                 anim_manager.add_effect(black_hole_anim)
                                             game.play_card(card, card.row)
@@ -3321,23 +3367,43 @@ def main():
                     played = False
                     is_spy = "Deep Cover Agent" in (dragging_card.ability or "")
                     ability_text = dragging_card.ability or ""
+                    ability_lower = ability_text.lower()
                     
                     # Weather and special cards can target any row
                     if dragging_card.row in ["weather", "special"]:
                         if dragging_card.row == "weather":
-                            for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
-                                for row_name, rect in rects.items():
-                                    if rect.collidepoint(event.pos):
-                                        game.play_card(dragging_card, row_name)
-                                        played = True
-                                        
-                                        effect_x = rect.centerx
-                                        effect_y = rect.centery
-                                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
-                                        anim_manager.add_effect(stargate_effect)
-                                        break
-                                if played:
+                            target_row = None
+                            drop_rect = None
+                            # First, allow dropping onto dedicated weather slots
+                            for row_name, slot_rect in WEATHER_SLOT_RECTS.items():
+                                if slot_rect.collidepoint(event.pos):
+                                    target_row = row_name
+                                    drop_rect = slot_rect
                                     break
+                            # Fallback to full row targets if player drags over the battlefield
+                            if target_row is None:
+                                for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                    for row_name, rect in rects.items():
+                                        if rect.collidepoint(event.pos):
+                                            target_row = row_name
+                                            drop_rect = rect
+                                            break
+                                    if target_row:
+                                        break
+                            if target_row:
+                                played = True
+                                if "wormhole stabilization" in ability_lower:
+                                    anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+                                else:
+                                    effect_x = drop_rect.centerx
+                                    effect_y = drop_rect.centery
+                                    anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
+                                    if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
+                                        for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                            row_rect = rects.get(target_row)
+                                            if row_rect:
+                                                anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
+                                game.play_card(dragging_card, target_row)
                         else:
                             if "Command Network" in ability_text:
                                 for row_name, slot_rect in PLAYER_HORN_SLOT_RECTS.items():
@@ -3594,9 +3660,23 @@ def main():
                     target_rect = OPPONENT_ROW_RECTS.get(ai_row_to_play)
                     effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
                     effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
-                    
+
+                    weather_visual_applied = False
+                    if ai_card_to_play.row == "weather":
+                        weather_visual_applied = True
+                        ability_lower = ability.lower()
+                        if "wormhole stabilization" in ability_lower:
+                            anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+                        else:
+                            anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=500))
+                            if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
+                                for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                    row_rect = rects.get(ai_row_to_play)
+                                    if row_rect:
+                                        anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
+
                     # Check for Naquadah Overload
-                    if "Naquadah Overload" in ability:
+                    if not weather_visual_applied and "Naquadah Overload" in ability:
                         # Create blue explosions ONLY on rows where cards were destroyed
                         for player, destroyed_row in game.last_scorch_positions:
                             if player == game.player1:
@@ -3606,16 +3686,16 @@ def main():
                             
                             if row_rect:
                                 anim_manager.add_effect(NaquadahExplosionEffect(
-                                    SCREEN_WIDTH // 2, 
-                                    row_rect.centery, 
+                                    SCREEN_WIDTH // 2,
+                                    row_rect.centery,
                                     duration=1200
                                 ))
                         game.last_scorch_positions = []
-                    elif "Legendary Commander" in ability:
+                    elif not weather_visual_applied and "Legendary Commander" in ability:
                         hero_anim = create_hero_animation(ai_card_to_play.name, effect_x, effect_y)
                         anim_manager.add_effect(hero_anim)
                         anim_manager.add_effect(LegendaryLightningEffect(ai_card_to_play))
-                    else:
+                    elif not weather_visual_applied:
                         stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
                         anim_manager.add_effect(stargate_effect)
                 
@@ -3657,6 +3737,13 @@ def main():
             hover_alpha = 80
             ability = dragging_card.ability or ""
             if dragging_card.row == "weather":
+                slot_hover = False
+                for row_name, slot_rect in WEATHER_SLOT_RECTS.items():
+                    slot_color = get_row_color(row_name)
+                    drag_row_highlights.append({"rect": slot_rect, "color": slot_color, "alpha": 55})
+                    if slot_rect.collidepoint(mouse_pos):
+                        drag_hover_highlight = {"rect": slot_rect, "color": slot_color, "alpha": 150}
+                        slot_hover = True
                 hovered_row_name, hovered_rect = get_row_under_position(mouse_pos)
                 target_rows = get_weather_target_rows(dragging_card, hovered_row_name)
                 for row_name in target_rows:
@@ -3667,7 +3754,7 @@ def main():
                         drag_row_highlights.append({"rect": player_rect, "color": color, "alpha": 70})
                     if opponent_rect:
                         drag_row_highlights.append({"rect": opponent_rect, "color": color, "alpha": 70})
-                if hovered_rect:
+                if not slot_hover and hovered_rect:
                     drag_hover_highlight = {"rect": hovered_rect, "color": get_row_color(hovered_row_name or "weather"), "alpha": 120}
             elif dragging_card.row == "special" and "Command Network" in ability:
                 for row_name, slot_rect in PLAYER_HORN_SLOT_RECTS.items():

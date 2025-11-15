@@ -813,6 +813,72 @@ class RowWeatherEffect:
                         pygame.draw.circle(surface, particle['color'], pos, particle['size'])
 
 
+class MeteorShowerImpactEffect:
+    """Short-lived burst of micrometeorite streaks across a single row."""
+    def __init__(self, row_rect, duration=900):
+        self.rect = row_rect.copy()
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+        self.streaks = []
+        self._spawn_initial_streaks()
+    
+    def _spawn_initial_streaks(self):
+        for _ in range(30):
+            self._spawn_streak()
+    
+    def _spawn_streak(self):
+        start_x = self.rect.x + random.uniform(0, self.rect.width)
+        start_y = self.rect.y - random.uniform(0, self.rect.height * 0.4)
+        direction = pygame.math.Vector2(random.uniform(-0.6, -0.2), 1.0)
+        direction = direction.normalize() if direction.length() else pygame.math.Vector2(0, 1)
+        speed = random.uniform(450, 750)  # pixels per second
+        self.streaks.append({
+            "pos": pygame.math.Vector2(start_x, start_y),
+            "dir": direction,
+            "speed": speed,
+            "length": random.uniform(35, 70),
+            "alpha": random.randint(180, 255),
+        })
+    
+    def update(self, dt):
+        if self.finished:
+            return False
+        self.elapsed += dt
+        dt_seconds = dt / 1000.0
+        for streak in self.streaks:
+            streak["pos"] += streak["dir"] * streak["speed"] * dt_seconds
+            if streak["pos"].y > self.rect.bottom + 40:
+                streak["pos"].x = self.rect.x + random.uniform(0, self.rect.width)
+                streak["pos"].y = self.rect.y - random.uniform(0, self.rect.height * 0.4)
+                streak["dir"] = pygame.math.Vector2(random.uniform(-0.6, -0.2), 1.0)
+                if streak["dir"].length():
+                    streak["dir"].scale_to_length(1)
+                streak["speed"] = random.uniform(450, 750)
+                streak["length"] = random.uniform(35, 70)
+                streak["alpha"] = random.randint(180, 255)
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+        return True
+    
+    def draw(self, surface):
+        if self.finished:
+            return
+        for streak in self.streaks:
+            start = (int(streak["pos"].x), int(streak["pos"].y))
+            direction = pygame.math.Vector2(streak["dir"].x, streak["dir"].y)
+            if direction.length() == 0:
+                continue
+            end_vec = streak["pos"] - direction * streak["length"]
+            end = (int(end_vec.x), int(end_vec.y))
+            color = (255, 220, 140, streak["alpha"])
+            pygame.draw.line(surface, color, start, end, width=3)
+    
+    def is_finished(self):
+        return self.finished
+
+
 class WeatherEffect:
     """Weather overlay effect (snow, rain, fog)."""
     def __init__(self, weather_type, screen_width, screen_height):

@@ -190,7 +190,7 @@ class DeckBuilderUI:
         """Load deck building background image."""
         import os
         bg_path = os.path.join("assets", "deck_building_bg.png")
-        
+
         if os.path.exists(bg_path):
             try:
                 bg_image = pygame.image.load(bg_path).convert()
@@ -201,7 +201,22 @@ class DeckBuilderUI:
                 self.deck_building_bg = None
         else:
             self.deck_building_bg = None
-    
+
+    def set_leader_background(self, leader_id):
+        """Swap the background to the supplied leader id or fallback to faction theme."""
+        if leader_id and leader_id in self.leader_bg_images:
+            self.current_bg_image = self.leader_bg_images[leader_id]
+            self.current_bg_color = None
+        elif leader_id:
+            self.current_bg_image = None
+            self.current_bg_color = self.leader_bg_colors.get(
+                leader_id,
+                self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+            )
+        else:
+            self.current_bg_image = None
+            self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+
     def setup_leader_buttons(self):
         """Setup leader selection buttons based on selected faction."""
         self.leader_buttons = []
@@ -271,21 +286,12 @@ class DeckBuilderUI:
                     button['hovered'] = is_hovered
                     if is_hovered:
                         hovered_leader = button['leader'].get('card_id')
-                
-                # Update background based on hover - USE IMAGE if available
+
                 if hovered_leader:
-                    # Try to use leader background image first
-                    if hovered_leader in self.leader_bg_images:
-                        self.current_bg_image = self.leader_bg_images[hovered_leader]
-                        self.current_bg_color = None  # Use image instead of color
-                    else:
-                        # Fallback to solid color
-                        self.current_bg_image = None
-                        self.current_bg_color = self.leader_bg_colors.get(hovered_leader, self.faction_bg_colors.get(self.selected_faction, self.bg_color))
+                    self.set_leader_background(hovered_leader)
                 else:
-                    # Fall back to faction color when not hovering any leader
-                    self.current_bg_image = None
-                    self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+                    selected_id = self.selected_leader.get('card_id') if self.selected_leader else None
+                    self.set_leader_background(selected_id)
         
         elif event.type == pygame.MOUSEBUTTONUP:
             # Complete drag and drop
@@ -530,18 +536,8 @@ class DeckBuilderUI:
                     if button['rect'].collidepoint(mouse_pos):
                         self.selected_leader = button['leader']
                         leader_id = self.selected_leader.get('card_id')
-                        
-                        # Update background to leader-specific IMAGE or color (persists after click)
-                        if leader_id in self.leader_bg_images:
-                            self.current_bg_image = self.leader_bg_images[leader_id]
-                            self.current_bg_color = None
-                        else:
-                            self.current_bg_image = None
-                            self.current_bg_color = self.leader_bg_colors.get(
-                                leader_id,
-                                self.faction_bg_colors.get(self.selected_faction, self.bg_color)
-                            )
-                        
+                        self.set_leader_background(leader_id)
+
                         # Generate deck preview
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                         return

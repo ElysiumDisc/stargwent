@@ -338,6 +338,10 @@ class LeaderMatchupAnimation:
         self.duration = 8000  # 8 seconds total - more time to read the quote!
         self.finished = False
         
+        # Default faction metadata in case lookups fail mid-init
+        self.leader1_faction = "Neutral"
+        self.leader2_faction = "Neutral"
+        
         # Get matchup data
         self.matchup = get_matchup_data(leader1['name'], leader2['name'])
         
