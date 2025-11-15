@@ -2442,7 +2442,8 @@ def main():
     
     # Build player deck based on selection
     player_faction = deck_selection['faction']
-    player_leader = deck_selection['leader']
+    player_leader = dict(deck_selection['leader'])
+    player_leader.setdefault('faction', player_faction)
     player_deck_ids = deck_selection['deck_ids']
 
     # Check if player has a custom deck for this faction
@@ -2466,7 +2467,8 @@ def main():
     available_ai_factions.remove(player_faction)
     import random
     ai_faction = random.choice(available_ai_factions)
-    ai_leader = random.choice(FACTION_LEADERS[ai_faction])  # AI gets random leader
+    ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))  # AI gets random leader
+    ai_leader.setdefault('faction', ai_faction)
     ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
     ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
     

@@ -2,9 +2,12 @@
 Leader Matchup Animation System
 Creates unique confrontations based on Stargate SG-1 lore for every leader combination.
 """
-import pygame
+import os
 import math
 import random
+import pygame
+
+from content_registry import ALL_LEADER_IDS_BY_FACTION
 
 
 # Leader matchup quotes and context based on Stargate SG-1 lore
@@ -315,6 +318,12 @@ def generate_dynamic_matchup(leader1_name, leader2_name):
     return LEADER_MATCHUPS["default"]
 
 
+CARD_ID_TO_FACTION = {}
+for faction_name, leader_ids in ALL_LEADER_IDS_BY_FACTION.items():
+    for leader_id in leader_ids:
+        CARD_ID_TO_FACTION[leader_id] = faction_name
+
+
 class LeaderMatchupAnimation:
     """Cinematic leader matchup animation with collision and floating cards."""
     
@@ -335,8 +344,11 @@ class LeaderMatchupAnimation:
         # Load background PNG if available
         self.background_image = self.load_matchup_background(leader1['name'], leader2['name'])
         
+        self.leader1_faction = self.get_leader_faction(self.leader1)
+        self.leader2_faction = self.get_leader_faction(self.leader2)
         # Check if this is Tau'ri vs Goa'uld (Iris should be present)
         self.show_iris = self.is_tauri_vs_goauld()
+        self.cyber_name_font = self.load_cyber_font(72)
         
         # Card positions
         self.card_width = 200
@@ -360,65 +372,21 @@ class LeaderMatchupAnimation:
         self.lightning_bolts = []
     
     def load_matchup_background(self, leader1_name, leader2_name):
-        """Load background PNG for this leader matchup."""
-        import os
-        from content_registry import get_leader_banner_name
-        
-        # Get banner names from card IDs if available (to match create_placeholders.py)
-        # Otherwise fall back to sanitizing the full name
-        leader1_banner = leader1_name
-        leader2_banner = leader2_name
-        
-        if self.leader1.get('card_id'):
-            leader1_banner = get_leader_banner_name(self.leader1['card_id'])
-        if self.leader2.get('card_id'):
-            leader2_banner = get_leader_banner_name(self.leader2['card_id'])
-        
-        # Sanitize leader names for filenames (same logic as create_placeholders.py line 837)
-        def sanitize_name(name):
-            return name.replace("'", "").replace(".", "").replace(" ", "_").lower()
-        
-        l1_clean = sanitize_name(leader1_banner)
-        l2_clean = sanitize_name(leader2_banner)
-        
-        print(f"\n=== Leader Matchup Background Loading ===")
-        print(f"Leader 1: {leader1_name} (banner: {leader1_banner}) -> {l1_clean}")
-        print(f"Leader 2: {leader2_name} (banner: {leader2_banner}) -> {l2_clean}")
-        
-        # Try both orders (player vs AI and AI vs player)
-        filenames = [
-            f"leader_matchup_{l1_clean}_vs_{l2_clean}.png",
-            f"leader_matchup_{l2_clean}_vs_{l1_clean}.png",
-            f"matchup_{l1_clean}_{l2_clean}.png",
-            f"matchup_{l2_clean}_{l1_clean}.png"
-        ]
-        
+        """Load the shared leader matchup background template."""
+        # Always load one universal background
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-        print(f"Assets directory: {assets_dir}")
+        filepath = os.path.join(assets_dir, "universal_leader_matchup_bg.png")
         
-        for filename in filenames:
-            filepath = os.path.join(assets_dir, filename)
-            print(f"Trying: {filename} ... ", end="")
-            if os.path.exists(filepath):
-                try:
-                    image = pygame.image.load(filepath)
-                    # Scale to screen size
-                    image = pygame.transform.scale(image, (self.screen_width, self.screen_height))
-                    print(f"✓ LOADED!")
-                    return image
-                except Exception as e:
-                    print(f"✗ Error: {e}")
-            else:
-                print("Not found")
+        if os.path.exists(filepath):
+            image = pygame.image.load(filepath)
+            return pygame.transform.scale(image, (self.screen_width, self.screen_height))
         
-        # No background found
-        print("⚠ No matchup background found, using animated fallback")
         return None
     
     def is_tauri_vs_goauld(self):
         """Check if this matchup is Tau'ri vs Goa'uld."""
-        tauri_faction = self.leader1.get('faction') == "Tau'ri" or self.leader2.get('faction') == "Tau'ri"
-        goauld_faction = self.leader1.get('faction') == "Goa'uld" or self.leader2.get('faction') == "Goa'uld"
+        tauri_faction = self.leader1_faction == "Tau'ri" or self.leader2_faction == "Tau'ri"
+        goauld_faction = self.leader1_faction == "Goa'uld" or self.leader2_faction == "Goa'uld"
         return tauri_faction and goauld_faction
     
     def update(self, dt):
@@ -504,6 +472,7 @@ class LeaderMatchupAnimation:
         # Draw leader cards
         self.draw_leader_card(surface, self.leader1, l1_x, l1_y, is_player=True)
         self.draw_leader_card(surface, self.leader2, l2_x, l2_y, is_player=False)
+        self.draw_leader_names(surface)
         
         # Draw VS text during collision
         if 0.2 <= progress < 0.45:
@@ -532,6 +501,117 @@ class LeaderMatchupAnimation:
             context_text.set_alpha(quote_alpha)
             context_rect = context_text.get_rect(center=(self.center_x, self.screen_height - 100))
             surface.blit(context_text, context_rect)
+    
+    def draw_leader_names(self, surface):
+        """Render leader names dynamically over the matchup template."""
+        margin = 80
+        
+        player_surface = self.render_cyber_text(
+            self.leader1.get('name', ''),
+            self.faction_color(self.leader1_faction)
+        )
+        player_rect = player_surface.get_rect()
+        player_rect.bottomleft = (margin, self.screen_height - margin)
+        surface.blit(player_surface, player_rect)
+        
+        opponent_surface = self.render_cyber_text(
+            self.leader2.get('name', ''),
+            self.faction_color(self.leader2_faction)
+        )
+        opponent_rect = opponent_surface.get_rect()
+        opponent_rect.topright = (self.screen_width - margin, margin)
+        surface.blit(opponent_surface, opponent_rect)
+    
+    def render_cyber_text(self, text, color):
+        """Create a retro cyberpunk-styled surface for the supplied text."""
+        if not text:
+            return pygame.Surface((1, 1), pygame.SRCALPHA)
+        
+        text_upper = text.upper()
+        base = self.cyber_name_font.render(text_upper, True, color)
+        width, height = base.get_size()
+        padded = pygame.Surface((width + 60, height + 40), pygame.SRCALPHA)
+        
+        # Neon glow layers
+        for scale, alpha in ((1.35, 50), (1.18, 100)):
+            glow = pygame.transform.smoothscale(
+                base,
+                (max(1, int(width * scale)), max(1, int(height * scale)))
+            )
+            glow.set_alpha(alpha)
+            offset = (
+                (padded.get_width() - glow.get_width()) // 2,
+                (padded.get_height() - glow.get_height()) // 2
+            )
+            padded.blit(glow, offset, special_flags=pygame.BLEND_ADD)
+        
+        # Scanline overlay for a subtle retro treatment
+        scanlines = pygame.Surface(padded.get_size(), pygame.SRCALPHA)
+        for y in range(0, scanlines.get_height(), 4):
+            pygame.draw.line(scanlines, (*color, 18), (0, y), (scanlines.get_width(), y))
+        padded.blit(scanlines, (0, 0), special_flags=pygame.BLEND_ADD)
+        
+        # Base text on top
+        base_offset = (
+            (padded.get_width() - width) // 2,
+            (padded.get_height() - height) // 2
+        )
+        padded.blit(base, base_offset)
+        return padded
+    
+    def load_cyber_font(self, size):
+        """Load a retro cyberpunk-inspired font with graceful fallbacks."""
+        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        fonts_dir = os.path.join(assets_dir, "fonts")
+        preferred_fonts = [
+            os.path.join(fonts_dir, "retro_cyberpunk.ttf"),
+            os.path.join(fonts_dir, "retro_cyberpunk.otf"),
+            os.path.join(fonts_dir, "stargate.ttf"),
+            os.path.join(fonts_dir, "stargate.otf"),
+        ]
+        for font_path in preferred_fonts:
+            if os.path.exists(font_path):
+                try:
+                    return pygame.font.Font(font_path, size)
+                except Exception as exc:
+                    print(f"Warning: Could not load {font_path}: {exc}")
+        
+        fallback_names = [
+            "Orbitron",
+            "Audiowide",
+            "BankGothic Md BT",
+            "Eurostile",
+            "Agency FB",
+            "Bahnschrift",
+        ]
+        for name in fallback_names:
+            match = pygame.font.match_font(name.lower(), bold=True)
+            if match:
+                return pygame.font.Font(match, size)
+        
+        return pygame.font.SysFont("Arial", size, bold=True)
+    
+    def get_leader_faction(self, leader):
+        """Determine the faction for a leader dict."""
+        if not leader:
+            return "Neutral"
+        if leader.get('faction'):
+            return leader['faction']
+        card_id = leader.get('card_id')
+        if card_id:
+            return CARD_ID_TO_FACTION.get(card_id, "Neutral")
+        return "Neutral"
+    
+    def faction_color(self, faction):
+        colors = {
+            "Tau'ri": (100, 150, 255),
+            "Goa'uld": (255, 120, 50),
+            "Jaffa Rebellion": (200, 150, 60),
+            "Lucian Alliance": (150, 50, 150),
+            "Asgard": (120, 200, 255),
+            "Neutral": (200, 200, 200)
+        }
+        return colors.get(faction, (255, 255, 255))
     
     def draw_stargate_horizon(self, surface, progress):
         """Draw animated Stargate event horizon background - BIGGER and more detailed."""
@@ -765,8 +845,6 @@ class LeaderMatchupAnimation:
     
     def draw_leader_card(self, surface, leader, x, y, is_player):
         """Draw a leader card with portrait image if available."""
-        import os
-        
         card_rect = pygame.Rect(x, y, self.card_width, self.card_height)
         
         # Try to load leader portrait image
@@ -779,27 +857,26 @@ class LeaderMatchupAnimation:
             
             if os.path.exists(portrait_path):
                 try:
-                    leader_image = pygame.image.load(portrait_path)
-                    # Scale to card size
-                    leader_image = pygame.transform.scale(leader_image, (self.card_width, self.card_height))
+                    leader_image = pygame.image.load(portrait_path).convert_alpha()
                 except Exception as e:
                     print(f"Warning: Could not load leader portrait {portrait_path}: {e}")
         
         # If image loaded, use it as the card
         if leader_image:
-            surface.blit(leader_image, (x, y))
+            img_w, img_h = leader_image.get_size()
+            ratio = min(self.card_width / img_w, self.card_height / img_h)
+            new_w = max(1, int(img_w * ratio))
+            new_h = max(1, int(img_h * ratio))
+            leader_image = pygame.transform.smoothscale(leader_image, (new_w, new_h))
+            img_x = x + (self.card_width - new_w) // 2
+            img_y = y + (self.card_height - new_h) // 2
+            surface.blit(leader_image, (img_x, img_y))
             # Add golden border around the image
             pygame.draw.rect(surface, (255, 215, 0), card_rect, 5, border_radius=15)
         else:
             # Fallback: Draw colored rectangle with text (original behavior)
-            faction_colors = {
-                "Tau'ri": (100, 150, 255),
-                "Goa'uld": (200, 50, 50),
-                "Jaffa Rebellion": (200, 140, 50),
-                "Lucian Alliance": (150, 50, 150),
-                "Asgard": (50, 200, 150)
-            }
-            bg_color = faction_colors.get(leader.get('faction', 'Neutral'), (100, 100, 100))
+            faction = self.get_leader_faction(leader)
+            bg_color = self.faction_color(faction)
             
             # Draw card
             pygame.draw.rect(surface, bg_color, card_rect, border_radius=15)

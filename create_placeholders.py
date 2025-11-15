@@ -43,6 +43,11 @@ FACTION_COLORS = {
     FACTION_NEUTRAL: (120, 120, 120),
 }
 
+LEADER_BACKGROUND_ALIASES = {
+    # Master Bra'tac reuses Bra'tac's cinematic background
+    "jaffa_master_bratac": "jaffa_bratac",
+}
+
 def should_create_file(file_path):
     """Check if we should create/overwrite this file based on user preference."""
     global SKIP_EXISTING, OVERWRITE_ALL, ASKED_ONCE
@@ -595,8 +600,17 @@ def create_leader_background(leader_name, faction, card_id):
     surface.blit(emblem_text, emblem_rect)
     
     # Save with unique filename per leader only if allowed
-    filename = f"leader_bg_{card_id}.png"
+    # Certain leaders share the same cinematic background (ex: Bra'tac vs Master Bra'tac)
+    normalized_id = LEADER_BACKGROUND_ALIASES.get(card_id, card_id)
+    filename = f"leader_bg_{normalized_id}.png"
     path = os.path.join(ASSETS_DIR, filename)
+    
+    # Ensure alias file is removed to prevent stale assets (e.g., leader_bg_jaffa_master_bratac.png)
+    if normalized_id != card_id:
+        alias_path = os.path.join(ASSETS_DIR, f"leader_bg_{card_id}.png")
+        if os.path.exists(alias_path):
+            os.remove(alias_path)
+    
     if should_create_file(path):
         pygame.image.save(surface, path)
         return path
@@ -840,7 +854,8 @@ def main():
             if path:
                 print(f"  ✓ {path}")
             else:
-                print(f"  ⊗ Skipped: leader_bg_{leader_id}.png (already exists)")
+                alias_id = LEADER_BACKGROUND_ALIASES.get(leader_id, leader_id)
+                print(f"  ⊗ Skipped: leader_bg_{alias_id}.png (already exists)")
     
     print("\nGenerating other assets...")
     create_board_image()
@@ -849,19 +864,16 @@ def main():
     create_deck_building_background()
     create_custom_font()
     create_card_back_image()
+    create_universal_matchup_background()
     
     # Calculate totals
     base_cards = len(ALL_CARDS)
     unlockable_cards = len(UNLOCKABLE_CARDS)
     num_leaders = sum(len(l) for l in leaders.values())
     num_ships = len(factions_for_ships)  # One ship per faction
-    num_other = 5  # board, menu, rule menu, deck bg, card back
+    num_other = 6  # board, menu, rule menu, deck bg, card back, universal matchup bg
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
-    
-    # Generate leader matchup backgrounds
-    print("\nGenerating leader matchup backgrounds...")
-    num_matchups = generate_leader_matchup_backgrounds(leaders, leader_names)
     
     total_images = base_cards + unlockable_cards + num_leaders + leader_backgrounds + num_ships + num_other
     
@@ -870,77 +882,74 @@ def main():
     print(f"  Unlockable Cards: {unlockable_cards}")
     print(f"  Leader Portraits: {num_leaders}")
     print(f"  Leader Backgrounds: {leader_backgrounds}")
-    print(f"  Leader Matchups: {num_matchups}")
+    print(f"  Universal Matchup Backgrounds: 1 (dynamic overlay handles text/names)")
     print(f"  Ships: {num_ships} (1 per faction)")
-    print(f"  Other: {num_other} (board, menu, deck bg, card back) + 1 font config")
-    print(f"  Total Images: {total_images + num_matchups}")
+    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, card back, universal matchup bg) + 1 font config")
+    print(f"  Total Images: {total_images}")
 
 
-def generate_leader_matchup_backgrounds(leaders, leader_names):
-    """Generate placeholder backgrounds for each leader matchup combination."""
-    import itertools
+def create_universal_matchup_background():
+    """Create a single cinematic Stargate matchup background used by all leader pairs."""
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
     
-    # Get all leader card IDs
-    all_leader_ids = []
-    for faction_leaders in leaders.values():
-        all_leader_ids.extend(faction_leaders)
+    # Deep space gradient
+    for y in range(BOARD_HEIGHT):
+        t = y / BOARD_HEIGHT
+        color = (
+            10 + int(15 * t),
+            15 + int(35 * t),
+            35 + int(85 * t),
+        )
+        pygame.draw.line(surface, color, (0, y), (BOARD_WIDTH, y))
     
-    # Generate matchup backgrounds for all combinations
-    matchup_count = 0
+    # Add subtle diagonal scanlines for retro vibe
+    overlay = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    for x in range(0, BOARD_WIDTH, 12):
+        pygame.draw.line(overlay, (0, 255, 200, 18), (x, 0), (0, x), 1)
+        pygame.draw.line(overlay, (0, 120, 255, 12), (BOARD_WIDTH - x, 0), (BOARD_WIDTH, x), 1)
+    surface.blit(overlay, (0, 0))
     
-    for leader1_id, leader2_id in itertools.combinations(all_leader_ids, 2):
-        leader1_name = leader_names.get(leader1_id, leader1_id)
-        leader2_name = leader_names.get(leader2_id, leader2_id)
-        
-        # Sanitize names for filenames
-        def sanitize_name(name):
-            return name.replace("'", "").replace(".", "").replace(" ", "_").lower()
-        
-        l1_clean = sanitize_name(leader1_name)
-        l2_clean = sanitize_name(leader2_name)
-        
-        filename = f"leader_matchup_{l1_clean}_vs_{l2_clean}.png"
-        filepath = os.path.join(ASSETS_DIR, filename)
-        
-        if should_create_file(filepath):
-            # Create gradient background with leader names
-            surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
-            
-            # Diagonal gradient
-            for y in range(BOARD_HEIGHT):
-                t = y / BOARD_HEIGHT
-                color1 = (20 + int(50 * t), 20 + int(70 * t), 60 + int(100 * t))
-                pygame.draw.line(surface, color1, (0, y), (BOARD_WIDTH, y))
-            
-            # Add leader names
-            font_large = pygame.font.SysFont("Arial", 120, bold=True)
-            font_small = pygame.font.SysFont("Arial", 80)
-            
-            # Leader 1 name (bottom left)
-            text1 = font_large.render(leader1_name, True, (255, 215, 0))
-            surface.blit(text1, (100, BOARD_HEIGHT - 300))
-            
-            # VS text (center)
-            vs_text = font_large.render("VS", True, (255, 100, 100))
-            vs_rect = vs_text.get_rect(center=(BOARD_WIDTH // 2, BOARD_HEIGHT // 2))
-            surface.blit(vs_text, vs_rect)
-            
-            # Leader 2 name (top right)
-            text2 = font_large.render(leader2_name, True, (100, 200, 255))
-            text2_rect = text2.get_rect(topright=(BOARD_WIDTH - 100, 200))
-            surface.blit(text2, text2_rect)
-            
-            # Add stargate-themed decorative elements
-            # Draw chevrons in corners
-            pygame.draw.circle(surface, (100, 150, 200), (200, 200), 80, 8)
-            pygame.draw.circle(surface, (100, 150, 200), (BOARD_WIDTH - 200, BOARD_HEIGHT - 200), 80, 8)
-            
-            # Save
-            pygame.image.save(surface, filepath)
-            matchup_count += 1
-            print(f"  Created: {filename}")
+    # Stargate ring impression in center
+    gate_surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    center = (BOARD_WIDTH // 2, BOARD_HEIGHT // 2)
+    gate_radius = min(BOARD_WIDTH, BOARD_HEIGHT) // 3
+    pygame.draw.circle(gate_surface, (80, 120, 160, 160), center, gate_radius, 6)
+    pygame.draw.circle(gate_surface, (40, 70, 110, 120), center, gate_radius - 20, 4)
     
-    return matchup_count
+    # Chevron markers
+    for i in range(9):
+        angle = (i / 9) * 2 * math.pi
+        outer = (
+            center[0] + int(math.cos(angle) * (gate_radius + 20)),
+            center[1] + int(math.sin(angle) * (gate_radius + 20)),
+        )
+        inner = (
+            center[0] + int(math.cos(angle) * (gate_radius - 40)),
+            center[1] + int(math.sin(angle) * (gate_radius - 40)),
+        )
+        pygame.draw.line(gate_surface, (120, 200, 255, 180), inner, outer, 4)
+    surface.blit(gate_surface, (0, 0))
+    
+    # Event horizon bloom
+    horizon = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    for radius in range(gate_radius - 100, gate_radius + 40, 12):
+        alpha = max(0, 180 - (gate_radius + 40 - radius) * 2)
+        pygame.draw.circle(horizon, (30, 180, 255, alpha), center, radius, 2)
+    surface.blit(horizon, (0, 0))
+    
+    # Focal glow at center for collision effect alignment
+    glow = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    pygame.draw.circle(glow, (0, 200, 255, 60), center, 220)
+    pygame.draw.circle(glow, (255, 255, 255, 80), center, 140)
+    surface.blit(glow, (0, 0))
+    
+    # Save file if needed
+    path = os.path.join(ASSETS_DIR, "universal_leader_matchup_bg.png")
+    if should_create_file(path):
+        pygame.image.save(surface, path)
+        print(f"  Created universal matchup background: {path}")
+        return path
+    return None
 
 if __name__ == "__main__":
     main()
