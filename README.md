@@ -1316,6 +1316,8 @@ Enjoy commanding the forces of the Stargate universe in this strategic card batt
 
 Special thanks to the Sonic Pi team and community for providing the live-coding instrument that powers every custom soundtrack in Stargwent.
 
+> Stargwent is intentionally modular: every card, leader, soundtrack, and UI element lives in plain Python and editable assets so anyone can reskin the experience into their own fantasy Gwent variant—Lord of the Rings, Dragon Ball, or whatever universe you want to explore. Dive into the codebase, swap art/audio JSON entries, and the engine adapts.
+
 *v1.7 - Witcher 3 Gwent Layout: Authentic board design with clear separation, proper lane spacing, weather separator, and fixed hand positioning!*
 *v1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*
 *v1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
