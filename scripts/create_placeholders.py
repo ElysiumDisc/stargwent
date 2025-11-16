@@ -1,7 +1,12 @@
 import pygame
 import os
+import sys
 import math
 import random
+
+# Add parent directory to path so we can import from project root
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
 from unlocks import UNLOCKABLE_CARDS
 from content_registry import (
@@ -36,16 +41,49 @@ BLACK = (0, 0, 0)
 
 FACTION_COLORS = {
     FACTION_TAURI: (50, 100, 180),
-    FACTION_GOAULD: (180, 50, 50),
-    FACTION_JAFFA: (200, 140, 50),
-    FACTION_LUCIAN: (150, 50, 150),
+    FACTION_GOAULD: (200, 40, 60),  # Deeper red tint for Goa'uld assets
+    FACTION_JAFFA: (215, 170, 60),  # Golden Jaffa palette
+    FACTION_LUCIAN: (220, 80, 170),  # Pink Lucian Alliance hue
     FACTION_ASGARD: (150, 150, 200),
     FACTION_NEUTRAL: (120, 120, 120),
 }
 
 LEADER_BACKGROUND_ALIASES = {
-    # Master Bra'tac reuses Bra'tac's cinematic background
-    "jaffa_master_bratac": "jaffa_bratac",
+}
+
+FACTION_BACKGROUND_IDS = {
+    FACTION_TAURI: "tauri",
+    FACTION_GOAULD: "goauld",
+    FACTION_JAFFA: "jaffa",
+    FACTION_LUCIAN: "lucian",
+    FACTION_ASGARD: "asgard",
+}
+
+# Allow loosely named factions (e.g., "Jaffa" vs "Jaffa Rebellion") to map to the proper palette
+FACTION_NAME_ALIASES = {
+    FACTION_TAURI: FACTION_TAURI,
+    "Tauri": FACTION_TAURI,
+    "Tau'ri Command": FACTION_TAURI,
+    FACTION_GOAULD: FACTION_GOAULD,
+    "Goauld": FACTION_GOAULD,
+    "Goa'uld Empire": FACTION_GOAULD,
+    FACTION_JAFFA: FACTION_JAFFA,
+    "Jaffa": FACTION_JAFFA,
+    "Jaffa Resistance": FACTION_JAFFA,
+    FACTION_LUCIAN: FACTION_LUCIAN,
+    "Lucian": FACTION_LUCIAN,
+    "Lucian Cartel": FACTION_LUCIAN,
+    FACTION_ASGARD: FACTION_ASGARD,
+}
+
+
+def resolve_faction_name(name):
+    """Return the canonical faction key for palette lookups."""
+    return FACTION_NAME_ALIASES.get(name, name)
+
+# Some unlockable leaders intentionally reuse the same portrait art as their base counterparts.
+LEADER_PORTRAIT_ALIASES = {
+    "goauld_hathor_unlock": "goauld_hathor",
 }
 
 def should_create_file(file_path):
@@ -107,7 +145,8 @@ def create_card_image(card):
     surface = pygame.Surface((CARD_WIDTH, CARD_HEIGHT))
     
     # Background color based on faction
-    faction_color = FACTION_COLORS.get(card.faction, (80, 80, 80))
+    faction_key = resolve_faction_name(card.faction)
+    faction_color = FACTION_COLORS.get(faction_key, (80, 80, 80))
     surface.fill(faction_color)
     
     # Border
@@ -141,7 +180,8 @@ def create_leader_portrait(leader_id, faction):
     surface = pygame.Surface((LEADER_WIDTH, LEADER_HEIGHT))
     
     # Get faction color
-    faction_color = FACTION_COLORS.get(faction, (120, 120, 120))
+    faction_key = resolve_faction_name(faction)
+    faction_color = FACTION_COLORS.get(faction_key, (120, 120, 120))
     
     # Gradient background
     for y in range(LEADER_HEIGHT):
@@ -183,7 +223,8 @@ def create_leader_portrait(leader_id, faction):
     pygame.draw.polygon(surface, (255, 215, 0), diamond_points, width=3)
     
     # Save the leader portrait only if allowed
-    image_path = os.path.join(ASSETS_DIR, f"{leader_id}_leader.png")
+    portrait_id = LEADER_PORTRAIT_ALIASES.get(leader_id, leader_id)
+    image_path = os.path.join(ASSETS_DIR, f"{portrait_id}_leader.png")
     if should_create_file(image_path):
         pygame.image.save(surface, image_path)
         return image_path
@@ -196,7 +237,8 @@ def create_ship_placeholder(faction, ship_type="generic"):
     surface = pygame.Surface((SHIP_SIZE, SHIP_SIZE), pygame.SRCALPHA)
     
     # Get faction color
-    faction_color = FACTION_COLORS.get(faction, (120, 120, 120))
+    faction_key = resolve_faction_name(faction)
+    faction_color = FACTION_COLORS.get(faction_key, (120, 120, 120))
     
     # Draw ship body (more detailed than triangle)
     center_x = SHIP_SIZE // 2
@@ -283,6 +325,71 @@ def create_ship_placeholder(faction, ship_type="generic"):
     surface.blit(label_text, label_rect)
     
     return surface
+
+
+def create_faction_background(asset_id, faction_name, base_color):
+    """Create a 4K background for faction selection."""
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+
+    top_color = tuple(min(255, int(c * 0.55) + 25) for c in base_color)
+    bottom_color = tuple(max(0, int(c * 0.15)) for c in base_color)
+    for y in range(BOARD_HEIGHT):
+        t = y / BOARD_HEIGHT
+        blend_color = (
+            int(top_color[0] * (1 - t) + bottom_color[0] * t),
+            int(top_color[1] * (1 - t) + bottom_color[1] * t),
+            int(top_color[2] * (1 - t) + bottom_color[2] * t),
+        )
+        pygame.draw.line(surface, blend_color, (0, y), (BOARD_WIDTH, y))
+
+    # Dense starfield
+    for _ in range(900):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        brightness = random.randint(120, 255)
+        size = random.choice([2, 2, 3, 4])
+        pygame.draw.circle(surface, (brightness, brightness, brightness), (x, y), size)
+
+    # Translucent Stargate motif
+    center_x, center_y = BOARD_WIDTH // 2, BOARD_HEIGHT // 2
+    motif_surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    radius = min(BOARD_WIDTH, BOARD_HEIGHT) // 2
+    pygame.draw.circle(motif_surface, (*base_color, 80), (center_x, center_y), radius, 80)
+    pygame.draw.circle(motif_surface, (255, 255, 255, 40), (center_x, center_y), radius - 60, 12)
+    surface.blit(motif_surface, (0, 0))
+
+    # Diamond insignia
+    badge = pygame.Surface((900, 900), pygame.SRCALPHA)
+    badge_color = tuple(min(255, c + 90) for c in base_color)
+    pygame.draw.polygon(
+        badge,
+        badge_color,
+        [(450, 40), (860, 450), (450, 860), (40, 450)],
+    )
+    pygame.draw.polygon(
+        badge,
+        (255, 255, 255, 220),
+        [(450, 140), (720, 450), (450, 760), (180, 450)],
+        width=8,
+    )
+    surface.blit(badge, (center_x - 450, center_y - 450), special_flags=pygame.BLEND_PREMULTIPLIED)
+
+    # Title text
+    title_font = pygame.font.SysFont("Eurostile, Arial", 140, bold=True)
+    title_text = title_font.render(faction_name.upper(), True, (255, 255, 255))
+    title_rect = title_text.get_rect(center=(center_x, int(center_y * 0.35)))
+    surface.blit(title_text, title_rect)
+
+    motto_font = pygame.font.SysFont("Arial", 48, italic=True)
+    motto_text = motto_font.render("Stargate Command", True, (220, 220, 220))
+    motto_rect = motto_text.get_rect(center=(center_x, title_rect.bottom + 50))
+    surface.blit(motto_text, motto_rect)
+
+    path = os.path.join(ASSETS_DIR, f"faction_bg_{asset_id}.png")
+    if should_create_file(path):
+        pygame.image.save(surface, path)
+        return path
+    return None
 
 
 def create_menu_background():
@@ -488,34 +595,35 @@ def create_leader_background(leader_name, faction, card_id):
     
     # Faction-specific color schemes
     faction_themes = {
-        "Tau'ri": {
+        FACTION_TAURI: {
             "bg_color": (15, 25, 45),
             "accent": (100, 150, 220),
             "secondary": (60, 90, 130)
         },
-        "Goa'uld": {
-            "bg_color": (30, 20, 10),
-            "accent": (200, 150, 50),
-            "secondary": (120, 80, 20)
+        FACTION_GOAULD: {
+            "bg_color": (45, 15, 20),
+            "accent": (210, 60, 70),
+            "secondary": (140, 35, 45)
         },
-        "Jaffa": {
-            "bg_color": (25, 15, 15),
-            "accent": (180, 100, 60),
-            "secondary": (90, 50, 30)
+        FACTION_JAFFA: {
+            "bg_color": (35, 25, 10),
+            "accent": (230, 180, 70),
+            "secondary": (150, 110, 45)
         },
-        "Lucian": {
-            "bg_color": (20, 15, 30),
-            "accent": (150, 100, 180),
-            "secondary": (80, 50, 100)
+        FACTION_LUCIAN: {
+            "bg_color": (30, 10, 30),
+            "accent": (235, 110, 190),
+            "secondary": (150, 60, 140)
         },
-        "Asgard": {
+        FACTION_ASGARD: {
             "bg_color": (10, 20, 25),
             "accent": (100, 180, 200),
             "secondary": (50, 90, 110)
         }
     }
     
-    theme = faction_themes.get(faction, faction_themes["Tau'ri"])
+    canonical_faction = resolve_faction_name(faction)
+    theme = faction_themes.get(canonical_faction, faction_themes[FACTION_TAURI])
     
     # Base gradient background
     bg_color = theme["bg_color"]
@@ -856,6 +964,16 @@ def main():
             else:
                 alias_id = LEADER_BACKGROUND_ALIASES.get(leader_id, leader_id)
                 print(f"  ⊗ Skipped: leader_bg_{alias_id}.png (already exists)")
+
+    print("\nGenerating faction selection backgrounds...")
+    for faction, asset_id in FACTION_BACKGROUND_IDS.items():
+        canonical_faction = resolve_faction_name(faction)
+        base_color = FACTION_COLORS.get(canonical_faction, (80, 80, 80))
+        path = create_faction_background(asset_id, faction, base_color)
+        if path:
+            print(f"  ✓ faction_bg_{asset_id}.png")
+        else:
+            print(f"  ⊗ Skipped: faction_bg_{asset_id}.png (already exists)")
     
     print("\nGenerating other assets...")
     create_board_image()
@@ -871,11 +989,12 @@ def main():
     unlockable_cards = len(UNLOCKABLE_CARDS)
     num_leaders = sum(len(l) for l in leaders.values())
     num_ships = len(factions_for_ships)  # One ship per faction
+    num_faction_bgs = len(FACTION_BACKGROUND_IDS)
     num_other = 6  # board, menu, rule menu, deck bg, card back, universal matchup bg
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
     
-    total_images = base_cards + unlockable_cards + num_leaders + leader_backgrounds + num_ships + num_other
+    total_images = base_cards + unlockable_cards + num_leaders + leader_backgrounds + num_ships + num_faction_bgs + num_other
     
     print("\nAsset generation complete.")
     print(f"  Base Cards: {base_cards}")
@@ -884,6 +1003,7 @@ def main():
     print(f"  Leader Backgrounds: {leader_backgrounds}")
     print(f"  Universal Matchup Backgrounds: 1 (dynamic overlay handles text/names)")
     print(f"  Ships: {num_ships} (1 per faction)")
+    print(f"  Faction Backgrounds: {num_faction_bgs}")
     print(f"  Other: {num_other} (board, menu, rule menu, deck bg, card back, universal matchup bg) + 1 font config")
     print(f"  Total Images: {total_images}")
 

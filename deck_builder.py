@@ -2,6 +2,7 @@
 Deck Builder Menu System for Stargwent
 Allows players to select a faction and build their deck before starting a game.
 """
+import os
 import pygame
 import random
 from cards import (
@@ -27,15 +28,24 @@ AVAILABLE_FACTIONS = [
 # Leader cards for each faction (alternate leaders)
 FACTION_LEADERS = BASE_FACTION_LEADERS
 
+FACTION_BACKGROUND_ASSET_IDS = {
+    FACTION_TAURI: "tauri",
+    FACTION_GOAULD: "goauld",
+    FACTION_JAFFA: "jaffa",
+    FACTION_LUCIAN: "lucian",
+    FACTION_ASGARD: "asgard",
+}
+
 
 class DeckBuilderUI:
     """Deck builder interface for selecting faction and leader."""
     
-    def __init__(self, screen_width, screen_height, for_new_game=True):
+    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False):
         reload_card_images()
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.for_new_game = for_new_game  # Track if this is for new game or deck customization
+        self.unlock_override = unlock_override
         self.selected_faction = None
         self.selected_leader = None
         self.state = "faction_select"  # faction_select, leader_select, deck_review, complete
@@ -47,6 +57,9 @@ class DeckBuilderUI:
         self.card_pool_ids = []  # Available cards for the faction
         self.current_tab = "close"  # Current card type tab: close, ranged, siege, agile, special, weather, all
         self.return_to_menu = False  # Flag for when user clicks MAIN MENU button
+        self.leader_scroll_offset = 0
+        self.leader_scroll_limit = 0
+        self.leader_area_rect = None
         
         # DRAG AND DROP STATE
         self.dragging_card = None  # Card ID being dragged
@@ -92,14 +105,45 @@ class DeckBuilderUI:
         self.leader_bg_colors = dict(LEADER_COLOR_OVERRIDES)
         
         # Background image cache (load leader backgrounds)
+        self.faction_bg_images = {}
         self.leader_bg_images = {}  # Cache for loaded leader background images
         self.current_bg_image = None  # Currently displayed background image
         self.deck_building_bg = None  # Background for deck building view
+        self.load_faction_backgrounds()
         self.load_leader_backgrounds()
         self.load_deck_building_bg()
         
         # Layout
         self.setup_layout()
+
+    def get_leader_pool(self, faction):
+        """Return base leaders plus any unlocked/override leaders for the faction."""
+        leaders = list(FACTION_LEADERS.get(faction, []))
+        if faction in UNLOCKABLE_LEADERS:
+            persistence = get_persistence()
+            for unlockable_leader in UNLOCKABLE_LEADERS[faction]:
+                if self.unlock_override or persistence.is_leader_unlocked(unlockable_leader['card_id']):
+                    leaders.append(unlockable_leader)
+        return leaders
+
+    def _leader_button_display_rect(self, base_rect):
+        rect = base_rect.copy()
+        rect.y -= self.leader_scroll_offset
+        return rect
+
+    def _ensure_leader_visible(self, index):
+        if not self.leader_area_rect or index < 0 or index >= len(self.leader_buttons):
+            return
+        base_rect = self.leader_buttons[index]['rect']
+        display_rect = self._leader_button_display_rect(base_rect)
+        area_top = self.leader_area_rect.top
+        area_bottom = self.leader_area_rect.bottom
+        if display_rect.top < area_top:
+            delta = area_top - display_rect.top
+            self.leader_scroll_offset = max(0, self.leader_scroll_offset - delta)
+        elif display_rect.bottom > area_bottom:
+            delta = display_rect.bottom - area_bottom
+            self.leader_scroll_offset = min(self.leader_scroll_limit, self.leader_scroll_offset + delta)
     
     def get_card_layout_params(self, panel_width):
         """Calculate card layout parameters to match drawing code."""
@@ -164,6 +208,21 @@ class DeckBuilderUI:
             50
         )
     
+    def load_faction_backgrounds(self):
+        """Load faction selection backgrounds (scaled to window)."""
+        self.faction_bg_images = {}
+        assets_dir = "assets"
+        for faction, asset_id in FACTION_BACKGROUND_ASSET_IDS.items():
+            bg_path = os.path.join(assets_dir, f"faction_bg_{asset_id}.png")
+            if not os.path.exists(bg_path):
+                continue
+            try:
+                bg_image = pygame.image.load(bg_path).convert()
+                scaled_bg = pygame.transform.scale(bg_image, (self.screen_width, self.screen_height))
+                self.faction_bg_images[faction] = scaled_bg
+            except Exception as e:
+                print(f"Warning: Could not load {bg_path}: {e}")
+
     def load_leader_backgrounds(self):
         """Load all leader background images into cache."""
         import os
@@ -214,42 +273,51 @@ class DeckBuilderUI:
                 self.faction_bg_colors.get(self.selected_faction, self.bg_color)
             )
         else:
+            self.set_faction_background(self.selected_faction)
+
+    def set_faction_background(self, faction):
+        """Apply faction background image or fallback color."""
+        if faction and faction in self.faction_bg_images:
+            self.current_bg_image = self.faction_bg_images[faction]
+            self.current_bg_color = None
+        elif faction:
             self.current_bg_image = None
-            self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+            self.current_bg_color = self.faction_bg_colors.get(faction, self.bg_color)
+        else:
+            self.current_bg_image = None
+            self.current_bg_color = self.bg_color
 
     def setup_leader_buttons(self):
         """Setup leader selection buttons based on selected faction."""
         self.leader_buttons = []
         if not self.selected_faction:
             return
+        self.leader_scroll_offset = 0
         
-        # Get base leaders for faction
-        leaders = FACTION_LEADERS[self.selected_faction]
+        # Build leader pool respecting unlocks/override
+        all_leaders = self.get_leader_pool(self.selected_faction)
         
-        # Get unlocked leaders for this faction from persistence
-        persistence = get_persistence()
-        all_leaders = list(leaders)  # Start with base leaders
+        button_width = min(420, self.screen_width - 160)
+        spacing = max(12, int(self.screen_height * 0.015))
+        start_y = int(self.screen_height * 0.22)
+        area_height = max(200, self.screen_height - start_y - int(self.screen_height * 0.12))
+        visible_slots = max(3, min(5, len(all_leaders) or 1))
+        button_height = min(180, max(110, int((area_height - spacing * (visible_slots - 1)) / visible_slots)))
+        area_height = max(button_height + 10, area_height)
+        self.leader_area_rect = pygame.Rect(self.screen_width // 2 - button_width // 2, start_y, button_width, area_height)
+        content_height = max(0, len(all_leaders) * (button_height + spacing) - spacing)
+        self.leader_scroll_limit = max(0, content_height - self.leader_area_rect.height)
+        self.leader_scroll_offset = max(0, min(self.leader_scroll_offset, self.leader_scroll_limit))
         
-        # Add unlocked leaders
-        if self.selected_faction in UNLOCKABLE_LEADERS:
-            for unlockable_leader in UNLOCKABLE_LEADERS[self.selected_faction]:
-                if persistence.is_leader_unlocked(unlockable_leader['card_id']):
-                    all_leaders.append(unlockable_leader)
-        
-        button_width = 400
-        button_height = 150
-        spacing = 30
-        start_y = self.screen_height // 3
-        
-        for i, leader in enumerate(all_leaders):
-            x = self.screen_width // 2 - button_width // 2
-            y = start_y + i * (button_height + spacing)
-            rect = pygame.Rect(x, y, button_width, button_height)
+        cursor_y = start_y
+        for leader in all_leaders:
+            rect = pygame.Rect(self.leader_area_rect.x, cursor_y, button_width, button_height)
             self.leader_buttons.append({
                 'rect': rect,
                 'leader': leader,
                 'hovered': False
             })
+            cursor_y += button_height + spacing
     
     def handle_event(self, event):
         """Handle input events."""
@@ -270,21 +338,20 @@ class DeckBuilderUI:
                     if is_hovered:
                         hovered_faction = button['faction']
                 
-                # Update background based on hover (no images for faction select)
+                # Update background based on hover
                 if hovered_faction:
-                    self.current_bg_image = None  # Clear any image
-                    self.current_bg_color = self.faction_bg_colors.get(hovered_faction, self.bg_color)
+                    self.set_faction_background(hovered_faction)
                 else:
-                    self.current_bg_image = None  # Clear any image
-                    self.current_bg_color = self.bg_color
+                    self.set_faction_background(self.selected_faction)
             
             # Update hover states for leader buttons and change background
             elif self.state == "leader_select":
                 hovered_leader = None
                 for button in self.leader_buttons:
-                    is_hovered = button['rect'].collidepoint(mouse_pos)
-                    button['hovered'] = is_hovered
-                    if is_hovered:
+                    display_rect = self._leader_button_display_rect(button['rect'])
+                    is_hovered = display_rect.collidepoint(mouse_pos)
+                    button['hovered'] = bool(is_hovered and (not self.leader_area_rect or self.leader_area_rect.collidepoint(mouse_pos)))
+                    if button['hovered']:
                         hovered_leader = button['leader'].get('card_id')
 
                 if hovered_leader:
@@ -316,6 +383,13 @@ class DeckBuilderUI:
         
         elif event.type == pygame.MOUSEWHEEL:
             # Modern pygame mouse wheel handling
+            if self.state == "leader_select" and self.leader_scroll_limit > 0:
+                if not self.leader_area_rect or self.leader_area_rect.collidepoint(pygame.mouse.get_pos()):
+                    self.leader_scroll_offset = max(
+                        0,
+                        min(self.leader_scroll_limit, self.leader_scroll_offset - event.y * 40)
+                    )
+                    return
             if self.state == "deck_review":
                 if self.inspected_card_id:
                     # Browse through cards with mouse wheel when zoomed
@@ -342,8 +416,17 @@ class DeckBuilderUI:
             return  # Don't process mouse wheel as clicks
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pos = event.pos
             # Legacy mouse wheel support (for older pygame versions)
             if event.button in [4, 5]:  # Mouse wheel up/down
+                if self.state == "leader_select" and self.leader_scroll_limit > 0:
+                    if not self.leader_area_rect or self.leader_area_rect.collidepoint(mouse_pos):
+                        delta = 40 if event.button == 4 else -40
+                        self.leader_scroll_offset = max(
+                            0,
+                            min(self.leader_scroll_limit, self.leader_scroll_offset - delta)
+                        )
+                        return
                 if self.state == "deck_review":
                     if self.inspected_card_id:
                         # Browse through cards with mouse wheel when zoomed
@@ -357,26 +440,297 @@ class DeckBuilderUI:
                                 new_idx = (current_idx + 1) % len(all_card_ids)
                                 self.inspected_card_id = all_card_ids[new_idx]
                     else:
-                        # Determine which panel to scroll based on mouse position
-                        mouse_pos = event.pos
                         divider_x = self.screen_width // 2
-                        
                         if mouse_pos[0] < divider_x:
-                            # Left panel (card pool) scroll
-                            if event.button == 4:  # Scroll up
+                            if event.button == 4:
                                 self.pool_scroll_offset = max(0, self.pool_scroll_offset - 50)
-                            elif event.button == 5:  # Scroll down
+                            elif event.button == 5:
                                 self.pool_scroll_offset += 50
                         else:
-                            # Right panel (deck) scroll
-                            if event.button == 4:  # Scroll up
+                            if event.button == 4:
                                 self.deck_scroll_offset = max(0, self.deck_scroll_offset - 50)
-                            elif event.button == 5:  # Scroll down
+                            elif event.button == 5:
                                 self.deck_scroll_offset += 50
-                return  # Don't process mouse wheel as clicks
+                return
+
+            if self.state == "deck_review" and event.button == 3:
+                # Right-click inspect
+                if self.inspected_card_id:
+                    self.inspected_card_id = None
+                    return
+                divider_x = self.screen_width // 2
+                panel_padding = 20
+                left_panel_x = panel_padding
+                left_panel_width = divider_x - panel_padding * 2
+                left_panel_y = 120
+                right_panel_x = divider_x + panel_padding
+                right_panel_width = self.screen_width - right_panel_x - panel_padding
+                right_panel_y = 120
+                if mouse_pos[0] < divider_x:
+                    sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
+                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
+                    start_x = left_panel_x + spacing
+                    start_y = left_panel_y + 15 - self.pool_scroll_offset
+                    for i, card_id in enumerate(sorted_pool):
+                        row_idx = i // cards_per_row
+                        col_idx = i % cards_per_row
+                        x = start_x + col_idx * (card_width + spacing)
+                        y = start_y + row_idx * (card_height + spacing)
+                        card_rect = pygame.Rect(x, y, card_width, card_height)
+                        if card_rect.collidepoint(mouse_pos):
+                            self.inspected_card_id = card_id
+                            return
+                else:
+                    if self.deck_preview_ids:
+                        sorted_deck_ids = sorted(
+                            self.deck_preview_ids,
+                            key=lambda id: (
+                                0 if ALL_CARDS[id].row == "close" else
+                                1 if ALL_CARDS[id].row == "ranged" else
+                                2 if ALL_CARDS[id].row == "siege" else
+                                3 if ALL_CARDS[id].row == "agile" else
+                                4 if ALL_CARDS[id].row == "special" else
+                                5 if ALL_CARDS[id].row == "weather" else 6
+                            )
+                        )
+                        cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
+                        start_x = right_panel_x + spacing
+                        start_y = right_panel_y + 15 - self.deck_scroll_offset
+                        for i, card_id in enumerate(sorted_deck_ids):
+                            row_idx = i // cards_per_row
+                            col_idx = i % cards_per_row
+                            x = start_x + col_idx * (card_width + spacing)
+                            y = start_y + row_idx * (card_height + spacing)
+                            card_rect = pygame.Rect(x, y, card_width, card_height)
+                            if card_rect.collidepoint(mouse_pos):
+                                self.inspected_card_id = card_id
+                                return
+                return
+
+            if event.button != 1:
+                return
+
+            if self.state == "faction_select":
+                for button in self.faction_buttons:
+                    if button['rect'].collidepoint(mouse_pos):
+                        self.selected_faction = button['faction']
+                        self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+                        if self.for_new_game:
+                            self.state = "leader_select"
+                            self.setup_leader_buttons()
+                        else:
+                            saved_leader_id = load_leader_choice(self.selected_faction)
+                            available_leaders = self.get_leader_pool(self.selected_faction)
+                            if saved_leader_id:
+                                for leader in available_leaders:
+                                    if leader['card_id'] == saved_leader_id:
+                                        self.selected_leader = leader
+                                        break
+                            if not self.selected_leader and available_leaders:
+                                self.selected_leader = available_leaders[0]
+                            self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                            self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                            self.state = "deck_review"
+                            self.deck_scroll_offset = 0
+                            self.pool_scroll_offset = 0
+                        return
+
+            elif self.state == "leader_select":
+                if self.back_button.collidepoint(mouse_pos):
+                    self.state = "faction_select"
+                    self.selected_leader = None
+                    self.deck_preview_ids = None
+                    return
+                for idx, button in enumerate(self.leader_buttons):
+                    display_rect = self._leader_button_display_rect(button['rect'])
+                    if self.leader_area_rect and not self.leader_area_rect.collidepoint(mouse_pos):
+                        continue
+                    if display_rect.collidepoint(mouse_pos):
+                        self.selected_leader = button['leader']
+                        leader_id = self.selected_leader.get('card_id')
+                        self.set_leader_background(leader_id)
+                        self._ensure_leader_visible(idx)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        return
+                review_rect = self._leader_button_display_rect(self.review_deck_button)
+                if self.selected_leader and review_rect.collidepoint(mouse_pos):
+                    self.state = "deck_review"
+                    if not self.deck_preview_ids:
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                    self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                    self.deck_scroll_offset = 0
+                    self.pool_scroll_offset = 0
+                    return
+                continue_rect = self._leader_button_display_rect(self.continue_button)
+                if self.selected_leader and continue_rect.collidepoint(mouse_pos):
+                    save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
+                    print(f"✓ Leader choice saved: {self.selected_faction} -> {self.selected_leader['name']}")
+                    self.state = "complete"
+                    return
+
+            elif self.state == "deck_review" and not self.inspected_card_id:
+                divider_x = self.screen_width // 2
+                panel_padding = 20
+                left_panel_x = panel_padding
+                left_panel_width = divider_x - panel_padding * 2
+                left_panel_y = 120
+                right_panel_x = divider_x + panel_padding
+                right_panel_width = self.screen_width - right_panel_x - panel_padding
+                right_panel_y = 120
+                if mouse_pos[0] < divider_x:
+                    sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
+                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
+                    start_x = left_panel_x + spacing
+                    start_y = left_panel_y + 15 - self.pool_scroll_offset
+                    for i, card_id in enumerate(sorted_pool):
+                        row_idx = i // cards_per_row
+                        col_idx = i % cards_per_row
+                        x = start_x + col_idx * (card_width + spacing)
+                        y = start_y + row_idx * (card_height + spacing)
+                        card_rect = pygame.Rect(x, y, card_width, card_height)
+                        if card_rect.collidepoint(mouse_pos):
+                            self.dragging_card = card_id
+                            self.drag_from_pool = True
+                            self.drag_start_x, self.drag_start_y = mouse_pos
+                            break
+                else:
+                    if self.deck_preview_ids:
+                        sorted_deck_ids = sorted(
+                            self.deck_preview_ids,
+                            key=lambda id: (
+                                0 if ALL_CARDS[id].row == "close" else
+                                1 if ALL_CARDS[id].row == "ranged" else
+                                2 if ALL_CARDS[id].row == "siege" else
+                                3 if ALL_CARDS[id].row == "agile" else
+                                4 if ALL_CARDS[id].row == "special" else
+                                5 if ALL_CARDS[id].row == "weather" else 6
+                            )
+                        )
+                        cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
+                        start_x = right_panel_x + spacing
+                        start_y = right_panel_y + 15 - self.deck_scroll_offset
+                        for i, card_id in enumerate(sorted_deck_ids):
+                            row_idx = i // cards_per_row
+                            col_idx = i % cards_per_row
+                            x = start_x + col_idx * (card_width + spacing)
+                            y = start_y + row_idx * (card_height + spacing)
+                            card_rect = pygame.Rect(x, y, card_width, card_height)
+                            if card_rect.collidepoint(mouse_pos):
+                                self.dragging_card = card_id
+                                self.drag_from_pool = False
+                                self.drag_start_x, self.drag_start_y = mouse_pos
+                                break
+                return
+
+        elif event.type == pygame.KEYDOWN:
+            # Handle spacebar for card inspection
+            if event.key == pygame.K_SPACE and self.state == "deck_review":
+                # Close inspection if already open
+                if self.inspected_card_id:
+                    self.inspected_card_id = None
             
-            # Regular mouse clicks (button 1 = left click)
-            mouse_pos = event.pos
+            # Scroll in deck review with arrow keys OR WASD
+            elif self.state == "deck_review":
+                if self.inspected_card_id and self.deck_preview_ids:
+                    # Navigate between cards with arrow keys when zoomed
+                    current_idx = self.deck_preview_ids.index(self.inspected_card_id)
+                    if event.key in [pygame.K_LEFT, pygame.K_a]:
+                        new_idx = (current_idx - 1) % len(self.deck_preview_ids)
+                        self.inspected_card_id = self.deck_preview_ids[new_idx]
+                    elif event.key in [pygame.K_RIGHT, pygame.K_d]:
+                        new_idx = (current_idx + 1) % len(self.deck_preview_ids)
+                        self.inspected_card_id = self.deck_preview_ids[new_idx]
+                    elif event.key in [pygame.K_UP, pygame.K_w]:
+                        new_idx = (current_idx - 1) % len(self.deck_preview_ids)
+                        self.inspected_card_id = self.deck_preview_ids[new_idx]
+                    elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                        new_idx = (current_idx + 1) % len(self.deck_preview_ids)
+                        self.inspected_card_id = self.deck_preview_ids[new_idx]
+                else:
+                    # Scroll the deck grid when not zoomed
+                    if event.key in [pygame.K_UP, pygame.K_w]:
+                        self.deck_scroll_offset = max(0, self.deck_scroll_offset - 50)
+                    elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                        self.deck_scroll_offset += 50
+            
+            # Navigate between leaders with arrow keys
+            elif self.state == "leader_select" and self.leader_buttons:
+                if event.key in [pygame.K_UP, pygame.K_w]:
+                    # Find current selection
+                    current_idx = -1
+                    if self.selected_leader:
+                        for i, btn in enumerate(self.leader_buttons):
+                            if btn['leader'] == self.selected_leader:
+                                current_idx = i
+                                break
+                    # Move up
+                    new_idx = max(0, current_idx - 1) if current_idx > 0 else len(self.leader_buttons) - 1
+                    self.selected_leader = self.leader_buttons[new_idx]['leader']
+                    self._ensure_leader_visible(new_idx)
+                    if not self.deck_preview_ids:
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                
+                elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                    # Find current selection
+                    current_idx = -1
+                    if self.selected_leader:
+                        for i, btn in enumerate(self.leader_buttons):
+                            if btn['leader'] == self.selected_leader:
+                                current_idx = i
+                                break
+                    # Move down
+                    new_idx = (current_idx + 1) % len(self.leader_buttons)
+                    self.selected_leader = self.leader_buttons[new_idx]['leader']
+                    self._ensure_leader_visible(new_idx)
+                    if not self.deck_preview_ids:
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                
+                elif event.key == pygame.K_RETURN and self.selected_leader:
+                    # Enter to confirm and start
+                    self.state = "complete"
+            
+            # Navigate between factions with arrow keys
+            elif self.state == "faction_select":
+                current_idx = -1
+                if self.selected_faction:
+                    for i, btn in enumerate(self.faction_buttons):
+                        if btn['faction'] == self.selected_faction:
+                            current_idx = i
+                            break
+                
+                if event.key in [pygame.K_UP, pygame.K_w]:
+                    new_idx = max(0, current_idx - 1) if current_idx > 0 else len(self.faction_buttons) - 1
+                    self.selected_faction = self.faction_buttons[new_idx]['faction']
+                
+                elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                    new_idx = (current_idx + 1) % len(self.faction_buttons) if current_idx >= 0 else 0
+                    self.selected_faction = self.faction_buttons[new_idx]['faction']
+                
+                elif event.key == pygame.K_RETURN and self.selected_faction:
+                    # Enter to confirm faction
+                    if self.for_new_game:
+                        # NEW GAME: Go to leader selection
+                        self.state = "leader_select"
+                        self.setup_leader_buttons()
+                    else:
+                        # DECK BUILDING: Load saved leader and go directly to deck review
+                        saved_leader_id = load_leader_choice(self.selected_faction)
+                        available_leaders = self.get_leader_pool(self.selected_faction)
+                        if saved_leader_id:
+                            for leader in available_leaders:
+                                if leader['card_id'] == saved_leader_id:
+                                    self.selected_leader = leader
+                                    break
+                        if not self.selected_leader and available_leaders:
+                            # Default to first leader if none saved
+                            self.selected_leader = available_leaders[0]
+                        
+                        # Generate deck and go to review
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                        self.state = "deck_review"
+                        self.deck_scroll_offset = 0
+                        self.pool_scroll_offset = 0
         
         elif event.type == pygame.KEYDOWN:
             # Handle spacebar for card inspection
@@ -422,6 +776,7 @@ class DeckBuilderUI:
                     # Move up
                     new_idx = max(0, current_idx - 1) if current_idx > 0 else len(self.leader_buttons) - 1
                     self.selected_leader = self.leader_buttons[new_idx]['leader']
+                    self._ensure_leader_visible(new_idx)
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                 
@@ -436,6 +791,7 @@ class DeckBuilderUI:
                     # Move down
                     new_idx = (current_idx + 1) % len(self.leader_buttons)
                     self.selected_leader = self.leader_buttons[new_idx]['leader']
+                    self._ensure_leader_visible(new_idx)
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                 
@@ -469,15 +825,15 @@ class DeckBuilderUI:
                     else:
                         # DECK BUILDING: Load saved leader and go directly to deck review
                         saved_leader_id = load_leader_choice(self.selected_faction)
+                        available_leaders = self.get_leader_pool(self.selected_faction)
                         if saved_leader_id:
-                            # Find the leader object
-                            for leader in FACTION_LEADERS[self.selected_faction]:
+                            for leader in available_leaders:
                                 if leader['card_id'] == saved_leader_id:
                                     self.selected_leader = leader
                                     break
-                        if not self.selected_leader:
+                        if not self.selected_leader and available_leaders:
                             # Default to first leader if none saved
-                            self.selected_leader = FACTION_LEADERS[self.selected_faction][0]
+                            self.selected_leader = available_leaders[0]
                         
                         # Generate deck and go to review
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
@@ -496,7 +852,7 @@ class DeckBuilderUI:
                     if button['rect'].collidepoint(mouse_pos):
                         self.selected_faction = button['faction']
                         # Update background to faction color
-                        self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+                        self.set_faction_background(self.selected_faction)
                         if self.for_new_game:
                             # NEW GAME: Go to leader selection
                             self.state = "leader_select"
@@ -504,15 +860,15 @@ class DeckBuilderUI:
                         else:
                             # DECK BUILDING: Load saved leader and go directly to deck review
                             saved_leader_id = load_leader_choice(self.selected_faction)
+                            available_leaders = self.get_leader_pool(self.selected_faction)
                             if saved_leader_id:
-                                # Find the leader object
-                                for leader in FACTION_LEADERS[self.selected_faction]:
+                                for leader in available_leaders:
                                     if leader['card_id'] == saved_leader_id:
                                         self.selected_leader = leader
                                         break
-                            if not self.selected_leader:
+                            if not self.selected_leader and available_leaders:
                                 # Default to first leader if none saved
-                                self.selected_leader = FACTION_LEADERS[self.selected_faction][0]
+                                self.selected_leader = available_leaders[0]
                             
                             # Generate deck and go to review
                             self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
@@ -523,27 +879,33 @@ class DeckBuilderUI:
                         return
             
             # Leader selection (LEFT CLICK ONLY)
-            elif self.state == "leader_select" and event.button == 1:
+            if self.state == "leader_select" and event.button == 1:
                 # Back button
                 if self.back_button.collidepoint(mouse_pos):
                     self.state = "faction_select"
                     self.selected_leader = None
                     self.deck_preview_ids = None
+                    self.set_faction_background(self.selected_faction)
                     return
                 
                 # Leader buttons
-                for button in self.leader_buttons:
-                    if button['rect'].collidepoint(mouse_pos):
+                for idx, button in enumerate(self.leader_buttons):
+                    display_rect = self._leader_button_display_rect(button['rect'])
+                    if self.leader_area_rect and not self.leader_area_rect.collidepoint(mouse_pos):
+                        continue
+                    if display_rect.collidepoint(mouse_pos):
                         self.selected_leader = button['leader']
                         leader_id = self.selected_leader.get('card_id')
                         self.set_leader_background(leader_id)
+                        self._ensure_leader_visible(idx)
 
                         # Generate deck preview
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                         return
-                
+
                 # Review deck button
-                if self.selected_leader and self.review_deck_button.collidepoint(mouse_pos):
+                review_rect = self._leader_button_display_rect(self.review_deck_button)
+                if self.selected_leader and review_rect.collidepoint(mouse_pos):
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
@@ -554,7 +916,8 @@ class DeckBuilderUI:
                     return
                 
                 # Continue button (if leader selected)
-                if self.selected_leader and self.continue_button.collidepoint(mouse_pos):
+                continue_rect = self._leader_button_display_rect(self.continue_button)
+                if self.selected_leader and continue_rect.collidepoint(mouse_pos):
                     # Save the selected leader before completing
                     save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
                     print(f"✓ Leader choice saved: {self.selected_faction} -> {self.selected_leader['name']}")
@@ -818,8 +1181,14 @@ class DeckBuilderUI:
         subtitle_rect = subtitle.get_rect(center=(self.screen_width // 2, 150))
         surface.blit(subtitle, subtitle_rect)
         
-        # Leader buttons
+        # Leader buttons (scrollable list)
+        if self.leader_area_rect:
+            surface.set_clip(self.leader_area_rect)
         for button in self.leader_buttons:
+            draw_rect = self._leader_button_display_rect(button['rect'])
+            if self.leader_area_rect:
+                if draw_rect.bottom < self.leader_area_rect.top or draw_rect.top > self.leader_area_rect.bottom:
+                    continue
             # Determine button color
             is_selected = (self.selected_leader == button['leader'])
             if is_selected:
@@ -830,29 +1199,32 @@ class DeckBuilderUI:
                 color = self.button_color
             
             # Draw button
-            pygame.draw.rect(surface, color, button['rect'], border_radius=10)
+            pygame.draw.rect(surface, color, draw_rect, border_radius=10)
             if is_selected:
-                pygame.draw.rect(surface, self.highlight_color, button['rect'], width=5, border_radius=10)
+                pygame.draw.rect(surface, self.highlight_color, draw_rect, width=5, border_radius=10)
             else:
-                pygame.draw.rect(surface, faction_color, button['rect'], width=3, border_radius=10)
+                pygame.draw.rect(surface, faction_color, draw_rect, width=3, border_radius=10)
             
             # Draw leader name
             name_text = self.button_font.render(button['leader']['name'], True, self.text_color)
-            name_rect = name_text.get_rect(center=(button['rect'].centerx, button['rect'].centery - 30))
+            name_rect = name_text.get_rect(center=(draw_rect.centerx, draw_rect.centery - 30))
             surface.blit(name_text, name_rect)
             
             # Draw ability description (wrapped to fit in button)
             ability = button['leader']['ability']
-            max_width = button['rect'].width - 40  # Padding
+            max_width = draw_rect.width - 40  # Padding
             wrapped_lines = self.wrap_text(f"Ability: {ability}", self.desc_font, max_width)
             
             # Draw each line
-            line_y = button['rect'].centery + 10
+            line_y = draw_rect.centery + 10
             for line in wrapped_lines:
                 line_text = self.desc_font.render(line, True, (200, 200, 200))
-                line_rect = line_text.get_rect(center=(button['rect'].centerx, line_y))
+                line_rect = line_text.get_rect(center=(draw_rect.centerx, line_y))
                 surface.blit(line_text, line_rect)
                 line_y += 25  # Line spacing
+        if self.leader_area_rect:
+            surface.set_clip(None)
+            pygame.draw.rect(surface, (255, 255, 255), self.leader_area_rect, width=2, border_radius=12)
         
         # Back button
         pygame.draw.rect(surface, self.button_color, self.back_button, border_radius=5)
@@ -862,17 +1234,17 @@ class DeckBuilderUI:
         
         # Review Deck button (if leader selected)
         if self.selected_leader:
-            pygame.draw.rect(surface, (100, 100, 200), self.review_deck_button, border_radius=10)
+            review_rect = self._leader_button_display_rect(self.review_deck_button)
+            pygame.draw.rect(surface, (100, 100, 200), review_rect, border_radius=10)
             review_text = self.button_font.render("Review Deck", True, self.text_color)
-            review_rect = review_text.get_rect(center=self.review_deck_button.center)
-            surface.blit(review_text, review_rect)
+            surface.blit(review_text, review_text.get_rect(center=review_rect.center))
         
         # Continue button (if leader selected)
         if self.selected_leader:
-            pygame.draw.rect(surface, (50, 200, 50), self.continue_button, border_radius=10)
+            continue_rect = self._leader_button_display_rect(self.continue_button)
+            pygame.draw.rect(surface, (50, 200, 50), continue_rect, border_radius=10)
             continue_text = self.button_font.render("START GAME", True, self.text_color)
-            continue_rect = continue_text.get_rect(center=self.continue_button.center)
-            surface.blit(continue_text, continue_rect)
+            surface.blit(continue_text, continue_text.get_rect(center=continue_rect.center))
     
     def draw_deck_review(self, surface):
         """Draw deck review screen with two-panel layout and card type tabs."""
@@ -1363,7 +1735,7 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None):
     return sorted_ids
 
 
-def run_deck_builder(screen, for_new_game=True):
+def run_deck_builder(screen, for_new_game=True, *, unlock_override=False):
     """
     Run the deck builder interface.
     Args:
@@ -1380,7 +1752,12 @@ def run_deck_builder(screen, for_new_game=True):
     screen_width = screen.get_width()
     screen_height = screen.get_height()
     
-    deck_builder = DeckBuilderUI(screen_width, screen_height, for_new_game=for_new_game)
+    deck_builder = DeckBuilderUI(
+        screen_width,
+        screen_height,
+        for_new_game=for_new_game,
+        unlock_override=unlock_override
+    )
     clock = pygame.time.Clock()
     
     running = True

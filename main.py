@@ -15,6 +15,10 @@ from cards import (
     FACTION_ASGARD,
 )
 from ai_opponent import AIController
+
+# LAN Mode globals - set by lan_game.py when running multiplayer
+LAN_MODE = False
+LAN_CONTEXT = None
 from animations import (
     AnimationManager,
     StargateActivationEffect,
@@ -2576,10 +2580,132 @@ def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height
     
     return card_rects
 
+def draw_catherine_selection_overlay(surface, revealed_cards, screen_width, screen_height):
+    """Catherine Langford: Reveal top cards and choose one to draw immediately."""
+    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+    overlay.fill((10, 10, 30, 220))
+    surface.blit(overlay, (0, 0))
+    
+    title_font = pygame.font.Font(None, 58)
+    title_text = title_font.render("CATHERINE LANGFORD — Ancient Knowledge", True, (235, 200, 120))
+    title_rect = title_text.get_rect(center=(screen_width // 2, 90))
+    surface.blit(title_text, title_rect)
+    
+    subtitle_font = pygame.font.Font(None, 34)
+    subtitle_text = subtitle_font.render("Choose a card to draw immediately (others return to the deck bottom)", True, (230, 230, 230))
+    subtitle_rect = subtitle_text.get_rect(center=(screen_width // 2, 140))
+    surface.blit(subtitle_text, subtitle_rect)
+    
+    card_display_width = 280
+    card_display_height = 420
+    spacing = 70
+    cards_to_show = revealed_cards[:3]
+    count = max(1, len(cards_to_show))
+    total_width = count * card_display_width + (count - 1) * spacing
+    start_x = (screen_width - total_width) // 2
+    card_y = 220
+    
+    card_rects = []
+    for i, card in enumerate(cards_to_show):
+        x = start_x + i * (card_display_width + spacing)
+        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
+        surface.blit(scaled_image, (x, card_y))
+        rect = pygame.Rect(x, card_y, card_display_width, card_display_height)
+        pygame.draw.rect(surface, (235, 200, 120), rect, width=4)
+        name_text = UI_FONT.render(card.name[:22], True, (255, 255, 255))
+        name_rect = name_text.get_rect(center=(x + card_display_width // 2, card_y + card_display_height + 28))
+        surface.blit(name_text, name_rect)
+        card_rects.append((card, rect))
+    
+    instruction_font = pygame.font.Font(None, 32)
+    instruction = instruction_font.render("Click a card to draw it now (it will be added to your hand to play immediately)", True, (200, 200, 200))
+    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
+    surface.blit(instruction, instruction_rect)
+    
+    return card_rects
+
+def run_game_with_context(screen_param, lan_context):
+    """
+    Run game with LAN context (for multiplayer).
+
+    Args:
+        screen_param: Pygame screen surface
+        lan_context: LanContext with decks, session, etc.
+    """
+    global LAN_MODE, LAN_CONTEXT, screen
+    from lan_context import LanContext
+    from deck_builder import FACTION_LEADERS
+
+    # Set LAN mode - this is already done by lan_game.py but double-check
+    screen = screen_param
+
+    # Build local player deck
+    local_faction = lan_context.local.faction
+    local_leader_id = lan_context.local.leader_id
+    local_deck_ids = lan_context.local.deck_ids
+
+    # Find leader data
+    local_leader = None
+    for leader in FACTION_LEADERS.get(local_faction, []):
+        if leader.get("id") == local_leader_id:
+            local_leader = dict(leader)
+            local_leader.setdefault('faction', local_faction)
+            break
+
+    if not local_leader:
+        local_leader = {"id": local_leader_id, "name": local_leader_id, "faction": local_faction}
+
+    local_deck = [ALL_CARDS[id] for id in local_deck_ids if id in ALL_CARDS]
+
+    # Build remote player deck
+    remote_faction = lan_context.remote.faction
+    remote_leader_id = lan_context.remote.leader_id
+    remote_deck_ids = lan_context.remote.deck_ids
+
+    # Find remote leader data
+    remote_leader = None
+    for leader in FACTION_LEADERS.get(remote_faction, []):
+        if leader.get("id") == remote_leader_id:
+            remote_leader = dict(leader)
+            remote_leader.setdefault('faction', remote_faction)
+            break
+
+    if not remote_leader:
+        remote_leader = {"id": remote_leader_id, "name": remote_leader_id, "faction": remote_faction}
+
+    remote_deck = [ALL_CARDS[id] for id in remote_deck_ids if id in ALL_CARDS]
+
+    # Create game with LAN players
+    game = Game(
+        player1_faction=local_faction,
+        player1_deck=local_deck,
+        player1_leader=local_leader,
+        player2_faction=remote_faction,
+        player2_deck=remote_deck,
+        player2_leader=remote_leader
+    )
+    game.start_game()
+
+    # Initialize Faction Powers
+    from power import FACTION_POWERS as FACTION_POWERS_FACTORY
+    if local_faction in FACTION_POWERS_FACTORY:
+        game.player1.faction_power = FACTION_POWERS_FACTORY[local_faction]
+
+    if remote_faction in FACTION_POWERS_FACTORY:
+        game.player2.faction_power = type(FACTION_POWERS_FACTORY[remote_faction])()
+
+    print(f"[LAN] Game initialized: {local_faction} vs {remote_faction}")
+    print(f"[LAN] Local deck: {len(local_deck)} cards")
+    print(f"[LAN] Remote deck: {len(remote_deck)} cards")
+
+    # The game loop will detect LAN_MODE and use NetworkController
+    # (This happens in the existing game loop around line 2737)
+
+
 def main():
     """Main game loop."""
     global MULLIGAN_BUTTON_RECT, screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR
-    
+
     # Initialize card unlock system
     unlock_system = CardUnlockSystem()
     deck_manager = DeckManager(unlock_system)
@@ -2587,8 +2713,15 @@ def main():
     # --- SHOW MAIN MENU FIRST ---
     menu_result = run_main_menu(screen, unlock_system, toggle_fullscreen_mode)
     
+    if isinstance(menu_result, dict) and 'session' in menu_result:
+        from lan_game import run_lan_setup, run_lan_match
+        lan_context = run_lan_setup(screen, unlock_system, menu_result['session'], menu_result.get('role', 'host'))
+        if lan_context:
+            run_lan_match(screen, lan_context)
+        main()
+        return
+    
     if menu_result != 'new_game':
-        # User quit or closed window
         pygame.quit()
         sys.exit()
     
@@ -2602,7 +2735,10 @@ def main():
     sync_fullscreen_from_surface()
     
     # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
-    deck_selection = run_deck_builder(screen)
+    deck_selection = run_deck_builder(
+        screen,
+        unlock_override=unlock_system.is_unlock_override_enabled()
+    )
     
     if deck_selection is None:
         # User cancelled - go back to main menu
@@ -2724,7 +2860,26 @@ def main():
     # Start faction-specific battle music (currently Goa'uld only)
     set_battle_music_faction(player_faction, immediate=True)
     
-    ai_controller = AIController(game, game.player2, difficulty="medium")
+    # Initialize controller (AI or Network depending on mode)
+    if LAN_MODE and LAN_CONTEXT:
+        # LAN multiplayer mode - use NetworkController
+        from lan_opponent import NetworkController, NetworkPlayerProxy
+        ai_controller = NetworkController(game, game.player2, LAN_CONTEXT.session, LAN_CONTEXT.role)
+        network_proxy = NetworkPlayerProxy(LAN_CONTEXT.session, LAN_CONTEXT.role)
+        print(f"[LAN] Running in {LAN_CONTEXT.role} mode with NetworkController")
+    else:
+        # Single player mode - use AIController
+        ai_controller = AIController(game, game.player2, difficulty="medium")
+        network_proxy = None
+
+    # Initialize chat panel for LAN mode
+    lan_chat_panel = None
+    if LAN_MODE and LAN_CONTEXT:
+        from lan_chat import LanChatPanel
+        lan_chat_panel = LanChatPanel(LAN_CONTEXT.session, LAN_CONTEXT.role, max_lines=12)
+        lan_chat_panel.add_message("System", f"Connected as {LAN_CONTEXT.role}. Type to chat!")
+        print("[LAN] Chat panel initialized")
+
     selected_card = None
     dragging_card = None
     drag_offset = (0, 0)
@@ -2770,6 +2925,8 @@ def main():
     baal_clone_selection = False  # Ba'al: Choosing unit to clone
     vala_selection_mode = False  # Vala: Choosing 1 of 3 cards
     vala_cards_to_choose = []  # The 3 cards Vala can choose from
+    catherine_selection_mode = False  # Catherine Langford: pick 1 of top 3 cards
+    catherine_cards_to_choose = []  # Cached revealed cards for Catherine
     thor_move_mode = False  # Thor: Selecting unit to move
     thor_selected_unit = None  # The unit Thor is moving
     
@@ -2820,6 +2977,11 @@ def main():
         enforce_display_mode()
         dt = clock.tick(60)  # 60 FPS, returns milliseconds since last frame
         update_battle_music()
+
+        # Poll chat messages in LAN mode
+        if lan_chat_panel:
+            lan_chat_panel.poll_session()
+
         if getattr(game, "history_dirty", False):
             if not history_manual_scroll:
                 history_scroll_offset = 0
@@ -2920,6 +3082,11 @@ def main():
             ability_result = game.activate_leader_ability(game.player2)
             if ability_result:
                 ability_name = ability_result.get("ability", game.player2.leader.get('ability', 'Leader Ability'))
+                if ability_result.get("requires_ui") and ability_name == "Ancient Knowledge":
+                    revealed = ability_result.get("revealed_cards") or []
+                    if revealed:
+                        chosen_card = max(revealed, key=lambda c: getattr(c, "power", 0))
+                        game.catherine_play_chosen_card(game.player2, chosen_card)
                 anim_manager.add_effect(create_ability_animation(
                     ability_name,
                     SCREEN_WIDTH // 2,
@@ -2988,6 +3155,11 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
+                # Handle chat input in LAN mode FIRST (takes priority except for ESC and F11)
+                if lan_chat_panel and lan_chat_panel.active and event.key not in (pygame.K_ESCAPE, pygame.K_F11, pygame.K_F3):
+                    lan_chat_panel.handle_event(event)
+                    continue  # Skip other key handlers when typing in chat
+
                 # F3 - Toggle debug overlay
                 if event.key == pygame.K_F3:
                     debug_overlay_enabled = not debug_overlay_enabled
@@ -3117,6 +3289,11 @@ def main():
                                     rect = OPPONENT_ROW_RECTS.get(row_name)
                                     if rect:
                                         anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                            if ability_result.get("requires_ui") and ability_name == "Ancient Knowledge":
+                                revealed = ability_result.get("revealed_cards") or []
+                                if revealed:
+                                    catherine_selection_mode = True
+                                    catherine_cards_to_choose = list(revealed)
                         continue
                 # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
@@ -3338,6 +3515,11 @@ def main():
                                                                              HUD_PASS_BUTTON_RECT.centery,
                                                                              duration=800))
                             game.pass_turn()
+
+                            # Send network action if in LAN mode
+                            if network_proxy:
+                                network_proxy.send_pass()
+
                             pass_clicked = True
                         if pass_clicked:
                             continue
@@ -3501,6 +3683,10 @@ def main():
                                             if row_rect:
                                                 anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
                                 game.play_card(dragging_card, target_row)
+
+                                # Send network action if in LAN mode
+                                if network_proxy:
+                                    network_proxy.send_play_card(dragging_card.id, target_row)
                         else:
                             if "Command Network" in ability_text:
                                 for row_name, slot_rect in PLAYER_HORN_SLOT_RECTS.items():
@@ -4016,13 +4202,22 @@ def main():
                 pct_y(0.80) - pct_y(0.12)
             )
             history_panel_rect = history_rect
-            history_entry_hitboxes, history_scroll_limit = draw_history_panel(
-                screen,
-                game,
-                history_rect,
-                history_scroll_offset,
-                pygame.mouse.get_pos()
-            )
+
+            # Draw chat panel in LAN mode, history panel in single player
+            if lan_chat_panel:
+                # LAN multiplayer - show chat
+                lan_chat_panel.draw(screen, history_rect, title="Chat")
+                history_entry_hitboxes = []
+                history_scroll_limit = 0
+            else:
+                # Single player - show history
+                history_entry_hitboxes, history_scroll_limit = draw_history_panel(
+                    screen,
+                    game,
+                    history_rect,
+                    history_scroll_offset,
+                    pygame.mouse.get_pos()
+                )
             history_scroll_offset = max(0, min(history_scroll_offset, history_scroll_limit))
             if history_manual_scroll and history_scroll_offset <= 0:
                 history_manual_scroll = False
@@ -4281,6 +4476,20 @@ def main():
                         random.shuffle(game.player1.deck)
                         vala_selection_mode = False
                         vala_cards_to_choose = []
+                        pygame.time.wait(200)
+                        break
+
+        # Catherine Langford selection overlay
+        catherine_card_rects = []
+        if catherine_selection_mode:
+            catherine_card_rects = draw_catherine_selection_overlay(screen, catherine_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
+            mouse_pos = pygame.mouse.get_pos()
+            if pygame.mouse.get_pressed()[0]:
+                for card, rect in catherine_card_rects:
+                    if rect.collidepoint(mouse_pos):
+                        game.catherine_play_chosen_card(game.player1, card)
+                        catherine_selection_mode = False
+                        catherine_cards_to_choose = []
                         pygame.time.wait(200)
                         break
         

@@ -302,8 +302,8 @@ def build_leader_notes():
             "synergy": "Use intel to time Iris Defense and Command Network counters.",
         },
         "Catherine Langford": {
-            "timing": "Neutral cards ignore deck restrictions while she is your leader.",
-            "synergy": "Allows hybrid Tau'ri/Neutral builds with Atlantis and Destiny.",
+            "timing": "Once per game: Click portrait to look at top 3 cards and play one.",
+            "synergy": "Use when you need weather clear, specific unit type, or to swing momentum.",
         },
         "Apophis": {
             "timing": "Once per game, unleashes a random weather hazard that honors all immunity rules.",
@@ -345,9 +345,9 @@ def build_leader_notes():
             "timing": "On the first turn of every round you may play two cards instead of one.",
             "synergy": "Explosive openings with Brotherhood stacks or Gate Reinforcement.",
         },
-        "Master Bra'tac": {
-            "timing": "All friendly units gain +3 power in round 3.",
-            "synergy": "Sandbag to the final round for unstoppable finishing pushes.",
+        "Rya'c": {
+            "timing": "Automatically draws 2 cards when round 3 begins.",
+            "synergy": "Ensures you have options in the final round; pairs well with card-heavy strategies.",
         },
         "Ka'lel": {
             "timing": "The first three units you play each round get +2 power.",
@@ -425,7 +425,7 @@ LEADER_BIOS = {
     "Gen. Landry": "SGC successor after Hammond; a pragmatic strategist who values attrition victories.",
     "Dr. McKay": "Arrogant yet brilliant scientist from Atlantis, obsessed with optimizing resources.",
     "Jonas Quinn": "Kelownan diplomat turned SG-1 member with prophetic insight and encyclopedic recall.",
-    "Catherine Langford": "Archaeologist who kept the Stargate program alive for decades; favors cross-faction diplomacy.",
+    "Catherine Langford": "Archaeologist who kept the Stargate program alive for decades; uses ancient knowledge to find the perfect card.",
     "Apophis": "Iconic System Lord who terrorized the galaxy through fear and ritual; masters battlefield chaos.",
     "Lord Yu": "Ancient strategist whose rigid honor code hides ruthless calculation.",
     "Sokar": "Goa'uld warlord obsessed with overwhelming front-line force and demonic theatrics.",
@@ -436,7 +436,7 @@ LEADER_BIOS = {
     "Teal'c": "Defector from the Goa'uld ranks and champion of the Free Jaffa; a paragon of honor.",
     "Bra'tac": "Veteran master-at-arms who mentored generations of warriors.",
     "Rak'nor": "Young commander who specializes in daring first strikes for the rebellion.",
-    "Master Bra'tac": "Elder statesman of the Jaffa, orchestrating final stands with unwavering resolve.",
+    "Rya'c": "Teal'c's son, representing the hope and future of the Free Jaffa Nation.",
     "Ka'lel": "Hak'tyl warrior-poet whose battlefield speeches ignite allies.",
     "Gerak": "Political operator balancing loyalty and ambition within the Free Jaffa Nation.",
     "Ishta": "Leader of the Hak'tyl resistance, specializing in precise infiltrations.",
@@ -642,7 +642,7 @@ def build_spec() -> str:
         - **Player Turn:** Default action economy is 1 card per turn. Rak'nor may play two cards on his first turn each round; Ka'lel buffs the first three units per round; Gerak draws after every second unit. If the opponent's Iris is active, your first card is destroyed on contact.
         - **Playing Cards:** Validate row (Agile cards can enter close or ranged). Weather cards target rows directly; specials like Command Network and Ring Transport open contextual UI. Deep Cover Agents auto-place on the opponent's board and immediately draw cards.
         - **Leader Triggers:** Hammond and Ka'lel mark boosts as cards resolve; Loki siphons power from the strongest enemy each time you deploy; Lord Yu flags opponent hand reveal for the following round; McKay draws when you pass.
-        - **Pass & Round End:** Press the DHD to pass. Once both players pass, scores lock, round winner recorded, board wipes to discard, horns/weather cleared, leader boost flags removed. Master Bra'tac, Cronus, and Anubis have round-based effects that trigger here.
+        - **Pass & Round End:** Press the DHD to pass. Once both players pass, scores lock, round winner recorded, board wipes to discard, horns/weather cleared, leader boost flags removed. Rya'c, Cronus, and Anubis have round-based effects that trigger here.
         - **Victory:** First to 2 round wins claims the match. Unlock checks fire from `deck_persistence.py` immediately afterward.
         """
     ))

@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-1.9-blue)
+![Version](https://img.shields.io/badge/version-2.2-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -35,8 +35,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### ✨ Key Features
 
 ### 🎮 Complete Card Game Experience
-- **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence!
+- **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
+- **⚡ NEW v2.2: LAN MULTIPLAYER** - Full 2-player networked gameplay with chat!
 - **218 Cards** across 5 factions + Neutral cards
 - **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
@@ -146,7 +147,22 @@ All abilities renamed and themed around Stargate lore:
 
 ## 📝 Changelog
 
-### Version 1.9 (January 2026)
+### Version 2.2 (November 2025)
+**LAN Multiplayer & Leader Refinements**
+
+- ✅ **LAN Multiplayer COMPLETE** – Host/Join system with deck selection, leader matchup animation, and full 2-player networked gameplay!
+  - NetworkController replaces AI for remote opponents
+  - All actions sync over LAN (card plays, pass, faction powers)
+  - Chat system replaces history panel during multiplayer
+  - Unlock override for balanced LAN play
+- ✅ **Catherine Langford Redesign** – New ability "Ancient Knowledge": Look at top 3 cards of deck, play one immediately (rest to bottom)
+- ✅ **Rya'c Unlockable Leader** – Replaces Master Bra'tac with "Hope for Tomorrow": Draw 2 extra cards at start of round 3
+- ✅ **Master Bra'tac Removed** – Consolidated duplicate Bra'tac leaders; regular Bra'tac remains as starter
+- ✅ **Options Menu Polish** – "Unlock All" button redesigned with clean layout, status indicators, and faction-colored DHD button
+- ✅ **Script Organization** – Moved `create_placeholders.py` to `scripts/` folder for cleaner project structure
+- ✅ **Content Registry** – All leaders now centralized in `content_registry.py` for easier maintenance
+
+### Version 1.9 (October 2025)
 **Universal Matchups & Fullscreen Persistence**
 
 - ✅ **Retro Neon Matchup HUD** – Leader names now use a retro cyberpunk font with faction-colored glow, scanlines, and proper portrait scaling for every confrontation.
@@ -252,7 +268,7 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 
 # 5. Generate placeholder assets
-python create_placeholders.py
+python scripts/create_placeholders.py
 
 # 6. Run the game!
 python main.py
@@ -414,8 +430,8 @@ Set `STARGWENT_FULLSCREEN=1` before running `python main.py` if you prefer forci
 #### **Jaffa** (Free Jaffa Nation) ⚔️
 *Warriors seeking freedom*
 - **Style**: Tactical combat, unit synergy
-- **Leaders**: Bra'tac, Rak'nor, Ishta, Ka'lel, Gerak
-- **Unlockable**: Master Bra'tac, Sodan Master, Bra'tac (Elderly)
+- **Starter Leaders**: Teal'c, Bra'tac, Rak'nor
+- **Unlockable**: Ka'lel, Gerak, Ishta, Rya'c (Teal'c's son)
 
 #### **Lucian Alliance** (Pirates & Smugglers) 💀
 *Cunning outlaws and mercenaries*
@@ -684,8 +700,8 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 
 **Tau'ri:**
 - Jonas Quinn - See opponent's next card
-- Catherine Langford - Neutral cards cost nothing
-- Gen. Landry - Keep 1 extra card after mulligan
+- Catherine Langford - Ancient Knowledge: Look at top 3 cards, play one immediately
+- Gen. Landry - +1 power to units each round they survive
 - Dr. McKay - Draw 2 cards when you pass
 
 **Goa'uld:**
@@ -695,10 +711,10 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - Kvasir - First weather affects opponent only
 
 **Jaffa:**
-- Master Bra'tac - +3 power to all units in round 3
-- Sodan Master - +3 to highest in each row
-- Ishta - Gate Reinforcement units get +2
-- Ka'lel - First 3 units each round get +2
+- Ka'lel - First 3 units each round get +2 power
+- Gerak - Draw 1 card for every 2 units played
+- Ishta - Gate Reinforcement units get +2 power
+- Rya'c - Hope for Tomorrow: Draw 2 extra cards at start of round 3
 
 **Lucian:**
 - Netan - Gain 1 extra card each round
@@ -967,6 +983,22 @@ assets/
 - `assets/audio/lucian_theme_sonicpi.rb`: Run once at 102 BPM (≈38 s, Lucian rogue pulse), export `lucian_theme.wav`, then `ffmpeg -i lucian_theme.wav -c:a libvorbis assets/audio/lucian_theme.ogg`. Lucian Alliance runs will pick it up once the `.ogg` exists.
 
 Battle themes only replay every 2 minutes: each track plays once when your faction enters the arena, the mixer rests for 120 s, then quietly restarts if you remain in the match.
+
+### LAN Multiplayer (v2.2 - COMPLETE!)
+- Choose **LAN MULTIPLAYER** in the main menu
+- **Host**: Runs TCP listener on port 4765, displays local IP addresses, waits for opponent
+- **Join**: Enter host's LAN IP to connect
+- **Deck Selection**: Both players select faction, leader, and deck independently
+- **Leader Matchup**: Full cinematic animation showing both leaders
+- **Gameplay**: Complete networked game with:
+  - All card plays synchronized in real-time
+  - Pass turn synchronization
+  - Faction power activation sync
+  - NetworkController seamlessly replaces AI
+- **Chat System**: Built-in chat replaces history panel during multiplayer - type to communicate!
+- **Unlock Override**: All factions, leaders, and cards automatically unlocked in LAN mode (no grind)
+- **Single-Player Unaffected**: Your progression system remains intact for solo games
+- **Zero Dependencies**: Uses only Python's built-in `socket` module - no extra packages needed!
 
 ### Data Files (Auto-Generated)
 ```

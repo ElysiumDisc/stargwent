@@ -68,8 +68,8 @@ LEADER_NOTES = {
         "synergy": "Use intel to time Iris Defense and Command Network counters.",
     },
     "Catherine Langford": {
-        "timing": "Neutral cards ignore deck restrictions while she is your leader.",
-        "synergy": "Enables Tau'ri/Neutral hybrid builds anchored by Atlantis or Destiny.",
+        "timing": "Once per game: Click portrait to reveal top 3 cards, play one immediately.",
+        "synergy": "Save for critical moments when you need specific card types or weather clears.",
     },
     "Apophis": {
         "timing": "Once per game unleashes a random weather hazard respecting immunities.",

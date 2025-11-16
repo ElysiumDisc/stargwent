@@ -1,6 +1,6 @@
 # Stargwent Rule Menu UI Specification
 
-Generated on 2025-11-14 00:19 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 218 core cards + 20 unlockables + 35 leaders.
+Generated on 2025-11-16 17:23 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 218 core cards + 20 unlockables + 35 leaders.
 
 ## UI Overview
 - Accessible from the Main Menu via the new `RULE MENU` option; loads instantly without blocking gameplay assets.
@@ -43,7 +43,7 @@ Generated on 2025-11-14 00:19 UTC using cards.py, content_registry.py, unlocks.p
 - **Player Turn:** Default action economy is 1 card per turn. Rak'nor may play two cards on his first turn each round; Ka'lel buffs the first three units per round; Gerak draws after every second unit. If the opponent's Iris is active, your first card is destroyed on contact.
 - **Playing Cards:** Validate row (Agile cards can enter close or ranged). Weather cards target rows directly; specials like Command Network and Ring Transport open contextual UI. Deep Cover Agents auto-place on the opponent's board and immediately draw cards.
 - **Leader Triggers:** Hammond and Ka'lel mark boosts as cards resolve; Loki siphons power from the strongest enemy each time you deploy; Lord Yu flags opponent hand reveal for the following round; McKay draws when you pass.
-- **Pass & Round End:** Press the DHD to pass. Once both players pass, scores lock, round winner recorded, board wipes to discard, horns/weather cleared, leader boost flags removed. Master Bra'tac, Cronus, and Anubis have round-based effects that trigger here.
+- **Pass & Round End:** Press the DHD to pass. Once both players pass, scores lock, round winner recorded, board wipes to discard, horns/weather cleared, leader boost flags removed. Rya'c, Cronus, and Anubis have round-based effects that trigger here.
 - **Victory:** First to 2 round wins claims the match. Unlock checks fire from `deck_persistence.py` immediately afterward.
 
 

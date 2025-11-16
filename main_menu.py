@@ -12,6 +12,7 @@ from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTI
 from deck_builder import FACTION_LEADERS, MIN_DECK_SIZE, MAX_DECK_SIZE, validate_deck
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
 from rules_menu import run_rules_menu
+from lan_menu import run_lan_menu
 
 # Save file for custom decks
 CUSTOM_DECKS_FILE = "player_decks.json"
@@ -135,22 +136,31 @@ class DeckManager:
                 available.append({'id': card_id, 'card': card, 'source': 'neutral'})
         
         # Unlocked cards (that match faction or are neutral)
-        for card_id in self.unlock_system.unlocked_cards:
-            if card_id in UNLOCKABLE_CARDS:
-                card_data = UNLOCKABLE_CARDS[card_id]
-                if card_data['faction'] == faction or card_data['faction'] == 'Neutral':
-                    available.append({'id': card_id, 'card': None, 'data': card_data, 'source': 'unlocked'})
+        if hasattr(self.unlock_system, "is_unlock_override_enabled") and self.unlock_system.is_unlock_override_enabled():
+            unlocked_ids = UNLOCKABLE_CARDS.keys()
+        else:
+            unlocked_ids = self.unlock_system.unlocked_cards
+        for card_id in unlocked_ids:
+            card_data = UNLOCKABLE_CARDS.get(card_id)
+            if not card_data:
+                continue
+            if card_data['faction'] == faction or card_data['faction'] == 'Neutral':
+                available.append({'id': card_id, 'card': None, 'data': card_data, 'source': 'unlocked'})
         
         return available
 
 
 class MainMenu:
+
+    screen_surface = None
     """Main menu screen."""
     
-    def __init__(self, screen_width, screen_height):
+    def __init__(self, screen_width, screen_height, unlock_system):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.selected_option = 0
+        self.unlock_system = unlock_system
+        self.unlock_option_index = -1
         
         # Load background
         self.background = None
@@ -184,12 +194,160 @@ class MainMenu:
         self.options = [
             {'text': 'NEW GAME', 'action': 'new_game'},
             {'text': 'DECK BUILDING', 'action': 'deck_building'},
+            {'text': 'MULTIPLAYER', 'action': 'lan_menu'},
             {'text': 'RULE MENU', 'action': 'rules_menu'},
+            {'text': 'OPTIONS', 'action': 'options_menu'},
             {'text': 'QUIT', 'action': 'quit'}
         ]
+        self.unlock_option_index = -1
         
         self.setup_buttons()
+
+    def _unlock_override_state(self) -> bool:
+        if self.unlock_system and hasattr(self.unlock_system, "is_unlock_override_enabled"):
+            return self.unlock_system.is_unlock_override_enabled()
+        return False
+
+    def _update_unlock_option_label(self):
+        if self.unlock_option_index < 0:
+            return
+        state = "ON" if self._unlock_override_state() else "OFF"
+        self.options[self.unlock_option_index]['text'] = f"UNLOCK ALL (SP): {state}"
+
+    def toggle_unlock_override(self):
+        if not self.unlock_system:
+            return
+        if hasattr(self.unlock_system, "toggle_unlock_override"):
+            self.unlock_system.toggle_unlock_override()
+        elif hasattr(self.unlock_system, "set_unlock_override"):
+            self.unlock_system.set_unlock_override(not self._unlock_override_state())
+        self._update_unlock_option_label()
     
+
+    def run_options_menu(self, surface):
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        clock = pygame.time.Clock()
+        running = True
+        center_x = self.screen_width // 2
+        center_y = self.screen_height // 2
+
+        # DHD button on the right side
+        dhd_radius = 100  # Slightly smaller
+        button_x = center_x + 180
+        button_y = center_y
+        dhd_rect = pygame.Rect(0, 0, dhd_radius * 2, dhd_radius * 2)
+        dhd_rect.center = (button_x, button_y)
+
+        # Label on the left side
+        label_surface = self.button_font.render("Unlock All Cards & Leaders", True, (220, 220, 220))
+        label_rect = label_surface.get_rect(midright=(button_x - dhd_radius - 30, button_y - 10))
+
+        # Status text below label
+        status_font = pygame.font.SysFont("Arial", 28)
+
+        # Title above everything
+        title_font = pygame.font.SysFont("Arial", 48, bold=True)
+        title_surface = title_font.render("OPTIONS", True, (100, 200, 255))
+        title_rect = title_surface.get_rect(center=(center_x, center_y - 180))
+
+        # Instruction text at bottom
+        instruction_font = pygame.font.SysFont("Arial", 24)
+        instruction_surface = instruction_font.render("Press ESC or ENTER to return", True, (180, 180, 180))
+        instruction_rect = instruction_surface.get_rect(center=(center_x, self.screen_height - 80))
+
+        def draw_dhd(active):
+            dhd_surface = pygame.Surface(dhd_rect.size, pygame.SRCALPHA)
+            base_color = (60, 60, 80)
+            pygame.draw.circle(dhd_surface, base_color, (dhd_radius, dhd_radius), dhd_radius)
+            pygame.draw.circle(dhd_surface, (30, 30, 40), (dhd_radius, dhd_radius), dhd_radius, width=8)
+            ring_segments = 36
+            for i in range(ring_segments):
+                angle = (i / ring_segments) * 2 * math.pi
+                inner = (
+                    dhd_radius + int(math.cos(angle) * (dhd_radius - 18)),
+                    dhd_radius + int(math.sin(angle) * (dhd_radius - 18)),
+                )
+                outer = (
+                    dhd_radius + int(math.cos(angle) * (dhd_radius - 5)),
+                    dhd_radius + int(math.sin(angle) * (dhd_radius - 5)),
+                )
+                color = (100, 160, 255) if active else (60, 80, 120)
+                pygame.draw.line(dhd_surface, color, inner, outer, 3)
+            chevron_color = (80, 180, 255) if active else (90, 90, 110)
+            for i in range(7):
+                angle = math.pi / 2 + (i - 3) * (math.pi / 7)
+                points = []
+                for offset in (-1, 0, 1):
+                    px = dhd_radius + int(math.cos(angle + offset * 0.08) * (dhd_radius - 35))
+                    py = dhd_radius + int(math.sin(angle + offset * 0.08) * (dhd_radius - 35))
+                    points.append((px, py))
+                pygame.draw.polygon(dhd_surface, chevron_color, points)
+            center_color = (80, 200, 255) if active else (70, 70, 90)
+            pygame.draw.circle(dhd_surface, center_color, (dhd_radius, dhd_radius), 35)
+            pygame.draw.circle(dhd_surface, (255, 255, 255, 100), (dhd_radius, dhd_radius), 37, width=3)
+            if active:
+                glow = pygame.Surface((dhd_radius * 2, dhd_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(glow, (80, 180, 255, 80), (dhd_radius, dhd_radius), dhd_radius + 15)
+                dhd_surface.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
+            return dhd_surface
+
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return 'quit'
+                if event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                        running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if dhd_rect.collidepoint(event.pos):
+                        self.toggle_unlock_override()
+
+            # Draw overlay
+            surface.blit(overlay, (0, 0))
+
+            # Draw title
+            surface.blit(title_surface, title_rect)
+
+            # Draw panel background
+            panel_padding = 40
+            panel_rect = pygame.Rect(
+                center_x - 400,
+                center_y - 80,
+                800,
+                160
+            )
+            panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+            panel_surf.fill((30, 40, 60, 200))
+            surface.blit(panel_surf, panel_rect.topleft)
+            pygame.draw.rect(surface, (100, 150, 200), panel_rect, width=2, border_radius=10)
+
+            # Draw label
+            surface.blit(label_surface, label_rect)
+
+            # Draw status text below label
+            state_text = "ENABLED" if self._unlock_override_state() else "DISABLED"
+            state_color = (100, 255, 100) if self._unlock_override_state() else (255, 100, 100)
+            status_surface = status_font.render(f"Status: {state_text}", True, state_color)
+            status_rect = status_surface.get_rect(midright=(button_x - dhd_radius - 30, button_y + 20))
+            surface.blit(status_surface, status_rect)
+
+            # Draw DHD toggle button
+            dhd_surface = draw_dhd(self._unlock_override_state())
+            surface.blit(dhd_surface, dhd_rect.topleft)
+
+            # Draw instruction
+            surface.blit(instruction_surface, instruction_rect)
+
+            # Draw hint text
+            hint_text = "(Click the button to toggle)"
+            hint_surface = instruction_font.render(hint_text, True, (150, 150, 150))
+            hint_rect = hint_surface.get_rect(center=(center_x, center_y + 100))
+            surface.blit(hint_surface, hint_rect)
+
+            pygame.display.flip()
+            clock.tick(60)
+        return None
     def load_background(self):
         """Load menu background image."""
         try:
@@ -226,7 +384,13 @@ class MainMenu:
             mouse_pos = event.pos
             for option in self.options:
                 if option['rect'].collidepoint(mouse_pos):
-                    return option['action']
+                    if option['action'] == 'options_menu':
+                        screen_surface = pygame.display.get_surface()
+                        result = self.run_options_menu(screen_surface)
+                        if isinstance(result, str):
+                            return result
+                    else:
+                        return option['action']
         
         elif event.type == pygame.KEYDOWN:
             if event.key in [pygame.K_UP, pygame.K_w]:
@@ -234,7 +398,13 @@ class MainMenu:
             elif event.key in [pygame.K_DOWN, pygame.K_s]:
                 self.selected_option = (self.selected_option + 1) % len(self.options)
             elif event.key == pygame.K_RETURN:
-                return self.options[self.selected_option]['action']
+                action = self.options[self.selected_option]['action']
+                if action == 'options_menu':
+                    result = self.run_options_menu(surface)
+                    if isinstance(result, str):
+                        return result
+                else:
+                    return action
             elif event.key == pygame.K_ESCAPE:
                 return 'quit'
         
@@ -666,7 +836,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     print("Main Menu: Card images loaded!")
     
     deck_manager = DeckManager(unlock_system)
-    main_menu = MainMenu(screen.get_width(), screen.get_height())
+    main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
     clock = pygame.time.Clock()
     start_menu_music(immediate=True)
     
@@ -682,7 +852,8 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                     if toggle_fullscreen_callback:
                         toggle_fullscreen_callback()
                         screen = pygame.display.get_surface()
-                        main_menu = MainMenu(screen.get_width(), screen.get_height())
+                        main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
+                        main_menu.screen_surface = screen
                     else:
                         pygame.display.toggle_fullscreen()
             
@@ -693,11 +864,22 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             elif action == 'deck_building':
                 # Use the GOOD deck builder from deck_builder.py
                 from deck_builder import run_deck_builder
-                result = run_deck_builder(screen, for_new_game=False)  # Not for new game, just deck customization
+                result = run_deck_builder(
+                    screen,
+                    for_new_game=False,
+                    unlock_override=unlock_system.is_unlock_override_enabled()
+                )
                 # If result is None, user clicked MAIN MENU or ESC - just continue showing main menu
                 # (Don't return None here, that would quit the game!)
             elif action == 'rules_menu':
                 run_rules_menu(screen, toggle_fullscreen_callback)
+            elif action == 'lan_menu':
+                lan_data = run_lan_menu(screen)
+                if isinstance(lan_data, dict):
+                    stop_menu_music()
+                    return lan_data
+            elif action == 'toggle_unlock_override':
+                main_menu.toggle_unlock_override()
             elif action == 'quit':
                 stop_menu_music()
                 return None

@@ -206,6 +206,7 @@ class CardUnlockSystem:
         self.consecutive_wins = 0
         self.total_wins = 0
         self.total_games = 0
+        self.unlock_override_enabled = False
         self.load_unlocks()
     
     def load_unlocks(self):
@@ -219,12 +220,14 @@ class CardUnlockSystem:
                     self.consecutive_wins = data.get('consecutive_wins', 0)
                     self.total_wins = data.get('total_wins', 0)
                     self.total_games = data.get('total_games', 0)
+                    self.unlock_override_enabled = data.get('unlock_override_enabled', False)
             except:
                 self.unlocked_cards = set()
                 self.unlocked_leaders = {}
                 self.consecutive_wins = 0
                 self.total_wins = 0
                 self.total_games = 0
+                self.unlock_override_enabled = False
         else:
             # Start with no unlocked cards
             self.unlocked_cards = set()
@@ -232,6 +235,7 @@ class CardUnlockSystem:
             self.consecutive_wins = 0
             self.total_wins = 0
             self.total_games = 0
+            self.unlock_override_enabled = False
     
     def save_unlocks(self):
         """Save unlocked cards and stats to file."""
@@ -241,7 +245,8 @@ class CardUnlockSystem:
                 'unlocked_leaders': self.unlocked_leaders,
                 'consecutive_wins': self.consecutive_wins,
                 'total_wins': self.total_wins,
-                'total_games': self.total_games
+                'total_games': self.total_games,
+                'unlock_override_enabled': self.unlock_override_enabled,
             }, f, indent=2)
     
     def record_game_result(self, won):
@@ -269,22 +274,50 @@ class CardUnlockSystem:
     
     def is_unlocked(self, card_id):
         """Check if a card is unlocked."""
+        if self.unlock_override_enabled:
+            return True
         return card_id in self.unlocked_cards
-    
+
     def is_leader_unlocked(self, faction, leader_id):
         """Check if a leader is unlocked."""
+        if self.unlock_override_enabled:
+            return True
         return leader_id in self.unlocked_leaders.get(faction, [])
+
+    def is_unlock_override_enabled(self) -> bool:
+        """Return True if the global unlock-all override is enabled."""
+        return self.unlock_override_enabled
+
+    def set_unlock_override(self, enabled: bool):
+        """Persistently enable/disable the unlock-all override toggle."""
+        enabled = bool(enabled)
+        if self.unlock_override_enabled == enabled:
+            return
+        self.unlock_override_enabled = enabled
+        self.save_unlocks()
+
+    def toggle_unlock_override(self):
+        """Invert the unlock-all override toggle."""
+        self.set_unlock_override(not self.unlock_override_enabled)
     
     def get_unlocked_leaders_for_faction(self, faction):
         """Get list of unlocked leader IDs for a faction."""
+        if self.unlock_override_enabled:
+            if faction in UNLOCKABLE_LEADERS:
+                return [leader['card_id'] for leader in UNLOCKABLE_LEADERS[faction]]
+            return []
         return self.unlocked_leaders.get(faction, [])
-    
+
     def should_offer_leader_unlock(self):
         """Check if player qualifies for leader unlock (3 consecutive wins)."""
+        if self.unlock_override_enabled:
+            return False
         return self.consecutive_wins >= 3
     
     def get_available_leader_unlocks(self, faction):
         """Get leaders available to unlock for a faction."""
+        if self.unlock_override_enabled:
+            return []
         if faction not in UNLOCKABLE_LEADERS:
             return []
         
@@ -299,6 +332,8 @@ class CardUnlockSystem:
     
     def get_available_unlocks(self, count=3, faction=None):
         """Get random cards available to unlock, optionally filtered by faction."""
+        if self.unlock_override_enabled:
+            return []
         locked_cards = [cid for cid in UNLOCKABLE_CARDS.keys() 
                        if cid not in self.unlocked_cards]
         

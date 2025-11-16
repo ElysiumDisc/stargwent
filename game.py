@@ -474,8 +474,19 @@ class Player:
                         if "Legendary Commander" in (card.ability or ""):
                             card.displayed_power += 2
             
-            # Master Bra'tac: Units get +3 power in final round
-            elif "Master Bra'tac" in leader_name:
+            # Rya'c: Draw 2 extra cards at start of round 3
+            elif "Rya'c" in leader_name:
+                if getattr(self, 'round_number', 1) == 3 and not getattr(player, '_ryac_triggered', False):
+                    player.draw_cards(2)
+                    player._ryac_triggered = True  # Only trigger once
+                    self.add_history_event(
+                        "ability",
+                        f"{player.name} (Rya'c) drew 2 cards - Hope for Tomorrow!",
+                        self._owner_label(player)
+                    )
+
+            # (Master Bra'tac removed - duplicate)
+            elif False:  # Old Master Bra'tac code
                 if getattr(self, 'current_round_number', 1) == 3:
                     for row_cards in self.board.values():
                         for card in row_cards:
@@ -1181,6 +1192,8 @@ class Game:
         result = None
         if "Apophis" in leader_name:
             result = self._activate_apophis_weather(player)
+        elif "Catherine Langford" in leader_name:
+            result = self._activate_catherine_knowledge(player)
         if result:
             self.leader_ability_used[player] = True
             self.player1.calculate_score()
@@ -1206,7 +1219,7 @@ class Game:
         weather_card = copy.deepcopy(random.choice(template_candidates))
         weather_card.id = f"apophis_weather_{ability_name.replace(' ', '_').lower()}"
         weather_card.name = f"{player.leader.get('name', 'Leader')} Decree"
-        
+
         # Temporarily treat Apophis as the acting player for weather logic
         original_player = self.current_player
         self.current_player = player
@@ -1217,6 +1230,57 @@ class Game:
         for affected_row in affected_rows:
             self._set_weather_slot(affected_row, {"card": weather_card, "owner": None})
         return {"ability": ability_name, "rows": affected_rows, "card": weather_card}
+
+    def _activate_catherine_knowledge(self, player):
+        """Catherine Langford: Look at top 3 cards of deck, play one immediately."""
+        # Get top 3 cards from deck
+        if len(player.deck) < 1:
+            return None
+
+        revealed_cards = player.deck[:min(3, len(player.deck))]
+
+        # Return cards for UI selection (main.py will handle the choice)
+        return {
+            "ability": "Ancient Knowledge",
+            "revealed_cards": revealed_cards,
+            "requires_ui": True  # Signal that UI interaction is needed
+        }
+
+    def catherine_play_chosen_card(self, player, chosen_card):
+        """
+        Play the chosen card from Catherine's ability and move others to bottom of deck.
+
+        Args:
+            player: The player using the ability
+            chosen_card: The card they chose to play
+        """
+        if len(player.deck) < 1:
+            return
+
+        # Get top 3 cards
+        revealed_cards = player.deck[:min(3, len(player.deck))]
+
+        if chosen_card not in revealed_cards:
+            return
+
+        # Remove all 3 from top of deck
+        for card in revealed_cards:
+            if card in player.deck:
+                player.deck.remove(card)
+
+        # Add chosen card to hand
+        player.hand.append(chosen_card)
+
+        # Put other cards at bottom of deck
+        other_cards = [c for c in revealed_cards if c != chosen_card]
+        player.deck.extend(other_cards)
+
+        self.add_history_event(
+            "ability",
+            f"{player.name} used Ancient Knowledge and drew {chosen_card.name}",
+            self._owner_label(player),
+            card_ref=chosen_card
+        )
 
     def apply_special_effect(self, card, row_name):
         """Applies special card effects."""
