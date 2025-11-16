@@ -2,6 +2,7 @@ import pygame
 import sys
 import math
 import random
+import os
 from pygame.math import Vector2
 from game import Game
 from cards import (
@@ -34,6 +35,98 @@ from main_menu import run_main_menu, DeckManager, show_stargate_opening
 from power import FACTION_POWERS, FactionPowerEffect
 from deck_persistence import record_victory, record_defeat, check_leader_unlock, get_persistence
 
+FACTION_BATTLE_MUSIC = {
+    FACTION_TAURI: os.path.join("assets", "audio", "tauri_theme.ogg"),
+    FACTION_GOAULD: os.path.join("assets", "audio", "goauld_theme.ogg"),
+    FACTION_JAFFA: os.path.join("assets", "audio", "jaffa_theme.ogg"),
+    FACTION_LUCIAN: os.path.join("assets", "audio", "lucian_theme.ogg"),
+    FACTION_ASGARD: os.path.join("assets", "audio", "asgard_theme.ogg"),
+}
+_current_battle_music = None
+_current_music_faction = None
+_next_music_allowed_at = 0
+_battle_music_cooldown_ms = 120000
+
+
+def _ensure_mixer_ready():
+    if pygame.mixer.get_init():
+        return True
+    try:
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+        return True
+    except pygame.error as exc:
+        print(f"[audio] Unable to init mixer: {exc}")
+        return False
+
+
+def _play_battle_theme(faction, *, force=False):
+    """Internal helper that plays the faction track once if cooldown allows."""
+    global _current_battle_music, _next_music_allowed_at
+    if faction is None:
+        return False
+    music_path = FACTION_BATTLE_MUSIC.get(faction)
+    if not music_path:
+        return False
+    if not os.path.exists(music_path):
+        print(f"[audio] Battle music missing for {faction}: {music_path}")
+        return False
+    now = pygame.time.get_ticks()
+    if not force and now < _next_music_allowed_at:
+        return False
+    if not _ensure_mixer_ready():
+        return False
+    try:
+        pygame.mixer.music.load(music_path)
+        pygame.mixer.music.set_volume(0.7)
+        pygame.mixer.music.play(0)
+        _current_battle_music = music_path
+        _next_music_allowed_at = now + _battle_music_cooldown_ms
+        print(f"[audio] Battle music playing for {faction}: {music_path}")
+        return True
+    except pygame.error as exc:
+        print(f"[audio] Unable to play battle music ({music_path}): {exc}")
+        return False
+
+
+def set_battle_music_faction(faction, *, immediate=False):
+    """Select which faction music should be considered for playback."""
+    global _current_music_faction, _next_music_allowed_at
+    if faction == _current_music_faction:
+        if immediate:
+            _play_battle_theme(faction, force=True)
+        return
+    stop_battle_music()
+    _current_music_faction = faction
+    _next_music_allowed_at = 0
+    if faction:
+        _play_battle_theme(faction, force=True)
+
+
+def update_battle_music():
+    """Call regularly to restart music respecting the cooldown."""
+    if not _current_music_faction:
+        return
+    if not pygame.mixer.get_init():
+        return
+    if pygame.mixer.music.get_busy():
+        return
+    _play_battle_theme(_current_music_faction)
+
+
+def stop_battle_music(fade_ms=800):
+    """Stop any playing battle theme and clear the faction."""
+    global _current_battle_music, _current_music_faction
+    if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+        try:
+            pygame.mixer.music.fadeout(fade_ms)
+        except pygame.error:
+            pygame.mixer.music.stop()
+    if _current_battle_music:
+        print(f"[audio] Battle music stopped ({_current_battle_music})")
+    _current_battle_music = None
+    _current_music_faction = None
+
+
 # Initialize Pygame
 pygame.init()
 
@@ -50,7 +143,6 @@ except:
 # Screen dimensions - Auto-detect and scale
 # Get desktop resolution ONCE at very first run
 # Store in a temp file to persist across module reloads
-import os
 import tempfile
 _desktop_cache_file = os.path.join(tempfile.gettempdir(), 'stargwent_desktop_cache.txt')
 
@@ -2629,6 +2721,9 @@ def main():
     # Show game start animation
     show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
     
+    # Start faction-specific battle music (currently Goa'uld only)
+    set_battle_music_faction(player_faction, immediate=True)
+    
     ai_controller = AIController(game, game.player2, difficulty="medium")
     selected_card = None
     dragging_card = None
@@ -2724,6 +2819,7 @@ def main():
     while running:
         enforce_display_mode()
         dt = clock.tick(60)  # 60 FPS, returns milliseconds since last frame
+        update_battle_music()
         if getattr(game, "history_dirty", False):
             if not history_manual_scroll:
                 history_scroll_offset = 0
@@ -2980,6 +3076,7 @@ def main():
                 # Game over screen - R to restart
                 if game.game_state == "game_over":
                     if event.key == pygame.K_r:
+                        stop_battle_music()
                         main()
                         return
                     elif event.key == pygame.K_ESCAPE:
@@ -4299,14 +4396,17 @@ def main():
                     paused = False
                 elif main_menu_button.collidepoint(mouse_pos):
                     # Return to main menu
+                    stop_battle_music()
                     main()
                     return
                 elif quit_button.collidepoint(mouse_pos):
+                    stop_battle_music()
                     pygame.quit()
                     sys.exit()
 
         pygame.display.flip()
 
+    stop_battle_music()
     pygame.quit()
     sys.exit()
 

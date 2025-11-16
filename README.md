@@ -958,6 +958,16 @@ assets/
 └── dhd_placeholder.png              # DHD button graphic
 ```
 
+### Audio Workflow (Sonic Pi → Game)
+- `assets/audio/main_menu_theme_sonicpi.rb`: Run once at 120 BPM (≈63 s), export `main_menu_theme.wav`, then `ffmpeg -i main_menu_theme.wav -c:a libvorbis assets/audio/main_menu_music.ogg`. `main_menu.py` plays it once and only restarts the loop every 30 seconds to keep the menu calm before matches.
+- `assets/audio/goauld_theme_sonicpi.rb`: Run once at 90 BPM (≈43 s, matching the Goa'uld dark ascension cue), export `goauld_theme.wav`, then `ffmpeg -i goauld_theme.wav -c:a libvorbis assets/audio/goauld_theme.ogg`. `main.py` loops it whenever the player enters a match as the Goa'uld faction.
+- `assets/audio/asgard_theme_sonicpi.rb`: Run once at 96 BPM (≈45 s, inspired by the Asgard victory march cue), export `asgard_theme.wav`, then `ffmpeg -i asgard_theme.wav -c:a libvorbis assets/audio/asgard_theme.ogg`. `main.py` now loops it whenever you play as the Asgard faction.
+- `assets/audio/tauri_theme_sonicpi.rb`: Run once at 110 BPM (≈39 s, Tau'ri marching cue), export `tauri_theme.wav`, then `ffmpeg -i tauri_theme.wav -c:a libvorbis assets/audio/tauri_theme.ogg`. Drop the `.ogg` in place and Tau'ri matches will trigger it automatically.
+- `assets/audio/jaffa_theme_sonicpi.rb`: Run once at 92 BPM (≈39 s, Jaffa chant cue), export `jaffa_theme.wav`, then `ffmpeg -i jaffa_theme.wav -c:a libvorbis assets/audio/jaffa_theme.ogg`. Matches where you play Jaffa will load it when present.
+- `assets/audio/lucian_theme_sonicpi.rb`: Run once at 102 BPM (≈38 s, Lucian rogue pulse), export `lucian_theme.wav`, then `ffmpeg -i lucian_theme.wav -c:a libvorbis assets/audio/lucian_theme.ogg`. Lucian Alliance runs will pick it up once the `.ogg` exists.
+
+Battle themes only replay every 2 minutes: each track plays once when your faction enters the arena, the mixer rests for 120 s, then quietly restarts if you remain in the match.
+
 ### Data Files (Auto-Generated)
 ```
 player_decks.json         # Per-faction deck configurations (leader + cards)
@@ -1235,7 +1245,7 @@ Suggestions and feedback welcome!
 ## 🐛 Known Issues
 
 - **AI**: Basic-medium difficulty (improvements planned)
-- **Sound**: No audio yet (planned)
+- **Sound**: Menu + Goa'uld + Asgard themes implemented; other factions' battle music & SFX still pending
 - **Multiplayer**: Single player only (local MP planned)
 
 ---
@@ -1303,6 +1313,8 @@ Suggestions and feedback welcome!
 **⚡ Chevron Seven Locked! ⚡**
 
 Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
+
+Special thanks to the Sonic Pi team and community for providing the live-coding instrument that powers every custom soundtrack in Stargwent.
 
 *v1.7 - Witcher 3 Gwent Layout: Authentic board design with clear separation, proper lane spacing, weather separator, and fixed hand positioning!*
 *v1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*

@@ -15,6 +15,76 @@ from rules_menu import run_rules_menu
 
 # Save file for custom decks
 CUSTOM_DECKS_FILE = "player_decks.json"
+MENU_MUSIC_PATH = os.path.join("assets", "audio", "main_menu_music.ogg")
+_menu_music_playing = False
+_menu_music_next_allowed = 0
+_MENU_LOOP_DELAY_MS = 30000
+
+
+def _ensure_mixer():
+    """Initialize the mixer once before trying to play anything."""
+    if pygame.mixer.get_init():
+        return True
+    try:
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+        return True
+    except pygame.error as exc:
+        print(f"[audio] Mixer init failed, menu music disabled: {exc}")
+        return False
+
+
+def start_menu_music(immediate=False):
+    """Kick off the main menu track if allowed."""
+    global _menu_music_playing, _menu_music_next_allowed
+    if _menu_music_playing:
+        return
+    if not os.path.exists(MENU_MUSIC_PATH):
+        print("[audio] Menu music file missing:", MENU_MUSIC_PATH)
+        return
+    now = pygame.time.get_ticks()
+    if not immediate and now < _menu_music_next_allowed:
+        return
+    if not _ensure_mixer():
+        return
+    try:
+        pygame.mixer.music.load(MENU_MUSIC_PATH)
+        pygame.mixer.music.set_volume(0.65)
+        pygame.mixer.music.play(0)
+        _menu_music_playing = True
+        print(f"[audio] Main menu music playing from {MENU_MUSIC_PATH}")
+    except pygame.error as exc:
+        print(f"[audio] Unable to start menu music: {exc}")
+
+
+def update_menu_music():
+    """Restart menu track every 30s after it finishes."""
+    global _menu_music_playing, _menu_music_next_allowed
+    if not os.path.exists(MENU_MUSIC_PATH):
+        return
+    if not pygame.mixer.get_init():
+        return
+    if _menu_music_playing and not pygame.mixer.music.get_busy():
+        _menu_music_playing = False
+        _menu_music_next_allowed = pygame.time.get_ticks() + _MENU_LOOP_DELAY_MS
+    if not _menu_music_playing:
+        start_menu_music()
+
+
+def stop_menu_music(fade_ms=600):
+    """Stop the menu track."""
+    global _menu_music_playing, _menu_music_next_allowed
+    if not _menu_music_playing:
+        return
+    if not pygame.mixer.get_init():
+        _menu_music_playing = False
+        _menu_music_next_allowed = 0
+        return
+    try:
+        pygame.mixer.music.fadeout(fade_ms)
+    except pygame.error:
+        pygame.mixer.music.stop()
+    _menu_music_playing = False
+    _menu_music_next_allowed = 0
 
 
 class DeckManager:
@@ -598,11 +668,13 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     deck_manager = DeckManager(unlock_system)
     main_menu = MainMenu(screen.get_width(), screen.get_height())
     clock = pygame.time.Clock()
+    start_menu_music(immediate=True)
     
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                stop_menu_music()
                 return None
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F11:
@@ -616,6 +688,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             
             action = main_menu.handle_event(event)
             if action == 'new_game':
+                stop_menu_music()
                 return 'new_game'
             elif action == 'deck_building':
                 # Use the GOOD deck builder from deck_builder.py
@@ -626,12 +699,15 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             elif action == 'rules_menu':
                 run_rules_menu(screen, toggle_fullscreen_callback)
             elif action == 'quit':
+                stop_menu_music()
                 return None
         
+        update_menu_music()
         main_menu.draw(screen)
         pygame.display.flip()
         clock.tick(60)
     
+    stop_menu_music()
     return None
 
 
