@@ -1,5 +1,6 @@
 import random
 import pygame
+from typing import Optional
 from deck_builder import run_deck_builder, FACTION_LEADERS, build_faction_deck
 from leader_matchup import LeaderMatchupAnimation
 from lan_session import LanSession
@@ -45,11 +46,19 @@ def wait_for_message(session, expected_type):
 
 
 def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_fullscreen_callback=None) -> Optional[LanContext]:
+    from lan_lobby import run_lan_lobby
+
+    # Show waiting lobby with chat until both players are ready
+    ready = run_lan_lobby(screen, session, role)
+    if not ready:
+        session.close()
+        return None
+
     clock = pygame.time.Clock()
     selection = run_deck_builder(screen, unlock_override=True, toggle_fullscreen_callback=toggle_fullscreen_callback)
     if selection is None:
         session.close()
-        return
+        return None
     
     local_payload = {
         "faction": selection["faction"],

@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-2.2-blue)
+![Version](https://img.shields.io/badge/version-2.5-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -24,6 +24,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - [🏆 Progression System](#-progression-system)
 - [🎨 Visual Features](#-visual-features)
 - [⌨️ Controls](#️-controls)
+- [🌐 LAN Multiplayer Architecture](#-lan-multiplayer-architecture)
 - [📊 Implementation Status](#-implementation-status)
 - [🏗️ Project Structure](#️-project-structure)
 - [🔧 Technical Details](#-technical-details)
@@ -37,6 +38,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
+- **⚡ NEW v2.5: MASTER VOLUME SLIDER** - Interactive sound control with real-time adjustment, persistent settings, and beautiful gradient UI!
+- **⚡ NEW v2.5: ENHANCED HISTORY PANEL** - Comprehensive event tracking: round results, leader abilities, weather, scorch, card draws, and more!
+- **⚡ NEW v2.5: LAN WAITING LOBBY** - Ready system with live chat before deck selection!
 - **⚡ NEW v2.2: LAN MULTIPLAYER** - Full 2-player networked gameplay with chat!
 - **218 Cards** across 5 factions + Neutral cards
 - **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
@@ -146,6 +150,38 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 2.5 (January 2025)
+**Enhanced History, Sound Control & Multiplayer Polish**
+
+- ✅ **Enhanced Game History** – Comprehensive event tracking for single-player matches:
+  - Round start/end announcements with scores
+  - Leader ability activations (O'Neill clones, Penegal revival, Anateo medic, etc.)
+  - Card draw bonuses tracked (Teal'c wins, O'Neill resourcefulness)
+  - Weather effects logged (Ice Planet, Nebula, EMP, Wormhole clear)
+  - Scorch/special abilities with destroyed card details
+  - Thor's Hammer, ZPM, Communication Device events
+  - McKay/Yu pass abilities
+- ✅ **Master Volume Slider** – Interactive sound control in Options menu:
+  - Drag-to-adjust volume slider (0-100%)
+  - Real-time volume changes (hear adjustments immediately)
+  - Persistent settings saved to `game_settings.json`
+  - Applies to menu music, battle music, and SFX
+  - Clean blue gradient UI design
+- ✅ **LAN Waiting Lobby** – Enhanced multiplayer pre-game experience:
+  - Ready/Not Ready system (both players must confirm)
+  - Live chat while waiting in lobby
+  - Visual status indicators (Host/Client roles)
+  - "START MATCH" button appears when both ready
+- ✅ **Jonas Quinn Ability Fixed** – Now shows only cards drawn AFTER mulligan (not starting hand):
+  - Tracks opponent draws during rounds
+  - Shows all drawn cards in horizontal layout
+  - Clear overlay with card count
+  - Excludes starting hand from visibility
+- ✅ **Ryac Leader Matchup** – Added character quotes for unlockable Jaffa leader:
+  - vs Apophis: "I am Jaffa. I will not be your slave!"
+  - vs Teal'c: "I will make you proud, Father."
+  - vs Bra'tac: "Master Bra'tac taught me the ways of freedom."
 
 ### Version 2.2 (November 2025)
 **LAN Multiplayer & Leader Refinements**
@@ -699,7 +735,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 #### **20 Unlockable Leaders**
 
 **Tau'ri:**
-- Jonas Quinn - See opponent's next card
+- Jonas Quinn - See any cards drawn by opponent (not starting hand)
 - Catherine Langford - Ancient Knowledge: Look at top 3 cards, play one immediately
 - Gen. Landry - +1 power to units each round they survive
 - Dr. McKay - Draw 2 cards when you pass
@@ -887,7 +923,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
   - Asgard: Blue holographic lattice swap
 
 #### **32/32 Leader Abilities Working**
-- ✅ Jonas Quinn - Peek at opponent's next card
+- ✅ Jonas Quinn - See any cards drawn by opponent (not starting hand)
 - ✅ Ba'al (Clone) - Clone strongest unit
 - ✅ Vala - Look at 3 cards, keep 1
 - ✅ Thor (Supreme) - Move unit between rows
@@ -936,7 +972,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 
 ## 🏗️ Project Structure
 
-### Python Files (13 total)
+### Python Files (21 total)
 
 #### **Core Game Files**
 - `main.py` (2215 lines) - Main game loop, UI, event handling, Power system integration
@@ -946,16 +982,29 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 
 #### **UI & Menu Files**
 - `main_menu.py` (830 lines) - Main menu, faction selection, Stargate opening animation
-- `leader_matchup.py` (450+ lines) - **NEW v0.9!** Cinematic leader confrontation system with 40+ lore quotes
+- `leader_matchup.py` (450+ lines) - Cinematic leader confrontation system with 40+ lore quotes
 - `deck_builder.py` (1025 lines) - Deck customization interface with drag-and-drop
-- `unlocks.py` (791 lines) - Progression system (renamed from `card_unlock_system.py`)
+- `unlocks.py` (791 lines) - Progression system
+- `rules_menu.py` (1400+ lines) - **NEW v1.7!** Interactive rule compendium with search
 
 #### **Persistence & Data Files**
-- `deck_persistence.py` (260 lines) - **NEW v0.8!** Automatic deck/progress saving system
+- `deck_persistence.py` (260 lines) - Automatic deck/progress saving system
+- `game_settings.py` (110 lines) - **NEW v2.5!** Sound settings with volume control
+- `content_registry.py` (220 lines) - **NEW v2.2!** Centralized leader/card registry
 
 #### **Visual & Effects Files**
 - `animations.py` (1974 lines) - All animation and particle systems
-- `power.py` (600 lines) - Faction Power system with cinematic effects (renamed from `iris_power.py`)
+- `power.py` (600 lines) - Faction Power system with cinematic effects
+
+#### **LAN Multiplayer Files** - **NEW v2.2-2.5!**
+- `lan_session.py` (84 lines) - TCP socket wrapper with JSON framing
+- `lan_protocol.py` (82 lines) - Message types and protocol definitions
+- `lan_game.py` (156 lines) - LAN setup flow and game initialization
+- `lan_opponent.py` (296 lines) - NetworkController and NetworkPlayerProxy
+- `lan_menu.py` (170 lines) - Host/Join connection interface
+- `lan_lobby.py` (195 lines) - **NEW v2.5!** Waiting room with ready system
+- `lan_chat.py` (66 lines) - Chat panel for multiplayer
+- `lan_context.py` (25 lines) - Data structures for LAN state
 
 #### **Utility Files**
 - `create_placeholders.py` (530 lines) - Asset generation script (4K support)
@@ -963,15 +1012,26 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 ### Asset Structure
 ```
 assets/
-├── audio/                           # Music and sound effects (future)
+├── audio/                           # Music and sound effects
+│   ├── main_menu_music.ogg          # Main menu theme
+│   ├── goauld_theme.ogg             # Goa'uld battle music
+│   ├── asgard_theme.ogg             # Asgard battle music
+│   ├── tauri_theme.ogg              # Tau'ri battle music
+│   ├── jaffa_theme.ogg              # Jaffa battle music
+│   ├── lucian_theme.ogg             # Lucian Alliance battle music
+│   └── stargate_sequence.ogg        # Stargate opening SFX
 ├── board_background.png             # 4K main game board
 ├── menu_background.png              # 4K menu background
 ├── deck_building_background.png     # 4K deck builder background
-├── card_back.png                    # Card back design (200x280) - NEW v0.9!
+├── card_back.png                    # Card back design (200x280)
 ├── [card_id].png                    # 218 card images (200x280)
 ├── [card_id]_leader.png             # 35 leader portraits
-├── leader_bg_[faction]_[leader].png # 35 leader selection backgrounds - NEW v0.9!
-└── dhd_placeholder.png              # DHD button graphic
+└── leader_bg_[faction]_[leader].png # 35 leader selection backgrounds
+
+Save Files (auto-generated):
+├── player_decks.json                # Custom deck configurations
+├── player_unlocks.json              # Unlock progress and stats
+└── game_settings.json               # Sound and game settings - NEW v2.5!
 ```
 
 ### Audio Workflow (Sonic Pi → Game)
@@ -1080,6 +1140,62 @@ self.displayed_power       # Calculated power (changes in game)
 - `end_round()` - Round start abilities
 - `pass_turn()` - Pass-based abilities (McKay)
 - `apply_special_effect()` - Special card logic
+
+### Sound System Architecture
+
+#### **Settings Persistence** (`game_settings.py`)
+```python
+# Global settings instance
+from game_settings import get_settings
+
+settings = get_settings()
+
+# Volume ranges: 0.0 to 1.0 (0% to 100%)
+master_volume = settings.get_master_volume()
+music_volume = settings.get_music_volume()
+sfx_volume = settings.get_sfx_volume()
+
+# Effective volumes (master × specific)
+effective_music = settings.get_effective_music_volume()
+effective_sfx = settings.get_effective_sfx_volume()
+
+# Set and auto-save
+settings.set_master_volume(0.8)  # Saves to game_settings.json
+settings.apply_volume()          # Apply to pygame.mixer
+```
+
+#### **Settings File** (`game_settings.json`)
+```json
+{
+  "master_volume": 0.7,
+  "music_volume": 0.7,
+  "sfx_volume": 0.7
+}
+```
+
+#### **Volume Application**
+- **Menu Music**: `master × music` (default: 0.7 × 0.7 = 0.49)
+- **Battle Music**: `master × music` (per faction theme)
+- **SFX**: `master × sfx` (Stargate sequence, abilities)
+
+#### **Sound Loading**
+```python
+# Music (streaming)
+pygame.mixer.music.load(path)
+pygame.mixer.music.set_volume(settings.get_effective_music_volume())
+pygame.mixer.music.play()
+
+# Sound effects (preloaded)
+sound = pygame.mixer.Sound(path)
+sound.set_volume(settings.get_effective_sfx_volume())
+sound.play()
+```
+
+#### **Options Menu Slider**
+- **Interactive Drag**: Smooth volume adjustment
+- **Real-time Preview**: Hear changes immediately
+- **Visual Feedback**: Blue gradient fill, percentage display
+- **Persistent**: Auto-saves on change
 
 ### Code Quality & Verification
 
@@ -1333,12 +1449,146 @@ Suggestions and feedback welcome!
 - More hyperspace/wormhole effects
 
 ### 📋 Planned
-- Local multiplayer (2 players)
-- Tournament mode
+- Tournament mode (best-of-3)
 - Achievement system
 - More factions (Wraith, Ori, Atlantis)
 - Statistics tracking
 - Custom card creation tools
+
+---
+
+## 🌐 LAN Multiplayer Architecture
+
+### Overview
+
+Stargwent features **peer-to-peer TCP-based LAN multiplayer** where two players can battle against each other in real-time. The system uses a deterministic game engine synchronized by exchanging only player actions, ensuring both clients see the same game state.
+
+### Connection Flow
+
+```
+1. Main Menu → Select "LAN Multiplayer"
+2. LAN Menu → Host (opens port 4765) OR Join (enter host IP)
+3. Waiting Lobby ✨ → Chat while waiting, press READY when ready
+4. Deck Selection → Both players choose faction/leader/deck independently
+5. Seed Sync → Host generates seed, client receives it
+6. Leader Matchup → Cinematic reveal animation
+7. Game Start → Battle begins!
+```
+
+### Player Perspective
+
+**Each player sees:**
+- **YOU (Player 1)**: Hand face-up, full control
+- **OPPONENT (Player 2)**: Hand as card backs (hidden), replays network actions
+- **Board**: Shared view, all cards visible
+- **Chat Panel**: Bottom-right corner during match
+- **History Panel**: Left side shows game events (NOT chat)
+
+### Key Components
+
+#### LanSession (`lan_session.py`)
+- TCP socket wrapper with JSON message framing
+- Thread-safe inbox queue
+- Newline-delimited JSON packets
+
+#### Network Protocol (`lan_protocol.py`)
+```python
+Message Types:
+  CHAT           # Live chat messages
+  DECK_SELECTION # Faction, leader, 30 card IDs
+  SEED           # Random seed for synchronization
+  GAME_ACTION    # play_card, pass, faction_power
+  MULLIGAN       # Card indices to redraw
+  READY_CHECK    # Player ready status
+```
+
+#### NetworkController (`lan_opponent.py`)
+Replaces AIController in LAN mode:
+- Waits for network messages instead of computing moves
+- Processes opponent actions and replays them locally
+- Maintains turn synchronization
+
+#### LanLobby (`lan_lobby.py`)
+- Waiting room with live chat
+- Ready/Not Ready toggle buttons
+- "START MATCH" appears when both ready
+- Shows connection status (Host/Client)
+
+### Synchronization Strategy
+
+**Deterministic Engine**: Both clients run the full game engine locally. Only player **actions** are sent over the network, not the entire game state.
+
+**What Gets Synchronized:**
+- ✅ Player actions (card plays, pass, faction power)
+- ✅ Mulligan choices
+- ✅ Random seed (ensures identical RNG)
+
+**What Does NOT Get Synchronized:**
+- ❌ Game state (calculated locally)
+- ❌ Card positions (calculated locally)
+- ❌ Scores (calculated locally)
+- ❌ Animations (run locally)
+
+### Message Flow Example
+
+**Card Play:**
+```
+Player 1 (Local):
+  1. Drags card to board
+  2. NetworkPlayerProxy sends GAME_ACTION: play_card
+
+Player 2 (Remote):
+  1. NetworkController receives GAME_ACTION
+  2. Finds card in hand by ID
+  3. Replays card play on local board
+
+Result: Both see identical board state
+```
+
+### Animations & Effects
+
+All animations run **locally** on each client:
+- ✅ Card play animations
+- ✅ Faction power effects (Stargate, Asgard beams, etc.)
+- ✅ Weather effects
+- ✅ Scorch explosions
+- ✅ Leader ability effects
+
+Animations trigger based on game events, which are synchronized via actions.
+
+### Technical Details
+
+- **Architecture**: Peer-to-peer TCP
+- **Port**: 4765 (must be open on host)
+- **Protocol**: JSON newline-delimited
+- **Perspective**: Each player is Player 1 locally
+- **Chat**: Available in lobby and during game
+- **Disconnect**: Auto-detected, returns to menu
+
+### Testing Checklist
+
+#### Connection:
+- Host can open port 4765
+- Client can connect to host IP
+- Both see "Connected" status
+- Chat works in lobby
+
+#### Gameplay:
+- Both see same board state
+- Card plays appear on both screens
+- Pass turn syncs correctly
+- Faction powers work
+- Weather effects sync
+- Leader abilities trigger
+- Round end/start syncs
+
+### Known Limitations
+
+1. **LAN Only**: No internet/matchmaking (by design)
+2. **No Spectator Mode**: Only 2 players
+3. **No Reconnect**: Disconnect = game over
+4. **No Save/Resume**: Match must finish in one session
+5. **Firewall**: Port 4765 must be open on host
 
 ---
 

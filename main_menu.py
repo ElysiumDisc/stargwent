@@ -41,6 +41,7 @@ def _ensure_mixer():
 
 def start_menu_music(immediate=False):
     """Kick off the main menu track if allowed."""
+    from game_settings import get_settings
     global _menu_music_playing, _menu_music_next_allowed
     if _menu_music_playing:
         return
@@ -53,11 +54,13 @@ def start_menu_music(immediate=False):
     if not _ensure_mixer():
         return
     try:
+        settings = get_settings()
+        volume = settings.get_effective_music_volume()
         pygame.mixer.music.load(MENU_MUSIC_PATH)
-        pygame.mixer.music.set_volume(0.65)
+        pygame.mixer.music.set_volume(volume)
         pygame.mixer.music.play(0)
         _menu_music_playing = True
-        print(f"[audio] Main menu music playing from {MENU_MUSIC_PATH}")
+        print(f"[audio] Main menu music playing from {MENU_MUSIC_PATH} at volume {volume:.2f}")
     except pygame.error as exc:
         print(f"[audio] Unable to start menu music: {exc}")
 
@@ -95,6 +98,7 @@ def stop_menu_music(fade_ms=600):
 
 def _get_stargate_sequence_sound():
     """Load and cache the Stargate sequence clip."""
+    from game_settings import get_settings
     global _stargate_sequence_sound, _stargate_sequence_sound_loaded
     if _stargate_sequence_sound_loaded:
         return _stargate_sequence_sound
@@ -105,9 +109,13 @@ def _get_stargate_sequence_sound():
     if not _ensure_mixer():
         return None
     try:
+        settings = get_settings()
         sound = pygame.mixer.Sound(STARGATE_SEQUENCE_PATH)
-        sound.set_volume(_STARGATE_SEQUENCE_VOLUME)
+        # Apply settings volume (SFX) with original 0.85 multiplier
+        volume = settings.get_effective_sfx_volume() * _STARGATE_SEQUENCE_VOLUME
+        sound.set_volume(volume)
         _stargate_sequence_sound = sound
+        print(f"[audio] Stargate sequence loaded at volume {volume:.2f}")
     except pygame.error as exc:
         print(f"[audio] Unable to load Stargate sequence audio: {exc}")
         _stargate_sequence_sound = None
@@ -257,6 +265,8 @@ class MainMenu:
     
 
     def run_options_menu(self, surface):
+        from game_settings import get_settings
+
         overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         clock = pygame.time.Clock()
@@ -264,14 +274,27 @@ class MainMenu:
         center_x = self.screen_width // 2
         center_y = self.screen_height // 2
 
-        # DHD button on the right side
+        settings = get_settings()
+
+        # Slider state
+        dragging_slider = False
+
+        # Volume slider (above unlock section)
+        slider_y = center_y - 220
+        slider_width = 500
+        slider_height = 40
+        slider_rect = pygame.Rect(center_x - slider_width // 2, slider_y, slider_width, slider_height)
+        slider_track_height = 8
+        slider_handle_radius = 16
+
+        # DHD button on the right side (moved down a bit)
         dhd_radius = 100  # Slightly smaller
         button_x = center_x + 180
-        button_y = center_y
+        button_y = center_y + 60  # Moved down to make room for slider
         dhd_rect = pygame.Rect(0, 0, dhd_radius * 2, dhd_radius * 2)
         dhd_rect.center = (button_x, button_y)
 
-        # Label on the left side
+        # Unlock label on the left side (moved down with button)
         label_surface = self.button_font.render("Unlock All Cards & Leaders", True, (220, 220, 220))
         label_rect = label_surface.get_rect(midright=(button_x - dhd_radius - 30, button_y - 10))
 
@@ -324,6 +347,17 @@ class MainMenu:
                 dhd_surface.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
             return dhd_surface
 
+        def get_slider_handle_pos():
+            """Get slider handle X position based on volume"""
+            volume = settings.get_master_volume()
+            return slider_rect.x + int(volume * slider_width)
+
+        def set_volume_from_pos(x):
+            """Set volume based on mouse X position"""
+            rel_x = x - slider_rect.x
+            volume = max(0.0, min(1.0, rel_x / slider_width))
+            settings.set_master_volume(volume)
+
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -332,8 +366,24 @@ class MainMenu:
                     if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                         running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if dhd_rect.collidepoint(event.pos):
+                    # Check slider first
+                    handle_x = get_slider_handle_pos()
+                    handle_rect = pygame.Rect(
+                        handle_x - slider_handle_radius,
+                        slider_rect.centery - slider_handle_radius,
+                        slider_handle_radius * 2,
+                        slider_handle_radius * 2
+                    )
+                    if handle_rect.collidepoint(event.pos) or slider_rect.collidepoint(event.pos):
+                        dragging_slider = True
+                        set_volume_from_pos(event.pos[0])
+                    elif dhd_rect.collidepoint(event.pos):
                         self.toggle_unlock_override()
+                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    dragging_slider = False
+                elif event.type == pygame.MOUSEMOTION:
+                    if dragging_slider:
+                        set_volume_from_pos(event.pos[0])
 
             # Draw overlay
             surface.blit(overlay, (0, 0))
@@ -341,11 +391,50 @@ class MainMenu:
             # Draw title
             surface.blit(title_surface, title_rect)
 
-            # Draw panel background
+            # Draw volume slider section
+            # Volume label
+            volume_label = self.button_font.render("Master Volume", True, (220, 220, 220))
+            volume_label_rect = volume_label.get_rect(center=(center_x, slider_y - 40))
+            surface.blit(volume_label, volume_label_rect)
+
+            # Slider track background
+            track_rect = pygame.Rect(
+                slider_rect.x,
+                slider_rect.centery - slider_track_height // 2,
+                slider_width,
+                slider_track_height
+            )
+            pygame.draw.rect(surface, (60, 70, 90), track_rect, border_radius=4)
+
+            # Slider filled portion
+            volume = settings.get_master_volume()
+            filled_width = int(volume * slider_width)
+            if filled_width > 0:
+                filled_rect = pygame.Rect(
+                    slider_rect.x,
+                    slider_rect.centery - slider_track_height // 2,
+                    filled_width,
+                    slider_track_height
+                )
+                pygame.draw.rect(surface, (100, 200, 255), filled_rect, border_radius=4)
+
+            # Slider handle
+            handle_x = get_slider_handle_pos()
+            handle_center = (handle_x, slider_rect.centery)
+            pygame.draw.circle(surface, (255, 255, 255), handle_center, slider_handle_radius)
+            pygame.draw.circle(surface, (100, 200, 255), handle_center, slider_handle_radius - 3)
+
+            # Volume percentage text
+            volume_pct = int(volume * 100)
+            volume_text = status_font.render(f"{volume_pct}%", True, (180, 180, 180))
+            volume_text_rect = volume_text.get_rect(center=(center_x, slider_y + 50))
+            surface.blit(volume_text, volume_text_rect)
+
+            # Draw panel background (for unlock section)
             panel_padding = 40
             panel_rect = pygame.Rect(
                 center_x - 400,
-                center_y - 80,
+                center_y - 20,  # Adjusted to match moved DHD button
                 800,
                 160
             )
@@ -372,9 +461,9 @@ class MainMenu:
             surface.blit(instruction_surface, instruction_rect)
 
             # Draw hint text
-            hint_text = "(Click the button to toggle)"
+            hint_text = "(Drag slider or click DHD to toggle unlock)"
             hint_surface = instruction_font.render(hint_text, True, (150, 150, 150))
-            hint_rect = hint_surface.get_rect(center=(center_x, center_y + 100))
+            hint_rect = hint_surface.get_rect(center=(center_x, center_y + 160))
             surface.blit(hint_surface, hint_rect)
 
             pygame.display.flip()

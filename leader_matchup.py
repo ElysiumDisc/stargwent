@@ -171,7 +171,7 @@ LEADER_MATCHUPS = {
     },
     
     # Unlockable Jaffa leaders
-    ("Master Bra'tac", "Apophis"): {
+    ("Bra'tac", "Apophis"): {
         "quote": "This day of reckoning is long overdue, false god!",
         "context": "The master tactician's final stand",
         "color": (200, 150, 80)
@@ -185,6 +185,21 @@ LEADER_MATCHUPS = {
         "quote": "The Hak'tyl will never serve you again.",
         "context": "Female warriors break free",
         "color": (200, 160, 100)
+    },
+    ("Rya'c", "Apophis"): {
+        "quote": "I am Jaffa. I will not be your slave!",
+        "context": "Son of Teal'c's defiant stand for freedom",
+        "color": (200, 150, 80)
+    },
+    ("Rya'c", "Teal'c"): {
+        "quote": "I will make you proud, Father.",
+        "context": "Son following in his father's footsteps",
+        "color": (180, 180, 100)
+    },
+    ("Rya'c", "Bra'tac"): {
+        "quote": "Master Bra'tac taught me the ways of freedom.",
+        "context": "Student honoring his mentor",
+        "color": (200, 160, 90)
     },
     
     # Unlockable Lucian Alliance leaders
@@ -256,11 +271,11 @@ def get_matchup_data(leader1_name, leader2_name):
 def generate_dynamic_matchup(leader1_name, leader2_name):
     """Generate a matchup based on faction relationships."""
     # Simple faction-based relationships
-    tau_ri_leaders = ["O'Neill", "Hammond", "Carter", "Jackson", "Mitchell", "Landry", 
+    tau_ri_leaders = ["O'Neill", "Hammond", "Carter", "Jackson", "Mitchell", "Landry",
                       "McKay", "Jonas Quinn", "Catherine"]
     goauld_leaders = ["Apophis", "Yu", "Ba'al", "Sokar", "Anubis", "Hathor", "Cronus"]
-    jaffa_leaders = ["Teal'c", "Bra'tac", "Gerak", "Ishta", "Ka'lel", "Master Bra'tac", "Rak'nor"]
-    asgard_leaders = ["Thor", "Freyr", "Loki", "Heimdall", "Hermiod", "Penegal", "Aegir", 
+    jaffa_leaders = ["Teal'c", "Bra'tac", "Gerak", "Ishta", "Ka'lel", "Rak'nor", "Rya'c"]
+    asgard_leaders = ["Thor", "Freyr", "Loki", "Heimdall", "Hermiod", "Penegal", "Aegir",
                      "Supreme Commander"]
     lucian_leaders = ["Vulkar", "Sodan", "Netan", "Vala", "Anateo", "Kiva"]
     

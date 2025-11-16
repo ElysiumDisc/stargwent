@@ -564,11 +564,21 @@ class Player:
             for card in row:
                 self.score += card.displayed_power
 
-    def draw_cards(self, num=1):
-        """Draws a number of cards from the deck to the hand."""
+    def draw_cards(self, num=1, track_for_jonas=False):
+        """Draws a number of cards from the deck to the hand.
+
+        Args:
+            num: Number of cards to draw
+            track_for_jonas: If True, track these cards for Jonas Quinn's ability
+        """
+        drawn = []
         for _ in range(num):
             if self.deck:
-                self.hand.append(self.deck.pop())
+                card = self.deck.pop()
+                self.hand.append(card)
+                if track_for_jonas:
+                    drawn.append(card)
+        return drawn
 
     def spawn_oneill_clone(self):
         """Summon a temporary Jack O'Neill clone token to the close row."""
@@ -624,6 +634,9 @@ class Game:
         self.leader_ability_used = {self.player1: False, self.player2: False}
         self.last_turn_actor = None
 
+        # Jonas Quinn ability tracking - cards drawn by opponent AFTER mulligan
+        self.opponent_drawn_cards = []  # Cards drawn by player2 during gameplay
+
     def _owner_label(self, player):
         return "player" if player == self.player1 else "ai"
 
@@ -652,6 +665,12 @@ class Game:
         leader_name = player.leader.get('name', '')
         if "O'Neill" in leader_name:
             player.spawn_oneill_clone()
+            self.add_history_event(
+                "ability",
+                f"{player.name} (O'Neill) summoned a 6-power clone",
+                self._owner_label(player),
+                icon="👥"
+            )
 
     def discard_active_weather_cards(self):
         """Move any weather cards sitting on the board into their owners' discard piles."""
@@ -916,9 +935,21 @@ class Game:
                 # Dr. McKay: Draw 2 cards when you pass
                 if "McKay" in leader_name:
                     passing_player.draw_cards(2)
+                    self.add_history_event(
+                        "ability",
+                        f"{passing_player.name} (McKay) drew 2 cards when passing",
+                        self._owner_label(passing_player),
+                        icon="📚"
+                    )
                 # Lord Yu: Reveal opponent's hand when you pass
                 elif "Yu" in leader_name:
                     opponent = self.player2 if passing_player == self.player1 else self.player1
+                    self.add_history_event(
+                        "ability",
+                        f"{passing_player.name} (Lord Yu) will see {opponent.name}'s hand next round",
+                        self._owner_label(passing_player),
+                        icon="👁️"
+                    )
                     opponent.reveal_next_round = True
             self.last_turn_actor = passing_player
             self.switch_turn()
@@ -1108,6 +1139,12 @@ class Game:
             self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
             for p in [self.player1, self.player2]:
                 p.weather_effects = {"close": False, "ranged": False, "siege": False}
+            self.add_history_event(
+                "weather",
+                f"{acting_player.name} cleared all weather effects!",
+                self._owner_label(acting_player),
+                icon="☀️"
+            )
             return affected_rows
 
         # Asgard shielding: opponent can block the first enemy weather each round
@@ -1176,6 +1213,21 @@ class Game:
             row_key = target_row if target_row in ["close", "ranged", "siege"] else "close"
             if apply_row_weather(row_key, "Electromagnetic Pulse"):
                 affected_rows.append(row_key)
+
+        # Add history event for weather application
+        if affected_rows:
+            weather_name = ability.replace("Ice Planet Hazard", "Ice Planet") \
+                                  .replace("Nebula Interference", "Nebula") \
+                                  .replace("Asteroid Storm", "Meteor Shower") \
+                                  .replace("Electromagnetic Pulse", "EMP")
+            rows_text = ", ".join([r.title() for r in affected_rows])
+            self.add_history_event(
+                "weather",
+                f"{acting_player.name} played {weather_name} on {rows_text}",
+                self._owner_label(acting_player),
+                icon="🌩️"
+            )
+
         return affected_rows
 
     def can_use_leader_ability(self, player):
@@ -1322,20 +1374,44 @@ class Game:
         
         elif "Thor's Hammer" in card.name or "Remove all Goa'uld" in ability:
             # Remove all Goa'uld faction units from both boards
+            removed_count = 0
             for player in [self.player1, self.player2]:
                 for row_name in ["close", "ranged", "siege"]:
-                    player.board[row_name] = [c for c in player.board[row_name] 
+                    before = len(player.board[row_name])
+                    player.board[row_name] = [c for c in player.board[row_name]
                                              if c.faction != "Goa'uld"]
-        
+                    removed_count += before - len(player.board[row_name])
+            if removed_count > 0:
+                self.add_history_event(
+                    "ability",
+                    f"{self.current_player.name} used Thor's Hammer - removed {removed_count} Goa'uld units",
+                    self._owner_label(self.current_player),
+                    icon="🔨"
+                )
+
         elif "Zero Point Module" in card.name or "ZPM" in card.name or "Double all your siege" in ability:
             # Double all siege units for current player this round
+            siege_count = len(self.current_player.board.get("siege", []))
             for siege_card in self.current_player.board.get("siege", []):
                 siege_card.displayed_power = siege_card.power * 2
-        
+            if siege_count > 0:
+                self.add_history_event(
+                    "ability",
+                    f"{self.current_player.name} activated ZPM - doubled {siege_count} siege units",
+                    self._owner_label(self.current_player),
+                    icon="⚡"
+                )
+
         elif "Communication Device" in card.name or "Reveal opponent's hand" in ability:
             # Set a flag to reveal opponent's hand for this round
             opponent = self.player2 if self.current_player == self.player1 else self.player1
             opponent.hand_revealed = True
+            self.add_history_event(
+                "ability",
+                f"{self.current_player.name} revealed {opponent.name}'s hand",
+                self._owner_label(self.current_player),
+                icon="👀"
+            )
             # Will be displayed in UI
         
         elif "Sodan" in card.name and "Look at opponent's hand" in ability:
@@ -1391,21 +1467,33 @@ class Game:
                 for card in row_cards:
                     if "Legendary Commander" not in (card.ability or ""):
                         all_units.append((card, player, row_name))
-        
+
         if not all_units:
             return []
-        
+
         max_power = max(card.displayed_power for card, _, _ in all_units)
-        units_to_destroy = [(card, player, row) for card, player, row in all_units 
+        units_to_destroy = [(card, player, row) for card, player, row in all_units
                            if card.displayed_power == max_power]
-        
+
         destroyed_positions = []
+        destroyed_cards = []
         for card, player, row_name in units_to_destroy:
             if card in player.board[row_name]:
                 player.board[row_name].remove(card)
                 player.discard_pile.append(card)
                 destroyed_positions.append((player, row_name))
-        
+                destroyed_cards.append((card.name, player.name))
+
+        # Add history event for scorch
+        if destroyed_cards:
+            cards_text = ", ".join([f"{card} ({owner})" for card, owner in destroyed_cards])
+            self.add_history_event(
+                "scorch",
+                f"Naquadah Overload destroyed: {cards_text}",
+                "neutral",
+                icon="💥"
+            )
+
         return destroyed_positions
     
     def apply_scorch_to_player(self, target_player):
@@ -1458,19 +1546,44 @@ class Game:
         if self.player1.score > self.player2.score:
             self.player1.rounds_won += 1
             self.round_winner = self.player1
+            self.add_history_event(
+                "round_end",
+                f"Round {self.round_number} Winner: {self.player1.name} ({self.player1.score} vs {self.player2.score})",
+                "player",
+                icon="🏆"
+            )
         elif self.player2.score > self.player1.score:
             self.player2.rounds_won += 1
             self.round_winner = self.player2
+            self.add_history_event(
+                "round_end",
+                f"Round {self.round_number} Winner: {self.player2.name} ({self.player2.score} vs {self.player1.score})",
+                "ai",
+                icon="🏆"
+            )
         else: # Draw - both players get a point
             self.player1.rounds_won += 1
             self.player2.rounds_won += 1
             self.round_winner = None
+            self.add_history_event(
+                "round_end",
+                f"Round {self.round_number} Draw ({self.player1.score} - {self.player2.score})",
+                "neutral",
+                icon="⚖️"
+            )
         
         # Anubis leader ability: Auto-scorch in rounds 2 & 3
         for player in [self.player1, self.player2]:
             if player.leader and "Anubis" in player.leader.get('name', ''):
                 if self.round_number >= 2:  # Rounds 2 and 3
-                    self.apply_scorch()  # Trigger scorch effect
+                    destroyed = self.apply_scorch()  # Trigger scorch effect
+                    if destroyed:
+                        self.add_history_event(
+                            "ability",
+                            f"{player.name} (Anubis) triggered Ascended Power: Naquadah Overload!",
+                            self._owner_label(player),
+                            icon="💥"
+                        )
 
         self.round_number = min(self.round_number + 1, 3)
         
@@ -1534,9 +1647,22 @@ class Game:
                 # Col. Jack O'Neill: Draw 1 extra card at round start
                 if "O'Neill" in leader_name and self.round_number > 1:
                     base_draw += 1
+                    if self.round_number > 1:  # Only log if actually drawing extra
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (O'Neill) draws +1 card (Resourcefulness)",
+                            self._owner_label(p),
+                            icon="📖"
+                        )
                 # Teal'c: Draw 1 card when winning a round (if just won)
                 elif "Teal'c" in leader_name and self.round_winner == p:
                     base_draw += 1
+                    self.add_history_event(
+                        "ability",
+                        f"{p.name} (Teal'c) draws +1 card for winning last round",
+                        self._owner_label(p),
+                        icon="🏆"
+                    )
                 # NEW: Dr. McKay: Draw 2 cards when you pass
                 # (Handled in pass_turn method)
                 # NEW: Gerak: Draw 1 card for every 2 units played
@@ -1552,6 +1678,12 @@ class Game:
                         elif revived.row == "agile":
                             # Place agile in random valid row
                             p.board[random.choice(["close", "ranged", "siege"])].append(revived)
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (Penegal) revived {revived.name} from discard",
+                            self._owner_label(p),
+                            icon="♻️"
+                        )
                 # NEW: Netan: Add random Neutral card each round
                 elif "Netan" in leader_name:
                     # Add a random neutral card to hand (simplified - just draw extra)
@@ -1559,8 +1691,8 @@ class Game:
                 # NEW: Anateo: Free Medical Evac at start of each round
                 elif "Anateo" in leader_name and self.round_number > 1:
                     # Auto-trigger medic ability if discard has valid cards
-                    valid_cards = [c for c in p.discard_pile 
-                                  if "Legendary Commander" not in (c.ability or "") 
+                    valid_cards = [c for c in p.discard_pile
+                                  if "Legendary Commander" not in (c.ability or "")
                                   and c.row in ["close", "ranged", "siege", "agile"]]
                     if valid_cards:
                         # Revive highest power card
@@ -1568,13 +1700,40 @@ class Game:
                         p.discard_pile.remove(revived)
                         target_row = revived.row if revived.row != "agile" else "close"
                         p.board[target_row].append(revived)
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (Anateo) used free Medical Evac on {revived.name}",
+                            self._owner_label(p),
+                            icon="🏥"
+                        )
             
             # Draw base cards for the round
-            p.draw_cards(base_draw)
+            # Track opponent draws for Jonas Quinn (only after mulligan)
+            if self.game_state == "playing" and p == self.player2:
+                # Jonas Quinn: Track cards drawn by opponent
+                if self.player1.leader and "Jonas" in self.player1.leader.get('name', ''):
+                    drawn = p.draw_cards(base_draw, track_for_jonas=True)
+                    self.opponent_drawn_cards.extend(drawn)
+                else:
+                    p.draw_cards(base_draw)
+            else:
+                p.draw_cards(base_draw)
 
             # Apply faction round-start abilities (draw bonuses etc.)
             if p.faction_ability and hasattr(p.faction_ability, 'apply_round_start'):
-                p.faction_ability.apply_round_start(self, p)
+                # Track faction ability draws for Jonas Quinn
+                if self.game_state == "playing" and p == self.player2:
+                    if self.player1.leader and "Jonas" in self.player1.leader.get('name', ''):
+                        # Tau'ri draws extra cards - track them
+                        if p.faction == FACTION_TAURI and self.round_number > 1:
+                            drawn = p.draw_cards(1, track_for_jonas=True)
+                            self.opponent_drawn_cards.extend(drawn)
+                        else:
+                            p.faction_ability.apply_round_start(self, p)
+                    else:
+                        p.faction_ability.apply_round_start(self, p)
+                else:
+                    p.faction_ability.apply_round_start(self, p)
             self._apply_leader_round_start_effects(p)
             
             # Reset round-specific abilities
@@ -1591,6 +1750,15 @@ class Game:
         self.weather_active = {"close": False, "ranged": False, "siege": False}
         self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
         self.current_weather_types = {"close": None, "ranged": None, "siege": None}
-        
+
+        # Add round start history event
+        if self.round_number <= 3:
+            self.add_history_event(
+                "round_start",
+                f"═══ Round {self.round_number} Start ═══",
+                "neutral",
+                icon="🎯"
+            )
+
         # Reset turn to player 1
         self.current_player = self.player1

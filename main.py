@@ -80,12 +80,16 @@ def _play_battle_theme(faction, *, force=False):
     if not _ensure_mixer_ready():
         return False
     try:
+        from game_settings import get_settings
         pygame.mixer.music.load(music_path)
-        pygame.mixer.music.set_volume(0.7)
+        # Get volume from settings
+        settings = get_settings()
+        volume = settings.get_effective_music_volume()
+        pygame.mixer.music.set_volume(volume)
         pygame.mixer.music.play(0)
         _current_battle_music = music_path
         _next_music_allowed_at = now + _battle_music_cooldown_ms
-        print(f"[audio] Battle music playing for {faction}: {music_path}")
+        print(f"[audio] Battle music playing for {faction}: {music_path} at volume {volume:.2f}")
         return True
     except pygame.error as exc:
         print(f"[audio] Unable to play battle music ({music_path}): {exc}")
@@ -2422,51 +2426,52 @@ def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scro
     surface.blit(inst, inst_rect)
 
 def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
-    """Jonas Quinn: Show opponent's next card."""
-    if not game.player2.deck:
+    """Jonas Quinn: Show cards drawn by opponent (not starting hand)."""
+    if not game.opponent_drawn_cards:
         return
-    
+
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 180))
     surface.blit(overlay, (0, 0))
-    
+
     # Title
     title_font = pygame.font.Font(None, 56)
-    title_text = title_font.render("JONAS QUINN: Opponent's Next Card", True, (100, 200, 255))
+    cards_count = len(game.opponent_drawn_cards)
+    title_text = title_font.render(f"JONAS QUINN: Opponent Drew {cards_count} Card{'s' if cards_count > 1 else ''}", True, (100, 200, 255))
     title_rect = title_text.get_rect(center=(screen_width // 2, 80))
     surface.blit(title_text, title_rect)
-    
-    # Show next card
-    next_card = game.player2.deck[-1]  # Top of deck
-    card_display_width = 300
-    card_display_height = 450
-    card_x = (screen_width - card_display_width) // 2
+
+    # Show all drawn cards
+    card_display_width = 250
+    card_display_height = 375
+    spacing = 20
+    total_width = len(game.opponent_drawn_cards) * (card_display_width + spacing) - spacing
+    start_x = (screen_width - total_width) // 2
     card_y = 200
-    
-    # Draw card
-    scaled_image = pygame.transform.scale(next_card.image, (card_display_width, card_display_height))
-    surface.blit(scaled_image, (card_x, card_y))
-    pygame.draw.rect(surface, (100, 200, 255), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=3)
-    
-    # Card details
-    detail_font = pygame.font.Font(None, 32)
-    detail_y = card_y + card_display_height + 30
-    
-    details = [
-        f"Power: {next_card.power}",
-        f"Row: {next_card.row.capitalize()}",
-        f"Ability: {next_card.ability if next_card.ability else 'None'}"
-    ]
-    
-    for detail in details:
-        detail_text = detail_font.render(detail, True, (200, 200, 200))
-        detail_rect = detail_text.get_rect(center=(screen_width // 2, detail_y))
-        surface.blit(detail_text, detail_rect)
-        detail_y += 40
-    
+
+    for i, card in enumerate(game.opponent_drawn_cards):
+        card_x = start_x + i * (card_display_width + spacing)
+
+        # Draw card
+        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
+        surface.blit(scaled_image, (card_x, card_y))
+        pygame.draw.rect(surface, (100, 200, 255), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=3)
+
+        # Card name below
+        detail_font = pygame.font.Font(None, 24)
+        name_text = detail_font.render(card.name, True, (200, 200, 200))
+        name_rect = name_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 20))
+        surface.blit(name_text, name_rect)
+
+        # Power and row
+        info_text = detail_font.render(f"{card.power}  •  {card.row.capitalize()}", True, (150, 150, 150))
+        info_rect = info_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 45))
+        surface.blit(info_text, info_rect)
+
     # Close instruction
-    instruction = detail_font.render("Click or Press SPACE to close", True, (150, 150, 150))
+    instruction_font = pygame.font.Font(None, 32)
+    instruction = instruction_font.render("Click or Press SPACE to close", True, (150, 150, 150))
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
     surface.blit(instruction, instruction_rect)
 
@@ -3187,6 +3192,8 @@ def main():
                         discard_scroll = 0
                     elif jonas_peek_active:
                         jonas_peek_active = False
+                        # Clear the tracked cards after viewing
+                        game.opponent_drawn_cards = []
                     elif game.game_state == "playing":
                         paused = not paused
                 
@@ -3247,6 +3254,9 @@ def main():
                     elif viewing_discard or jonas_peek_active:
                         # Close overlays
                         viewing_discard = False
+                        if jonas_peek_active:
+                            # Clear the tracked cards after viewing
+                            game.opponent_drawn_cards = []
                         jonas_peek_active = False
                         discard_scroll = 0
                     elif selected_card and game.game_state == "playing":
@@ -3865,13 +3875,11 @@ def main():
         
         # Leader ability triggers (at start of player's turn)
         if game.current_player == game.player1 and game.game_state == "playing" and not game.player1.has_passed:
-            # Jonas Quinn: See opponent's next card (auto-trigger once per turn)
+            # Jonas Quinn: See cards drawn by opponent (auto-trigger when opponent draws)
             if game.player1.leader and "Jonas" in game.player1.leader.get('name', ''):
-                if not hasattr(game, 'jonas_used_this_turn'):
-                    game.jonas_used_this_turn = {}
-                if game.round_number not in game.jonas_used_this_turn and game.player2.deck:
+                # Show overlay if opponent has drawn cards (not starting hand)
+                if game.opponent_drawn_cards:
                     jonas_peek_active = True
-                    game.jonas_used_this_turn[game.round_number] = True
             
             # Vala: Look at 3 cards, keep 1 (once per round, manual trigger with V key)
             # Ba'al Clone: Clone highest unit (once per round, manual trigger with B key)
@@ -4438,10 +4446,12 @@ def main():
         # Jonas Quinn peek overlay
         if jonas_peek_active:
             draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-            
+
             # Handle click to close
             if pygame.mouse.get_pressed()[0]:
                 jonas_peek_active = False
+                # Clear the tracked cards after viewing
+                game.opponent_drawn_cards = []
                 pygame.time.wait(200)
         
         # Ba'al Clone selection overlay
