@@ -1263,40 +1263,64 @@ class RulesMenuScreen:
         y = top + 10 - offset
         content_height = 0
         for ability in abilities:
-            card_rect = pygame.Rect(column_x, y, column_width, 120)
-            pygame.draw.rect(view, self.deep_accent, card_rect, 2)
+            # Start of this ability card
+            card_start_y = y
+
+            # Draw name
             name = self.small_font.render(ability["name"], True, self.accent_color)
-            view.blit(name, (card_rect.x + 16, card_rect.y + 10))
-            center_x = card_rect.x + card_rect.width // 2
-            self._render_wrapped(
+            view.blit(name, (column_x + 16, y + 10))
+
+            center_x = column_x + column_width // 2
+            current_y = y + 36
+
+            # Render Effect (returns Y after rendering)
+            current_y = self._render_wrapped(
                 view,
                 f"Effect: {ability['effect']}",
-                (center_x, card_rect.y + 36),
-                card_rect.width - 32,
+                (center_x, current_y),
+                column_width - 32,
                 self.small_font,
                 self.text_color,
                 align_center=True,
             )
-            self._render_wrapped(
+            current_y += 6  # Small gap
+
+            # Render Timing
+            current_y = self._render_wrapped(
                 view,
                 f"Timing: {ability['timing']}",
-                (center_x, card_rect.y + 66),
-                card_rect.width - 32,
+                (center_x, current_y),
+                column_width - 32,
                 self.small_font,
                 self.muted_color,
                 align_center=True,
             )
-            self._render_wrapped(
+            current_y += 6  # Small gap
+
+            # Render Synergy
+            current_y = self._render_wrapped(
                 view,
                 f"Synergy: {ability['synergy']}",
-                (center_x, card_rect.y + 92),
-                card_rect.width - 32,
+                (center_x, current_y),
+                column_width - 32,
                 self.small_font,
                 self.muted_color,
                 align_center=True,
             )
-            y += 140
-            content_height += 140
+            current_y += 12  # Bottom padding
+
+            # Calculate actual card height based on rendered content
+            actual_height = current_y - card_start_y
+            min_height = 120  # Minimum card height
+            card_height = max(min_height, actual_height)
+
+            # Draw border around the actual content
+            card_rect = pygame.Rect(column_x, card_start_y, column_width, card_height)
+            pygame.draw.rect(view, self.deep_accent, card_rect, 2)
+
+            # Move to next card with proper spacing
+            y = card_start_y + card_height + 20  # 20px gap between cards
+            content_height += card_height + 20
         self._update_scroll_limit(content_height, area_height)
 
     def _draw_card_content(self, view: pygame.Surface):
