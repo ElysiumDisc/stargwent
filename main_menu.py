@@ -17,9 +17,14 @@ from lan_menu import run_lan_menu
 # Save file for custom decks
 CUSTOM_DECKS_FILE = "player_decks.json"
 MENU_MUSIC_PATH = os.path.join("assets", "audio", "main_menu_music.ogg")
+STARGATE_SEQUENCE_PATH = os.path.join("assets", "audio", "stargate_sequence.ogg")
+STARGATE_SEQUENCE_DURATION_MS = 16000  # Match the 16s audio clip
 _menu_music_playing = False
 _menu_music_next_allowed = 0
 _MENU_LOOP_DELAY_MS = 30000
+_stargate_sequence_sound = None
+_stargate_sequence_sound_loaded = False
+_STARGATE_SEQUENCE_VOLUME = 0.85
 
 
 def _ensure_mixer():
@@ -86,6 +91,27 @@ def stop_menu_music(fade_ms=600):
         pygame.mixer.music.stop()
     _menu_music_playing = False
     _menu_music_next_allowed = 0
+
+
+def _get_stargate_sequence_sound():
+    """Load and cache the Stargate sequence clip."""
+    global _stargate_sequence_sound, _stargate_sequence_sound_loaded
+    if _stargate_sequence_sound_loaded:
+        return _stargate_sequence_sound
+    _stargate_sequence_sound_loaded = True
+    if not os.path.exists(STARGATE_SEQUENCE_PATH):
+        print("[audio] Missing Stargate sequence clip:", STARGATE_SEQUENCE_PATH)
+        return None
+    if not _ensure_mixer():
+        return None
+    try:
+        sound = pygame.mixer.Sound(STARGATE_SEQUENCE_PATH)
+        sound.set_volume(_STARGATE_SEQUENCE_VOLUME)
+        _stargate_sequence_sound = sound
+    except pygame.error as exc:
+        print(f"[audio] Unable to load Stargate sequence audio: {exc}")
+        _stargate_sequence_sound = None
+    return _stargate_sequence_sound
 
 
 class DeckManager:
@@ -926,7 +952,7 @@ class StargateOpeningAnimation:
         self.center_x = screen_width // 2
         self.center_y = screen_height // 2
         self.progress = 0.0
-        self.duration = 8000  # 8 seconds (added 3 more seconds for vortex)
+        self.duration = STARGATE_SEQUENCE_DURATION_MS  # 16 seconds to match audio cue
         self.elapsed = 0
         
         # Gate properties
@@ -1122,6 +1148,16 @@ def show_stargate_opening(screen):
     """Show the Stargate opening animation."""
     animation = StargateOpeningAnimation(screen.get_width(), screen.get_height())
     clock = pygame.time.Clock()
+    sound_channel = None
+    stargate_sound = _get_stargate_sequence_sound()
+    if stargate_sound:
+        try:
+            sound_channel = stargate_sound.play()
+            if sound_channel:
+                sound_channel.set_volume(_STARGATE_SEQUENCE_VOLUME)
+        except pygame.error as exc:
+            print(f"[audio] Unable to play Stargate sequence audio: {exc}")
+            sound_channel = None
     
     running = True
     while running:
@@ -1130,8 +1166,15 @@ def show_stargate_opening(screen):
         # Handle events (allow skip)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                if sound_channel:
+                    sound_channel.stop()
                 return False
             elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                if sound_channel:
+                    try:
+                        sound_channel.fadeout(600)
+                    except pygame.error:
+                        sound_channel.stop()
                 return True  # Skip animation
         
         # Update and draw
