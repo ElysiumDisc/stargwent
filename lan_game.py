@@ -44,9 +44,9 @@ def wait_for_message(session, expected_type):
         pygame.time.wait(50)
 
 
-def run_lan_setup(screen, unlock_system, session: LanSession, role: str) -> Optional[LanContext]:
+def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_fullscreen_callback=None) -> Optional[LanContext]:
     clock = pygame.time.Clock()
-    selection = run_deck_builder(screen, unlock_override=True)
+    selection = run_deck_builder(screen, unlock_override=True, toggle_fullscreen_callback=toggle_fullscreen_callback)
     if selection is None:
         session.close()
         return

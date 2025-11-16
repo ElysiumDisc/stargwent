@@ -144,7 +144,13 @@ class DeckManager:
     
     def set_deck(self, faction, card_ids):
         """Set custom deck for faction."""
-        self.custom_decks[faction] = card_ids
+        if card_ids is None:
+            if faction in self.custom_decks:
+                self.custom_decks.pop(faction, None)
+            print(f"✗ Custom deck cleared for {faction}, reverting to defaults")
+        else:
+            self.custom_decks[faction] = card_ids
+            print(f"✓ Custom deck saved for {faction}: {len(card_ids)} cards")
         self.save_decks()
     
     def get_available_cards_for_faction(self, faction):
@@ -893,8 +899,10 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                 result = run_deck_builder(
                     screen,
                     for_new_game=False,
-                    unlock_override=unlock_system.is_unlock_override_enabled()
+                    unlock_override=unlock_system.is_unlock_override_enabled(),
+                    toggle_fullscreen_callback=toggle_fullscreen_callback
                 )
+                deck_manager.load_decks()
                 # If result is None, user clicked MAIN MENU or ESC - just continue showing main menu
                 # (Don't return None here, that would quit the game!)
             elif action == 'rules_menu':

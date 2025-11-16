@@ -55,11 +55,14 @@ class DeckBuilderUI:
         self.pool_scroll_offset = 0  # Separate scroll for card pool
         self.inspected_card_id = None  # Card being inspected with spacebar
         self.card_pool_ids = []  # Available cards for the faction
-        self.current_tab = "close"  # Current card type tab: close, ranged, siege, agile, special, weather, all
+        self.current_tab = "all"  # Current card type tab: close, ranged, siege, agile, special, weather, all
+        self.tab_rects = {}
         self.return_to_menu = False  # Flag for when user clicks MAIN MENU button
         self.leader_scroll_offset = 0
         self.leader_scroll_limit = 0
         self.leader_area_rect = None
+        self.last_save_message = ""
+        self.last_save_time = 0
         
         # DRAG AND DROP STATE
         self.dragging_card = None  # Card ID being dragged
@@ -112,6 +115,7 @@ class DeckBuilderUI:
         self.load_faction_backgrounds()
         self.load_leader_backgrounds()
         self.load_deck_building_bg()
+        self.tab_rects = {}
         
         # Layout
         self.setup_layout()
@@ -207,6 +211,70 @@ class DeckBuilderUI:
             200,
             50
         )
+
+    def save_current_deck(self, reason=""):
+        """Persist the current deck configuration and show feedback to the player."""
+        if not self.selected_faction or not self.selected_leader or not self.deck_preview_ids:
+            return False
+        card_ids = list(self.deck_preview_ids)
+        save_player_deck(self.selected_faction, self.selected_leader['card_id'], card_ids)
+        save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
+        self.last_save_message = f"Saved deck for {self.selected_faction}: {len(card_ids)} cards"
+        self.last_save_time = pygame.time.get_ticks()
+        if reason:
+            print(f"✓ {reason} | {self.last_save_message}")
+        else:
+            print(f"✓ Deck saved: {self.selected_faction} with {len(card_ids)} cards")
+        return True
+
+    def refresh_for_surface(self, screen):
+        """Rebuild layout when the display surface size changes."""
+        prev_state = self.state
+        prev_faction = self.selected_faction
+        prev_leader_id = self.selected_leader.get('card_id') if self.selected_leader else None
+        prev_deck = list(self.deck_preview_ids) if self.deck_preview_ids else None
+        prev_card_pool = list(self.card_pool_ids) if self.card_pool_ids else None
+        prev_tab = self.current_tab
+        prev_pool_scroll = self.pool_scroll_offset
+        prev_deck_scroll = self.deck_scroll_offset
+        prev_inspected = self.inspected_card_id
+
+        self.screen_width = screen.get_width()
+        self.screen_height = screen.get_height()
+
+        self.setup_layout()
+        self.load_faction_backgrounds()
+        self.load_leader_backgrounds()
+        self.load_deck_building_bg()
+
+        self.selected_faction = prev_faction
+        self.current_tab = prev_tab
+        self.pool_scroll_offset = prev_pool_scroll
+        self.deck_scroll_offset = prev_deck_scroll
+        self.deck_preview_ids = prev_deck
+        self.card_pool_ids = prev_card_pool if prev_card_pool else []
+
+        if prev_faction:
+            self.set_faction_background(prev_faction)
+            self.setup_leader_buttons()
+        else:
+            self.set_faction_background(None)
+
+        self.selected_leader = None
+        if prev_leader_id and self.leader_buttons:
+            for idx, button in enumerate(self.leader_buttons):
+                leader = button['leader']
+                if leader.get('card_id') == prev_leader_id:
+                    self.selected_leader = leader
+                    self._ensure_leader_visible(idx)
+                    self.set_leader_background(prev_leader_id)
+                    break
+
+        if prev_state == "deck_review" and prev_inspected and self.deck_preview_ids:
+            if prev_inspected in self.deck_preview_ids:
+                self.inspected_card_id = prev_inspected
+            else:
+                self.inspected_card_id = None
     
     def load_faction_backgrounds(self):
         """Load faction selection backgrounds (scaled to window)."""
@@ -453,60 +521,6 @@ class DeckBuilderUI:
                                 self.deck_scroll_offset += 50
                 return
 
-            if self.state == "deck_review" and event.button == 3:
-                # Right-click inspect
-                if self.inspected_card_id:
-                    self.inspected_card_id = None
-                    return
-                divider_x = self.screen_width // 2
-                panel_padding = 20
-                left_panel_x = panel_padding
-                left_panel_width = divider_x - panel_padding * 2
-                left_panel_y = 120
-                right_panel_x = divider_x + panel_padding
-                right_panel_width = self.screen_width - right_panel_x - panel_padding
-                right_panel_y = 120
-                if mouse_pos[0] < divider_x:
-                    sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
-                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
-                    start_x = left_panel_x + spacing
-                    start_y = left_panel_y + 15 - self.pool_scroll_offset
-                    for i, card_id in enumerate(sorted_pool):
-                        row_idx = i // cards_per_row
-                        col_idx = i % cards_per_row
-                        x = start_x + col_idx * (card_width + spacing)
-                        y = start_y + row_idx * (card_height + spacing)
-                        card_rect = pygame.Rect(x, y, card_width, card_height)
-                        if card_rect.collidepoint(mouse_pos):
-                            self.inspected_card_id = card_id
-                            return
-                else:
-                    if self.deck_preview_ids:
-                        sorted_deck_ids = sorted(
-                            self.deck_preview_ids,
-                            key=lambda id: (
-                                0 if ALL_CARDS[id].row == "close" else
-                                1 if ALL_CARDS[id].row == "ranged" else
-                                2 if ALL_CARDS[id].row == "siege" else
-                                3 if ALL_CARDS[id].row == "agile" else
-                                4 if ALL_CARDS[id].row == "special" else
-                                5 if ALL_CARDS[id].row == "weather" else 6
-                            )
-                        )
-                        cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
-                        start_x = right_panel_x + spacing
-                        start_y = right_panel_y + 15 - self.deck_scroll_offset
-                        for i, card_id in enumerate(sorted_deck_ids):
-                            row_idx = i // cards_per_row
-                            col_idx = i % cards_per_row
-                            x = start_x + col_idx * (card_width + spacing)
-                            y = start_y + row_idx * (card_height + spacing)
-                            card_rect = pygame.Rect(x, y, card_width, card_height)
-                            if card_rect.collidepoint(mouse_pos):
-                                self.inspected_card_id = card_id
-                                return
-                return
-
             if event.button != 1:
                 return
 
@@ -530,6 +544,8 @@ class DeckBuilderUI:
                                 self.selected_leader = available_leaders[0]
                             self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                             self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                            self.current_tab = "all"
+                            self.inspected_card_id = None
                             self.state = "deck_review"
                             self.deck_scroll_offset = 0
                             self.pool_scroll_offset = 0
@@ -558,6 +574,8 @@ class DeckBuilderUI:
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                     self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                    self.current_tab = "all"
+                    self.inspected_card_id = None
                     self.deck_scroll_offset = 0
                     self.pool_scroll_offset = 0
                     return
@@ -567,60 +585,6 @@ class DeckBuilderUI:
                     print(f"✓ Leader choice saved: {self.selected_faction} -> {self.selected_leader['name']}")
                     self.state = "complete"
                     return
-
-            elif self.state == "deck_review" and not self.inspected_card_id:
-                divider_x = self.screen_width // 2
-                panel_padding = 20
-                left_panel_x = panel_padding
-                left_panel_width = divider_x - panel_padding * 2
-                left_panel_y = 120
-                right_panel_x = divider_x + panel_padding
-                right_panel_width = self.screen_width - right_panel_x - panel_padding
-                right_panel_y = 120
-                if mouse_pos[0] < divider_x:
-                    sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
-                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
-                    start_x = left_panel_x + spacing
-                    start_y = left_panel_y + 15 - self.pool_scroll_offset
-                    for i, card_id in enumerate(sorted_pool):
-                        row_idx = i // cards_per_row
-                        col_idx = i % cards_per_row
-                        x = start_x + col_idx * (card_width + spacing)
-                        y = start_y + row_idx * (card_height + spacing)
-                        card_rect = pygame.Rect(x, y, card_width, card_height)
-                        if card_rect.collidepoint(mouse_pos):
-                            self.dragging_card = card_id
-                            self.drag_from_pool = True
-                            self.drag_start_x, self.drag_start_y = mouse_pos
-                            break
-                else:
-                    if self.deck_preview_ids:
-                        sorted_deck_ids = sorted(
-                            self.deck_preview_ids,
-                            key=lambda id: (
-                                0 if ALL_CARDS[id].row == "close" else
-                                1 if ALL_CARDS[id].row == "ranged" else
-                                2 if ALL_CARDS[id].row == "siege" else
-                                3 if ALL_CARDS[id].row == "agile" else
-                                4 if ALL_CARDS[id].row == "special" else
-                                5 if ALL_CARDS[id].row == "weather" else 6
-                            )
-                        )
-                        cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
-                        start_x = right_panel_x + spacing
-                        start_y = right_panel_y + 15 - self.deck_scroll_offset
-                        for i, card_id in enumerate(sorted_deck_ids):
-                            row_idx = i // cards_per_row
-                            col_idx = i % cards_per_row
-                            x = start_x + col_idx * (card_width + spacing)
-                            y = start_y + row_idx * (card_height + spacing)
-                            card_rect = pygame.Rect(x, y, card_width, card_height)
-                            if card_rect.collidepoint(mouse_pos):
-                                self.dragging_card = card_id
-                                self.drag_from_pool = False
-                                self.drag_start_x, self.drag_start_y = mouse_pos
-                                break
-                return
 
         elif event.type == pygame.KEYDOWN:
             # Handle spacebar for card inspection
@@ -728,6 +692,8 @@ class DeckBuilderUI:
                         # Generate deck and go to review
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                         self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                        self.current_tab = "all"
+                        self.inspected_card_id = None
                         self.state = "deck_review"
                         self.deck_scroll_offset = 0
                         self.pool_scroll_offset = 0
@@ -838,6 +804,8 @@ class DeckBuilderUI:
                         # Generate deck and go to review
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                         self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                        self.current_tab = "all"
+                        self.inspected_card_id = None
                         self.state = "deck_review"
                         self.deck_scroll_offset = 0
                         self.pool_scroll_offset = 0
@@ -873,6 +841,8 @@ class DeckBuilderUI:
                             # Generate deck and go to review
                             self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                             self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                            self.current_tab = "all"
+                            self.inspected_card_id = None
                             self.state = "deck_review"
                             self.deck_scroll_offset = 0
                             self.pool_scroll_offset = 0
@@ -911,6 +881,8 @@ class DeckBuilderUI:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                     # Build card pool (all available cards for faction)
                     self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                    self.current_tab = "all"
+                    self.inspected_card_id = None
                     self.deck_scroll_offset = 0
                     self.pool_scroll_offset = 0
                     return
@@ -926,13 +898,49 @@ class DeckBuilderUI:
             
             # Deck review
             elif self.state == "deck_review":
+                panel_padding = 20
+                divider_x = self.screen_width // 2
+                left_panel_x = panel_padding
+                left_panel_width = divider_x - panel_padding * 2
+                left_panel_y = 120  # Match draw code
+                left_panel_height = self.screen_height - 180
+                right_panel_x = divider_x + panel_padding
+                right_panel_width = self.screen_width - right_panel_x - panel_padding
+                right_panel_y = 120  # Match draw code
+                right_panel_height = self.screen_height - 180
+                left_panel_rect = pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height)
+                right_panel_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
+                deck_filter_type = None if self.current_tab == "all" else self.current_tab
+                visible_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type) if self.deck_preview_ids else []
+                
                 # Check if clicking on tabs (LEFT CLICK)
-                if event.button == 1 and hasattr(self, 'tab_rects'):
+                if event.button == 1 and self.tab_rects:
                     for tab_type, tab_rect in self.tab_rects.items():
                         if tab_rect.collidepoint(mouse_pos):
                             self.current_tab = tab_type
                             self.pool_scroll_offset = 0  # Reset scroll when changing tabs
                             return
+                
+                # Handle buttons before interacting with cards
+                if event.button == 1:
+                    if self.back_button.collidepoint(mouse_pos):
+                        if self.for_new_game:
+                            self.state = "leader_select"
+                            self.deck_scroll_offset = 0
+                            self.inspected_card_id = None
+                        else:
+                            self.save_current_deck("Deck saved before returning to main menu")
+                            self.return_to_menu = True
+                        return
+                    
+                    if self.for_new_game and self.continue_button.collidepoint(mouse_pos):
+                        self.save_current_deck("Deck saved before starting the game")
+                        self.state = "complete"
+                        return
+                    
+                    if not self.for_new_game and self.save_button.collidepoint(mouse_pos):
+                        self.save_current_deck()
+                        return
                 
                 # RIGHT CLICK = ZOOM/INSPECT
                 if event.button == 3:  # Right click
@@ -942,17 +950,8 @@ class DeckBuilderUI:
                         return
                     
                     # Find card under mouse to inspect
-                    divider_x = self.screen_width // 2
-                    panel_padding = 20
-                    left_panel_x = panel_padding
-                    left_panel_width = divider_x - panel_padding * 2
-                    left_panel_y = 120  # Match draw code
-                    right_panel_x = divider_x + panel_padding
-                    right_panel_width = self.screen_width - right_panel_x - panel_padding
-                    right_panel_y = 120  # Match draw code
-                    
                     # Check cards in POOL (left panel)
-                    if mouse_pos[0] < divider_x:
+                    if left_panel_rect.collidepoint(mouse_pos):
                         sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
                         cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
                         start_x = left_panel_x + spacing
@@ -970,23 +969,13 @@ class DeckBuilderUI:
                                 return
                     
                     # Check cards in DECK (right panel)
-                    else:
-                        if self.deck_preview_ids:
-                            # Sort cards SAME way as draw code
-                            sorted_deck_ids = sorted(self.deck_preview_ids, key=lambda id: (
-                                0 if ALL_CARDS[id].row == "close" else
-                                1 if ALL_CARDS[id].row == "ranged" else
-                                2 if ALL_CARDS[id].row == "siege" else
-                                3 if ALL_CARDS[id].row == "agile" else
-                                4 if ALL_CARDS[id].row == "special" else
-                                5 if ALL_CARDS[id].row == "weather" else 6
-                            ))
-                            
+                    elif right_panel_rect.collidepoint(mouse_pos):
+                        if visible_deck_ids:
                             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
                             start_x = right_panel_x + spacing
                             start_y = right_panel_y + 15 - self.deck_scroll_offset
                             
-                            for i, card_id in enumerate(sorted_deck_ids):
+                            for i, card_id in enumerate(visible_deck_ids):
                                 row_idx = i // cards_per_row
                                 col_idx = i % cards_per_row
                                 x = start_x + col_idx * (card_width + spacing)
@@ -1000,17 +989,8 @@ class DeckBuilderUI:
                 
                 # LEFT CLICK = DRAG (only if not inspecting)
                 if event.button == 1 and not self.inspected_card_id:
-                    divider_x = self.screen_width // 2
-                    panel_padding = 20
-                    left_panel_x = panel_padding
-                    left_panel_width = divider_x - panel_padding * 2
-                    left_panel_y = 120  # Match draw code
-                    right_panel_x = divider_x + panel_padding
-                    right_panel_width = self.screen_width - right_panel_x - panel_padding
-                    right_panel_y = 120  # Match draw code
-                    
                     # Check cards in POOL (left panel)
-                    if mouse_pos[0] < divider_x:
+                    if left_panel_rect.collidepoint(mouse_pos):
                         sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
                         cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
                         start_x = left_panel_x + spacing
@@ -1032,23 +1012,13 @@ class DeckBuilderUI:
                                 return
                     
                     # Check cards in DECK (right panel)
-                    else:
-                        if self.deck_preview_ids:
-                            # Sort cards SAME way as draw code
-                            sorted_deck_ids = sorted(self.deck_preview_ids, key=lambda id: (
-                                0 if ALL_CARDS[id].row == "close" else
-                                1 if ALL_CARDS[id].row == "ranged" else
-                                2 if ALL_CARDS[id].row == "siege" else
-                                3 if ALL_CARDS[id].row == "agile" else
-                                4 if ALL_CARDS[id].row == "special" else
-                                5 if ALL_CARDS[id].row == "weather" else 6
-                            ))
-                            
+                    elif right_panel_rect.collidepoint(mouse_pos):
+                        if visible_deck_ids:
                             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
                             start_x = right_panel_x + spacing
                             start_y = right_panel_y + 15 - self.deck_scroll_offset
                             
-                            for i, card_id in enumerate(sorted_deck_ids):
+                            for i, card_id in enumerate(visible_deck_ids):
                                 row_idx = i // cards_per_row
                                 col_idx = i % cards_per_row
                                 x = start_x + col_idx * (card_width + spacing)
@@ -1063,40 +1033,6 @@ class DeckBuilderUI:
                                     self.drag_start_y = mouse_pos[1]
                                     return
                 
-                # Back/Main Menu button (LEFT CLICK)
-                if event.button == 1 and self.back_button.collidepoint(mouse_pos):
-                    if self.for_new_game:
-                        # NEW GAME: Go back to leader selection
-                        self.state = "leader_select"
-                        self.deck_scroll_offset = 0
-                        self.inspected_card_id = None
-                    else:
-                        # DECK BUILDING: Save and return to main menu
-                        # Save the current deck configuration
-                        card_ids = [card_id for card_id in self.deck_preview_ids]
-                        save_player_deck(self.selected_faction, self.selected_leader['card_id'], card_ids)
-                        print(f"✓ Deck saved: {self.selected_faction} with {len(card_ids)} cards")
-                        # Set flag to exit
-                        self.return_to_menu = True
-                    return
-                
-                # Continue button (LEFT CLICK) - Only for new game
-                if event.button == 1 and self.for_new_game and self.continue_button.collidepoint(mouse_pos):
-                    # Save the current deck configuration before completing
-                    card_ids = [card_id for card_id in self.deck_preview_ids]
-                    save_player_deck(self.selected_faction, self.selected_leader['card_id'], card_ids)
-                    print(f"✓ Deck saved: {self.selected_faction} with {len(card_ids)} cards")
-                    self.state = "complete"
-                    return
-                
-                # Save button (LEFT CLICK) - Only for deck building mode
-                if event.button == 1 and not self.for_new_game and self.save_button.collidepoint(mouse_pos):
-                    # Save the current deck configuration
-                    card_ids = [card_id for card_id in self.deck_preview_ids]
-                    save_player_deck(self.selected_faction, self.selected_leader['card_id'], card_ids)
-                    print(f"✓ Deck saved: {self.selected_faction} with {len(card_ids)} cards")
-                    # Show visual confirmation (could add a message popup later)
-                    return
     
     def draw(self, surface):
         """Draw the deck builder UI."""
@@ -1360,15 +1296,8 @@ class DeckBuilderUI:
         
         # Draw deck sorted by type in RIGHT panel
         if self.deck_preview_ids:
-            # Sort cards by type
-            sorted_deck_ids = sorted(self.deck_preview_ids, key=lambda id: (
-                0 if ALL_CARDS[id].row == "close" else
-                1 if ALL_CARDS[id].row == "ranged" else
-                2 if ALL_CARDS[id].row == "siege" else
-                3 if ALL_CARDS[id].row == "agile" else
-                4 if ALL_CARDS[id].row == "special" else
-                5 if ALL_CARDS[id].row == "weather" else 6
-            ))
+            deck_filter_type = None if self.current_tab == "all" else self.current_tab
+            sorted_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type)
             
             # Cards in 3 columns with better sizing
             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
@@ -1452,6 +1381,12 @@ class DeckBuilderUI:
             save_text = self.button_font.render("SAVE DECK", True, self.text_color)
             save_rect = save_text.get_rect(center=self.save_button.center)
             surface.blit(save_text, save_rect)
+            
+            # Show temporary confirmation message near the save button
+            if self.last_save_message and pygame.time.get_ticks() - self.last_save_time < 3000:
+                confirm_text = self.small_font.render(self.last_save_message, True, (200, 255, 200))
+                confirm_rect = confirm_text.get_rect(midtop=(self.save_button.centerx, self.save_button.bottom + 10))
+                surface.blit(confirm_text, confirm_rect)
     
     
     def draw_card_inspection(self, surface, card):
@@ -1529,6 +1464,7 @@ class DeckBuilderUI:
         total_width = len(tabs) * tab_width + (len(tabs) - 1) * tab_spacing
         start_x = (self.screen_width - total_width) // 2
         tab_y = 70
+        self.tab_rects = {}
         
         for i, (label, tab_type) in enumerate(tabs):
             tab_x = start_x + i * (tab_width + tab_spacing)
@@ -1552,8 +1488,6 @@ class DeckBuilderUI:
             surface.blit(label_text, label_rect)
             
             # Store rect for click detection
-            if not hasattr(self, 'tab_rects'):
-                self.tab_rects = {}
             self.tab_rects[tab_type] = tab_rect
     
     def get_faction_description(self, faction):
@@ -1633,7 +1567,7 @@ def build_faction_deck(faction, leader=None):
     saved_deck_data = load_player_deck(faction)
     if saved_deck_data and saved_deck_data.get("cards"):
         print(f"✓ Loading saved deck for {faction} ({len(saved_deck_data['cards'])} cards)")
-        return saved_deck_data["cards"]
+        return list(saved_deck_data["cards"])
     
     # No saved deck found, build a new random one
     print(f"Building new default deck for {faction}...")
@@ -1735,7 +1669,7 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None):
     return sorted_ids
 
 
-def run_deck_builder(screen, for_new_game=True, *, unlock_override=False):
+def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, toggle_fullscreen_callback=None):
     """
     Run the deck builder interface.
     Args:
@@ -1772,6 +1706,14 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False):
                         deck_builder.selected_leader = None
                     else:
                         return None
+                elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
+                    if toggle_fullscreen_callback:
+                        toggle_fullscreen_callback()
+                    else:
+                        pygame.display.toggle_fullscreen()
+                    reload_card_images()
+                    screen = pygame.display.get_surface()
+                    deck_builder.refresh_for_surface(screen)
             else:
                 deck_builder.handle_event(event)
         

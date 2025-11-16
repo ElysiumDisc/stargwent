@@ -2715,7 +2715,13 @@ def main():
     
     if isinstance(menu_result, dict) and 'session' in menu_result:
         from lan_game import run_lan_setup, run_lan_match
-        lan_context = run_lan_setup(screen, unlock_system, menu_result['session'], menu_result.get('role', 'host'))
+        lan_context = run_lan_setup(
+            screen,
+            unlock_system,
+            menu_result['session'],
+            menu_result.get('role', 'host'),
+            toggle_fullscreen_callback=toggle_fullscreen_mode
+        )
         if lan_context:
             run_lan_match(screen, lan_context)
         main()
@@ -2737,7 +2743,8 @@ def main():
     # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
     deck_selection = run_deck_builder(
         screen,
-        unlock_override=unlock_system.is_unlock_override_enabled()
+        unlock_override=unlock_system.is_unlock_override_enabled(),
+        toggle_fullscreen_callback=toggle_fullscreen_mode
     )
     
     if deck_selection is None:
@@ -2752,6 +2759,7 @@ def main():
     player_deck_ids = deck_selection['deck_ids']
 
     # Check if player has a custom deck for this faction
+    deck_manager.load_decks()  # Reload in case the player saved new changes in the deck builder
     custom_deck_data = deck_manager.get_deck(player_faction)
     if custom_deck_data and custom_deck_data.get("cards"):
         # Use custom deck
