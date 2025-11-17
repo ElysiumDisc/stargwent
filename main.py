@@ -32,6 +32,7 @@ from animations import (
     LegendaryLightningEffect,
     ClearWeatherBlackHole,
     MeteorShowerImpactEffect,
+    HathorStealAnimation,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -3118,6 +3119,20 @@ def main():
 
         # Update animations
         anim_manager.update(dt)
+
+        # Check if Hathor's ability animation is complete
+        if hasattr(game, 'hathor_steal_info') and game.hathor_steal_info:
+            # Check if the animation is complete
+            animation_complete = True
+            for animation in anim_manager.animations:
+                if isinstance(animation, HathorStealAnimation) and not animation.finished:
+                    animation_complete = False
+                    break
+            
+            if animation_complete:
+                # Clear the steal info
+                game.hathor_steal_info = None
+        
         ambient_effects.update(dt)
         drag_pulse += dt * 0.005
         if dragging_card:
@@ -3284,35 +3299,44 @@ def main():
                     continue
                 if event.button == 1:
                     button_info_popup = None
-                    if (player_ability_rect and player_ability_rect.collidepoint(event.pos)
-                            and game.game_state == "playing"
-                            and game.current_player == game.player1
-                            and not game.player1.has_passed
-                            and player_ability_ready):
-                        ability_result = game.activate_leader_ability(game.player1)
-                        if ability_result:
-                            ability_name = ability_result.get("ability", game.player1.leader.get('ability', 'Leader Ability'))
-                            anim_manager.add_effect(create_ability_animation(
-                                ability_name,
-                                SCREEN_WIDTH // 2,
-                                SCREEN_HEIGHT // 2
-                            ))
-                            for row_name in ability_result.get("rows", []):
-                                weather_target = game.weather_row_targets.get(row_name, "both")
-                                if weather_target in ("player1", "both"):
-                                    rect = PLAYER_ROW_RECTS.get(row_name)
-                                    if rect:
-                                        anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
-                                if weather_target in ("player2", "both"):
-                                    rect = OPPONENT_ROW_RECTS.get(row_name)
-                                    if rect:
-                                        anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
-                            if ability_result.get("requires_ui") and ability_name == "Ancient Knowledge":
-                                revealed = ability_result.get("revealed_cards") or []
-                                if revealed:
-                                    catherine_selection_mode = True
-                                    catherine_cards_to_choose = list(revealed)
-                        continue
+                if game.current_player == game.player1:
+                    # Handle leader ability click
+                    if player_ability_rect and player_ability_rect.collidepoint(event.pos):
+                        # If the leader is Hathor, handle her ability specifically
+                        if game.player1.leader and "Hathor" in game.player1.leader.get('name', ''):
+                            if game.trigger_hathor_ability(game.player1):
+                                # Start the animation
+                                steal_info = game.hathor_steal_info
+                                if steal_info:
+                                    # Calculate start and end positions
+                                    start_pos = (
+                                        steal_info['card'].rect.centerx,
+                                        steal_info['card'].rect.centery
+                                    )
+                                    
+                                    # Find the target row position
+                                    target_row = steal_info['to_player'].hathor_ability_pending['target_row']
+                                    target_row_rect = PLAYER_ROW_RECTS[target_row]
+                                    end_pos = (
+                                        target_row_rect.centerx,
+                                        target_row_rect.centery
+                                    )
+                                    
+                                    # Create and start the animation
+                                    animation = HathorStealAnimation(
+                                        steal_info['card'],
+                                        start_pos,
+                                        end_pos,
+                                        on_finish=lambda: game.switch_turn()
+                                    )
+                                    anim_manager.add_animation(animation)
+                            # After attempting Hathor's ability, don't process any other click logic for this event
+                            continue
+                        else:
+                            # For any other leader, use the generic activation
+                            result = game.activate_leader_ability(game.player1)
+                            if result and result.get("requires_ui"):
+                                pending_leader_choice = result
                 # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
                     button_info_popup = None
@@ -3599,15 +3623,8 @@ def main():
                                         # Second click = confirm and play
                                         # Check if this is a decoy card
                                         if "Ring Transport" in (card.ability or ""):
-                                            valid_decoy_cards = game.get_decoy_valid_cards()
-                                            if valid_decoy_cards:
-                                                # Enter decoy selection mode
-                                                decoy_selection_mode = True
-                                                decoy_card_played = card
-                                                game.play_card(card, card.row)
-                                            else:
-                                                # No cards to decoy, play normally
-                                                game.play_card(card, card.row)
+                                            # This card is played by dragging and dropping, so do nothing on a double-click.
+                                            pass
                                         else:
                                             # Check if this is Wormhole Stabilization (Clear Weather)
                                             if "Wormhole Stabilization" in (card.ability or ""):
@@ -3718,10 +3735,7 @@ def main():
                             elif "Ring Transport" in ability_text:
                                 # Ring Transport - check if dropped on a valid card
                                 if decoy_drag_target:
-                                    # Play the decoy card first
-                                    game.play_card(dragging_card, "special")
-                                    # Apply decoy effect
-                                    if game.apply_decoy(decoy_drag_target):
+                                    if game.play_ring_transport(dragging_card, decoy_drag_target):
                                         # Show ring transport animation
                                         effect_x = decoy_drag_target.rect.centerx
                                         effect_y = decoy_drag_target.rect.centery

@@ -23,6 +23,10 @@ class AIStrategy:
         # Calculate round context
         round_context = self.analyze_round_state()
         
+        # Check if it's time to use Hathor's ability
+        if self.should_use_hathor_ability(round_context):
+            return ('hathor_ability', None, None)
+        
         # Decide if it's time to use faction power
         if self.should_use_power(round_context):
             return ('power', None, None)
@@ -106,6 +110,36 @@ class AIStrategy:
             return random.random() < 0.3  # 30% chance
         
         # Don't pass by default
+        return False
+
+    def should_use_hathor_ability(self, context: dict) -> bool:
+        """Determine if AI should use Hathor's ability."""
+        # Check if the AI player has Hathor as leader
+        if not self.ai_player.leader or "Hathor" not in self.ai_player.leader.get('name', ''):
+            return False
+        
+        # Check if the ability is already in progress
+        if hasattr(self.ai_player, 'hathor_ability_pending') and self.ai_player.hathor_ability_pending:
+            return False
+        
+        # Find the lowest power card on opponent's board
+        lowest_card = None
+        lowest_power = float('inf')
+        
+        for row_name, row_cards in self.opponent.board.items():
+            for card in row_cards:
+                # Skip Legendary Commanders and special cards
+                if "Legendary Commander" in (card.ability or "") or card.row in ["special", "weather"]:
+                    continue
+                
+                if card.power < lowest_power:
+                    lowest_power = card.power
+                    lowest_card = card
+        
+        # Use the ability if there's a valuable card to steal (power >= 5)
+        if lowest_card and lowest_card.power >= 5:
+            return True
+        
         return False
     
     def choose_best_card(self, context: dict) -> Tuple[Optional[object], Optional[str]]:
@@ -381,7 +415,11 @@ class AIController:
         
         action_type, card, row = self.strategy.decide_action()
         
-        if action_type == 'power':
+        if action_type == 'hathor_ability':
+            if self.game.trigger_hathor_ability(self.ai_player):
+                self.game.switch_turn()
+                return 'hathor_ability'
+        elif action_type == 'power':
             # Use faction power
             if not self.ai_player.power_used:
                 self.ai_player.power_used = True

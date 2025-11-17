@@ -1,6 +1,7 @@
 import random
 import copy
 import time
+import pygame
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
@@ -414,6 +415,9 @@ class Player:
         # Apply leader ability - power bonuses (BEFORE weather)
         if self.leader:
             leader_name = self.leader.get('name', '')
+
+            # Hathor: Steal lowest power card from opponent (handled separately in trigger_hathor_ability)
+            # This is just a placeholder - the actual stealing happens in trigger_hathor_ability
             
             # Dr. Samantha Carter: +2 power to all Siege units
             if "Carter" in leader_name:
@@ -728,6 +732,25 @@ class Game:
 
     def switch_turn(self):
         """Switches the turn to the other player, handling passed players."""
+        # Check if Hathor's ability animation is complete
+        if hasattr(self.current_player, 'hathor_ability_pending'):
+            pending = self.current_player.hathor_ability_pending
+            if pending:
+                # Add the stolen card to the player's board
+                self.current_player.board[pending['target_row']].append(pending['card'])
+                self.current_player.hathor_ability_pending = None
+                
+                # Add history event
+                self.add_history_event(
+                    "ability",
+                    f"{self.current_player.name} (Hathor) stole {pending['card'].name}",
+                    self._owner_label(self.current_player),
+                    card_ref=pending['card']
+                )
+                
+                # Recalculate scores
+                self.player1.calculate_score()
+                self.player2.calculate_score()
         if self.last_turn_actor:
             self.last_turn_actor.decrement_clone_tokens()
             self.last_turn_actor = None
@@ -1120,6 +1143,56 @@ class Game:
     def get_medic_valid_cards(self, player):
         """Get list of valid cards that can be revived by medic."""
         return [c for c in player.discard_pile if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]]
+
+    def trigger_hathor_ability(self, player):
+        """Trigger Hathor's ability to steal the lowest power card from opponent."""
+        if not player.leader or "Hathor" not in player.leader.get('name', ''):
+            return False
+
+        opponent = self.player2 if player == self.player1 else self.player1
+
+        # Find the lowest power card on opponent's board
+        lowest_card = None
+        lowest_power = float('inf')
+        lowest_row = None
+
+        for row_name, row_cards in opponent.board.items():
+            for card in row_cards:
+                # Skip Legendary Commanders and special cards
+                if "Legendary Commander" in (card.ability or "") or card.row in ["special", "weather"]:
+                    continue
+
+                if card.power < lowest_power:
+                    lowest_power = card.power
+                    lowest_card = card
+                    lowest_row = row_name
+
+        if lowest_card:
+            # Store the card info for animation
+            self.hathor_steal_info = {
+                'card': lowest_card,
+                'from_row': lowest_row,
+                'from_player': opponent,
+                'to_player': player,
+                'animation_start': pygame.time.get_ticks()
+            }
+
+            # Remove card from opponent's board
+            opponent.board[lowest_row].remove(lowest_card)
+
+            # Add to player's board (will be done after animation)
+            # Determine which row to place it in (prefer same row if possible)
+            target_row = lowest_row if lowest_row in player.board and lowest_row not in ["special", "weather"] else "close"
+
+            # Mark that Hathor's ability is being used
+            player.hathor_ability_pending = {
+                'card': lowest_card,
+                'target_row': target_row
+            }
+
+            return True
+
+        return False
     
     def apply_weather_effect(self, card, target_row=None, target_side="both"):
         """Applies weather effects to rows and returns affected row names."""
@@ -1457,6 +1530,57 @@ class Game:
                     if "Legendary Commander" not in (card.ability or ""):
                         valid_cards.append(card)
         return valid_cards
+
+    def play_ring_transport(self, ring_transport_card, target_card):
+        """Return the targeted card to the current player's hand.
+
+        Heroes (Legendary Commanders) are immune.
+        """
+        if not target_card:
+            return False
+
+        if "Legendary Commander" in (target_card.ability or ""):
+            return False
+
+        # Find which player owns the card and which row it's in
+        card_owner = None
+        card_row = None
+        card_index = -1
+
+        for player in [self.player1, self.player2]:
+            for row_name, row_cards in player.board.items():
+                if target_card in row_cards:
+                    card_owner = player
+                    card_row = row_name
+                    card_index = row_cards.index(target_card)
+                    break
+            if card_owner:
+                break
+
+        if not card_owner or not card_row or card_index == -1:
+            return False
+
+        # Remove target card from board and add to current player's hand
+        card_owner.board[card_row].remove(target_card)
+        self.current_player.hand.append(target_card)
+
+        # Update scoreboard immediately for both players
+        self.player1.calculate_score()
+        self.player2.calculate_score()
+
+        # Move the Ring Transport card to the discard pile
+        if ring_transport_card in self.current_player.hand:
+            self.current_player.hand.remove(ring_transport_card)
+        self.current_player.discard_pile.append(ring_transport_card)
+        
+        self.add_history_event(
+            "special",
+            f"{self.current_player.name} used Ring Transport on {target_card.name}",
+            self._owner_label(self.current_player),
+            card_ref=ring_transport_card
+        )
+
+        return True
     
     def apply_scorch(self):
         """Destroys the highest power non-Legendary Commander units (on both boards if tied).

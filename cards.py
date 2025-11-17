@@ -284,6 +284,7 @@ ALL_CARDS = {
     "neutral_skellige_storm_1": Card("neutral_skellige_storm_1", "Asgard Anti-Goa'uld Pulse", FACTION_NEUTRAL, 0, "weather", "Electromagnetic Pulse"),
     "neutral_skellige_storm_2": Card("neutral_skellige_storm_2", "Asgard Anti-Goa'uld Pulse", FACTION_NEUTRAL, 0, "weather", "Electromagnetic Pulse"),
     "neutral_skellige_storm_3": Card("neutral_skellige_storm_3", "Asgard Anti-Goa'uld Pulse", FACTION_NEUTRAL, 0, "weather", "Electromagnetic Pulse"),
+    "decoy": Card("decoy", "Decoy", FACTION_NEUTRAL, 0, "close", None),
 }
 
 def reload_card_images():

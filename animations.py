@@ -126,6 +126,141 @@ class CardStealAnimation(Animation):
         surface.blit(scaled_card, rect)
 
 
+class HathorStealAnimation(Animation):
+    """Animation for Hathor stealing a card with heart kisses."""
+    def __init__(self, card, start_pos, end_pos, duration=1200, on_finish=None):
+        super().__init__(duration)
+        self.card = card
+        self.start_x, self.start_y = start_pos
+        self.end_x, self.end_y = end_pos
+        self.current_x = self.start_x
+        self.current_y = self.start_y
+        self.hearts = []
+        self.scale = 1.0
+        self.alpha = 255
+        self.rotation = 0
+        self.on_finish = on_finish
+        
+        # Create heart particles
+        for _ in range(15):
+            self.hearts.append({
+                'x': start_pos[0],
+                'y': start_pos[1],
+                'vx': random.uniform(-2, 2),
+                'vy': random.uniform(-3, -1),
+                'size': random.randint(8, 15),
+                'life': 1.0,
+                'color': (255, random.randint(100, 200), random.randint(150, 200))
+            })
+    
+    def update(self, dt):
+        if not self.card:
+            if self.on_finish:
+                self.on_finish()
+                self.on_finish = None
+            return False
+        
+        active = super().update(dt)
+        progress = self.get_progress()
+        
+        # Update card position with easing
+        eased = self.ease_in_out_cubic(progress)
+        self.current_x = self.start_x + (self.end_x - self.start_x) * eased
+        self.current_y = self.start_y + (self.end_y - self.start_y) * eased
+        
+        # Add a floating effect
+        float_offset = math.sin(progress * math.pi * 2) * 10
+        self.current_y += float_offset
+        
+        # Slight rotation effect
+        self.rotation = math.sin(progress * math.pi * 4) * 5
+        
+        # Update hearts
+        for heart in self.hearts:
+            heart['x'] += heart['vx']
+            heart['y'] += heart['vy']
+            heart['vy'] += 0.1  # Gravity
+            heart['life'] -= dt / 1000.0
+            
+            # Make hearts float toward the card
+            dx = self.current_x - heart['x']
+            dy = self.current_y - heart['y']
+            dist = math.sqrt(dx*dx + dy*dy)
+            if dist > 0:
+                heart['x'] += dx * 0.02
+                heart['y'] += dy * 0.02
+        
+        # Remove dead hearts
+        self.hearts = [h for h in self.hearts if h['life'] > 0]
+        
+        # Add new hearts during the animation
+        if progress < 0.7 and random.random() < 0.2:
+            self.hearts.append({
+                'x': self.current_x + random.uniform(-20, 20),
+                'y': self.current_y + random.uniform(-20, 20),
+                'vx': random.uniform(-1, 1),
+                'vy': random.uniform(-2, -0.5),
+                'size': random.randint(8, 15),
+                'life': 1.0,
+                'color': (255, random.randint(100, 200), random.randint(150, 200))
+            })
+            
+        if self.finished and self.on_finish:
+            self.on_finish()
+            self.on_finish = None
+            
+        return active
+    
+    def ease_in_out_cubic(self, t):
+        """Easing function for smooth motion."""
+        if t < 0.5:
+            return 4 * t * t * t
+        else:
+            return 1 - pow(-2 * t + 2, 3) / 2
+    
+    def draw(self, surface):
+        if not self.card or self.finished:
+            return
+        
+        # Draw hearts
+        for heart in self.hearts:
+            alpha = int(255 * heart['life'])
+            self.draw_heart(surface, heart['x'], heart['y'], heart['size'], (*heart['color'], alpha))
+        
+        # Draw the card with rotation
+        if self.card.image:
+            # Create a rotated surface
+            card_surface = pygame.transform.rotate(self.card.image, self.rotation)
+            
+            # Apply alpha
+            card_surface.set_alpha(self.alpha)
+            
+            # Get the rect and center it
+            card_rect = card_surface.get_rect(center=(int(self.current_x), int(self.current_y)))
+            
+            # Draw the card
+            surface.blit(card_surface, card_rect)
+    
+    def draw_heart(self, surface, x, y, size, color):
+        """Draw a heart shape at the given position."""
+        # Create a surface for the heart
+        heart_surface = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        
+        # Draw a simple heart shape
+        # Using two circles and a triangle
+        pygame.draw.circle(heart_surface, color, (size // 2, size // 2), size // 2)
+        pygame.draw.circle(heart_surface, color, (size + size // 2, size // 2), size // 2)
+        points = [
+            (size, size),
+            (size * 2, size),
+            (size, size * 2)
+        ]
+        pygame.draw.polygon(heart_surface, color, points)
+        
+        # Blit the heart to the surface
+        surface.blit(heart_surface, (x - size, y - size))
+
+
 class CardFlipAnimation(Animation):
     """Flips a card (scale effect)."""
     def __init__(self, duration=400):

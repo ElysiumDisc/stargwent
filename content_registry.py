@@ -51,7 +51,7 @@ UNLOCKABLE_LEADERS = {
     FACTION_GOAULD: [
         {"name": "Ba'al", "ability": "Clone technology: Copy highest power unit", "ability_desc": "At round start, copy your highest power unit", "card_id": "goauld_baal"},
         {"name": "Anubis", "ability": "Ascended power: Naquadah Overload every 2 rounds", "ability_desc": "Automatically trigger Naquadah Overload at start of rounds 2 and 3", "card_id": "goauld_anubis"},
-        {"name": "Hathor", "ability": "Seduction: Steal opponent's lowest card to your hand", "ability_desc": "At round start, steal opponent's lowest power unit from their board", "card_id": "goauld_hathor_unlock"},
+        {"name": "Hathor", "ability": "Seduction: Steal the lowest power enemy unit", "ability_desc": "Use her charm to take control of the enemy's weakest unit", "card_id": "goauld_hathor_unlock", "image_path": "assets/hathor_leader.png"},
         {"name": "Cronus", "ability": "Ancient Goa'uld: All units gain +1 power per round number", "ability_desc": "Units get +1 in round 1, +2 in round 2, +3 in round 3", "card_id": "goauld_cronus"},
     ],
     FACTION_JAFFA: [
