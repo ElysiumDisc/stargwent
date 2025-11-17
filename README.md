@@ -182,6 +182,14 @@ All abilities renamed and themed around Stargate lore:
   - vs Apophis: "I am Jaffa. I will not be your slave!"
   - vs Teal'c: "I will make you proud, Father."
   - vs Bra'tac: "Master Bra'tac taught me the ways of freedom."
+- ✅ **Ring Transport Rework** – Neutral decoy cards now behave like true Stargate recalls:
+  - Drag Ring Transport onto any non-Hero unit (ally or enemy) to beam it directly into your hand
+  - Board slots stay empty (no placeholder Decoy), so row totals update instantly
+  - History log records each transport and AI logic shares the same streamlined flow
+- ✅ **Hathor Seduction Rework** – Click Hathor's leader badge to abduct the enemy's weakest non-Hero unit:
+  - Automatically targets the opponent's lowest-power combat unit (skips Legendary Commanders and specials)
+  - Plays a bespoke heart-kiss animation before slotting the stolen card into your matching row
+  - Round history logs the theft, both scoreboards recalc immediately, and the AI uses the same timing logic when piloting Hathor
 
 ### Version 2.2 (November 2025)
 **LAN Multiplayer & Leader Refinements**
