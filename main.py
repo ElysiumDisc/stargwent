@@ -3784,9 +3784,9 @@ def main():
                                             
                                             if row_rect:
                                                 anim_manager.add_effect(NaquadahExplosionEffect(
-                                                    SCREEN_WIDTH // 2, 
-                                                    row_rect.centery, 
-                                                    duration=1200
+                                                    SCREEN_WIDTH // 2,
+                                                    row_rect.centery,
+                                                    duration=1500
                                                 ))
                                         
                                         # Clear the positions for next time
@@ -4001,7 +4001,7 @@ def main():
                                 anim_manager.add_effect(NaquadahExplosionEffect(
                                     SCREEN_WIDTH // 2,
                                     row_rect.centery,
-                                    duration=1200
+                                    duration=1500
                                 ))
                         game.last_scorch_positions = []
                     elif not weather_visual_applied and "Legendary Commander" in ability:

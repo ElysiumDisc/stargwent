@@ -537,21 +537,27 @@ class AICardPlayAnimation(Animation):
 
 
 class NaquadahExplosionEffect:
-    """Blue naquadah energy explosion effect for Naquadah Overload ability."""
-    def __init__(self, x, y, duration=1000):
+    """Dense blue naquadah energy explosion effect for Naquadah Overload ability."""
+    def __init__(self, x, y, duration=1500):
         self.x = x
         self.y = y
         self.duration = duration
         self.elapsed = 0
         self.finished = False
         self.particles = []
+        self.lightning_arcs = []
         self.shockwave_radius = 0
-        self.max_shockwave_radius = 150
-        
-        # Create blue energy particles radiating outward
-        for i in range(50):
+        self.max_shockwave_radius = 200
+        self.shake_intensity = 0
+
+        # Create DENSE blue energy particles radiating outward (3x more particles)
+        for i in range(150):
             angle = random.uniform(0, 360)
-            speed = random.uniform(2, 6)
+            speed = random.uniform(1.5, 8)
+            # Varied particle types for depth
+            particle_type = random.choice(['fast', 'slow', 'sparkle'])
+            size = random.randint(2, 10) if particle_type == 'fast' else random.randint(4, 14)
+
             self.particles.append({
                 'pos': pygame.math.Vector2(x, y),
                 'vel': pygame.math.Vector2(
@@ -559,62 +565,163 @@ class NaquadahExplosionEffect:
                     math.sin(math.radians(angle)) * speed
                 ),
                 'life': 1.0,
-                'size': random.randint(3, 8),
-                'color': (100 + random.randint(-20, 20), 180 + random.randint(-30, 30), 255)
+                'size': size,
+                'type': particle_type,
+                'color': (80 + random.randint(-30, 60), 150 + random.randint(-40, 80), 255)
             })
-    
+
+        # Create electric arc/lightning effects
+        for i in range(8):
+            angle = random.uniform(0, 360)
+            length = random.randint(80, 150)
+            self.lightning_arcs.append({
+                'start': pygame.math.Vector2(x, y),
+                'angle': angle,
+                'length': length,
+                'life': 1.0,
+                'segments': self._generate_lightning_segments(x, y, angle, length)
+            })
+
+    def _generate_lightning_segments(self, x, y, angle, length):
+        """Generate jagged lightning bolt segments."""
+        segments = [pygame.math.Vector2(x, y)]
+        current = pygame.math.Vector2(x, y)
+        target = pygame.math.Vector2(
+            x + math.cos(math.radians(angle)) * length,
+            y + math.sin(math.radians(angle)) * length
+        )
+
+        # Create 5-8 segments with random offsets
+        num_segments = random.randint(5, 8)
+        for i in range(1, num_segments):
+            progress = i / num_segments
+            # Interpolate toward target with random perpendicular offset
+            next_point = current.lerp(target, 1.0 / (num_segments - i + 1))
+            offset = random.uniform(-15, 15)
+            perp_angle = angle + 90
+            next_point.x += math.cos(math.radians(perp_angle)) * offset
+            next_point.y += math.sin(math.radians(perp_angle)) * offset
+            segments.append(next_point)
+            current = next_point
+
+        segments.append(target)
+        return segments
+
     def update(self, dt):
         """Update explosion effect."""
         self.elapsed += dt
         if self.elapsed >= self.duration:
             self.finished = True
             return False
-        
+
         progress = self.elapsed / self.duration
-        self.shockwave_radius = self.max_shockwave_radius * progress
-        
+        self.shockwave_radius = self.max_shockwave_radius * min(progress * 1.8, 1.0)
+
+        # Screen shake intensity (peaks early, fades out)
+        if progress < 0.3:
+            self.shake_intensity = 8 * (1 - progress / 0.3)
+        else:
+            self.shake_intensity = 0
+
+        # Update particles
         for particle in self.particles[:]:
-            particle['pos'] += particle['vel'] * (dt / 16.0)
-            particle['life'] -= dt / self.duration
-            particle['vel'] *= 0.98  # Slow down over time
+            speed_mult = 1.5 if particle['type'] == 'fast' else 0.8
+            particle['pos'] += particle['vel'] * (dt / 16.0) * speed_mult
+            particle['life'] -= (dt / self.duration) * (1.2 if particle['type'] == 'fast' else 0.9)
+            particle['vel'] *= 0.97  # Slow down over time
             if particle['life'] <= 0:
                 self.particles.remove(particle)
-        
+
+        # Update lightning arcs (fade out quickly)
+        for arc in self.lightning_arcs[:]:
+            arc['life'] -= dt / (self.duration * 0.4)  # Lightning fades in first 40%
+            if arc['life'] <= 0:
+                self.lightning_arcs.remove(arc)
+
         return True
-    
+
     def draw(self, surface):
-        """Draw explosion particles and shockwave."""
+        """Draw dense explosion with multiple shockwaves, particles, and lightning."""
         progress = self.elapsed / self.duration
-        
-        # Draw shockwave ring
-        if progress < 0.5:
-            shockwave_alpha = int((1 - progress * 2) * 200)
-            shockwave_surf = pygame.Surface((int(self.shockwave_radius * 2 + 40), 
-                                            int(self.shockwave_radius * 2 + 40)), pygame.SRCALPHA)
-            center = int(self.shockwave_radius + 20)
-            # Multiple rings for depth
-            for i in range(3):
-                color = (80 + i*20, 150 + i*30, 255, shockwave_alpha // (i+1))
-                radius = int(self.shockwave_radius - i*10)
-                if radius > 0:
-                    pygame.draw.circle(shockwave_surf, color, (center, center), radius, width=4)
-            surface.blit(shockwave_surf, (int(self.x - self.shockwave_radius - 20), 
-                                          int(self.y - self.shockwave_radius - 20)))
-        
-        # Draw energy particles
+
+        # Apply screen shake offset
+        shake_x = random.uniform(-self.shake_intensity, self.shake_intensity)
+        shake_y = random.uniform(-self.shake_intensity, self.shake_intensity)
+
+        # Draw bright blue core flash (fades quickly)
+        if progress < 0.15:
+            core_alpha = int((1 - progress / 0.15) * 255)
+            core_size = int(40 + progress * 100)
+            core_surf = pygame.Surface((core_size * 2, core_size * 2), pygame.SRCALPHA)
+            # Bright white-blue core
+            pygame.draw.circle(core_surf, (200, 230, 255, core_alpha), (core_size, core_size), core_size)
+            pygame.draw.circle(core_surf, (150, 200, 255, core_alpha // 2), (core_size, core_size), int(core_size * 1.5))
+            surface.blit(core_surf, (int(self.x - core_size + shake_x), int(self.y - core_size + shake_y)))
+
+        # Draw multiple concentric shockwave rings
+        if progress < 0.7:
+            max_surf_size = int(self.shockwave_radius * 2 + 100)
+            shockwave_surf = pygame.Surface((max_surf_size, max_surf_size), pygame.SRCALPHA)
+            center = max_surf_size // 2
+
+            # 5 shockwave rings at different speeds
+            for i in range(5):
+                ring_progress = min((progress + i * 0.05) / 0.7, 1.0)
+                ring_radius = int(self.shockwave_radius * ring_progress)
+                ring_alpha = int((1 - ring_progress) * (180 - i * 20))
+
+                if ring_alpha > 0 and ring_radius > 0:
+                    # Bright electric blue colors
+                    color = (60 + i*15, 120 + i*25, 255, ring_alpha)
+                    pygame.draw.circle(shockwave_surf, color, (center, center), ring_radius, width=5 - i)
+
+            surface.blit(shockwave_surf,
+                        (int(self.x - max_surf_size // 2 + shake_x),
+                         int(self.y - max_surf_size // 2 + shake_y)))
+
+        # Draw lightning arcs
+        for arc in self.lightning_arcs:
+            alpha = int(arc['life'] * 255)
+            if alpha > 0 and len(arc['segments']) > 1:
+                # Draw electric arc with glow
+                for i in range(len(arc['segments']) - 1):
+                    start = arc['segments'][i]
+                    end = arc['segments'][i + 1]
+
+                    # Outer glow
+                    pygame.draw.line(surface, (100, 180, 255, alpha // 3),
+                                   (int(start.x + shake_x), int(start.y + shake_y)),
+                                   (int(end.x + shake_x), int(end.y + shake_y)), width=5)
+                    # Bright core
+                    pygame.draw.line(surface, (200, 230, 255, alpha),
+                                   (int(start.x + shake_x), int(start.y + shake_y)),
+                                   (int(end.x + shake_x), int(end.y + shake_y)), width=2)
+
+        # Draw dense energy particles
         for particle in self.particles:
             alpha = int(particle['life'] * 255)
+            if alpha <= 0:
+                continue
+
             color = (*particle['color'][:3], alpha)
-            pos = (int(particle['pos'].x), int(particle['pos'].y))
+            pos = (int(particle['pos'].x + shake_x), int(particle['pos'].y + shake_y))
             size = max(1, int(particle['size'] * particle['life']))
-            
+
             # Draw particle with glow
             particle_surf = pygame.Surface((size*4, size*4), pygame.SRCALPHA)
-            # Outer glow
+
+            # Sparkle particles get extra bright glow
+            if particle['type'] == 'sparkle':
+                # Bright outer glow
+                glow_color = (*particle['color'][:3], alpha // 3)
+                pygame.draw.circle(particle_surf, glow_color, (size*2, size*2), size*3)
+
+            # Medium glow
             glow_color = (*particle['color'][:3], alpha // 2)
             pygame.draw.circle(particle_surf, glow_color, (size*2, size*2), size*2)
-            # Inner bright core
+            # Bright inner core
             pygame.draw.circle(particle_surf, color, (size*2, size*2), size)
+
             surface.blit(particle_surf, (pos[0]-size*2, pos[1]-size*2))
 
 

@@ -76,7 +76,6 @@
       "goauld_drone_3",
       "goauld_serpent_guard_3",
       "goauld_hatak_1",
-      "goauld_teltak_3",
       "goauld_drone_2",
       "goauld_unscheduled_jaffa_1",
       "goauld_council_yu",
@@ -85,7 +84,8 @@
       "goauld_council_anubis",
       "neutral_decoy_3",
       "neutral_decoy_2",
-      "neutral_decoy_1"
+      "neutral_decoy_1",
+      "goauld_isis"
     ]
   },
   "Jaffa Rebellion": {
@@ -138,7 +138,7 @@
     ]
   },
   "Asgard": {
-    "leader": "asgard_heimdall",
+    "leader": "asgard_penegal",
     "cards": [
       "asgard_imperfect_clone_2",
       "asgard_imperfect_clone_1",

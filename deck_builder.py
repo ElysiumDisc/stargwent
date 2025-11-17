@@ -63,12 +63,15 @@ class DeckBuilderUI:
         self.leader_area_rect = None
         self.last_save_message = ""
         self.last_save_time = 0
-        
+
         # DRAG AND DROP STATE
         self.dragging_card = None  # Card ID being dragged
         self.drag_start_x = 0
         self.drag_start_y = 0
         self.drag_from_pool = False  # True if dragging from pool, False if from deck
+
+        # HOVER PREVIEW STATE
+        self.hovered_card_id = None  # Card ID being hovered over for preview
         
         # Fonts
         self.title_font = pygame.font.SysFont("Arial", 64, bold=True)
@@ -427,6 +430,67 @@ class DeckBuilderUI:
                 else:
                     selected_id = self.selected_leader.get('card_id') if self.selected_leader else None
                     self.set_leader_background(selected_id)
+
+            # Update hover preview for cards in deck review
+            elif self.state == "deck_review":
+                # Reset hovered card
+                self.hovered_card_id = None
+
+                # Don't show hover preview while dragging or inspecting
+                if self.dragging_card or self.inspected_card_id:
+                    return
+
+                # Calculate panel dimensions (same as in draw_deck_review)
+                panel_padding = 20
+                divider_x = self.screen_width // 2
+                left_panel_x = panel_padding
+                left_panel_width = divider_x - panel_padding * 2
+                left_panel_y = 120
+                left_panel_height = self.screen_height - 180
+                right_panel_x = divider_x + panel_padding
+                right_panel_width = self.screen_width - right_panel_x - panel_padding
+                right_panel_y = 120
+                right_panel_height = self.screen_height - 180
+
+                left_panel_rect = pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height)
+                right_panel_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
+
+                # Check hover in LEFT panel (card pool)
+                if left_panel_rect.collidepoint(mouse_pos) and self.card_pool_ids:
+                    sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
+                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
+                    start_x = left_panel_x + spacing
+                    start_y = left_panel_y + 15 - self.pool_scroll_offset
+
+                    for i, card_id in enumerate(sorted_pool):
+                        row_idx = i // cards_per_row
+                        col_idx = i % cards_per_row
+                        x = start_x + col_idx * (card_width + spacing)
+                        y = start_y + row_idx * (card_height + spacing)
+
+                        card_rect = pygame.Rect(x, y, card_width, card_height)
+                        if card_rect.collidepoint(mouse_pos):
+                            self.hovered_card_id = card_id
+                            break
+
+                # Check hover in RIGHT panel (deck)
+                elif right_panel_rect.collidepoint(mouse_pos) and self.deck_preview_ids:
+                    deck_filter_type = None if self.current_tab == "all" else self.current_tab
+                    visible_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type)
+                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
+                    start_x = right_panel_x + spacing
+                    start_y = right_panel_y + 15 - self.deck_scroll_offset
+
+                    for i, card_id in enumerate(visible_deck_ids):
+                        row_idx = i // cards_per_row
+                        col_idx = i % cards_per_row
+                        x = start_x + col_idx * (card_width + spacing)
+                        y = start_y + row_idx * (card_height + spacing)
+
+                        card_rect = pygame.Rect(x, y, card_width, card_height)
+                        if card_rect.collidepoint(mouse_pos):
+                            self.hovered_card_id = card_id
+                            break
         
         elif event.type == pygame.MOUSEBUTTONUP:
             # Complete drag and drop
@@ -521,7 +585,8 @@ class DeckBuilderUI:
                                 self.deck_scroll_offset += 50
                 return
 
-            if event.button != 1:
+            # For faction and leader select, only handle left clicks
+            if self.state in ["faction_select", "leader_select"] and event.button != 1:
                 return
 
             if self.state == "faction_select":
@@ -1387,8 +1452,12 @@ class DeckBuilderUI:
                 confirm_text = self.small_font.render(self.last_save_message, True, (200, 255, 200))
                 confirm_rect = confirm_text.get_rect(midtop=(self.save_button.centerx, self.save_button.bottom + 10))
                 surface.blit(confirm_text, confirm_rect)
-    
-    
+
+        # Draw hover preview (if not inspecting or dragging)
+        if self.hovered_card_id and not self.inspected_card_id and not self.dragging_card:
+            self.draw_hover_preview(surface)
+
+
     def draw_card_inspection(self, surface, card):
         """Draw zoomed card inspection overlay."""
         # Semi-transparent background
@@ -1446,6 +1515,56 @@ class DeckBuilderUI:
         close_rect = close_text.get_rect(center=(self.screen_width // 2, self.screen_height - 30))
         surface.blit(close_text, close_rect)
     
+    def draw_hover_preview(self, surface):
+        """Draw hover preview card in top right corner of left panel."""
+        if not self.hovered_card_id:
+            return
+
+        card = ALL_CARDS[self.hovered_card_id]
+
+        # Calculate panel dimensions
+        panel_padding = 20
+        divider_x = self.screen_width // 2
+        left_panel_x = panel_padding
+        left_panel_width = divider_x - panel_padding * 2
+        left_panel_y = 120
+
+        # Get normal card dimensions and double them
+        _, _, normal_card_width, normal_card_height = self.get_card_layout_params(left_panel_width)
+        preview_card_width = normal_card_width * 2
+        preview_card_height = normal_card_height * 2
+
+        # Position in top right corner of left panel with some padding
+        preview_padding = 15
+        preview_x = left_panel_x + left_panel_width - preview_card_width - preview_padding
+        preview_y = left_panel_y + preview_padding
+
+        # Draw semi-transparent background
+        bg_surface = pygame.Surface((preview_card_width + 10, preview_card_height + 10), pygame.SRCALPHA)
+        bg_surface.fill((0, 0, 0, 180))
+        surface.blit(bg_surface, (preview_x - 5, preview_y - 5))
+
+        # Draw the card image scaled to preview size
+        try:
+            scaled_image = pygame.transform.scale(card.image, (preview_card_width, preview_card_height))
+            surface.blit(scaled_image, (preview_x, preview_y))
+        except:
+            # Fallback: draw a colored rectangle if image fails
+            pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), border_radius=8)
+
+        # Draw golden border to make it stand out
+        pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), width=4, border_radius=8)
+
+        # Draw power overlay for unit cards
+        if card.row not in ["special", "weather"]:
+            power_font = pygame.font.SysFont("Arial", 28, bold=True)
+            power_text = power_font.render(str(card.power), True, (255, 255, 255))
+            power_rect = power_text.get_rect(center=(preview_x + preview_card_width // 2, preview_y + preview_card_height - 25))
+            # Black background for power text
+            bg_rect = power_rect.inflate(8, 4)
+            pygame.draw.rect(surface, (0, 0, 0), bg_rect, border_radius=3)
+            surface.blit(power_text, power_rect)
+
     def draw_card_type_tabs(self, surface, faction_color):
         """Draw tabs for filtering cards by type."""
         tabs = [
