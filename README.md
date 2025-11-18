@@ -5,7 +5,7 @@
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-2.5-blue)
+![Version](https://img.shields.io/badge/version-2.7-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -38,6 +38,10 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
+- **⚡ NEW v2.7: ALLIANCE COMBO TRACKING** - Alliance activations now show in history viewer with full visibility!
+- **⚡ NEW v2.7: BALANCE CONFIG INTEGRATION** - All balance values now use centralized config for easy tuning!
+- **⚡ NEW v2.7: 7 NEW LEADER ABILITIES** - Landry, Ba'al, Jonas Quinn, Vala, Kiva, Thor Commander, Aegir all implemented!
+- **⚡ NEW v2.7: CRITICAL BUG FIXES** - Fixed Tactical Formation bonus stacking, Rya'c ability, and Asgard Beam artifact!
 - **⚡ NEW v2.5: MASTER VOLUME SLIDER** - Interactive sound control with real-time adjustment, persistent settings, and beautiful gradient UI!
 - **⚡ NEW v2.5: ENHANCED HISTORY PANEL** - Comprehensive event tracking: round results, leader abilities, weather, scorch, card draws, and more!
 - **⚡ NEW v2.5: LAN WAITING LOBBY** - Ready system with live chat before deck selection!
@@ -151,7 +155,40 @@ All abilities renamed and themed around Stargate lore:
 
 ## 📝 Changelog
 
-### Version 2.5 (January 2025)
+### Version 2.7 (November 2025)
+**Complete Leader Abilities, Alliance Tracking & UI Polish**
+
+- ✅ **7 New Leader Abilities Implemented** – All 35 leaders now fully functional:
+  - **Gen. Landry** - "Homeworld Command": +1 power to units in most populated row
+  - **Ba'al** - "System Lord's Cunning": Once per game resurrect unit from discard
+  - **Jonas Quinn** - "Eidetic Memory": Copy a card opponent has drawn
+  - **Vala Mal Doran** - "Thief's Luck": Steal random card from opponent at round 2
+  - **Kiva** - "Brutal Tactics": First unit each round gets +4 power
+  - **Thor Supreme Commander** - "Fleet Command": All Mothership/O'Neill ships +3
+  - **Aegir** - "Asgard Archives": Draw 1 card when playing siege units
+- ✅ **Alliance Combo History Tracking** – All alliance activations now visible in history:
+  - SG-1 United (+5 to O'Neill, Carter, Jackson, Teal'c)
+  - Tok'ra Alliance (+3 to Carter + Tok'ra Operative)
+  - System Lords Summit (+4 to Apophis, Yu, Sokar)
+- ✅ **Balance Configuration System** – Centralized BALANCE_CONFIG for easy tuning:
+  - Jaffa Brotherhood max, Goa'uld Command bonus, Ancient Control Chair bonus
+  - Asgard Beam threshold all configurable
+- ✅ **Stargate-Themed UI Buttons** – Beautiful new button designs:
+  - Leader ability button: Stargate ring with 9 chevrons and dot pattern
+  - Faction power button: Full Stargate with faction-specific event horizon colors
+  - Tau'ri: Blue horizon, silver ring | Goa'uld: Red/orange, gold ring
+  - Jaffa: Golden horizon, bronze ring | Lucian: Purple horizon
+  - Asgard: Cyan horizon, white ring
+- ✅ **Critical Bug Fixes**:
+  - Tactical Formation now correctly preserves leader bonuses (was wiping them)
+  - Rya'c ability fixed (was crashing the game)
+  - Asgard Beam artifact now destroys all 8+ power units (was doing nothing)
+- ✅ **LAN Multiplayer Polish**:
+  - Removed AI "thinking/resolving" messages when playing humans
+  - Improved lobby UI with better alignment and styling
+  - Enhanced chat panel display
+
+### Version 2.5 (October 2025)
 **Enhanced History, Sound Control & Multiplayer Polish**
 
 - ✅ **Enhanced Game History** – Comprehensive event tracking for single-player matches:
@@ -191,7 +228,7 @@ All abilities renamed and themed around Stargate lore:
   - Plays a bespoke heart-kiss animation before slotting the stolen card into your matching row
   - Round history logs the theft, both scoreboards recalc immediately, and the AI uses the same timing logic when piloting Hathor
 
-### Version 2.2 (November 2025)
+### Version 2.2 (October 2025)
 **LAN Multiplayer & Leader Refinements**
 
 - ✅ **LAN Multiplayer COMPLETE** – Host/Join system with deck selection, leader matchup animation, and full 2-player networked gameplay!
@@ -215,7 +252,7 @@ All abilities renamed and themed around Stargate lore:
 - ✅ **Card Reload Safety** – Switching display modes re-renders the board and reloads card assets so everything stays crisp in both windowed and fullscreen sessions.
 - ✅ **Leader Background Alias Fix** – Master Bra'tac now reuses `leader_bg_jaffa_bratac.png`, preventing mismatched filenames and keeping the deck builder happy.
 
-### Version 1.8 (December 2025)
+### Version 1.8 (September 2025)
 **Preparations for Command Horn & HUD Overhaul**
 
 - ✅ **Documentation Refresh** – README bumped to v1.8 to track the upcoming board/HUD rebuild work.
@@ -224,7 +261,7 @@ All abilities renamed and themed around Stargate lore:
 
 ---
 
-### Version 1.7 (November 2025)
+### Version 1.7 (September 2025)
 **Stargwent Gwent-Style Balanced Layout**
 
 #### Visual Layout Overhaul
@@ -260,7 +297,7 @@ All abilities renamed and themed around Stargate lore:
 
 ---
 
-### Version 1.6 (November 2024)
+### Version 1.6 (September 2025)
 **Fullscreen Polish & Round Winner Announcements**
 
 #### UI Improvements
@@ -930,11 +967,14 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
   - Jaffa: Stealth Tel'tak delivery
   - Asgard: Blue holographic lattice swap
 
-#### **32/32 Leader Abilities Working**
-- ✅ Jonas Quinn - See any cards drawn by opponent (not starting hand)
-- ✅ Ba'al (Clone) - Clone strongest unit
-- ✅ Vala - Look at 3 cards, keep 1
-- ✅ Thor (Supreme) - Move unit between rows
+#### **35/35 Leader Abilities Working** (100% Complete!)
+- ✅ Gen. Landry - "Homeworld Command": +1 to most populated row
+- ✅ Ba'al - "System Lord's Cunning": Resurrect unit from discard
+- ✅ Jonas Quinn - "Eidetic Memory": Copy opponent's drawn card
+- ✅ Vala Mal Doran - "Thief's Luck": Steal card at round 2
+- ✅ Kiva - "Brutal Tactics": First unit +4 power
+- ✅ Thor Supreme Commander - "Fleet Command": Motherships +3
+- ✅ Aegir - "Asgard Archives": Draw on siege play
 - ✅ All other leader abilities fully functional!
 
 #### **20/20 Card Abilities Working**

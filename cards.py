@@ -65,7 +65,7 @@ ALL_CARDS = {
     "tauri_alpha_team_1": Card("tauri_alpha_team_1", "Alpha Team Troopers", FACTION_TAURI, 1, "close", "Tactical Formation, Gate Reinforcement"),
     "tauri_alpha_team_2": Card("tauri_alpha_team_2", "Alpha Team Troopers", FACTION_TAURI, 1, "close", "Tactical Formation, Gate Reinforcement"),
     "tauri_alpha_team_3": Card("tauri_alpha_team_3", "Alpha Team Troopers", FACTION_TAURI, 1, "close", "Tactical Formation, Gate Reinforcement"),
-    "tauri_quinn": Card("tauri_quinn", "Jonas Quinn", FACTION_TAURI, 1, "close", None),
+    "tauri_quinn": Card("tauri_quinn", "Jonas Quinn", FACTION_TAURI, 7, "close", None),
     "tauri_sg1_commando_1": Card("tauri_sg1_commando_1", "SG-1 Commandos", FACTION_TAURI, 4, "close", "Tactical Formation, Gate Reinforcement"),
     "tauri_sg1_commando_2": Card("tauri_sg1_commando_2", "SG-1 Commandos", FACTION_TAURI, 4, "close", "Tactical Formation, Gate Reinforcement"),
     "tauri_sg1_commando_3": Card("tauri_sg1_commando_3", "SG-1 Commandos", FACTION_TAURI, 4, "close", "Tactical Formation, Gate Reinforcement"),

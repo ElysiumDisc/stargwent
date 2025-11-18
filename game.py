@@ -6,6 +6,24 @@ from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTI
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
 
+# ===== BALANCE CONFIGURATION =====
+
+BALANCE_CONFIG = {
+    # Faction ability limits
+    "jaffa_brotherhood_max": 3,  # Max bonus from Brotherhood
+    "goauld_command_bonus": 1,   # Bonus per unit with Hero
+
+    # Alliance bonuses (kept moderate)
+    "alliance_bonus_range": (3, 5),  # Min and max alliance bonuses
+
+    # DHD limit
+    "dhd_uses_per_round": 1,    # Can only dial home once per round
+
+    # Artifact power
+    "artifact_neutral_bonus": 2,  # Ancient Chair bonus
+    "artifact_scorch_threshold": 8,  # Asgard Beam threshold
+}
+
 # ===== FACTION ABILITIES =====
 
 class FactionAbility:
@@ -38,9 +56,9 @@ class GoauldAbility(FactionAbility):
     def __init__(self):
         super().__init__(
             "System Lord's Command",
-            "Your non-Hero units get +1 power when you have a Hero on board"
+            f"Your non-Hero units get +{BALANCE_CONFIG['goauld_command_bonus']} power when you have a Hero on board"
         )
-    
+
     def apply_to_score(self, player):
         """Called during score calculation."""
         # Check if player has any Hero on board
@@ -52,13 +70,13 @@ class GoauldAbility(FactionAbility):
                     break
             if has_hero:
                 break
-        
+
         if has_hero:
-            # Add +1 to all non-Hero units
+            # Add bonus to all non-Hero units
             for row in player.board.values():
                 for card in row:
                     if "Hero" not in (card.ability or ""):
-                        card.displayed_power += 1
+                        card.displayed_power += BALANCE_CONFIG["goauld_command_bonus"]
 
 
 class JaffarAbility(FactionAbility):
@@ -66,15 +84,15 @@ class JaffarAbility(FactionAbility):
     def __init__(self):
         super().__init__(
             "Brotherhood",
-            "Each unit gets +1 power for each other unit in the same row (max +3)"
+            f"Each unit gets +1 power for each other unit in the same row (max +{BALANCE_CONFIG['jaffa_brotherhood_max']})"
         )
-    
+
     def apply_to_score(self, player):
         """Called during score calculation."""
         for row_name, row_cards in player.board.items():
             non_hero_units = [c for c in row_cards if "Hero" not in (c.ability or "")]
             if len(non_hero_units) > 1:
-                bonus = min(3, len(non_hero_units) - 1)  # Max +3 to prevent abuse
+                bonus = min(BALANCE_CONFIG["jaffa_brotherhood_max"], len(non_hero_units) - 1)
                 for card in non_hero_units:
                     card.displayed_power += bonus
 
@@ -222,9 +240,9 @@ class GameHistoryEntry:
 ARTIFACTS = {
     "ancient_control_chair": Artifact(
         "Ancient Control Chair",
-        "Your Neutral cards get +2 power",
+        f"Your Neutral cards get +{BALANCE_CONFIG['artifact_neutral_bonus']} power",
         lambda g, p: [
-            setattr(card, 'displayed_power', card.displayed_power + 2)
+            setattr(card, 'displayed_power', card.displayed_power + BALANCE_CONFIG['artifact_neutral_bonus'])
             for row in p.board.values()
             for card in row
             if card.faction == "Neutral" and "Hero" not in (card.ability or "")
@@ -237,7 +255,7 @@ ARTIFACTS = {
     ),
     "asgard_beam": Artifact(
         "Asgard Beam",
-        "Scorch activates at 8+ power instead of highest",
+        f"Scorch activates at {BALANCE_CONFIG['artifact_scorch_threshold']}+ power instead of highest",
         lambda g, p: None  # Handled in scorch logic
     ),
 }
@@ -296,13 +314,15 @@ class AllianceCombo:
         return all(required in cards_on_board for required in self.required_cards)
     
     def apply_bonus(self, player):
-        """Apply the alliance bonus."""
+        """Apply the alliance bonus. Returns True if combo was active."""
         if self.check_active(player):
             # Add bonus to all cards in the alliance
             for row in player.board.values():
                 for card in row:
                     if card.name in self.required_cards:
                         card.displayed_power += self.bonus
+            return True
+        return False
 
 
 # Alliance combo definitions
@@ -327,24 +347,6 @@ ALLIANCE_COMBOS = [
     ),
 ]
 
-
-# ===== BALANCE CONFIGURATION =====
-
-BALANCE_CONFIG = {
-    # Faction ability limits
-    "jaffa_brotherhood_max": 3,  # Max bonus from Brotherhood
-    "goauld_command_bonus": 1,   # Bonus per unit with Hero
-    
-    # Alliance bonuses (kept moderate)
-    "alliance_bonus_range": (3, 5),  # Min and max alliance bonuses
-    
-    # DHD limit
-    "dhd_uses_per_round": 1,    # Can only dial home once per round
-    
-    # Artifact power
-    "artifact_neutral_bonus": 2,  # Ancient Chair bonus
-    "artifact_scorch_threshold": 8,  # Asgard Beam threshold
-}
 
 # ===== END OF MERGED STARGATE MECHANICS =====
 
@@ -392,11 +394,15 @@ class Player:
         return deck
 
     def calculate_score(self):
-        """Calculates the player's total score, applying all abilities and effects."""
+        """Calculates the player's total score, applying all abilities and effects.
+        Returns list of activated alliance combos for history logging."""
         # First, reset all card powers to their base value
         for row_name, row_cards in self.board.items():
             for card in row_cards:
                 card.displayed_power = card.power
+
+        # Track activated alliance combos
+        activated_combos = []
 
         # Apply Hammond ability bonus (first unit each round gets +3)
         if self.leader and "Hammond" in self.leader.get('name', ''):
@@ -471,23 +477,38 @@ class Player:
                         if "Gate Reinforcement" in (card.ability or ""):
                             card.displayed_power += 2
             
-            # Aegir: Legendary Commanders get +2 power
-            elif "Aegir" in leader_name:
+            # Aegir: Draw 1 card when playing Siege units (handled in play_card())
+            # Aegir has no passive scoring bonus - it's a draw ability
+
+            # Gen. Landry: Units get +1 in row with most units
+            elif "Landry" in leader_name:
+                # Find row with most units
+                max_count = 0
+                max_row = None
+                for row_name, row_cards in self.board.items():
+                    if len(row_cards) > max_count:
+                        max_count = len(row_cards)
+                        max_row = row_name
+                # Apply +1 to all units in that row
+                if max_row:
+                    for card in self.board[max_row]:
+                        card.displayed_power += 1
+
+            # Kiva: First unit each round gets +4 power
+            elif "Kiva" in leader_name:
+                for row_name, row_cards in self.board.items():
+                    for card in row_cards:
+                        if hasattr(card, 'kiva_boosted') and card.kiva_boosted:
+                            card.displayed_power += 4
+
+            # Thor Supreme Commander: Mothership cards get +3 power
+            elif "Thor Supreme Commander" in leader_name:
                 for row_cards in self.board.values():
                     for card in row_cards:
-                        if "Legendary Commander" in (card.ability or ""):
-                            card.displayed_power += 2
+                        if "Mothership" in card.name or "O'Neill-Class" in card.name:
+                            card.displayed_power += 3
             
-            # Rya'c: Draw 2 extra cards at start of round 3
-            elif "Rya'c" in leader_name:
-                if getattr(self, 'round_number', 1) == 3 and not getattr(player, '_ryac_triggered', False):
-                    player.draw_cards(2)
-                    player._ryac_triggered = True  # Only trigger once
-                    self.add_history_event(
-                        "ability",
-                        f"{player.name} (Rya'c) drew 2 cards - Hope for Tomorrow!",
-                        self._owner_label(player)
-                    )
+            # Rya'c: Draw 2 extra cards at start of round 3 (handled in end_round())
 
             # (Master Bra'tac removed - duplicate)
             elif False:  # Old Master Bra'tac code
@@ -507,15 +528,15 @@ class Player:
                     if card.name not in bond_groups:
                         bond_groups[card.name] = []
                     bond_groups[card.name].append(card)
-            
+
             for name, cards in bond_groups.items():
                 if len(cards) > 1:
+                    multiplier = len(cards)
                     for card in cards:
-                        # If weather affected, tight bond applies after weather
-                        if self.weather_effects[row_name] and "Legendary Commander" not in (card.ability or ""):
-                            card.displayed_power = len(cards)  # 1 * len(cards)
-                        else:
-                            card.displayed_power = card.power * len(cards)
+                        # Tactical Formation multiplies the card's BASE power
+                        # We need to preserve bonuses already applied
+                        bonuses_applied = card.displayed_power - card.power
+                        card.displayed_power = (card.power * multiplier) + bonuses_applied
 
         # Apply Inspiring Leadership adjacency bonus
         for row_name, row_cards in self.board.items():
@@ -544,8 +565,8 @@ class Player:
         
         # Apply Alliance Combos
         for alliance in ALLIANCE_COMBOS:
-            if alliance.check_active(self):
-                alliance.apply_bonus(self)
+            if alliance.apply_bonus(self):
+                activated_combos.append(alliance)
         
         # Apply Artifact Effects
         for artifact in self.artifacts:
@@ -567,6 +588,8 @@ class Player:
         for row in self.board.values():
             for card in row:
                 self.score += card.displayed_power
+
+        return activated_combos
 
     def draw_cards(self, num=1, track_for_jonas=False):
         """Draws a number of cards from the deck to the hand.
@@ -643,6 +666,29 @@ class Game:
 
     def _owner_label(self, player):
         return "player" if player == self.player1 else "ai"
+
+    def calculate_scores_and_log(self):
+        """Calculate scores for both players and log any alliance combo activations."""
+        # Calculate scores and get activated combos
+        combos_p1 = self.player1.calculate_score()
+        combos_p2 = self.player2.calculate_score()
+
+        # Log alliance combo activations
+        for combo in combos_p1:
+            self.add_history_event(
+                "alliance",
+                f"{self.player1.name} activated {combo.name}: {combo.description}",
+                self._owner_label(self.player1),
+                icon="🤝"
+            )
+
+        for combo in combos_p2:
+            self.add_history_event(
+                "alliance",
+                f"{self.player2.name} activated {combo.name}: {combo.description}",
+                self._owner_label(self.player2),
+                icon="🤝"
+            )
 
     def add_history_event(self, event_type, description, owner, card_ref=None, icon=None, row=None):
         """Append a new entry to the history log."""
@@ -747,10 +793,9 @@ class Game:
                     self._owner_label(self.current_player),
                     card_ref=pending['card']
                 )
-                
+
                 # Recalculate scores
-                self.player1.calculate_score()
-                self.player2.calculate_score()
+                self.calculate_scores_and_log()
         if self.last_turn_actor:
             self.last_turn_actor.decrement_clone_tokens()
             self.last_turn_actor = None
@@ -810,8 +855,7 @@ class Game:
                         self._set_weather_slot(affected_row, {"card": card, "owner": self.current_player})
                 note = f"Weather → {', '.join(r.title() for r in affected_rows)}" if affected_rows else "Weather"
                 self._log_card_play(player, card, note=note)
-                self.player1.calculate_score()
-                self.player2.calculate_score()
+                self.calculate_scores_and_log()
                 player.plays_this_turn += 1
                 self.switch_turn()
                 return
@@ -821,8 +865,7 @@ class Game:
                 self.apply_special_effect(card, row_name)
                 self.current_player.discard_pile.append(card)
                 self._log_card_play(player, card, row_name=row_name, note="Special")
-                self.player1.calculate_score()
-                self.player2.calculate_score()
+                self.calculate_scores_and_log()
                 player.plays_this_turn += 1
                 self.switch_turn()
                 return
@@ -900,6 +943,29 @@ class Game:
                     # Mark card as Hammond boosted so it survives calculate_score()
                     if not hasattr(card, 'hammond_boosted'):
                         card.hammond_boosted = True
+
+            # Kiva: First unit each round gets +4 power
+            if player.leader and "Kiva" in player.leader.get('name', ''):
+                if self.cards_played_this_round[player] == 1 and card.row not in ["special", "weather"]:
+                    if not hasattr(card, 'kiva_boosted'):
+                        card.kiva_boosted = True
+                        self.add_history_event(
+                            "ability",
+                            f"{player.name} (Kiva) Brutal Tactics: {card.name} gets +4 power!",
+                            self._owner_label(player),
+                            icon="💥"
+                        )
+
+            # Aegir: Draw 1 card when playing Siege unit
+            if player.leader and "Aegir" in player.leader.get('name', ''):
+                if card.row == "siege":
+                    player.draw_cards(1)
+                    self.add_history_event(
+                        "ability",
+                        f"{player.name} (Aegir) Asgard Archives: Drew 1 card from siege deployment",
+                        self._owner_label(player),
+                        icon="📚"
+                    )
             
             # Loki ability: Steal 1 power from opponent's strongest unit
             if player.leader and "Loki" in player.leader.get('name', ''):
@@ -941,8 +1007,7 @@ class Game:
                 pass
             else:
                 # Non-medic cards switch turn normally
-                self.player1.calculate_score()
-                self.player2.calculate_score()
+                self.calculate_scores_and_log()
                 self.switch_turn()
 
     def pass_turn(self):
@@ -1319,10 +1384,13 @@ class Game:
             result = self._activate_apophis_weather(player)
         elif "Catherine Langford" in leader_name:
             result = self._activate_catherine_knowledge(player)
+        elif "Ba'al" in leader_name and "Clone" not in leader_name:
+            result = self._activate_baal_resurrection(player)
+        elif "Jonas Quinn" in leader_name:
+            result = self._activate_jonas_memory(player)
         if result:
             self.leader_ability_used[player] = True
-            self.player1.calculate_score()
-            self.player2.calculate_score()
+            self.calculate_scores_and_log()
         return result
 
     def _activate_apophis_weather(self, player):
@@ -1406,6 +1474,74 @@ class Game:
             self._owner_label(player),
             card_ref=chosen_card
         )
+
+    def _activate_baal_resurrection(self, player):
+        """Ba'al: Return a destroyed unit from discard pile to hand (once per game)."""
+        # Get all non-Hero units from discard pile
+        eligible_cards = [
+            c for c in player.discard_pile
+            if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]
+        ]
+
+        if not eligible_cards:
+            return None
+
+        # Return cards for UI selection (main.py will handle the choice)
+        return {
+            "ability": "System Lord's Cunning",
+            "revealed_cards": eligible_cards[:10],  # Show up to 10 cards
+            "requires_ui": True  # Signal that UI interaction is needed
+        }
+
+    def baal_resurrect_card(self, player, chosen_card):
+        """Return chosen card from discard to hand for Ba'al's ability."""
+        if chosen_card in player.discard_pile:
+            player.discard_pile.remove(chosen_card)
+            player.hand.append(chosen_card)
+            self.add_history_event(
+                "ability",
+                f"{player.name} (Ba'al) resurrected {chosen_card.name} from the discard pile!",
+                self._owner_label(player),
+                card_ref=chosen_card,
+                icon="♻️"
+            )
+            return True
+        return False
+
+    def _activate_jonas_memory(self, player):
+        """Jonas Quinn: Look at cards opponent drew, copy one to hand (once per game)."""
+        # Get cards that opponent drew during the game
+        if not self.opponent_drawn_cards:
+            self.add_history_event(
+                "ability",
+                f"{player.name} (Jonas Quinn) tried to use Eidetic Memory, but opponent hasn't drawn cards yet!",
+                self._owner_label(player),
+                icon="🧠"
+            )
+            return None
+
+        # Show up to 5 random cards from what opponent drew
+        revealed_cards = random.sample(self.opponent_drawn_cards, min(5, len(self.opponent_drawn_cards)))
+
+        return {
+            "ability": "Eidetic Memory",
+            "revealed_cards": revealed_cards,
+            "requires_ui": True  # Signal that UI interaction is needed
+        }
+
+    def jonas_memorize_card(self, player, chosen_card):
+        """Copy chosen card to hand for Jonas Quinn's ability."""
+        # Create a copy of the card
+        memorized_card = copy.deepcopy(chosen_card)
+        player.hand.append(memorized_card)
+        self.add_history_event(
+            "ability",
+            f"{player.name} (Jonas Quinn) memorized {chosen_card.name} and copied it!",
+            self._owner_label(player),
+            card_ref=memorized_card,
+            icon="🧠"
+        )
+        return True
 
     def apply_special_effect(self, card, row_name):
         """Applies special card effects."""
@@ -1565,8 +1701,7 @@ class Game:
         self.current_player.hand.append(target_card)
 
         # Update scoreboard immediately for both players
-        self.player1.calculate_score()
-        self.player2.calculate_score()
+        self.calculate_scores_and_log()
 
         # Move the Ring Transport card to the discard pile
         if ring_transport_card in self.current_player.hand:
@@ -1595,9 +1730,27 @@ class Game:
         if not all_units:
             return []
 
-        max_power = max(card.displayed_power for card, _, _ in all_units)
-        units_to_destroy = [(card, player, row) for card, player, row in all_units
-                           if card.displayed_power == max_power]
+        # Check if either player has Asgard Beam artifact
+        has_asgard_beam = False
+        for player in [self.player1, self.player2]:
+            for artifact in player.artifacts:
+                if artifact.name == "Asgard Beam":
+                    has_asgard_beam = True
+                    break
+            if has_asgard_beam:
+                break
+
+        # Determine scorch threshold
+        if has_asgard_beam:
+            # Destroy all units at or above threshold
+            threshold = BALANCE_CONFIG['artifact_scorch_threshold']
+            units_to_destroy = [(card, player, row) for card, player, row in all_units
+                               if card.displayed_power >= threshold]
+        else:
+            # Normal scorch: destroy highest power units
+            max_power = max(card.displayed_power for card, _, _ in all_units)
+            units_to_destroy = [(card, player, row) for card, player, row in all_units
+                               if card.displayed_power == max_power]
 
         destroyed_positions = []
         destroyed_cards = []
@@ -1628,13 +1781,31 @@ class Game:
             for card in row_cards:
                 if "Legendary Commander" not in (card.ability or ""):
                     all_units.append((card, row_name))
-        
+
         if not all_units:
             return []
-        
-        max_power = max(card.displayed_power for card, _ in all_units)
-        units_to_destroy = [(card, row) for card, row in all_units 
-                           if card.displayed_power == max_power]
+
+        # Check if either player has Asgard Beam artifact
+        has_asgard_beam = False
+        for player in [self.player1, self.player2]:
+            for artifact in player.artifacts:
+                if artifact.name == "Asgard Beam":
+                    has_asgard_beam = True
+                    break
+            if has_asgard_beam:
+                break
+
+        # Determine scorch threshold
+        if has_asgard_beam:
+            # Destroy all units at or above threshold
+            threshold = BALANCE_CONFIG['artifact_scorch_threshold']
+            units_to_destroy = [(card, row) for card, row in all_units
+                               if card.displayed_power >= threshold]
+        else:
+            # Normal scorch: destroy highest power units
+            max_power = max(card.displayed_power for card, _ in all_units)
+            units_to_destroy = [(card, row) for card, row in all_units
+                               if card.displayed_power == max_power]
         
         destroyed_rows = []
         for card, row_name in units_to_destroy:
@@ -1733,6 +1904,8 @@ class Game:
                         delattr(card, 'hammond_boosted')
                     if hasattr(card, 'kalel_boosted'):
                         delattr(card, 'kalel_boosted')
+                    if hasattr(card, 'kiva_boosted'):
+                        delattr(card, 'kiva_boosted')
                 p.discard_pile.extend(row_cards)
             
             # Reset for next round
@@ -1751,8 +1924,9 @@ class Game:
             # Reset Ring Transportation for new round (Goa'uld)
             if p.ring_transportation:
                 p.ring_transportation.reset_round()
-            
-            p.calculate_score()
+
+            # Reset score (board is empty at this point)
+            p.score = 0
         
         # Clear weather cards from board and move to discard
         self.discard_active_weather_cards()
@@ -1791,6 +1965,28 @@ class Game:
                 # (Handled in pass_turn method)
                 # NEW: Gerak: Draw 1 card for every 2 units played
                 # (Handled in play_card method)
+                # Rya'c: Draw 2 extra cards at start of round 3
+                elif "Rya'c" in leader_name and self.round_number == 3:
+                    base_draw += 2
+                    self.add_history_event(
+                        "ability",
+                        f"{p.name} (Rya'c) draws +2 cards - Hope for Tomorrow!",
+                        self._owner_label(p),
+                        icon="🌟"
+                    )
+                # Vala Mal Doran: Steal 1 random card from opponent's hand at round 2 start
+                elif "Vala" in leader_name and self.round_number == 2:
+                    opponent = self.player2 if p == self.player1 else self.player1
+                    if opponent.hand:
+                        stolen_card = random.choice(opponent.hand)
+                        opponent.hand.remove(stolen_card)
+                        p.hand.append(stolen_card)
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (Vala) Thief's Luck: Stole {stolen_card.name} from {opponent.name}!",
+                            self._owner_label(p),
+                            icon="🎭"
+                        )
                 # NEW: Penegal: Revive 1 unit at start of rounds 2 and 3
                 elif "Penegal" in leader_name and self.round_number > 1:
                     if p.discard_pile:

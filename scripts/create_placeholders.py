@@ -983,6 +983,7 @@ def main():
     create_custom_font()
     create_card_back_image()
     create_universal_matchup_background()
+    create_lobby_background()
     
     # Calculate totals
     base_cards = len(ALL_CARDS)
@@ -990,7 +991,7 @@ def main():
     num_leaders = sum(len(l) for l in leaders.values())
     num_ships = len(factions_for_ships)  # One ship per faction
     num_faction_bgs = len(FACTION_BACKGROUND_IDS)
-    num_other = 6  # board, menu, rule menu, deck bg, card back, universal matchup bg
+    num_other = 7  # board, menu, rule menu, deck bg, card back, universal matchup bg, lobby bg
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
     
@@ -1004,9 +1005,135 @@ def main():
     print(f"  Universal Matchup Backgrounds: 1 (dynamic overlay handles text/names)")
     print(f"  Ships: {num_ships} (1 per faction)")
     print(f"  Faction Backgrounds: {num_faction_bgs}")
-    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, card back, universal matchup bg) + 1 font config")
+    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, card back, universal matchup bg, lobby bg) + 1 font config")
     print(f"  Total Images: {total_images}")
 
+
+def create_lobby_background():
+    """Create LAN multiplayer lobby background with Stargate tech aesthetic."""
+    path = os.path.join(ASSETS_DIR, "lobby_background.png")
+    if not should_create_file(path):
+        print(f"  ⊗ Skipped: lobby_background.png (already exists)")
+        return None
+
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+
+    # Dark blue gradient background
+    for y in range(BOARD_HEIGHT):
+        progress = y / BOARD_HEIGHT
+        r = int(10 + progress * 20)
+        g = int(15 + progress * 30)
+        b = int(40 + progress * 60)
+        pygame.draw.line(surface, (r, g, b), (0, y), (BOARD_WIDTH, y))
+
+    # Add starfield
+    for _ in range(500):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.randint(1, 3)
+        brightness = random.randint(100, 255)
+        pygame.draw.circle(surface, (brightness, brightness, brightness), (x, y), size)
+
+    # Add larger glowing stars
+    for _ in range(50):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.randint(4, 12)
+        brightness = random.randint(150, 255)
+        # Glow effect (multiple circles with decreasing alpha)
+        for radius in range(size, 0, -2):
+            alpha_factor = radius / size
+            r = min(255, int(brightness * alpha_factor))
+            g = min(255, int(brightness * alpha_factor))
+            b = min(255, int((brightness + 50) * alpha_factor))
+            pygame.draw.circle(surface, (r, g, b), (x, y), radius)
+
+    # Add tech grid pattern (subtle)
+    grid_color_main = (30, 60, 120)
+    grid_color_dim = (15, 30, 60)
+    grid_spacing = 100
+
+    # Vertical lines
+    for x in range(0, BOARD_WIDTH, grid_spacing):
+        if x % 300 == 0:
+            pygame.draw.line(surface, grid_color_main, (x, 0), (x, BOARD_HEIGHT), 2)
+        else:
+            pygame.draw.line(surface, grid_color_dim, (x, 0), (x, BOARD_HEIGHT), 1)
+
+    # Horizontal lines
+    for y in range(0, BOARD_HEIGHT, grid_spacing):
+        if y % 300 == 0:
+            pygame.draw.line(surface, grid_color_main, (0, y), (BOARD_WIDTH, y), 2)
+        else:
+            pygame.draw.line(surface, grid_color_dim, (0, y), (BOARD_WIDTH, y), 1)
+
+    # Add circuit-like connections
+    for _ in range(30):
+        x1 = random.randint(0, BOARD_WIDTH)
+        y1 = random.randint(0, BOARD_HEIGHT)
+        current_x, current_y = x1, y1
+
+        # Draw a path with right angles (circuit-like)
+        for _ in range(random.randint(2, 5)):
+            prev_x, prev_y = current_x, current_y
+
+            if random.random() > 0.5:
+                # Horizontal
+                current_x += random.randint(-300, 300)
+                current_x = max(0, min(BOARD_WIDTH, current_x))
+            else:
+                # Vertical
+                current_y += random.randint(-300, 300)
+                current_y = max(0, min(BOARD_HEIGHT, current_y))
+
+            # Draw line
+            pygame.draw.line(surface, (40, 100, 150), (prev_x, prev_y), (current_x, current_y), 2)
+
+            # Add node at connection
+            pygame.draw.circle(surface, (60, 140, 200), (prev_x, prev_y), 4)
+            pygame.draw.circle(surface, (100, 180, 240), (prev_x, prev_y), 6, 1)
+
+    # Add Stargate chevron symbols (simplified circles with glyphs)
+    num_chevrons = 7
+    center_x = BOARD_WIDTH // 2
+    center_y = BOARD_HEIGHT // 2
+    radius = min(BOARD_WIDTH, BOARD_HEIGHT) // 3
+
+    for i in range(num_chevrons):
+        angle = (i * 2 * math.pi / num_chevrons) - math.pi / 2
+        x = center_x + int(radius * math.cos(angle))
+        y = center_y + int(radius * math.sin(angle))
+
+        # Outer glow
+        for r in range(50, 0, -5):
+            alpha_factor = r / 50
+            cr = min(255, int(140 * alpha_factor))
+            cg = min(255, int(200 * alpha_factor))
+            cb = min(255, int(230 * alpha_factor))
+            pygame.draw.circle(surface, (cr, cg, cb), (x, y), r)
+
+        # Main chevron circle
+        pygame.draw.circle(surface, (60, 140, 220), (x, y), 30)
+        pygame.draw.circle(surface, (20, 60, 100), (x, y), 25)
+        pygame.draw.circle(surface, (80, 160, 240), (x, y), 20)
+
+        # Inner detail
+        pygame.draw.circle(surface, (40, 100, 180), (x, y), 15)
+        pygame.draw.circle(surface, (100, 180, 255), (x, y), 8)
+
+    # Add center Stargate ring (subtle)
+    ring_radius = min(BOARD_WIDTH, BOARD_HEIGHT) // 4
+    for thickness in range(20, 0, -2):
+        alpha_factor = thickness / 20
+        cr = min(255, int(30 + 80 * alpha_factor))
+        cg = min(255, int(80 + 80 * alpha_factor))
+        cb = min(255, int(150 + 80 * alpha_factor))
+        pygame.draw.circle(surface, (cr, cg, cb), (center_x, center_y), ring_radius, 2)
+        ring_radius -= 3
+
+    pygame.image.save(surface, path)
+    print(f"  ✓ {path}")
+    return path
 
 def create_universal_matchup_background():
     """Create a single cinematic Stargate matchup background used by all leader pairs."""

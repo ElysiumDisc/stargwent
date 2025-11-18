@@ -43,15 +43,15 @@ BASE_FACTION_LEADERS = {
 # Leaders that can be unlocked through gameplay progression.
 UNLOCKABLE_LEADERS = {
     FACTION_TAURI: [
-        {"name": "Gen. Landry", "ability": "+1 power to all units each round they survive", "ability_desc": "+1 power to all units for each round they survive on the board", "card_id": "tauri_landry"},
+        {"name": "Gen. Landry", "ability": "Homeworld Command: Units get +1 in row with most units", "ability_desc": "All units in your most populated row get +1 power", "card_id": "tauri_landry"},
         {"name": "Dr. McKay", "ability": "Draw 2 cards when you pass", "ability_desc": "Draw 2 cards when you pass your turn", "card_id": "tauri_mckay"},
-        {"name": "Jonas Quinn", "ability": "Premonition: See opponent's next card", "ability_desc": "See the next card your opponent will play", "card_id": "tauri_quinn"},
+        {"name": "Jonas Quinn", "ability": "Eidetic Memory: Copy a card opponent drew", "ability_desc": "Once per game: Look at cards opponent drew, copy one to your hand", "card_id": "tauri_quinn"},
         {"name": "Catherine Langford", "ability": "Ancient Knowledge: Look at top 3 cards of your deck, play one immediately", "ability_desc": "Once per game: Reveal top 3 cards, choose one to play, rest go to bottom of deck", "card_id": "tauri_langford"},
     ],
     FACTION_GOAULD: [
-        {"name": "Ba'al", "ability": "Clone technology: Copy highest power unit", "ability_desc": "At round start, copy your highest power unit", "card_id": "goauld_baal"},
+        {"name": "Ba'al", "ability": "System Lord's Cunning: Resurrect card from discard", "ability_desc": "Once per game: Return a destroyed unit from discard pile to your hand", "card_id": "goauld_baal"},
         {"name": "Anubis", "ability": "Ascended power: Naquadah Overload every 2 rounds", "ability_desc": "Automatically trigger Naquadah Overload at start of rounds 2 and 3", "card_id": "goauld_anubis"},
-        {"name": "Hathor", "ability": "Seduction: Steal the lowest power enemy unit", "ability_desc": "Use her charm to take control of the enemy's weakest unit", "card_id": "goauld_hathor_unlock", "image_path": "assets/hathor_leader.png"},
+        {"name": "Hathor", "ability": "Seduction: Steal the lowest power enemy unit", "ability_desc": "Use her charm to take control of the enemy's weakest unit (manual activation)", "card_id": "goauld_hathor_unlock", "image_path": "assets/hathor_leader.png"},
         {"name": "Cronus", "ability": "Ancient Goa'uld: All units gain +1 power per round number", "ability_desc": "Units get +1 in round 1, +2 in round 2, +3 in round 3", "card_id": "goauld_cronus"},
     ],
     FACTION_JAFFA: [
@@ -61,16 +61,16 @@ UNLOCKABLE_LEADERS = {
         {"name": "Rya'c", "ability": "Hope for Tomorrow: Draw 2 extra cards at start of round 3", "ability_desc": "Automatically draw 2 extra cards when round 3 begins", "card_id": "jaffa_ryac"},
     ],
     FACTION_LUCIAN: [
-        {"name": "Netan", "ability": "Smuggling: Add random card from neutral pool each round", "ability_desc": "Gain 1 random Neutral card at start of each round", "card_id": "lucian_netan"},
-        {"name": "Vala Mal Doran", "ability": "Treasure hunter: Reveal 3 cards, keep 1", "ability_desc": "Once per game, look at top 3 cards of deck and keep one", "card_id": "lucian_vala"},
-        {"name": "Anateo", "ability": "Black market: Medical Evac ability every round", "ability_desc": "Can use Medical Evac ability once per round without card", "card_id": "lucian_anateo"},
-        {"name": "Kiva", "ability": "Surprise attack: Play 2 cards on first turn", "ability_desc": "Can play 2 cards on your first turn of the game", "card_id": "lucian_kiva"},
+        {"name": "Netan", "ability": "Smuggling: Draw +1 card each round", "ability_desc": "Draw 1 extra card at the start of each round", "card_id": "lucian_netan"},
+        {"name": "Vala Mal Doran", "ability": "Thief's Luck: Steal card from opponent's hand", "ability_desc": "At start of round 2, steal 1 random card from opponent's hand", "card_id": "lucian_vala"},
+        {"name": "Anateo", "ability": "Black market: Medical Evac ability every round", "ability_desc": "Free Medical Evac at start of rounds 2 and 3", "card_id": "lucian_anateo"},
+        {"name": "Kiva", "ability": "Brutal Tactics: First unit each round gets +4 power", "ability_desc": "Your first unit each round gets +4 power", "card_id": "lucian_kiva"},
     ],
     FACTION_ASGARD: [
-        {"name": "Thor Supreme Commander", "ability": "Beam technology: Move any unit once per round", "ability_desc": "Once per round, move any unit to a different row", "card_id": "asgard_thor"},
+        {"name": "Thor Supreme Commander", "ability": "Fleet Command: Motherships get +3 power", "ability_desc": "All Mothership and O'Neill-Class ships get +3 power", "card_id": "asgard_thor"},
         {"name": "Hermiod", "ability": "Shields up: Weather affects opponent only", "ability_desc": "Weather cards you play only affect your opponent", "card_id": "asgard_hermiod"},
         {"name": "Penegal", "ability": "Cloning bay: Revive one unit at start of each round", "ability_desc": "Revive 1 random unit from discard at start of rounds 2 and 3", "card_id": "asgard_penegal"},
-        {"name": "Aegir", "ability": "High Council: +2 power to all Legendary Commanders", "ability_desc": "+2 power to all your Legendary Commander cards", "card_id": "asgard_aegir"},
+        {"name": "Aegir", "ability": "Asgard Archives: Draw 1 when playing Siege unit", "ability_desc": "Draw 1 card whenever you play a Siege unit", "card_id": "asgard_aegir"},
     ],
 }
 

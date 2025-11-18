@@ -1016,28 +1016,106 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     if counter_width > 0:
         counter_rect = pygame.Rect(column_right - counter_width, ability_rect.y, counter_width, ability_height)
 
-    # Ability button with icon (no text).
+    # Ability button with Stargate ring design
     ability_surface = pygame.Surface((ability_rect.width, ability_rect.height), pygame.SRCALPHA)
-    ability_surface.fill((20, 28, 46, 235))
-    ability_border = faction_color if ability_ready else (80, 80, 90)
-    if hover_pos and ability_rect.collidepoint(hover_pos):
-        ability_border = tuple(min(255, c + 35) for c in ability_border)
-    pygame.draw.rect(ability_surface, ability_border, ability_surface.get_rect(), width=4, border_radius=16)
+    ability_surface.fill((15, 20, 35, 240))
 
-    # Stargate-inspired chevrons to indicate the leader ability button.
+    # Colors based on ability state
+    if ability_ready:
+        ring_color = faction_color
+        chevron_color = tuple(min(255, c + 40) for c in faction_color)
+        dot_color = faction_color
+        glow_color = tuple(min(255, c + 60) for c in faction_color)
+    else:
+        ring_color = (80, 80, 90)
+        chevron_color = (100, 100, 110)
+        dot_color = (70, 70, 80)
+        glow_color = (90, 90, 100)
+
+    # Hover effect
+    if hover_pos and ability_rect.collidepoint(hover_pos):
+        ring_color = tuple(min(255, c + 50) for c in ring_color)
+        chevron_color = tuple(min(255, c + 50) for c in chevron_color)
+        glow_color = tuple(min(255, c + 70) for c in glow_color)
+
     icon_rect = ability_surface.get_rect()
-    chevron_color = ability_border if ability_ready else (130, 130, 140)
-    chevron_height = max(6, icon_rect.height // 6)
-    chevron_width = max(20, int(icon_rect.width * 0.55))
-    chevron_start_y = icon_rect.centery - chevron_height - chevron_height // 2
+    cx, cy = icon_rect.center
+
+    # Calculate sizes based on button dimensions
+    outer_radius = min(icon_rect.width, icon_rect.height) // 2 - 6
+    inner_radius = int(outer_radius * 0.65)
+    chevron_radius = int(outer_radius * 0.85)
+
+    # Draw outer glow ring
     for i in range(3):
-        top = chevron_start_y + i * chevron_height
-        points = [
-            (icon_rect.centerx - chevron_width // 2, top),
-            (icon_rect.centerx + chevron_width // 2, top),
-            (icon_rect.centerx, top + chevron_height)
-        ]
-        pygame.draw.polygon(ability_surface, chevron_color, points)
+        r = outer_radius + 3 - i
+        alpha = 60 - i * 20
+        glow = (*glow_color[:3], alpha) if len(glow_color) == 3 else glow_color
+        pygame.draw.circle(ability_surface, glow, (cx, cy), r, 2)
+
+    # Draw main outer ring
+    pygame.draw.circle(ability_surface, ring_color, (cx, cy), outer_radius, 4)
+
+    # Draw inner ring
+    pygame.draw.circle(ability_surface, ring_color, (cx, cy), inner_radius, 3)
+
+    # Draw 9 chevrons around the ring (like a Stargate)
+    num_chevrons = 9
+    chevron_size = max(6, outer_radius // 5)
+    for i in range(num_chevrons):
+        angle = (i * 2 * 3.14159 / num_chevrons) - 3.14159 / 2
+
+        # Chevron position on the ring
+        chev_x = cx + int(chevron_radius * math.cos(angle))
+        chev_y = cy + int(chevron_radius * math.sin(angle))
+
+        # Draw chevron as triangle pointing outward
+        # Calculate direction vector
+        dx = math.cos(angle)
+        dy = math.sin(angle)
+
+        # Perpendicular vector for chevron width
+        px = -dy
+        py = dx
+
+        # Chevron points
+        tip_x = chev_x + int(dx * chevron_size * 0.8)
+        tip_y = chev_y + int(dy * chevron_size * 0.8)
+
+        base1_x = chev_x + int(px * chevron_size * 0.5) - int(dx * chevron_size * 0.3)
+        base1_y = chev_y + int(py * chevron_size * 0.5) - int(dy * chevron_size * 0.3)
+
+        base2_x = chev_x - int(px * chevron_size * 0.5) - int(dx * chevron_size * 0.3)
+        base2_y = chev_y - int(py * chevron_size * 0.5) - int(dy * chevron_size * 0.3)
+
+        pygame.draw.polygon(ability_surface, chevron_color, [
+            (tip_x, tip_y),
+            (base1_x, base1_y),
+            (base2_x, base2_y)
+        ])
+
+    # Draw center dot pattern (like the event horizon)
+    dot_radius = max(2, inner_radius // 8)
+    dot_spacing = max(6, inner_radius // 3)
+
+    # Draw grid of dots in center
+    for row in range(-2, 3):
+        for col in range(-2, 3):
+            # Skip corners to make circular pattern
+            if abs(row) == 2 and abs(col) == 2:
+                continue
+
+            dot_x = cx + col * dot_spacing
+            dot_y = cy + row * dot_spacing
+
+            # Check if dot is within inner circle
+            dist = math.sqrt((dot_x - cx) ** 2 + (dot_y - cy) ** 2)
+            if dist < inner_radius - dot_radius - 2:
+                pygame.draw.circle(ability_surface, dot_color, (dot_x, dot_y), dot_radius)
+
+    # Draw rounded border
+    pygame.draw.rect(ability_surface, ring_color, ability_surface.get_rect(), width=3, border_radius=12)
+
     surface.blit(ability_surface, ability_rect.topleft)
 
     # Card/Deck counters stay compact on the right.
@@ -1066,23 +1144,147 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
 
     y_cursor = ability_rect.bottom + spacing
 
-    # Faction power button (full-size circle) centered in the column.
+    # Faction power button - Stargate design with faction-specific event horizon
     faction_rect = pygame.Rect(0, y_cursor, faction_size, faction_size)
     faction_rect.centerx = column_center_x
     faction_surface = pygame.Surface((faction_rect.width, faction_rect.height), pygame.SRCALPHA)
-    pygame.draw.circle(faction_surface, (30, 40, 60), faction_surface.get_rect().center, faction_rect.width // 2)
-    glow_alpha = 230 if faction_power_ready else 130
+
+    cx, cy = faction_surface.get_rect().center
+    outer_radius = faction_rect.width // 2 - 2
+    inner_radius = int(outer_radius * 0.7)
+    chevron_radius = int(outer_radius * 0.88)
+
+    # Faction-specific color schemes for Stargate
+    faction_name = player.faction if hasattr(player, 'faction') else "Tau'ri"
+
+    # Define faction-specific colors (ring, event horizon primary, event horizon secondary, chevron)
+    faction_gate_colors = {
+        "Tau'ri": {
+            "ring": (120, 130, 140),      # Silver/gray ring
+            "horizon1": (30, 100, 200),    # Blue event horizon
+            "horizon2": (80, 160, 255),    # Light blue swirl
+            "horizon3": (200, 230, 255),   # White center glow
+            "chevron": (255, 180, 50),     # Gold chevrons
+        },
+        "Goa'uld": {
+            "ring": (180, 150, 80),        # Gold ring
+            "horizon1": (180, 50, 30),     # Red/orange event horizon
+            "horizon2": (255, 120, 60),    # Orange swirl
+            "horizon3": (255, 200, 150),   # Bright center
+            "chevron": (255, 80, 40),      # Red chevrons
+        },
+        "Jaffa": {
+            "ring": (160, 140, 100),       # Bronze ring
+            "horizon1": (180, 140, 40),    # Golden event horizon
+            "horizon2": (220, 180, 80),    # Light gold swirl
+            "horizon3": (255, 240, 180),   # Bright gold center
+            "chevron": (255, 200, 100),    # Gold chevrons
+        },
+        "Lucian Alliance": {
+            "ring": (100, 80, 120),        # Dark purple ring
+            "horizon1": (120, 50, 150),    # Purple event horizon
+            "horizon2": (180, 100, 200),   # Pink swirl
+            "horizon3": (240, 180, 255),   # Bright purple center
+            "chevron": (255, 100, 200),    # Pink chevrons
+        },
+        "Asgard": {
+            "ring": (180, 200, 220),       # White/silver ring
+            "horizon1": (40, 150, 180),    # Cyan event horizon
+            "horizon2": (100, 200, 220),   # Light cyan swirl
+            "horizon3": (220, 255, 255),   # White center
+            "chevron": (150, 255, 255),    # Cyan chevrons
+        },
+    }
+
+    colors = faction_gate_colors.get(faction_name, faction_gate_colors["Tau'ri"])
+
+    # Adjust brightness based on ready state and hover
+    brightness_mult = 1.0 if faction_power_ready else 0.5
     if hover_pos and faction_rect.collidepoint(hover_pos):
-        glow_alpha = min(255, glow_alpha + 40)
-    pygame.draw.circle(
-        faction_surface,
-        (*faction_color, glow_alpha),
-        faction_surface.get_rect().center,
-        faction_rect.width // 2,
-        width=5
-    )
-    pygame.draw.circle(faction_surface, faction_color,
-                       faction_surface.get_rect().center, int(faction_rect.width * 0.35), width=4)
+        brightness_mult = min(1.3, brightness_mult + 0.3)
+
+    def adjust_color(color, mult):
+        return tuple(min(255, int(c * mult)) for c in color)
+
+    ring_color = adjust_color(colors["ring"], brightness_mult)
+    horizon1 = adjust_color(colors["horizon1"], brightness_mult)
+    horizon2 = adjust_color(colors["horizon2"], brightness_mult)
+    horizon3 = adjust_color(colors["horizon3"], brightness_mult)
+    chevron_color = adjust_color(colors["chevron"], brightness_mult)
+
+    # Draw dark background circle
+    pygame.draw.circle(faction_surface, (20, 25, 35), (cx, cy), outer_radius)
+
+    # Draw event horizon (swirling effect with concentric circles)
+    # Outer horizon ring
+    pygame.draw.circle(faction_surface, horizon1, (cx, cy), inner_radius)
+
+    # Swirl effect - multiple offset circles
+    swirl_radius = int(inner_radius * 0.85)
+    for i in range(6):
+        angle = i * 60 * 3.14159 / 180
+        offset_x = int(math.cos(angle) * inner_radius * 0.15)
+        offset_y = int(math.sin(angle) * inner_radius * 0.15)
+        pygame.draw.circle(faction_surface, horizon2, (cx + offset_x, cy + offset_y), swirl_radius, 3)
+
+    # Inner swirl layers
+    for radius_mult in [0.7, 0.5, 0.3]:
+        r = int(inner_radius * radius_mult)
+        pygame.draw.circle(faction_surface, horizon2, (cx, cy), r, 2)
+
+    # Center glow
+    center_radius = int(inner_radius * 0.25)
+    pygame.draw.circle(faction_surface, horizon3, (cx, cy), center_radius)
+    pygame.draw.circle(faction_surface, (255, 255, 255), (cx, cy), center_radius // 2)
+
+    # Draw outer ring (the Stargate frame)
+    ring_width = max(4, int(outer_radius * 0.12))
+    pygame.draw.circle(faction_surface, ring_color, (cx, cy), outer_radius, ring_width)
+
+    # Draw chevrons around the ring
+    num_chevrons = 9
+    chevron_size = max(4, int(outer_radius * 0.15))
+
+    for i in range(num_chevrons):
+        angle = (i * 2 * 3.14159 / num_chevrons) - 3.14159 / 2
+
+        chev_x = cx + int(chevron_radius * math.cos(angle))
+        chev_y = cy + int(chevron_radius * math.sin(angle))
+
+        # Direction vectors
+        dx = math.cos(angle)
+        dy = math.sin(angle)
+        px = -dy
+        py = dx
+
+        # Chevron triangle points (pointing outward)
+        tip_x = chev_x + int(dx * chevron_size)
+        tip_y = chev_y + int(dy * chevron_size)
+
+        base1_x = chev_x + int(px * chevron_size * 0.6) - int(dx * chevron_size * 0.3)
+        base1_y = chev_y + int(py * chevron_size * 0.6) - int(dy * chevron_size * 0.3)
+
+        base2_x = chev_x - int(px * chevron_size * 0.6) - int(dx * chevron_size * 0.3)
+        base2_y = chev_y - int(py * chevron_size * 0.6) - int(dy * chevron_size * 0.3)
+
+        pygame.draw.polygon(faction_surface, chevron_color, [
+            (tip_x, tip_y),
+            (base1_x, base1_y),
+            (base2_x, base2_y)
+        ])
+
+        # Inner chevron detail
+        inner_tip_x = chev_x + int(dx * chevron_size * 0.5)
+        inner_tip_y = chev_y + int(dy * chevron_size * 0.5)
+        pygame.draw.circle(faction_surface, ring_color, (int(inner_tip_x), int(inner_tip_y)), max(2, chevron_size // 4))
+
+    # Add glow effect around the gate when ready
+    if faction_power_ready:
+        for i in range(3):
+            glow_r = outer_radius + 2 + i
+            glow_alpha = 80 - i * 25
+            pygame.draw.circle(faction_surface, (*chevron_color, glow_alpha), (cx, cy), glow_r, 2)
+
     surface.blit(faction_surface, faction_rect.topleft)
 
     # Total score box lives to the right of the faction power circle.
@@ -2591,17 +2793,17 @@ def draw_catherine_selection_overlay(surface, revealed_cards, screen_width, scre
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
     overlay.fill((10, 10, 30, 220))
     surface.blit(overlay, (0, 0))
-    
+
     title_font = pygame.font.Font(None, 58)
     title_text = title_font.render("CATHERINE LANGFORD — Ancient Knowledge", True, (235, 200, 120))
     title_rect = title_text.get_rect(center=(screen_width // 2, 90))
     surface.blit(title_text, title_rect)
-    
+
     subtitle_font = pygame.font.Font(None, 34)
     subtitle_text = subtitle_font.render("Choose a card to draw immediately (others return to the deck bottom)", True, (230, 230, 230))
     subtitle_rect = subtitle_text.get_rect(center=(screen_width // 2, 140))
     surface.blit(subtitle_text, subtitle_rect)
-    
+
     card_display_width = 280
     card_display_height = 420
     spacing = 70
@@ -2610,7 +2812,7 @@ def draw_catherine_selection_overlay(surface, revealed_cards, screen_width, scre
     total_width = count * card_display_width + (count - 1) * spacing
     start_x = (screen_width - total_width) // 2
     card_y = 220
-    
+
     card_rects = []
     for i, card in enumerate(cards_to_show):
         x = start_x + i * (card_display_width + spacing)
@@ -2622,12 +2824,74 @@ def draw_catherine_selection_overlay(surface, revealed_cards, screen_width, scre
         name_rect = name_text.get_rect(center=(x + card_display_width // 2, card_y + card_display_height + 28))
         surface.blit(name_text, name_rect)
         card_rects.append((card, rect))
-    
+
     instruction_font = pygame.font.Font(None, 32)
     instruction = instruction_font.render("Click a card to draw it now (it will be added to your hand to play immediately)", True, (200, 200, 200))
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
     surface.blit(instruction, instruction_rect)
-    
+
+    return card_rects
+
+def draw_leader_choice_overlay(surface, ability_result, screen_width, screen_height):
+    """Generic leader ability card selection UI (Jonas Quinn, Ba'al, etc.)"""
+    ability_name = ability_result.get("ability", "Leader Ability")
+    revealed_cards = ability_result.get("revealed_cards", [])
+
+    # Title mapping
+    titles = {
+        "Eidetic Memory": ("JONAS QUINN — Eidetic Memory", "Choose a card to copy to your hand"),
+        "System Lord's Cunning": ("BA'AL — System Lord's Cunning", "Choose a card to resurrect from your discard pile")
+    }
+
+    title_text, subtitle_text = titles.get(ability_name, (ability_name, "Choose a card"))
+
+    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+    overlay.fill((10, 10, 30, 220))
+    surface.blit(overlay, (0, 0))
+
+    title_font = pygame.font.Font(None, 58)
+    title = title_font.render(title_text, True, (235, 200, 120))
+    title_rect = title.get_rect(center=(screen_width // 2, 90))
+    surface.blit(title, title_rect)
+
+    subtitle_font = pygame.font.Font(None, 34)
+    subtitle = subtitle_font.render(subtitle_text, True, (230, 230, 230))
+    subtitle_rect = subtitle.get_rect(center=(screen_width // 2, 140))
+    surface.blit(subtitle, subtitle_rect)
+
+    card_display_width = 240
+    card_display_height = 360
+    spacing = 40
+    max_per_row = 5
+
+    card_rects = []
+    for idx, card in enumerate(revealed_cards[:10]):  # Max 10 cards
+        row = idx // max_per_row
+        col = idx % max_per_row
+
+        cards_in_row = min(max_per_row, len(revealed_cards) - row * max_per_row)
+        total_width = cards_in_row * card_display_width + (cards_in_row - 1) * spacing
+        start_x = (screen_width - total_width) // 2
+
+        x = start_x + col * (card_display_width + spacing)
+        y = 220 + row * (card_display_height + 80)
+
+        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
+        surface.blit(scaled_image, (x, y))
+        rect = pygame.Rect(x, y, card_display_width, card_display_height)
+        pygame.draw.rect(surface, (235, 200, 120), rect, width=4)
+
+        name_text = UI_FONT.render(card.name[:20], True, (255, 255, 255))
+        name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
+        surface.blit(name_text, name_rect)
+
+        card_rects.append((card, rect))
+
+    instruction_font = pygame.font.Font(None, 32)
+    instruction = instruction_font.render("Click a card to select it", True, (200, 200, 200))
+    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
+    surface.blit(instruction, instruction_rect)
+
     return card_rects
 
 def run_game_with_context(screen_param, lan_context):
@@ -2943,6 +3207,7 @@ def main():
     catherine_cards_to_choose = []  # Cached revealed cards for Catherine
     thor_move_mode = False  # Thor: Selecting unit to move
     thor_selected_unit = None  # The unit Thor is moving
+    pending_leader_choice = None  # Generic leader ability card selection (Jonas Quinn, Ba'al, etc.)
     
     # History/column state
     history_scroll_offset = 0
@@ -3336,7 +3601,14 @@ def main():
                             # For any other leader, use the generic activation
                             result = game.activate_leader_ability(game.player1)
                             if result and result.get("requires_ui"):
-                                pending_leader_choice = result
+                                ability_name = result.get("ability", "")
+                                if ability_name == "Ancient Knowledge":
+                                    # Catherine Langford
+                                    catherine_selection_mode = True
+                                    catherine_cards_to_choose = result.get("revealed_cards", [])
+                                elif ability_name in ["Eidetic Memory", "System Lord's Cunning"]:
+                                    # Jonas Quinn or Ba'al
+                                    pending_leader_choice = result
                 # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
                     button_info_popup = None
@@ -3900,7 +4172,8 @@ def main():
             # Thor: Move unit (once per round, manual trigger with T key)
         
         # Simple AI for Player 2 - WITH SMOOTH ANIMATIONS
-        if game.current_player == game.player2 and game.game_state == "playing":
+        # Skip AI animations in LAN mode - opponent is a real human
+        if game.current_player == game.player2 and game.game_state == "playing" and not LAN_MODE:
             if not ai_turn_in_progress:
                 # Start AI turn animation
                 ai_turn_anim.start_thinking()
@@ -4524,7 +4797,24 @@ def main():
                         catherine_cards_to_choose = []
                         pygame.time.wait(200)
                         break
-        
+
+        # Generic leader choice overlay (Jonas Quinn, Ba'al, etc.)
+        leader_choice_rects = []
+        if pending_leader_choice:
+            leader_choice_rects = draw_leader_choice_overlay(screen, pending_leader_choice, SCREEN_WIDTH, SCREEN_HEIGHT)
+            mouse_pos = pygame.mouse.get_pos()
+            if pygame.mouse.get_pressed()[0]:
+                for card, rect in leader_choice_rects:
+                    if rect.collidepoint(mouse_pos):
+                        ability_name = pending_leader_choice.get("ability", "")
+                        if ability_name == "Eidetic Memory":
+                            game.jonas_memorize_card(game.player1, card)
+                        elif ability_name == "System Lord's Cunning":
+                            game.baal_resurrect_card(game.player1, card)
+                        pending_leader_choice = None
+                        pygame.time.wait(200)
+                        break
+
         # Thor move mode - simple visual indicator
         if thor_move_mode:
             # Draw indicator

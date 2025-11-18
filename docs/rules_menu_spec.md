@@ -1,6 +1,6 @@
 # Stargwent Rule Menu UI Specification
 
-Generated on 2025-11-16 17:23 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 218 core cards + 20 unlockables + 35 leaders.
+Generated on 2025-11-18 18:09 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 218 core cards + 20 unlockables + 35 leaders.
 
 ## UI Overview
 - Accessible from the Main Menu via the new `RULE MENU` option; loads instantly without blocking gameplay assets.

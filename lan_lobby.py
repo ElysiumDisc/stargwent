@@ -3,6 +3,7 @@ Improved LAN Waiting Lobby with Chat
 Players can chat while waiting to start the match
 """
 import pygame
+import os
 from typing import Optional
 from lan_session import LanSession
 from lan_chat import LanChatPanel
@@ -19,13 +20,16 @@ class LanLobby:
         self.screen_height = screen_height
 
         # UI Fonts
-        self.title_font = pygame.font.SysFont("Arial", 48, bold=True)
-        self.header_font = pygame.font.SysFont("Arial", 32)
-        self.info_font = pygame.font.SysFont("Consolas", 24)
+        self.title_font = pygame.font.SysFont("Arial", 60, bold=True)
+        self.header_font = pygame.font.SysFont("Arial", 36, bold=True)
+        self.info_font = pygame.font.SysFont("Arial", 28)
+        self.small_font = pygame.font.SysFont("Arial", 20)
+
+        # Load background
+        self.background = self._load_background()
 
         # Chat panel (bottom half of screen)
-        chat_rect_height = screen_height // 2 - 100
-        self.chat_panel = LanChatPanel(session, role, max_lines=15)
+        self.chat_panel = LanChatPanel(session, role, max_lines=12)
         self.chat_panel.add_message("System", f"Connected as {role.upper()}. Type to chat!")
         self.chat_panel.add_message("System", "Click 'READY' when you're ready to choose your deck.")
 
@@ -34,19 +38,56 @@ class LanLobby:
         self.remote_ready = False
         self.both_ready = False
 
-        # UI Rects
+        # Calculate UI positions (center everything properly)
+        self.title_y = 80
+        self.role_y = 160
+        self.panel_y = 240
+        self.panel_width = 700
+        self.panel_height = 280
+
+        # Center the main panel
+        self.panel_rect = pygame.Rect(
+            screen_width // 2 - self.panel_width // 2,
+            self.panel_y,
+            self.panel_width,
+            self.panel_height
+        )
+
+        # Ready button (inside panel)
         self.ready_button_rect = pygame.Rect(
-            screen_width // 2 - 150,
-            screen_height // 2 - 180,
-            300,
+            self.panel_rect.centerx - 180,
+            self.panel_rect.bottom - 80,
+            360,
             60
         )
+
+        # Start button (below panel, only shows when both ready)
         self.start_button_rect = pygame.Rect(
-            screen_width // 2 - 200,
-            screen_height // 2 - 100,
-            400,
-            80
+            screen_width // 2 - 250,
+            self.panel_rect.bottom + 30,
+            500,
+            90
         )
+
+        # Chat area (bottom portion)
+        self.chat_y = self.panel_rect.bottom + 150
+        self.chat_rect = pygame.Rect(
+            80,
+            self.chat_y,
+            screen_width - 160,
+            screen_height - self.chat_y - 80
+        )
+
+    def _load_background(self):
+        """Load lobby background image if it exists."""
+        bg_path = "assets/lobby_background.png"
+        if os.path.exists(bg_path):
+            try:
+                bg = pygame.image.load(bg_path)
+                return pygame.transform.scale(bg, (self.screen_width, self.screen_height))
+            except:
+                pass
+        return None
 
     def handle_event(self, event) -> Optional[str]:
         """
@@ -98,69 +139,131 @@ class LanLobby:
             self.chat_panel.add_message("System", "🎮 Both players ready! Click START MATCH!")
 
     def draw(self, surface):
-        """Draw the lobby UI."""
+        """Draw the improved lobby UI."""
         # Background
-        surface.fill((10, 15, 30))
+        if self.background:
+            surface.blit(self.background, (0, 0))
+        else:
+            # Gradient background
+            for y in range(self.screen_height):
+                progress = y / self.screen_height
+                color = (
+                    int(10 + progress * 20),
+                    int(15 + progress * 25),
+                    int(35 + progress * 45)
+                )
+                pygame.draw.line(surface, color, (0, y), (self.screen_width, y))
 
-        # Title
-        title_text = "LAN MULTIPLAYER LOBBY"
+        # Title with shadow effect
+        title_text = "⚡ LAN MULTIPLAYER LOBBY ⚡"
+        # Shadow
+        title_shadow = self.title_font.render(title_text, True, (0, 0, 0))
+        title_shadow_rect = title_shadow.get_rect(center=(self.screen_width // 2 + 3, self.title_y + 3))
+        surface.blit(title_shadow, title_shadow_rect)
+        # Main title
         title_surf = self.title_font.render(title_text, True, (100, 200, 255))
-        title_rect = title_surf.get_rect(center=(self.screen_width // 2, 50))
+        title_rect = title_surf.get_rect(center=(self.screen_width // 2, self.title_y))
         surface.blit(title_surf, title_rect)
 
-        # Connection info
-        role_text = f"You are: {self.role.upper()}"
-        role_surf = self.header_font.render(role_text, True, (200, 200, 200))
-        role_rect = role_surf.get_rect(center=(self.screen_width // 2, 120))
+        # Role indicator
+        role_text = f"Connected as: {self.role.upper()}"
+        role_surf = self.header_font.render(role_text, True, (180, 220, 255))
+        role_rect = role_surf.get_rect(center=(self.screen_width // 2, self.role_y))
         surface.blit(role_surf, role_rect)
 
-        # Ready status panel
-        panel_y = 180
-        panel_rect = pygame.Rect(self.screen_width // 2 - 300, panel_y, 600, 200)
-        pygame.draw.rect(surface, (20, 25, 40), panel_rect)
-        pygame.draw.rect(surface, (80, 120, 160), panel_rect, 3)
+        # Main status panel with rounded effect (simulated)
+        # Dark panel background
+        panel_bg = pygame.Surface((self.panel_width, self.panel_height), pygame.SRCALPHA)
+        panel_bg.fill((15, 20, 35, 240))
+        surface.blit(panel_bg, (self.panel_rect.x, self.panel_rect.y))
 
-        # Player status
-        you_status = "✓ READY" if self.local_ready else "✗ Not Ready"
-        opp_status = "✓ READY" if self.remote_ready else "✗ Not Ready"
+        # Panel border with glow
+        pygame.draw.rect(surface, (60, 140, 220), self.panel_rect, 4)
+        pygame.draw.rect(surface, (100, 180, 255), self.panel_rect, 2)
 
-        you_color = (100, 255, 100) if self.local_ready else (255, 100, 100)
-        opp_color = (100, 255, 100) if self.remote_ready else (255, 100, 100)
+        # Panel title
+        panel_title = "READY STATUS"
+        panel_title_surf = self.header_font.render(panel_title, True, (150, 200, 255))
+        panel_title_rect = panel_title_surf.get_rect(center=(self.panel_rect.centerx, self.panel_rect.y + 35))
+        surface.blit(panel_title_surf, panel_title_rect)
 
-        you_surf = self.info_font.render(f"You ({self.role}): {you_status}", True, you_color)
-        opp_surf = self.info_font.render(f"Opponent: {opp_status}", True, opp_color)
+        # Divider line
+        line_y = self.panel_rect.y + 70
+        pygame.draw.line(surface, (80, 140, 200),
+                        (self.panel_rect.x + 40, line_y),
+                        (self.panel_rect.right - 40, line_y), 2)
 
-        surface.blit(you_surf, (panel_rect.x + 30, panel_y + 40))
-        surface.blit(opp_surf, (panel_rect.x + 30, panel_y + 80))
+        # Player status indicators
+        status_y_start = self.panel_rect.y + 100
 
-        # Ready button
-        button_color = (80, 180, 80) if not self.local_ready else (180, 80, 80)
-        button_text = "READY" if not self.local_ready else "NOT READY"
-        pygame.draw.rect(surface, button_color, self.ready_button_rect)
-        pygame.draw.rect(surface, (255, 255, 255), self.ready_button_rect, 3)
+        # Your status
+        you_status = "✓ READY" if self.local_ready else "✗ NOT READY"
+        you_color = (100, 255, 100) if self.local_ready else (255, 120, 120)
+        you_label = self.info_font.render(f"You ({self.role}):", True, (200, 200, 200))
+        you_status_surf = self.info_font.render(you_status, True, you_color)
+        surface.blit(you_label, (self.panel_rect.x + 50, status_y_start))
+        surface.blit(you_status_surf, (self.panel_rect.centerx + 20, status_y_start))
+
+        # Status indicator circle for you
+        circle_x = self.panel_rect.right - 60
+        pygame.draw.circle(surface, you_color, (circle_x, status_y_start + 15), 12)
+        pygame.draw.circle(surface, (255, 255, 255), (circle_x, status_y_start + 15), 12, 2)
+
+        # Opponent status
+        opp_status = "✓ READY" if self.remote_ready else "✗ NOT READY"
+        opp_color = (100, 255, 100) if self.remote_ready else (255, 120, 120)
+        opp_label = self.info_font.render("Opponent:", True, (200, 200, 200))
+        opp_status_surf = self.info_font.render(opp_status, True, opp_color)
+        surface.blit(opp_label, (self.panel_rect.x + 50, status_y_start + 50))
+        surface.blit(opp_status_surf, (self.panel_rect.centerx + 20, status_y_start + 50))
+
+        # Status indicator circle for opponent
+        pygame.draw.circle(surface, opp_color, (circle_x, status_y_start + 65), 12)
+        pygame.draw.circle(surface, (255, 255, 255), (circle_x, status_y_start + 65), 12, 2)
+
+        # Ready toggle button
+        button_color = (60, 160, 60) if not self.local_ready else (180, 60, 60)
+        button_hover_color = (80, 200, 80) if not self.local_ready else (220, 80, 80)
+
+        # Check if mouse is over button
+        mouse_pos = pygame.mouse.get_pos()
+        is_hover = self.ready_button_rect.collidepoint(mouse_pos)
+        current_color = button_hover_color if is_hover else button_color
+
+        pygame.draw.rect(surface, current_color, self.ready_button_rect, border_radius=8)
+        pygame.draw.rect(surface, (255, 255, 255), self.ready_button_rect, 3, border_radius=8)
+
+        button_text = "✓ I'M READY" if not self.local_ready else "✗ NOT READY"
         button_surf = self.header_font.render(button_text, True, (255, 255, 255))
         button_rect = button_surf.get_rect(center=self.ready_button_rect.center)
         surface.blit(button_surf, button_rect)
 
-        # Start button (only if both ready)
+        # Start button (only if both ready) with pulsing effect
         if self.both_ready:
-            start_color = (100, 255, 100)
-            pygame.draw.rect(surface, start_color, self.start_button_rect)
-            pygame.draw.rect(surface, (255, 255, 255), self.start_button_rect, 4)
-            start_surf = self.title_font.render("START MATCH", True, (0, 50, 0))
+            import time
+            pulse = abs(int((time.time() * 2) % 2 - 1) * 30)  # Pulsing effect
+            start_color = (70 + pulse, 200 + pulse, 70 + pulse)
+
+            is_start_hover = self.start_button_rect.collidepoint(mouse_pos)
+            if is_start_hover:
+                start_color = (120, 255, 120)
+
+            pygame.draw.rect(surface, start_color, self.start_button_rect, border_radius=10)
+            pygame.draw.rect(surface, (255, 255, 255), self.start_button_rect, 5, border_radius=10)
+
+            start_text = "⚡ START MATCH ⚡"
+            start_surf = self.title_font.render(start_text, True, (0, 80, 0))
             start_rect = start_surf.get_rect(center=self.start_button_rect.center)
             surface.blit(start_surf, start_rect)
 
         # Instructions
-        instr_text = "Press ESC to cancel | Type to chat with opponent"
-        instr_surf = self.info_font.render(instr_text, True, (150, 150, 150))
-        instr_rect = instr_surf.get_rect(center=(self.screen_width // 2, panel_y + 160))
+        instr_text = "Press ESC to cancel • Type to chat with your opponent"
+        instr_surf = self.small_font.render(instr_text, True, (140, 180, 220))
+        instr_rect = instr_surf.get_rect(center=(self.screen_width // 2, self.panel_rect.bottom + (self.chat_y - self.panel_rect.bottom) // 2))
         surface.blit(instr_surf, instr_rect)
 
-        # Chat panel (lower half)
-        chat_y = panel_y + 220
-        chat_rect = pygame.Rect(50, chat_y, self.screen_width - 100, self.screen_height - chat_y - 80)
-        self.chat_panel.draw(surface, chat_rect, title="CHAT")
+        # Chat panel with improved title
+        self.chat_panel.draw(surface, self.chat_rect, title="💬 CHAT WITH OPPONENT")
 
 
 def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
