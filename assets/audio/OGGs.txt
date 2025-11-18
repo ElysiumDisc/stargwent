@@ -1,0 +1,13 @@
+In assets/audio/:
+  battle_round1.ogg       # Round 1 battle music
+  battle_round2.ogg       # Round 2 battle music (more intense)
+  battle_round3.ogg       # Round 3 battle music (most intense)
+  tauri_theme.ogg         # Tau'ri faction preview
+  goauld_theme.ogg        # Goa'uld faction preview
+  jaffa_theme.ogg         # Jaffa faction preview
+  lucian_theme.ogg        # Lucian faction preview
+  asgard_theme.ogg        # Asgard faction preview
+  close.ogg               # Close combat unit sound
+  ranged.ogg              # Ranged unit sound
+  siege.ogg               # Siege unit sound
+  ring.ogg                # Ring Transport sound

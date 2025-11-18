@@ -40,15 +40,14 @@ from main_menu import run_main_menu, DeckManager, show_stargate_opening
 from power import FACTION_POWERS, FactionPowerEffect
 from deck_persistence import record_victory, record_defeat, check_leader_unlock, get_persistence
 
-FACTION_BATTLE_MUSIC = {
-    FACTION_TAURI: os.path.join("assets", "audio", "tauri_theme.ogg"),
-    FACTION_GOAULD: os.path.join("assets", "audio", "goauld_theme.ogg"),
-    FACTION_JAFFA: os.path.join("assets", "audio", "jaffa_theme.ogg"),
-    FACTION_LUCIAN: os.path.join("assets", "audio", "lucian_theme.ogg"),
-    FACTION_ASGARD: os.path.join("assets", "audio", "asgard_theme.ogg"),
+# Round-based battle music (increases intensity each round)
+ROUND_BATTLE_MUSIC = {
+    1: os.path.join("assets", "audio", "battle_round1.ogg"),
+    2: os.path.join("assets", "audio", "battle_round2.ogg"),
+    3: os.path.join("assets", "audio", "battle_round3.ogg"),
 }
 _current_battle_music = None
-_current_music_faction = None
+_current_music_round = None
 _next_music_allowed_at = 0
 _battle_music_cooldown_ms = 120000
 
@@ -64,16 +63,16 @@ def _ensure_mixer_ready():
         return False
 
 
-def _play_battle_theme(faction, *, force=False):
-    """Internal helper that plays the faction track once if cooldown allows."""
+def _play_battle_theme(round_number, *, force=False):
+    """Internal helper that plays the round track once if cooldown allows."""
     global _current_battle_music, _next_music_allowed_at
-    if faction is None:
+    if round_number is None:
         return False
-    music_path = FACTION_BATTLE_MUSIC.get(faction)
+    music_path = ROUND_BATTLE_MUSIC.get(round_number)
     if not music_path:
         return False
     if not os.path.exists(music_path):
-        print(f"[audio] Battle music missing for {faction}: {music_path}")
+        print(f"[audio] Battle music missing for round {round_number}: {music_path}")
         return False
     now = pygame.time.get_ticks()
     if not force and now < _next_music_allowed_at:
@@ -87,44 +86,44 @@ def _play_battle_theme(faction, *, force=False):
         settings = get_settings()
         volume = settings.get_effective_music_volume()
         pygame.mixer.music.set_volume(volume)
-        pygame.mixer.music.play(0)
+        pygame.mixer.music.play(-1)  # Loop the battle music
         _current_battle_music = music_path
         _next_music_allowed_at = now + _battle_music_cooldown_ms
-        print(f"[audio] Battle music playing for {faction}: {music_path} at volume {volume:.2f}")
+        print(f"[audio] Battle music playing for round {round_number}: {music_path} at volume {volume:.2f}")
         return True
     except pygame.error as exc:
         print(f"[audio] Unable to play battle music ({music_path}): {exc}")
         return False
 
 
-def set_battle_music_faction(faction, *, immediate=False):
-    """Select which faction music should be considered for playback."""
-    global _current_music_faction, _next_music_allowed_at
-    if faction == _current_music_faction:
+def set_battle_music_round(round_number, *, immediate=False):
+    """Select which round music should be considered for playback."""
+    global _current_music_round, _next_music_allowed_at
+    if round_number == _current_music_round:
         if immediate:
-            _play_battle_theme(faction, force=True)
+            _play_battle_theme(round_number, force=True)
         return
     stop_battle_music()
-    _current_music_faction = faction
+    _current_music_round = round_number
     _next_music_allowed_at = 0
-    if faction:
-        _play_battle_theme(faction, force=True)
+    if round_number:
+        _play_battle_theme(round_number, force=True)
 
 
 def update_battle_music():
     """Call regularly to restart music respecting the cooldown."""
-    if not _current_music_faction:
+    if not _current_music_round:
         return
     if not pygame.mixer.get_init():
         return
     if pygame.mixer.music.get_busy():
         return
-    _play_battle_theme(_current_music_faction)
+    _play_battle_theme(_current_music_round)
 
 
 def stop_battle_music(fade_ms=800):
-    """Stop any playing battle theme and clear the faction."""
-    global _current_battle_music, _current_music_faction
+    """Stop any playing battle theme and clear the round."""
+    global _current_battle_music, _current_music_round
     if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
         try:
             pygame.mixer.music.fadeout(fade_ms)
@@ -133,7 +132,7 @@ def stop_battle_music(fade_ms=800):
     if _current_battle_music:
         print(f"[audio] Battle music stopped ({_current_battle_music})")
     _current_battle_music = None
-    _current_music_faction = None
+    _current_music_round = None
 
 
 # Initialize Pygame
@@ -3135,8 +3134,8 @@ def main():
     # Show game start animation
     show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
     
-    # Start faction-specific battle music (currently Goa'uld only)
-    set_battle_music_faction(player_faction, immediate=True)
+    # Start round-based battle music (round 1)
+    set_battle_music_round(1, immediate=True)
     
     # Initialize controller (AI or Network depending on mode)
     if LAN_MODE and LAN_CONTEXT:
@@ -3324,6 +3323,9 @@ def main():
             ambient_effects.end_round()
             ambient_effects.start_round(round_number=game.round_number)
             previous_round = game.round_number
+
+            # Update battle music for new round (more intense each round)
+            set_battle_music_round(game.round_number, immediate=True)
         
         # Check for weather changes and add row effects
         if game.weather_active != previous_weather:
@@ -3373,14 +3375,19 @@ def main():
                 ))
                 for row_name in ability_result.get("rows", []):
                     weather_target = game.weather_row_targets.get(row_name, "both")
+                    weather_type = game.current_weather_types.get(row_name, "Ice Storm")
                     if weather_target in ("player1", "both"):
                         rect = PLAYER_ROW_RECTS.get(row_name)
                         if rect:
                             anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                            # Add row weather visual effect (meteorites, nebula, etc.)
+                            anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                     if weather_target in ("player2", "both"):
                         rect = OPPONENT_ROW_RECTS.get(row_name)
                         if rect:
                             anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                            # Add row weather visual effect (meteorites, nebula, etc.)
+                            anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
 
         # Update animations
         anim_manager.update(dt)
@@ -3600,15 +3607,37 @@ def main():
                         else:
                             # For any other leader, use the generic activation
                             result = game.activate_leader_ability(game.player1)
-                            if result and result.get("requires_ui"):
-                                ability_name = result.get("ability", "")
-                                if ability_name == "Ancient Knowledge":
-                                    # Catherine Langford
-                                    catherine_selection_mode = True
-                                    catherine_cards_to_choose = result.get("revealed_cards", [])
-                                elif ability_name in ["Eidetic Memory", "System Lord's Cunning"]:
-                                    # Jonas Quinn or Ba'al
-                                    pending_leader_choice = result
+                            if result:
+                                if result.get("requires_ui"):
+                                    ability_name = result.get("ability", "")
+                                    if ability_name == "Ancient Knowledge":
+                                        # Catherine Langford
+                                        catherine_selection_mode = True
+                                        catherine_cards_to_choose = result.get("revealed_cards", [])
+                                    elif ability_name in ["Eidetic Memory", "System Lord's Cunning"]:
+                                        # Jonas Quinn or Ba'al
+                                        pending_leader_choice = result
+                                elif result.get("rows"):
+                                    # Weather ability (Apophis) - show weather visual effects
+                                    ability_name = result.get("ability", "Weather Decree")
+                                    anim_manager.add_effect(create_ability_animation(
+                                        ability_name,
+                                        SCREEN_WIDTH // 2,
+                                        SCREEN_HEIGHT // 3
+                                    ))
+                                    for row_name in result.get("rows", []):
+                                        weather_target = game.weather_row_targets.get(row_name, "both")
+                                        weather_type = game.current_weather_types.get(row_name, "Ice Storm")
+                                        if weather_target in ("player1", "both"):
+                                            rect = PLAYER_ROW_RECTS.get(row_name)
+                                            if rect:
+                                                anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                                                anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
+                                        if weather_target in ("player2", "both"):
+                                            rect = OPPONENT_ROW_RECTS.get(row_name)
+                                            if rect:
+                                                anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                                                anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                 # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
                     button_info_popup = None
@@ -4008,10 +4037,15 @@ def main():
                                 # Ring Transport - check if dropped on a valid card
                                 if decoy_drag_target:
                                     if game.play_ring_transport(dragging_card, decoy_drag_target):
-                                        # Show ring transport animation
-                                        effect_x = decoy_drag_target.rect.centerx
-                                        effect_y = decoy_drag_target.rect.centery
-                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
+                                        # Show ring transport animation with golden rings
+                                        from power import RingTransportAnimation
+                                        start_pos = (decoy_drag_target.rect.centerx, decoy_drag_target.rect.centery)
+                                        # End position is player's hand area
+                                        end_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100)
+                                        ring_transport_animation = RingTransportAnimation(
+                                            decoy_drag_target, start_pos, end_pos,
+                                            SCREEN_WIDTH, SCREEN_HEIGHT
+                                        )
                                         game.player1.calculate_score()
                                         game.player2.calculate_score()
                                         game.switch_turn()

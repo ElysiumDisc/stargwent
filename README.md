@@ -4,8 +4,23 @@
 
 Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
+---
+
+## ⚠️ Fan Project Disclaimer
+
+**This is a non-commercial fan project created purely out of love for two amazing franchises:**
+
+- **Stargate SG-1** - The legendary sci-fi series by MGM that brought us the Stargate universe
+- **Gwent** - The brilliant card game from CD Projekt Red's The Witcher 3: Wild Hunt
+
+**No copyright infringement is intended.** This project is a tribute and fan service to both franchises. We do not claim ownership of any Stargate or Gwent intellectual property. This is an educational hobby project made by fans, for fans, with no commercial purpose whatsoever.
+
+*Indeed.* - Teal'c
+
+---
+
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-2.7-blue)
+![Version](https://img.shields.io/badge/version-2.8-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -38,6 +53,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
+- **⚡ NEW v2.8: LEGENDARY COMMANDER VOICE SNIPPETS** - Every legendary commander plays a character voice clip when deployed!
 - **⚡ NEW v2.7: ALLIANCE COMBO TRACKING** - Alliance activations now show in history viewer with full visibility!
 - **⚡ NEW v2.7: BALANCE CONFIG INTEGRATION** - All balance values now use centralized config for easy tuning!
 - **⚡ NEW v2.7: 7 NEW LEADER ABILITIES** - Landry, Ba'al, Jonas Quinn, Vala, Kiva, Thor Commander, Aegir all implemented!
@@ -154,6 +170,29 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 2.8 (November 2025)
+**Complete Audio System Overhaul**
+
+- ✅ **Round-Based Battle Music** – Music intensity increases each round:
+  - `battle_round1.ogg` - Opening battle theme
+  - `battle_round2.ogg` - More intense mid-game music
+  - `battle_round3.ogg` - Climactic final round music
+- ✅ **Faction Theme Preview** – Hover over factions in selection menu to hear their theme
+  - Music plays while hovering, stops when you move away
+  - Each faction has unique audio identity before you commit
+- ✅ **Voice Snippets for All 27 Legendary Commanders** – Character voice clips play when deployed:
+  - **Tau'ri (4)**: O'Neill, Hammond, Jackson, Carter
+  - **Goa'uld (5)**: Sokar, Yu, Hathor, Apophis, Isis
+  - **Jaffa (4)**: Teal'c, Bra'tac, Rak'nor, Master Bra'tac
+  - **Lucian (4)**: Vulkar, Curtis, Sodan Master, Ba'al Clone
+  - **Asgard (3)**: Freyr, Loki, Heimdall
+  - **Neutral (6)**: Ascended Daniel, Oma Desala, McKay, Teyla, Ancient Drone, Weir
+- ✅ **Unit Card Sounds** – Row-type sounds for non-legendary cards (every 4th card):
+  - `close.ogg`, `ranged.ogg`, `siege.ogg`
+- ✅ **Ring Transport Sound** – `ring.ogg` plays on every Ring Transport use
+- ✅ **New Sound Manager System** – `sound_manager.py` handles loading, caching, and playback
+- ✅ **Graceful Fallback** – Missing audio files are silently skipped (no crashes)
 
 ### Version 2.7 (November 2025)
 **Complete Leader Abilities, Alliance Tracking & UI Polish**
@@ -1062,12 +1101,24 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 assets/
 ├── audio/                           # Music and sound effects
 │   ├── main_menu_music.ogg          # Main menu theme
-│   ├── goauld_theme.ogg             # Goa'uld battle music
-│   ├── asgard_theme.ogg             # Asgard battle music
-│   ├── tauri_theme.ogg              # Tau'ri battle music
-│   ├── jaffa_theme.ogg              # Jaffa battle music
-│   ├── lucian_theme.ogg             # Lucian Alliance battle music
-│   └── stargate_sequence.ogg        # Stargate opening SFX
+│   ├── battle_round1.ogg            # Round 1 battle music
+│   ├── battle_round2.ogg            # Round 2 music (more intense)
+│   ├── battle_round3.ogg            # Round 3 music (most intense)
+│   ├── tauri_theme.ogg              # Tau'ri faction preview (hover in menu)
+│   ├── goauld_theme.ogg             # Goa'uld faction preview
+│   ├── jaffa_theme.ogg              # Jaffa faction preview
+│   ├── lucian_theme.ogg             # Lucian Alliance faction preview
+│   ├── asgard_theme.ogg             # Asgard faction preview
+│   ├── close.ogg                    # Close combat unit play sound
+│   ├── ranged.ogg                   # Ranged unit play sound
+│   ├── siege.ogg                    # Siege unit play sound
+│   ├── ring.ogg                     # Ring Transport activation
+│   ├── stargate_sequence.ogg        # Stargate opening SFX
+│   └── commander_snippets/          # Voice clips for legendary commanders
+│       ├── tauri_oneill.ogg         # "In the middle of my backswing!"
+│       ├── tauri_hammond.ogg        # "SG-1, you have a go."
+│       ├── jaffa_tealc.ogg          # "Indeed."
+│       └── ... (27 total)           # One per legendary commander
 ├── board_background.png             # 4K main game board
 ├── menu_background.png              # 4K menu background
 ├── deck_building_background.png     # 4K deck builder background
@@ -1082,15 +1133,26 @@ Save Files (auto-generated):
 └── game_settings.json               # Sound and game settings - NEW v2.5!
 ```
 
-### Audio Workflow (Sonic Pi → Game)
-- `assets/audio/main_menu_theme_sonicpi.rb`: Run once at 120 BPM (≈63 s), export `main_menu_theme.wav`, then `ffmpeg -i main_menu_theme.wav -c:a libvorbis assets/audio/main_menu_music.ogg`. `main_menu.py` plays it once and only restarts the loop every 30 seconds to keep the menu calm before matches.
-- `assets/audio/goauld_theme_sonicpi.rb`: Run once at 90 BPM (≈43 s, matching the Goa'uld dark ascension cue), export `goauld_theme.wav`, then `ffmpeg -i goauld_theme.wav -c:a libvorbis assets/audio/goauld_theme.ogg`. `main.py` loops it whenever the player enters a match as the Goa'uld faction.
-- `assets/audio/asgard_theme_sonicpi.rb`: Run once at 96 BPM (≈45 s, inspired by the Asgard victory march cue), export `asgard_theme.wav`, then `ffmpeg -i asgard_theme.wav -c:a libvorbis assets/audio/asgard_theme.ogg`. `main.py` now loops it whenever you play as the Asgard faction.
-- `assets/audio/tauri_theme_sonicpi.rb`: Run once at 110 BPM (≈39 s, Tau'ri marching cue), export `tauri_theme.wav`, then `ffmpeg -i tauri_theme.wav -c:a libvorbis assets/audio/tauri_theme.ogg`. Drop the `.ogg` in place and Tau'ri matches will trigger it automatically.
-- `assets/audio/jaffa_theme_sonicpi.rb`: Run once at 92 BPM (≈39 s, Jaffa chant cue), export `jaffa_theme.wav`, then `ffmpeg -i jaffa_theme.wav -c:a libvorbis assets/audio/jaffa_theme.ogg`. Matches where you play Jaffa will load it when present.
-- `assets/audio/lucian_theme_sonicpi.rb`: Run once at 102 BPM (≈38 s, Lucian rogue pulse), export `lucian_theme.wav`, then `ffmpeg -i lucian_theme.wav -c:a libvorbis assets/audio/lucian_theme.ogg`. Lucian Alliance runs will pick it up once the `.ogg` exists.
+### Audio System
 
-Battle themes only replay every 2 minutes: each track plays once when your faction enters the arena, the mixer rests for 120 s, then quietly restarts if you remain in the match.
+**Battle Music (Round-Based)**
+- `battle_round1.ogg` - Round 1 music (loops continuously)
+- `battle_round2.ogg` - Round 2 music (more intense, loops)
+- `battle_round3.ogg` - Round 3 music (climactic finale, loops)
+
+Music automatically transitions to more intense tracks as rounds progress.
+
+**Faction Preview (Menu Hover)**
+- Themes play when hovering over faction buttons in selection menu
+- Each theme restarts every 10 seconds while hovering
+- Stops when you move away or select
+
+**Sound Effects**
+- `close.ogg`, `ranged.ogg`, `siege.ogg` - Unit deployment (every 4th card)
+- `ring.ogg` - Ring Transport activation
+- `commander_snippets/*.ogg` - 27 legendary commander voice clips
+
+
 
 ### LAN Multiplayer (v2.2 - COMPLETE!)
 - Choose **LAN MULTIPLAYER** in the main menu
@@ -1377,15 +1439,21 @@ The generated package installs to `/usr/share/stargwent` with a `stargwent` laun
 - 90% complete, active development
 
 ### Legal
-**This is a fan project for educational purposes.**
-- Gwent is a trademark of CD Projekt Red
-- Stargate SG-1 is owned by MGM
-- Not affiliated with or endorsed by either company
-- No commercial use
+**This is a non-commercial fan project created purely for educational purposes and out of love for two incredible franchises.**
+
+- **Gwent** is a trademark of CD Projekt Red - creators of The Witcher series and one of the best card games ever made
+- **Stargate SG-1** is owned by MGM - the legendary sci-fi franchise that inspired this tribute
+- This project is **NOT affiliated with or endorsed by** CD Projekt Red, MGM, or any related companies
+- **No commercial use** - this is free, open-source, and will always remain so
+- All trademarks, characters, and intellectual property belong to their respective owners
+- This is fan service from fans who love both universes and wanted to combine them
+
+*"You know, you blow up one sun and suddenly everyone expects you to walk on water."* - Col. Jack O'Neill
 
 ### Special Thanks
 - CD Projekt Red for Gwent game design
 - MGM for Stargate SG-1 universe
+- [101 Soundboards - Stargate SG-1 Soundboard](https://www.101soundboards.com/boards/33269-stargate-sg1-soundboard) for character voice clips
 - Pygame CE community for documentation
 - Contributors and playtesters
 

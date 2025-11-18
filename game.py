@@ -3,6 +3,7 @@ import copy
 import time
 import pygame
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
+from sound_manager import get_sound_manager
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
 
@@ -908,7 +909,16 @@ class Game:
 
             target_player.board[row_name].append(card)
             self._log_card_play(player, card, row_name=row_name)
-            
+
+            # === CARD PLAY AUDIO ===
+            sound_manager = get_sound_manager()
+            if "Legendary Commander" in (card.ability or ""):
+                # Legendary commanders get their unique voice snippet
+                sound_manager.play_commander_snippet(card.id, volume=0.7)
+            elif row_name in ('close', 'ranged', 'siege'):
+                # Regular unit cards get row-type sound
+                sound_manager.play_row_sound(row_name, volume=0.5)
+
             # Track cards played this round for leader abilities
             self.cards_played_this_round[player] += 1
             player.units_played_this_round += 1
@@ -1699,6 +1709,10 @@ class Game:
         # Remove target card from board and add to current player's hand
         card_owner.board[card_row].remove(target_card)
         self.current_player.hand.append(target_card)
+
+        # Play ring transport sound
+        sound_manager = get_sound_manager()
+        sound_manager.play_ring_transport_sound(volume=0.6)
 
         # Update scoreboard immediately for both players
         self.calculate_scores_and_log()

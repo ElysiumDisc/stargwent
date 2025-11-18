@@ -6,9 +6,62 @@ import os
 import pygame
 import random
 from cards import (
-    ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, 
+    ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
     FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 )
+
+# Faction theme music paths for hover preview
+FACTION_THEME_MUSIC = {
+    FACTION_TAURI: os.path.join("assets", "audio", "tauri_theme.ogg"),
+    FACTION_GOAULD: os.path.join("assets", "audio", "goauld_theme.ogg"),
+    FACTION_JAFFA: os.path.join("assets", "audio", "jaffa_theme.ogg"),
+    FACTION_LUCIAN: os.path.join("assets", "audio", "lucian_theme.ogg"),
+    FACTION_ASGARD: os.path.join("assets", "audio", "asgard_theme.ogg"),
+}
+
+# Track currently playing faction theme
+_current_faction_theme = None
+_faction_theme_start_time = 0
+_FACTION_THEME_DURATION_MS = 10000  # Restart theme every 10 seconds
+
+def _play_faction_theme(faction):
+    """Play faction theme music when hovering over faction button."""
+    global _current_faction_theme, _faction_theme_start_time
+
+    if faction == _current_faction_theme:
+        # Check if we need to restart (10 second loop)
+        if faction and pygame.time.get_ticks() - _faction_theme_start_time >= _FACTION_THEME_DURATION_MS:
+            _faction_theme_start_time = pygame.time.get_ticks()
+            try:
+                pygame.mixer.music.play(0)  # Play once, will restart on next check
+            except pygame.error:
+                pass
+        return
+
+    _current_faction_theme = faction
+    _faction_theme_start_time = pygame.time.get_ticks()
+
+    if not faction:
+        pygame.mixer.music.stop()
+        return
+
+    theme_path = FACTION_THEME_MUSIC.get(faction)
+    if theme_path and os.path.exists(theme_path):
+        try:
+            pygame.mixer.music.load(theme_path)
+            pygame.mixer.music.set_volume(0.5)  # Preview volume
+            pygame.mixer.music.play(0)  # Play once (will restart every 10s)
+        except pygame.error as e:
+            print(f"[audio] Failed to play faction theme: {e}")
+
+def stop_faction_theme():
+    """Stop faction theme music."""
+    global _current_faction_theme
+    _current_faction_theme = None
+    try:
+        pygame.mixer.music.stop()
+    except pygame.error:
+        pass
 from content_registry import (
     BASE_FACTION_LEADERS,
     UNLOCKABLE_LEADERS,
@@ -408,12 +461,14 @@ class DeckBuilderUI:
                     button['hovered'] = is_hovered
                     if is_hovered:
                         hovered_faction = button['faction']
-                
-                # Update background based on hover
+
+                # Update background and music based on hover
                 if hovered_faction:
                     self.set_faction_background(hovered_faction)
+                    _play_faction_theme(hovered_faction)
                 else:
                     self.set_faction_background(self.selected_faction)
+                    _play_faction_theme(None)  # Stop music when not hovering
             
             # Update hover states for leader buttons and change background
             elif self.state == "leader_select":
@@ -594,6 +649,8 @@ class DeckBuilderUI:
                     if button['rect'].collidepoint(mouse_pos):
                         self.selected_faction = button['faction']
                         self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
+                        # Keep faction theme playing during leader selection
+                        _play_faction_theme(self.selected_faction)
                         if self.for_new_game:
                             self.state = "leader_select"
                             self.setup_leader_buttons()
@@ -621,6 +678,7 @@ class DeckBuilderUI:
                     self.state = "faction_select"
                     self.selected_leader = None
                     self.deck_preview_ids = None
+                    # Music will continue based on hover in faction_select
                     return
                 for idx, button in enumerate(self.leader_buttons):
                     display_rect = self._leader_button_display_rect(button['rect'])
@@ -635,6 +693,7 @@ class DeckBuilderUI:
                         return
                 review_rect = self._leader_button_display_rect(self.review_deck_button)
                 if self.selected_leader and review_rect.collidepoint(mouse_pos):
+                    stop_faction_theme()  # Stop music when entering deck review
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
@@ -646,6 +705,7 @@ class DeckBuilderUI:
                     return
                 continue_rect = self._leader_button_display_rect(self.continue_button)
                 if self.selected_leader and continue_rect.collidepoint(mouse_pos):
+                    stop_faction_theme()  # Stop music when completing
                     save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
                     print(f"✓ Leader choice saved: {self.selected_faction} -> {self.selected_leader['name']}")
                     self.state = "complete"
@@ -1817,6 +1877,7 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, toggle
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                stop_faction_theme()
                 return None
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -1824,6 +1885,7 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, toggle
                         deck_builder.state = "faction_select"
                         deck_builder.selected_leader = None
                     else:
+                        stop_faction_theme()
                         return None
                 elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
                     if toggle_fullscreen_callback:
@@ -1838,11 +1900,13 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, toggle
         
         # Check if deck building is complete
         if deck_builder.is_complete():
+            stop_faction_theme()
             return deck_builder.get_selection()
-        
+
         # Check if user clicked MAIN MENU button from deck building
         if deck_builder.return_to_menu:
             print("✓ Returning to main menu from deck builder")
+            stop_faction_theme()
             return None
         
         # Draw

@@ -151,26 +151,48 @@ class JaffaFactionPower(FactionPower):
     def activate(self, game, player):
         if not super().activate(game, player):
             return False
-        
+
         # Draw 3 cards
         player.draw_cards(3)
         print(f"{player.name} drew 3 cards from Rebel Alliance Aid")
-        
+
+        # Log the draw
+        owner_label = "player" if player == game.player1 else "opponent"
+        game.add_history_event(
+            "ability",
+            f"{player.name} drew 3 cards (Rebel Alliance Aid)",
+            owner_label,
+            icon="🃏"
+        )
+
         # Discard 3 random cards from hand
+        discarded_cards = []
         if len(player.hand) >= 3:
             import random
             cards_to_discard = random.sample(player.hand, 3)
             for card in cards_to_discard:
                 player.hand.remove(card)
                 player.discard_pile.append(card)
+                discarded_cards.append(card)
                 print(f"  Discarded: {card.name}")
         else:
             # If fewer than 3 cards, discard all
             while player.hand:
                 card = player.hand.pop()
                 player.discard_pile.append(card)
+                discarded_cards.append(card)
                 print(f"  Discarded: {card.name}")
-        
+
+        # Log each discarded card to history
+        for card in discarded_cards:
+            game.add_history_event(
+                "discard",
+                f"{player.name} discarded {card.name}",
+                owner_label,
+                card_ref=card,
+                icon="🗑️"
+            )
+
         return True
 
 
