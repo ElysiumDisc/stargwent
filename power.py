@@ -48,16 +48,21 @@ class TauriFactionPower(FactionPower):
     def activate(self, game, player):
         if not super().activate(game, player):
             return False
-        
+
+        # Play iris sound effect
+        from sound_manager import get_sound_manager
+        sound_manager = get_sound_manager()
+        sound_manager.play_iris_sound(volume=0.7)
+
         opponent = game.player2 if player == game.player1 else game.player1
         destroyed_cards = []
-        
+
         # Find and destroy strongest non-Hero in each row
         for row_name in ["close", "ranged", "siege"]:
             row_cards = opponent.board.get(row_name, [])
             if not row_cards:
                 continue
-            
+
             # Find strongest non-Legendary Commander
             non_hero_cards = [c for c in row_cards if "Legendary Commander" not in (c.ability or "")]
             if non_hero_cards:
@@ -65,7 +70,18 @@ class TauriFactionPower(FactionPower):
                 opponent.board[row_name].remove(strongest)
                 opponent.discard_pile.append(strongest)
                 destroyed_cards.append(strongest)
-        
+
+        # Log each destroyed card to history
+        owner_label = "player" if player == game.player1 else "opponent"
+        for card in destroyed_cards:
+            game.add_history_event(
+                "destroy",
+                f"Iris destroyed {card.name}",
+                owner_label,
+                card_ref=card,
+                icon="🔥"
+            )
+
         return True
 
 
@@ -473,53 +489,97 @@ class FactionPowerEffect:
             self.draw_hologram_swap(surface, progress)
     
     def draw_iris_deployment(self, surface, progress):
-        """Tau'ri - GATE SHUTDOWN - Fire explosions destroying strongest units!"""
-        # Multiple fiery explosions (one for each row)
-        explosion_positions = [
-            (self.screen_width // 4, self.screen_height // 3),      # Left row
-            (self.screen_width // 2, self.screen_height // 3),      # Center row
-            (3 * self.screen_width // 4, self.screen_height // 3),  # Right row
-        ]
-        
-        for pos_x, pos_y in explosion_positions:
-            # Expanding fireball
-            if progress < 0.7:
-                explosion_radius = int(150 * progress * 1.5)
-                
-                # Multiple rings for depth
-                for ring in range(5):
-                    radius = explosion_radius - ring * 20
-                    if radius > 0:
-                        alpha = int(200 * (1 - progress))
-                        
-                        # Fire colors: white center -> yellow -> orange -> red
-                        if ring == 0:
-                            color = (255, 255, 255, alpha)  # White hot center
-                        elif ring == 1:
-                            color = (255, 255, 100, alpha)  # Yellow
-                        elif ring == 2:
-                            color = (255, 180, 50, alpha)   # Orange
-                        else:
-                            color = (255, 100, 50, alpha)   # Red
-                        
-                        explosion_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                        pygame.draw.circle(explosion_surf, color, (radius, radius), radius)
-                        surface.blit(explosion_surf, (pos_x - radius, pos_y - radius))
-            
-            # Smoke/debris particles
-            if progress > 0.4:
-                for _ in range(10):
-                    particle_progress = (progress - 0.4) / 0.6
-                    offset_x = random.randint(-100, 100) * particle_progress
-                    offset_y = random.randint(-50, 50) * particle_progress - 100 * particle_progress
-                    particle_size = random.randint(3, 8)
-                    alpha = int(150 * (1 - particle_progress))
-                    
-                    particle_surf = pygame.Surface((particle_size * 2, particle_size * 2), pygame.SRCALPHA)
-                    color = (100, 100, 100, alpha)  # Dark smoke
-                    pygame.draw.circle(particle_surf, color, (particle_size, particle_size), particle_size)
-                    surface.blit(particle_surf, (int(pos_x + offset_x - particle_size), 
-                                                int(pos_y + offset_y - particle_size)))
+        """Tau'ri - GATE SHUTDOWN - Iris closing animation over Stargate!"""
+        # Big iris closing in center of screen
+        center_x = self.screen_width // 2
+        center_y = self.screen_height // 2
+
+        # Iris parameters
+        num_blades = 20  # Number of iris segments
+        max_radius = min(self.screen_width, self.screen_height) // 2 + 100
+
+        # Iris closes from open to shut
+        # progress 0.0 = open, progress 0.5 = closed, progress 1.0 = opens slightly then fades
+        if progress < 0.5:
+            # Closing phase
+            close_progress = progress * 2  # 0 to 1
+            inner_radius = int(max_radius * (1 - close_progress))
+        elif progress < 0.8:
+            # Stay closed
+            inner_radius = 0
+        else:
+            # Slight fade out
+            inner_radius = 0
+
+        # Draw outer ring (Stargate rim)
+        rim_alpha = int(255 * min(1.0, progress * 4) * (1 - max(0, (progress - 0.8) * 5)))
+        if rim_alpha > 0:
+            rim_surf = pygame.Surface((max_radius * 2 + 40, max_radius * 2 + 40), pygame.SRCALPHA)
+            # Outer rim glow
+            pygame.draw.circle(rim_surf, (100, 150, 200, rim_alpha // 3),
+                             (max_radius + 20, max_radius + 20), max_radius + 15, width=15)
+            # Main rim
+            pygame.draw.circle(rim_surf, (60, 80, 120, rim_alpha),
+                             (max_radius + 20, max_radius + 20), max_radius, width=20)
+            surface.blit(rim_surf, (center_x - max_radius - 20, center_y - max_radius - 20))
+
+        # Draw iris blades
+        blade_alpha = int(255 * min(1.0, progress * 3) * (1 - max(0, (progress - 0.8) * 5)))
+        if blade_alpha > 0:
+            iris_surf = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+
+            for i in range(num_blades):
+                angle = (i / num_blades) * 2 * math.pi
+                next_angle = ((i + 1) / num_blades) * 2 * math.pi
+
+                # Calculate blade shape (triangular segments)
+                # Outer points
+                outer_x1 = center_x + int(max_radius * math.cos(angle))
+                outer_y1 = center_y + int(max_radius * math.sin(angle))
+                outer_x2 = center_x + int(max_radius * math.cos(next_angle))
+                outer_y2 = center_y + int(max_radius * math.sin(next_angle))
+
+                # Inner points (where iris closes to)
+                mid_angle = (angle + next_angle) / 2
+                inner_x = center_x + int(inner_radius * math.cos(mid_angle))
+                inner_y = center_y + int(inner_radius * math.sin(mid_angle))
+
+                # Blade color - titanium gray with slight variation
+                shade = 140 + (i % 3) * 15
+                blade_color = (shade, shade, shade + 10, blade_alpha)
+
+                # Draw blade
+                points = [(outer_x1, outer_y1), (outer_x2, outer_y2), (inner_x, inner_y)]
+                pygame.draw.polygon(iris_surf, blade_color, points)
+
+                # Edge highlight
+                edge_color = (180, 180, 190, blade_alpha // 2)
+                pygame.draw.line(iris_surf, edge_color, (outer_x1, outer_y1), (inner_x, inner_y), 2)
+
+            surface.blit(iris_surf, (0, 0))
+
+        # Central flash when fully closed
+        if 0.45 < progress < 0.6:
+            flash_progress = (progress - 0.45) / 0.15
+            flash_alpha = int(200 * math.sin(flash_progress * math.pi))
+            flash_radius = int(50 + 30 * math.sin(flash_progress * math.pi))
+
+            flash_surf = pygame.Surface((flash_radius * 2, flash_radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (200, 220, 255, flash_alpha),
+                             (flash_radius, flash_radius), flash_radius)
+            surface.blit(flash_surf, (center_x - flash_radius, center_y - flash_radius))
+
+        # Text overlay
+        if 0.3 < progress < 0.9:
+            text_alpha = int(255 * min(1.0, (progress - 0.3) * 5) * (1 - max(0, (progress - 0.7) * 5)))
+            font = pygame.font.SysFont("Arial", 60, bold=True)
+            text = font.render("IRIS ENGAGED", True, (200, 220, 255))
+            text_surf = pygame.Surface(text.get_size(), pygame.SRCALPHA)
+            text_surf.fill((0, 0, 0, 0))
+            text_surf.blit(text, (0, 0))
+            text_surf.set_alpha(text_alpha)
+            text_rect = text.get_rect(center=(center_x, center_y + max_radius + 80))
+            surface.blit(text_surf, text_rect)
     
     def draw_sarcophagus_revival(self, surface, progress):
         """Goa'uld - Golden energy stream from leader to discard pile."""

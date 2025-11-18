@@ -195,6 +195,10 @@ class IrisDefense:
         if self.available:
             self.available = False
             self.active = True
+            # Play iris sound effect
+            from sound_manager import get_sound_manager
+            sound_manager = get_sound_manager()
+            sound_manager.play_iris_sound(volume=0.7)
             return True
         return False
     
@@ -839,6 +843,17 @@ class Game:
             self.current_player.hand.remove(card)
             self.current_player.discard_pile.append(card)
             opponent.iris_defense.deactivate()
+
+            # Log the blocked card in history
+            blocker_label = "player" if opponent == self.player1 else "opponent"
+            self.add_history_event(
+                "special",
+                f"Iris blocked {card.name}!",
+                blocker_label,
+                card_ref=card,
+                icon="🛡️"
+            )
+
             self.switch_turn()
             return
 
@@ -1822,12 +1837,26 @@ class Game:
                                if card.displayed_power == max_power]
         
         destroyed_rows = []
+        destroyed_cards = []
         for card, row_name in units_to_destroy:
             if card in target_player.board[row_name]:
                 target_player.board[row_name].remove(card)
                 target_player.discard_pile.append(card)
                 destroyed_rows.append(row_name)
-        
+                destroyed_cards.append(card)
+
+        # Log destroyed cards to history
+        if destroyed_cards:
+            target_label = "player" if target_player == self.player1 else "opponent"
+            for card in destroyed_cards:
+                self.add_history_event(
+                    "destroy",
+                    f"Scorch destroyed {card.name}",
+                    target_label,
+                    card_ref=card,
+                    icon="🔥"
+                )
+
         return destroyed_rows
     
     def destroy_lowest_enemy_unit(self, target_player):
@@ -1846,6 +1875,17 @@ class Game:
         if victim in target_player.board[victim_row]:
             target_player.board[victim_row].remove(victim)
             target_player.discard_pile.append(victim)
+
+            # Log destroyed card to history
+            target_label = "player" if target_player == self.player1 else "opponent"
+            self.add_history_event(
+                "destroy",
+                f"Destroyed {victim.name}",
+                target_label,
+                card_ref=victim,
+                icon="🔥"
+            )
+
             return [victim_row]
         return []
 

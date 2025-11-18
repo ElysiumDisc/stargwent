@@ -21,7 +21,7 @@ STARGATE_SEQUENCE_PATH = os.path.join("assets", "audio", "stargate_sequence.ogg"
 STARGATE_SEQUENCE_DURATION_MS = 16000  # Match the 16s audio clip
 _menu_music_playing = False
 _menu_music_next_allowed = 0
-_MENU_LOOP_DELAY_MS = 30000
+_MENU_LOOP_DELAY_MS = 0  # No delay - restart immediately
 _stargate_sequence_sound = None
 _stargate_sequence_sound_loaded = False
 _STARGATE_SEQUENCE_VOLUME = 0.85
@@ -58,7 +58,7 @@ def start_menu_music(immediate=False):
         volume = settings.get_effective_music_volume()
         pygame.mixer.music.load(MENU_MUSIC_PATH)
         pygame.mixer.music.set_volume(volume)
-        pygame.mixer.music.play(0)
+        pygame.mixer.music.play(-1)  # Loop infinitely
         _menu_music_playing = True
         print(f"[audio] Main menu music playing from {MENU_MUSIC_PATH} at volume {volume:.2f}")
     except pygame.error as exc:

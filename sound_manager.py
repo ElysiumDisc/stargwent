@@ -16,7 +16,6 @@ class SoundEffectManager:
     def __init__(self):
         self._ensure_mixer_ready()
         self.loaded_sounds = {}
-        self.row_sound_counter = 0  # Track card plays for row sound throttling
 
     def _ensure_mixer_ready(self):
         """Initialize pygame mixer if not already done."""
@@ -113,7 +112,6 @@ class SoundEffectManager:
     def play_row_sound(self, row_type, volume=1.0):
         """
         Play a row type sound when a unit card is played.
-        Only plays every 4th card to avoid overwhelming the player.
 
         Args:
             row_type: The row type ('close', 'ranged', 'siege')
@@ -126,11 +124,6 @@ class SoundEffectManager:
         if row_type not in ('close', 'ranged', 'siege'):
             return False
 
-        # Increment counter and only play every 4th card
-        self.row_sound_counter += 1
-        if self.row_sound_counter % 4 != 0:
-            return False
-
         sound = self.get_row_sound(row_type)
         if sound:
             try:
@@ -140,10 +133,6 @@ class SoundEffectManager:
             except pygame.error as exc:
                 print(f"[audio] Failed to play {row_type} sound: {exc}")
         return False
-
-    def reset_row_sound_counter(self):
-        """Reset the row sound counter (call at start of new game)."""
-        self.row_sound_counter = 0
 
     def play_ring_transport_sound(self, volume=1.0):
         """
@@ -174,6 +163,37 @@ class SoundEffectManager:
             return True
         except pygame.error as exc:
             print(f"[audio] Failed to play ring transport sound: {exc}")
+        return False
+
+    def play_iris_sound(self, volume=1.0):
+        """
+        Play iris sound when Tau'ri faction power is used.
+        Always plays (not throttled).
+
+        Args:
+            volume: Volume level from 0.0 to 1.0
+
+        Returns:
+            True if sound was played, False otherwise
+        """
+        cache_key = "iris"
+        if cache_key not in self.loaded_sounds:
+            sound_path = os.path.join(self.ROW_SOUNDS_PATH, "iris.ogg")
+            if not os.path.exists(sound_path):
+                return False
+            try:
+                self.loaded_sounds[cache_key] = pygame.mixer.Sound(sound_path)
+            except pygame.error as exc:
+                print(f"[audio] Failed to load iris sound: {exc}")
+                return False
+
+        sound = self.loaded_sounds[cache_key]
+        try:
+            sound.set_volume(volume)
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play iris sound: {exc}")
         return False
 
     def preload_all_commander_sounds(self):

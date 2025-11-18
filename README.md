@@ -1133,24 +1133,125 @@ Save Files (auto-generated):
 └── game_settings.json               # Sound and game settings - NEW v2.5!
 ```
 
-### Audio System
+### 🎵 Complete Audio File Guide
 
-**Battle Music (Round-Based)**
-- `battle_round1.ogg` - Round 1 music (loops continuously)
-- `battle_round2.ogg` - Round 2 music (more intense, loops)
-- `battle_round3.ogg` - Round 3 music (climactic finale, loops)
+All audio files are `.ogg` format (OGG Vorbis). Place them in `assets/audio/`.
 
-Music automatically transitions to more intense tracks as rounds progress.
+---
 
-**Faction Preview (Menu Hover)**
-- Themes play when hovering over faction buttons in selection menu
-- Each theme restarts every 10 seconds while hovering
-- Stops when you move away or select
+#### Menu & Battle Music
 
-**Sound Effects**
-- `close.ogg`, `ranged.ogg`, `siege.ogg` - Unit deployment (every 4th card)
-- `ring.ogg` - Ring Transport activation
-- `commander_snippets/*.ogg` - 27 legendary commander voice clips
+| File | Location | When It Plays |
+|------|----------|---------------|
+| `main_menu_music.ogg` | `assets/audio/` | Main menu (loops infinitely) |
+| `battle_round1.ogg` | `assets/audio/` | Round 1 battle (loops) |
+| `battle_round2.ogg` | `assets/audio/` | Round 2 battle - more intense (loops) |
+| `battle_round3.ogg` | `assets/audio/` | Round 3 battle - climactic finale (loops) |
+
+---
+
+#### Faction Preview Themes (Menu Hover)
+
+Play when hovering over faction buttons in selection menu. Restart every 10 seconds while hovering.
+
+| File | Location | Faction |
+|------|----------|---------|
+| `tauri_theme.ogg` | `assets/audio/` | Tau'ri |
+| `goauld_theme.ogg` | `assets/audio/` | Goa'uld |
+| `jaffa_theme.ogg` | `assets/audio/` | Jaffa Rebellion |
+| `lucian_theme.ogg` | `assets/audio/` | Lucian Alliance |
+| `asgard_theme.ogg` | `assets/audio/` | Asgard |
+
+---
+
+#### Unit Card Row Sounds
+
+Play when a non-legendary unit card is placed on the board.
+
+| File | Location | Row Type |
+|------|----------|----------|
+| `close.ogg` | `assets/audio/` | Close combat units |
+| `ranged.ogg` | `assets/audio/` | Ranged units |
+| `siege.ogg` | `assets/audio/` | Siege units |
+
+---
+
+#### Special Ability Sounds
+
+| File | Location | When It Plays |
+|------|----------|---------------|
+| `ring.ogg` | `assets/audio/` | Ring Transport card used (Goa'uld) |
+| `iris.ogg` | `assets/audio/` | Tau'ri Iris Defense OR Faction Power (The Gate Shutdown) |
+
+---
+
+#### Legendary Commander Voice Snippets (27 total)
+
+Play when a legendary commander is deployed. Place all in `assets/audio/commander_snippets/`.
+
+**Tau'ri (4):**
+| File | Character |
+|------|-----------|
+| `tauri_oneill.ogg` | Col. Jack O'Neill |
+| `tauri_hammond.ogg` | Gen. George Hammond |
+| `tauri_jackson.ogg` | Dr. Daniel Jackson |
+| `tauri_carter.ogg` | Dr. Samantha Carter |
+
+**Goa'uld (5):**
+| File | Character |
+|------|-----------|
+| `goauld_sokar.ogg` | Sokar |
+| `goauld_yu.ogg` | Lord Yu |
+| `goauld_hathor.ogg` | Hathor |
+| `goauld_apophis.ogg` | Apophis |
+| `goauld_isis.ogg` | Isis |
+
+**Jaffa Rebellion (4):**
+| File | Character |
+|------|-----------|
+| `jaffa_tealc.ogg` | Teal'c |
+| `jaffa_bratac.ogg` | Bra'tac |
+| `jaffa_raknor.ogg` | Rak'nor |
+| `jaffa_master_bratac.ogg` | Master Bra'tac |
+
+**Lucian Alliance (4):**
+| File | Character |
+|------|-----------|
+| `lucian_vulkar.ogg` | Vulkar |
+| `lucian_curtis.ogg` | Sg. Curtis |
+| `lucian_sodan_master.ogg` | The Sodan Master |
+| `lucian_baal_clone.ogg` | Ba'al Clone |
+
+**Asgard (3):**
+| File | Character |
+|------|-----------|
+| `asgard_freyr.ogg` | Freyr |
+| `asgard_loki.ogg` | Loki |
+| `asgard_heimdall.ogg` | Heimdall |
+
+**Neutral (6):**
+| File | Character |
+|------|-----------|
+| `neutral_ascended_daniel.ogg` | Ascended Daniel Jackson |
+| `neutral_oma_desala.ogg` | Oma Desala |
+| `neutral_mckay.ogg` | Dr. Rodney McKay |
+| `neutral_teyla.ogg` | Teyla Emmagan |
+| `neutral_ancient_drone.ogg` | Ancients Drone |
+| `neutral_weir.ogg` | Dr. Elizabeth Weir |
+
+---
+
+#### Audio File Summary
+
+**Total Files Needed: 41**
+- Menu/Battle Music: 4
+- Faction Themes: 5
+- Row Sounds: 3
+- Special Sounds: 2
+- Commander Snippets: 26
+- Stargate sequence: 1 (`stargate_sequence.ogg`)
+
+All files are optional - missing files are silently skipped (no crashes).
 
 
 
