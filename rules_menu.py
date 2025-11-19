@@ -1166,7 +1166,17 @@ class RulesMenuScreen:
             content_height += y - start_y
         for item in data.get("items", []):
             start_y = y
-            card_rect = pygame.Rect(column_x, y, column_width, 150)
+            # Calculate dynamic height based on text content
+            title_height = self.small_font.get_linesize() + 14  # title + padding
+            body_text = item["body"]
+            body_width = column_width - 32
+            max_chars = max(1, body_width // max(1, self.small_font.size("M")[0]))
+            wrapped_lines = wrap(body_text, max_chars) if body_text else []
+            body_height = len(wrapped_lines) * self.small_font.get_linesize()
+            # Total height: title area (48px) + body + bottom padding (20px)
+            item_height = max(80, 48 + body_height + 20)
+
+            card_rect = pygame.Rect(column_x, y, column_width, item_height)
             pygame.draw.rect(view, self.accent_color, card_rect, 2)
             title = self.small_font.render(item["title"], True, self.accent_color)
             view.blit(title, (card_rect.x + 16, card_rect.y + 14))
@@ -1179,7 +1189,7 @@ class RulesMenuScreen:
                 self.text_color,
                 align_center=True,
             )
-            y += 170
+            y += item_height + 20  # item height + gap between items
             content_height += y - start_y
         self._update_scroll_limit(content_height, area_height)
 

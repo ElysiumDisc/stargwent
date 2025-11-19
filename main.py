@@ -4325,9 +4325,11 @@ def main(lan_game_data=None):
                     if ai_used_faction_power:
                         # Create faction power effect animation
                         faction_power_effect = FactionPowerEffect(
+                            game.player2.faction,
                             SCREEN_WIDTH // 2,
                             SCREEN_HEIGHT // 2,
-                            game.player2.faction_power.name
+                            SCREEN_WIDTH,
+                            SCREEN_HEIGHT
                         )
                         anim_manager.add_effect(faction_power_effect)
 
@@ -4472,9 +4474,11 @@ def main(lan_game_data=None):
             if lan_power_available_before and not lan_power_available_after:
                 # Opponent used faction power - trigger animation!
                 faction_power_effect = FactionPowerEffect(
+                    game.player2.faction,
                     SCREEN_WIDTH // 2,
                     SCREEN_HEIGHT // 2,
-                    game.player2.faction_power.name
+                    SCREEN_WIDTH,
+                    SCREEN_HEIGHT
                 )
                 anim_manager.add_effect(faction_power_effect)
 
