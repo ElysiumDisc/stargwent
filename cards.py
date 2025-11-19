@@ -78,7 +78,7 @@ ALL_CARDS = {
     "tauri_tokra_op_1": Card("tauri_tokra_op_1", "Tok'ra Operative", FACTION_TAURI, 5, "ranged", "Tactical Formation"),
     "tauri_tokra_op_2": Card("tauri_tokra_op_2", "Tok'ra Operative", FACTION_TAURI, 5, "ranged", "Tactical Formation"),
     "tauri_tokra_op_3": Card("tauri_tokra_op_3", "Tok'ra Operative", FACTION_TAURI, 5, "ranged", "Tactical Formation"),
-    "tauri_valtiel": Card("tauri_valtiel", "V. Teal'c", FACTION_TAURI, 5, "ranged", None),
+    "tauri_vallarin": Card("tauri_vallarin", "Vallarin", FACTION_TAURI, 5, "ranged", None),
     "tauri_vala": Card("tauri_vala", "Liaison Vala Mal Doran", FACTION_TAURI, 5, "ranged", None),
     "tauri_caldwell": Card("tauri_caldwell", "Col. Steven Caldwell", FACTION_TAURI, 6, "ranged", None),
     "tauri_ground_tech_1": Card("tauri_ground_tech_1", "Ground Control Technician", FACTION_TAURI, 1, "siege", "Inspiring Leadership"),
