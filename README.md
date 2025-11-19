@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-2.8-blue)
+![Version](https://img.shields.io/badge/version-2.9-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -53,6 +53,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
+- **⚡ NEW v2.9: LAN MULTIPLAYER OVERHAUL** - Fixed game loop, added all animations for both players, robust disconnect handling!
+- **⚡ NEW v2.9: TAILSCALE SUPPORT** - Smart IP detection prioritizes Tailscale VPN addresses for easy remote play!
 - **⚡ NEW v2.8: LEGENDARY COMMANDER VOICE SNIPPETS** - Every legendary commander plays a character voice clip when deployed!
 - **⚡ NEW v2.7: ALLIANCE COMBO TRACKING** - Alliance activations now show in history viewer with full visibility!
 - **⚡ NEW v2.7: BALANCE CONFIG INTEGRATION** - All balance values now use centralized config for easy tuning!
@@ -170,6 +172,42 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 2.9 (November 2025)
+**LAN Multiplayer Overhaul & Robustness**
+
+- ✅ **LAN Game Loop Fixed** – Critical fix: game loop now actually runs after deck selection (was broken since v2.2)
+- ✅ **LAN Opponent Animations** – All animations now display for both players:
+  - Card play effects (Stargate activation, weather, Naquadah explosions)
+  - Special ability animations (Vampire, Inspiring Leadership, Deploy Clones, etc.)
+  - Faction power animations (Gate Shutdown with Iris closing, Sarcophagus Revival, etc.)
+  - Legendary Commander entry effects
+- ✅ **AI Animation Parity** – AI opponent now triggers same animations as player:
+  - Faction power effects with full visuals
+  - Card ability animations (previously missing)
+  - Iris Defense activation with animation
+- ✅ **Improved LAN Menu UI** – Completely redesigned Host/Join interface:
+  - 400×70px buttons (was 260×40) with 36px font
+  - Hover effects and color-coded buttons (green=Host, blue=Join)
+  - Gradient backgrounds and rounded corners
+  - Tailscale IP prioritization (100.x.x.x shown first with ★ RECOMMENDED)
+- ✅ **Enhanced IP Detection** – Multi-method IP detection for Tailscale support:
+  - Parses `ip addr` output for all interfaces
+  - Connects to Tailscale coordination server (100.100.100.100)
+  - Falls back to standard socket methods
+  - No sudo required, no network traffic sent
+- ✅ **Connection Robustness** – Improved network reliability:
+  - 10-second join timeout (was infinite)
+  - 1-second recv timeout prevents hangs
+  - 5-second keepalive heartbeat
+  - 30-second connection timeout detection
+  - TCP keepalive at OS level
+- ✅ **Disconnect Detection** – Graceful handling of connection loss:
+  - "CONNECTION LOST" overlay with red text
+  - Automatic detection via keepalive failures
+  - Clean return to main menu
+  - Works in both lobby and game
+- ✅ **Network Sync for Actions** – Faction power usage now syncs over network
 
 ### Version 2.8 (November 2025)
 **Complete Audio System Overhaul**
@@ -1048,10 +1086,8 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - Sound effects & music (Sonic Pi integration ready)
 - Advanced AI difficulty settings
 - More faction-specific animations
-- Multiplayer support
 - Tournament mode
-- Tournament mode
-- Local multiplayer
+- LAN reconnection support
 
 **All core gameplay 100% complete! Ready for extensive playtesting and content expansion!**
 
@@ -1611,7 +1647,7 @@ Suggestions and feedback welcome!
 
 - **AI**: Basic-medium difficulty (improvements planned)
 - **Sound**: Menu + Goa'uld + Asgard themes implemented; other factions' battle music & SFX still pending
-- **Multiplayer**: Single player only (local MP planned)
+- **LAN**: No automatic reconnect after disconnect; no state recovery from desync
 
 ---
 
@@ -1664,6 +1700,7 @@ Suggestions and feedback welcome!
 - Advanced AI difficulty levels
 - Per-card custom animations (expand beyond current set)
 - More hyperspace/wormhole effects
+- LAN reconnection and state recovery
 
 ### 📋 Planned
 - Tournament mode (best-of-3)
@@ -1671,6 +1708,7 @@ Suggestions and feedback welcome!
 - More factions (Wraith, Ori, Atlantis)
 - Statistics tracking
 - Custom card creation tools
+- Internet matchmaking (beyond LAN/VPN)
 
 ---
 
@@ -1762,16 +1800,20 @@ Player 2 (Remote):
 Result: Both see identical board state
 ```
 
-### Animations & Effects
+### Animations & Effects (v2.9)
 
-All animations run **locally** on each client:
-- ✅ Card play animations
-- ✅ Faction power effects (Stargate, Asgard beams, etc.)
-- ✅ Weather effects
-- ✅ Scorch explosions
+All animations run **locally** on each client and are **fully synchronized**:
+- ✅ Card play animations (Stargate activation, Naquadah Overload explosions)
+- ✅ Faction power effects (Gate Shutdown with Iris closing, Sarcophagus Revival, etc.)
+- ✅ Weather effects (Ice Planet, Nebula, Asteroid Storm, EMP)
+- ✅ Special ability effects (Vampire, Inspiring Leadership, Deploy Clones, etc.)
+- ✅ Legendary Commander entry effects with lightning
 - ✅ Leader ability effects
 
-Animations trigger based on game events, which are synchronized via actions.
+**Both players see the same animations** when either player performs an action. The game synchronizes by:
+1. Sending only player actions over the network
+2. Each client runs the same game engine locally
+3. Animation triggers fire based on game events
 
 ### Technical Details
 
@@ -1799,11 +1841,38 @@ Animations trigger based on game events, which are synchronized via actions.
 - Leader abilities trigger
 - Round end/start syncs
 
+### Connection Robustness (v2.9)
+
+The LAN system includes multiple reliability features:
+
+| Feature | Description |
+|---------|-------------|
+| **Join Timeout** | 10 seconds to connect or fail |
+| **Recv Timeout** | 1 second prevents blocking |
+| **Keepalive** | 5-second heartbeat packets |
+| **Connection Timeout** | 30 seconds without data = disconnect |
+| **TCP Keepalive** | OS-level connection monitoring |
+| **Disconnect Detection** | Visual overlay with "CONNECTION LOST" |
+
+### IP Detection for Tailscale (v2.9)
+
+The Host screen automatically detects all available IP addresses:
+
+```
+★ RECOMMENDED:  100.64.1.5      ← Tailscale VPN
+  Alternative 1: 192.168.1.100   ← Local network
+```
+
+**Which IP to use:**
+- **Tailscale (100.x.x.x)**: Both players on same Tailscale network
+- **Local (192.168.x.x)**: Both players on same WiFi/LAN
+- **Port forwarding**: Required for internet play without VPN
+
 ### Known Limitations
 
-1. **LAN Only**: No internet/matchmaking (by design)
+1. **LAN/VPN Only**: No internet matchmaking (use Tailscale for remote play)
 2. **No Spectator Mode**: Only 2 players
-3. **No Reconnect**: Disconnect = game over
+3. **No Reconnect**: Disconnect = game over (detected within 30s)
 4. **No Save/Resume**: Match must finish in one session
 5. **Firewall**: Port 4765 must be open on host
 

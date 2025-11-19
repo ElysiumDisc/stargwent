@@ -2967,92 +2967,116 @@ def run_game_with_context(screen_param, lan_context):
     print(f"[LAN] Local deck: {len(local_deck)} cards")
     print(f"[LAN] Remote deck: {len(remote_deck)} cards")
 
-    # The game loop will detect LAN_MODE and use NetworkController
-    # (This happens in the existing game loop around line 2737)
+    # Run the game loop with the LAN game
+    # We call main() with the game data to skip menu/deck builder
+    main(lan_game_data={
+        'game': game,
+        'player_faction': local_faction,
+        'player_leader': local_leader,
+        'ai_faction': remote_faction,
+        'ai_leader': remote_leader
+    })
 
 
-def main():
-    """Main game loop."""
+def main(lan_game_data=None):
+    """Main game loop.
+
+    Args:
+        lan_game_data: Optional dict with LAN game info to skip menu/deck builder.
+                      Keys: 'game', 'player_faction', 'player_leader', 'ai_faction', 'ai_leader'
+    """
     global MULLIGAN_BUTTON_RECT, screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR
 
-    # Initialize card unlock system
-    unlock_system = CardUnlockSystem()
-    deck_manager = DeckManager(unlock_system)
-    
-    # --- SHOW MAIN MENU FIRST ---
-    menu_result = run_main_menu(screen, unlock_system, toggle_fullscreen_mode)
-    
-    if isinstance(menu_result, dict) and 'session' in menu_result:
-        from lan_game import run_lan_setup, run_lan_match
-        lan_context = run_lan_setup(
+    # If LAN game data provided, skip menu and deck builder
+    if lan_game_data:
+        game = lan_game_data['game']
+        player_faction = lan_game_data['player_faction']
+        player_leader = lan_game_data['player_leader']
+        ai_faction = lan_game_data['ai_faction']
+        ai_leader = lan_game_data['ai_leader']
+        # Player deck is already in game.player1.hand/deck
+        # AI deck is already in game.player2.hand/deck
+    else:
+        # Normal flow - show menu and deck builder
+
+        # Initialize card unlock system
+        unlock_system = CardUnlockSystem()
+        deck_manager = DeckManager(unlock_system)
+
+        # --- SHOW MAIN MENU FIRST ---
+        menu_result = run_main_menu(screen, unlock_system, toggle_fullscreen_mode)
+
+        if isinstance(menu_result, dict) and 'session' in menu_result:
+            from lan_game import run_lan_setup, run_lan_match
+            lan_context = run_lan_setup(
+                screen,
+                unlock_system,
+                menu_result['session'],
+                menu_result.get('role', 'host'),
+                toggle_fullscreen_callback=toggle_fullscreen_mode
+            )
+            if lan_context:
+                run_lan_match(screen, lan_context)
+            main()
+            return
+
+        if menu_result != 'new_game':
+            pygame.quit()
+            sys.exit()
+
+        # --- SHOW STARGATE OPENING ANIMATION ---
+        if not show_stargate_opening(screen):
+            # User closed window during animation
+            pygame.quit()
+            sys.exit()
+
+        # Sync display mode in case menu/rules toggled fullscreen
+        sync_fullscreen_from_surface()
+
+        # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
+        deck_selection = run_deck_builder(
             screen,
-            unlock_system,
-            menu_result['session'],
-            menu_result.get('role', 'host'),
+            unlock_override=unlock_system.is_unlock_override_enabled(),
             toggle_fullscreen_callback=toggle_fullscreen_mode
         )
-        if lan_context:
-            run_lan_match(screen, lan_context)
-        main()
-        return
-    
-    if menu_result != 'new_game':
-        pygame.quit()
-        sys.exit()
-    
-    # --- SHOW STARGATE OPENING ANIMATION ---
-    if not show_stargate_opening(screen):
-        # User closed window during animation
-        pygame.quit()
-        sys.exit()
-    
-    # Sync display mode in case menu/rules toggled fullscreen
-    sync_fullscreen_from_surface()
-    
-    # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
-    deck_selection = run_deck_builder(
-        screen,
-        unlock_override=unlock_system.is_unlock_override_enabled(),
-        toggle_fullscreen_callback=toggle_fullscreen_mode
-    )
-    
-    if deck_selection is None:
-        # User cancelled - go back to main menu
-        main()
-        return
-    
-    # Build player deck based on selection
-    player_faction = deck_selection['faction']
-    player_leader = dict(deck_selection['leader'])
-    player_leader.setdefault('faction', player_faction)
-    player_deck_ids = deck_selection['deck_ids']
 
-    # Check if player has a custom deck for this faction
-    deck_manager.load_decks()  # Reload in case the player saved new changes in the deck builder
-    custom_deck_data = deck_manager.get_deck(player_faction)
-    if custom_deck_data and custom_deck_data.get("cards"):
-        # Use custom deck
-        custom_card_ids = custom_deck_data["cards"]
-        # Filter out 'leader' key and invalid cards
-        player_deck = [ALL_CARDS[id] for id in custom_card_ids if id != 'leader' and id in ALL_CARDS]
-        # Shuffle custom deck
+        if deck_selection is None:
+            # User cancelled - go back to main menu
+            main()
+            return
+
+        # Build player deck based on selection
+        player_faction = deck_selection['faction']
+        player_leader = dict(deck_selection['leader'])
+        player_leader.setdefault('faction', player_faction)
+        player_deck_ids = deck_selection['deck_ids']
+
+        # Check if player has a custom deck for this faction
+        deck_manager.load_decks()  # Reload in case the player saved new changes in the deck builder
+        custom_deck_data = deck_manager.get_deck(player_faction)
+        if custom_deck_data and custom_deck_data.get("cards"):
+            # Use custom deck
+            custom_card_ids = custom_deck_data["cards"]
+            # Filter out 'leader' key and invalid cards
+            player_deck = [ALL_CARDS[id] for id in custom_card_ids if id != 'leader' and id in ALL_CARDS]
+            # Shuffle custom deck
+            import random
+            random.shuffle(player_deck)
+        else:
+            # Use default faction deck
+            player_deck = [ALL_CARDS[id] for id in player_deck_ids]
+
+        # AI gets a random faction (different from player) and random leader
+        from cards import FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
+        from deck_builder import FACTION_LEADERS
+        available_ai_factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
+        available_ai_factions.remove(player_faction)
         import random
-        random.shuffle(player_deck)
-    else:
-        # Use default faction deck
-        player_deck = [ALL_CARDS[id] for id in player_deck_ids]
-    
-    # AI gets a random faction (different from player) and random leader
-    from cards import FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
-    from deck_builder import FACTION_LEADERS
-    available_ai_factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
-    available_ai_factions.remove(player_faction)
-    import random
-    ai_faction = random.choice(available_ai_factions)
-    ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))  # AI gets random leader
-    ai_leader.setdefault('faction', ai_faction)
-    ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
-    ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
+        ai_faction = random.choice(available_ai_factions)
+        ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))  # AI gets random leader
+        ai_leader.setdefault('faction', ai_faction)
+        ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
+        ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
     
     # Initialize Mulligan button near bottom-right (stays above player hand zone)
     MULLIGAN_BUTTON_RECT = pygame.Rect(
@@ -3080,60 +3104,62 @@ def main():
         assets["board"] = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         assets["board"].fill((20, 20, 30))
 
-    # Create game with player's selections
-    game = Game(
-        player1_faction=player_faction,
-        player1_deck=player_deck,
-        player1_leader=player_leader,
-        player2_faction=ai_faction,
-        player2_deck=ai_deck,
-        player2_leader=ai_leader  # AI now has a leader
-    )
-    game.start_game()
-    
-    # Initialize Faction Powers for both players
-    from power import FACTION_POWERS as FACTION_POWERS_FACTORY
-    if player_faction in FACTION_POWERS_FACTORY:
-        game.player1.faction_power = FACTION_POWERS_FACTORY[player_faction]
-    
-    if ai_faction in FACTION_POWERS_FACTORY:
-        # Create separate instance for AI
-        game.player2.faction_power = type(FACTION_POWERS_FACTORY[ai_faction])()
-    
+    # Create game with player's selections (skip if LAN - game already created)
+    if not lan_game_data:
+        game = Game(
+            player1_faction=player_faction,
+            player1_deck=player_deck,
+            player1_leader=player_leader,
+            player2_faction=ai_faction,
+            player2_deck=ai_deck,
+            player2_leader=ai_leader  # AI now has a leader
+        )
+        game.start_game()
+
+        # Initialize Faction Powers for both players
+        from power import FACTION_POWERS as FACTION_POWERS_FACTORY
+        if player_faction in FACTION_POWERS_FACTORY:
+            game.player1.faction_power = FACTION_POWERS_FACTORY[player_faction]
+
+        if ai_faction in FACTION_POWERS_FACTORY:
+            # Create separate instance for AI
+            game.player2.faction_power = type(FACTION_POWERS_FACTORY[ai_faction])()
+
     # Iris Defense is ONLY for Tau'ri faction - it blocks next card
     # The iris_defense is the actual Iris mechanic, faction_power is the big ability
     # All players already have iris_defense initialized in Player.__init__
     # but only Tau'ri should be able to activate it
-    
-    
+
+
     # Start space battle for first round
     ambient_effects.start_round(round_number=1)
-    
-    # Show leader matchup animation
-    from leader_matchup import LeaderMatchupAnimation
-    matchup_anim = LeaderMatchupAnimation(player_leader, ai_leader, SCREEN_WIDTH, SCREEN_HEIGHT)
-    clock_matchup = pygame.time.Clock()
-    while not matchup_anim.finished:
-        dt = clock_matchup.tick(60)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEWHEEL:
-                if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
-                    history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
-                    history_manual_scroll = True
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.key == pygame.K_SPACE:
-                    matchup_anim.finished = True  # Allow skipping
-        
-        matchup_anim.update(dt)
-        matchup_anim.draw(screen)
-        pygame.display.flip()
-    
-    # Show game start animation
-    show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-    
+
+    # Show leader matchup animation (skip if LAN - already shown in lan_setup)
+    if not lan_game_data:
+        from leader_matchup import LeaderMatchupAnimation
+        matchup_anim = LeaderMatchupAnimation(player_leader, ai_leader, SCREEN_WIDTH, SCREEN_HEIGHT)
+        clock_matchup = pygame.time.Clock()
+        while not matchup_anim.finished:
+            dt = clock_matchup.tick(60)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEWHEEL:
+                    if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
+                        history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
+                        history_manual_scroll = True
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_SPACE:
+                        matchup_anim.finished = True  # Allow skipping
+
+            matchup_anim.update(dt)
+            matchup_anim.draw(screen)
+            pygame.display.flip()
+
+        # Show game start animation
+        show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+
     # Start round-based battle music (round 1)
     set_battle_music_round(1, immediate=True)
     
@@ -3259,6 +3285,44 @@ def main():
         # Poll chat messages in LAN mode
         if lan_chat_panel:
             lan_chat_panel.poll_session()
+
+        # Check for LAN disconnect
+        if LAN_MODE and LAN_CONTEXT:
+            if not LAN_CONTEXT.session.is_connected():
+                # Show disconnect message
+                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 200))
+                screen.blit(overlay, (0, 0))
+
+                font_large = pygame.font.SysFont("Arial", 60, bold=True)
+                font_small = pygame.font.SysFont("Arial", 30)
+
+                # Disconnect message
+                text1 = font_large.render("CONNECTION LOST", True, (255, 100, 100))
+                text2 = font_small.render("Your opponent has disconnected", True, (200, 200, 200))
+                text3 = font_small.render("Press any key to return to menu", True, (150, 150, 150))
+
+                screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, SCREEN_HEIGHT // 2 - 80))
+                screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, SCREEN_HEIGHT // 2))
+                screen.blit(text3, (SCREEN_WIDTH // 2 - text3.get_width() // 2, SCREEN_HEIGHT // 2 + 60))
+
+                pygame.display.flip()
+
+                # Wait for key press
+                waiting = True
+                while waiting:
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            pygame.quit()
+                            sys.exit()
+                        elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                            waiting = False
+
+                # Clean up and return to menu
+                LAN_CONTEXT.session.close()
+                stop_battle_music()
+                main()
+                return
 
         if getattr(game, "history_dirty", False):
             if not history_manual_scroll:
@@ -3527,6 +3591,9 @@ def main():
                                     f"{game.player1.name} used {game.player1.faction_power.name}",
                                     "player"
                                 )
+                                # Send over network in LAN mode
+                                if network_proxy:
+                                    network_proxy.send_faction_power(game.player1.faction_power.name)
                                 # Recalculate scores
                                 game.player1.calculate_score()
                                 game.player2.calculate_score()
@@ -3780,6 +3847,9 @@ def main():
                                 f"{game.player1.name} used {game.player1.faction_power.name}",
                                 "player"
                             )
+                            # Send over network in LAN mode
+                            if network_proxy:
+                                network_proxy.send_faction_power(game.player1.faction_power.name)
                             game.player1.calculate_score()
                             game.player2.calculate_score()
                     continue
@@ -4221,10 +4291,19 @@ def main():
             if ai_result == "thinking_done":
                 # AI has finished thinking, get the decision
                 ai_board_before = {row: len(cards) for row, cards in game.player2.board.items()}
-                
+
+                # Check if faction power was available before AI decision
+                ai_power_available_before = (game.player2.faction_power and
+                                             game.player2.faction_power.is_available())
+
                 # Get AI decision without executing it yet
                 card_to_play, row_to_play = ai_controller.choose_move()
-                
+
+                # Check if AI used faction power
+                ai_power_available_after = (game.player2.faction_power and
+                                            game.player2.faction_power.is_available())
+                ai_used_faction_power = ai_power_available_before and not ai_power_available_after
+
                 if card_to_play:
                     # Store the decision
                     ai_card_to_play = card_to_play
@@ -4241,6 +4320,23 @@ def main():
                         ai_turn_in_progress = False
                 else:
                     ai_selected_card_index = None
+
+                    # Check if AI used faction power - trigger animation!
+                    if ai_used_faction_power:
+                        # Create faction power effect animation
+                        faction_power_effect = FactionPowerEffect(
+                            SCREEN_WIDTH // 2,
+                            SCREEN_HEIGHT // 2,
+                            game.player2.faction_power.name
+                        )
+                        anim_manager.add_effect(faction_power_effect)
+
+                        # Add Iris closing animation for Tau'ri Gate Shutdown
+                        if game.player2.faction == FACTION_TAURI:
+                            from animations import IrisClosingEffect
+                            iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                            anim_manager.add_effect(iris_anim)
+
                     # AI passes or uses power
                     ai_turn_anim.finish()
                     game.last_turn_actor = game.player2
@@ -4316,8 +4412,20 @@ def main():
                         anim_manager.add_effect(hero_anim)
                         anim_manager.add_effect(LegendaryLightningEffect(ai_card_to_play))
                     elif not weather_visual_applied:
-                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
-                        anim_manager.add_effect(stargate_effect)
+                        # Check for special ability animations (same as player)
+                        ability_triggered = False
+                        for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
+                                               "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
+                            if special_ability in ability:
+                                ability_anim = create_ability_animation(ability, effect_x, effect_y)
+                                anim_manager.add_effect(ability_anim)
+                                ability_triggered = True
+                                break
+
+                        # Default stargate effect if no special ability
+                        if not ability_triggered:
+                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
+                            anim_manager.add_effect(stargate_effect)
                 
                 ai_turn_anim.start_resolving()
             
@@ -4325,13 +4433,130 @@ def main():
                 # Recalculate scores
                 game.player1.calculate_score()
                 game.player2.calculate_score()
-                
+
+                # Check if AI should use Iris Defense (before switching turn)
+                if (hasattr(ai_controller, 'strategy') and
+                    ai_controller.strategy.should_use_iris_defense()):
+                    # AI activates Iris Defense
+                    game.player2.iris_defense.activate()
+                    # Trigger Iris closing animation
+                    from animations import IrisClosingEffect
+                    iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                    anim_manager.add_effect(iris_anim)
+                    # Add history event
+                    game.add_history_event(
+                        "special",
+                        f"{game.player2.name} activated Iris Defense!",
+                        "ai",
+                        icon="🛡️"
+                    )
+
                 # Finish turn
                 ai_turn_anim.finish()
                 game.switch_turn()
                 ai_turn_in_progress = False
                 ai_selected_card_index = None
-        
+
+        # LAN opponent turn handling
+        elif game.current_player == game.player2 and game.game_state == "playing" and LAN_MODE:
+            # Check if faction power was available before polling
+            lan_power_available_before = (game.player2.faction_power and
+                                          game.player2.faction_power.is_available())
+
+            # Poll for network message from opponent
+            card_to_play, row_to_play = ai_controller.choose_move()
+
+            # Check if opponent used faction power
+            lan_power_available_after = (game.player2.faction_power and
+                                         game.player2.faction_power.is_available())
+            if lan_power_available_before and not lan_power_available_after:
+                # Opponent used faction power - trigger animation!
+                faction_power_effect = FactionPowerEffect(
+                    SCREEN_WIDTH // 2,
+                    SCREEN_HEIGHT // 2,
+                    game.player2.faction_power.name
+                )
+                anim_manager.add_effect(faction_power_effect)
+
+                # Add Iris closing animation for Tau'ri Gate Shutdown
+                if game.player2.faction == FACTION_TAURI:
+                    from animations import IrisClosingEffect
+                    iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                    anim_manager.add_effect(iris_anim)
+
+            if card_to_play and row_to_play:
+                # Opponent played a card - process it with animations
+                ability = card_to_play.ability or ""
+
+                # Play the card
+                game.play_card(card_to_play, row_to_play)
+
+                # Check if opponent played a siege card for space battle
+                if row_to_play == 'siege':
+                    ambient_effects.add_ship(game.player2.faction, card_to_play.name, is_player=False)
+
+                # Trigger visual effect for the play
+                target_rect = OPPONENT_ROW_RECTS.get(row_to_play)
+                if "Deep Cover Agent" in ability or card_to_play.row == "weather":
+                    target_rect = PLAYER_ROW_RECTS.get(row_to_play) or target_rect
+                effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
+                effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
+
+                weather_visual_applied = False
+                if card_to_play.row == "weather":
+                    weather_visual_applied = True
+                    ability_lower = ability.lower()
+                    if "wormhole stabilization" in ability_lower:
+                        anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+                    else:
+                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=500))
+                        if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
+                            for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                row_rect = rects.get(row_to_play)
+                                if row_rect:
+                                    anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
+
+                # Check for Naquadah Overload
+                if not weather_visual_applied and "Naquadah Overload" in ability:
+                    for player, destroyed_row in game.last_scorch_positions:
+                        if player == game.player1:
+                            row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                        else:
+                            row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                        if row_rect:
+                            anim_manager.add_effect(NaquadahExplosionEffect(
+                                SCREEN_WIDTH // 2,
+                                row_rect.centery,
+                                duration=1500
+                            ))
+                    game.last_scorch_positions = []
+                elif not weather_visual_applied and "Legendary Commander" in ability:
+                    hero_anim = create_hero_animation(card_to_play.name, effect_x, effect_y)
+                    anim_manager.add_effect(hero_anim)
+                    anim_manager.add_effect(LegendaryLightningEffect(card_to_play))
+                elif not weather_visual_applied:
+                    # Check for special ability animations (same as player)
+                    ability_triggered = False
+                    for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
+                                           "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
+                        if special_ability in ability:
+                            ability_anim = create_ability_animation(ability, effect_x, effect_y)
+                            anim_manager.add_effect(ability_anim)
+                            ability_triggered = True
+                            break
+
+                    # Default stargate effect if no special ability
+                    if not ability_triggered:
+                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
+                        anim_manager.add_effect(stargate_effect)
+
+                # Recalculate scores
+                game.player1.calculate_score()
+                game.player2.calculate_score()
+
+            # Note: If (None, None) returned, either opponent passed/used power (already handled),
+            # or no message yet (keep polling next frame)
+
         # Check for score changes and trigger animations
         prev_p1_before = prev_p1_score
         prev_p2_before = prev_p2_score

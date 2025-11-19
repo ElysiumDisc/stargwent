@@ -74,6 +74,49 @@ class AIStrategy:
             return True
 
         return False
+
+    def should_use_iris_defense(self) -> bool:
+        """Decide if AI should activate Iris Defense to block next opponent card."""
+        # Check if AI has iris defense available
+        if not hasattr(self.ai_player, 'iris_defense'):
+            return False
+        if not self.ai_player.iris_defense.is_available():
+            return False
+        if self.ai_player.iris_defense.is_active():
+            return False
+
+        # Don't use if opponent has already passed
+        if self.opponent.has_passed:
+            return False
+
+        # Don't use if opponent has no cards
+        if len(self.opponent.hand) == 0:
+            return False
+
+        context = self.analyze_round_state()
+
+        # Use iris defense strategically:
+
+        # 1. If we're ahead by a small margin, protect the lead
+        if 1 <= context['score_diff'] <= 15 and context['opponent_cards_left'] >= 1:
+            # Higher chance to use when opponent has fewer cards (their plays are more valuable)
+            if context['opponent_cards_left'] <= 3:
+                return True
+
+        # 2. In round 3 when it's close and we're ahead
+        if context['round_number'] == 3 and 0 < context['score_diff'] <= 10:
+            return True
+
+        # 3. If opponent has many cards on board (likely has strong cards)
+        if context['opponent_cards_on_board'] >= 5 and context['score_diff'] > 0:
+            if random.random() < 0.3:  # 30% chance to activate
+                return True
+
+        # 4. Random chance when ahead to be unpredictable
+        if context['score_diff'] > 5 and random.random() < 0.15:
+            return True
+
+        return False
     
     def should_pass(self, context: dict) -> bool:
         """Determine if AI should pass."""

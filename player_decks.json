@@ -40,7 +40,7 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_apophis",
+    "leader": "goauld_yu",
     "cards": [
       "goauld_osiris_guard_1",
       "goauld_kull_warrior_2",
@@ -168,7 +168,7 @@
     ]
   },
   "Asgard": {
-    "leader": "asgard_penegal",
+    "leader": "asgard_aegir",
     "cards": [
       "asgard_imperfect_clone_2",
       "asgard_imperfect_clone_1",

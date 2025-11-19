@@ -114,13 +114,26 @@ class LanLobby:
         self.chat_panel.handle_event(event)
         return None
 
-    def update(self):
-        """Poll for network messages."""
+    def update(self) -> Optional[str]:
+        """
+        Poll for network messages.
+
+        Returns:
+            "disconnect" if connection lost, None otherwise
+        """
+        # Check for disconnect
+        if not self.session.is_connected():
+            return "disconnect"
+
         self.chat_panel.poll_session()
 
         # Check for ready check messages
         msg = self.session.receive()
         if msg:
+            # Check for disconnect message
+            if msg.get("type") == "disconnect":
+                return "disconnect"
+
             try:
                 parsed = parse_message(msg)
                 if parsed["type"] == LanMessageType.READY_CHECK.value:
@@ -131,6 +144,8 @@ class LanLobby:
                     self._check_both_ready()
             except ValueError:
                 pass
+
+        return None
 
     def _check_both_ready(self):
         """Check if both players are ready."""
@@ -271,7 +286,7 @@ def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
     Run the LAN lobby waiting room.
 
     Returns:
-        True if players are ready to start, False if cancelled
+        True if players are ready to start, False if cancelled or disconnected
     """
     clock = pygame.time.Clock()
     lobby = LanLobby(session, role, screen.get_width(), screen.get_height())
@@ -289,10 +304,52 @@ def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
             if result == "start":
                 return True
 
-        lobby.update()
+        update_result = lobby.update()
+        if update_result == "disconnect":
+            # Show disconnect message
+            _show_disconnect_message(screen)
+            return False
+
         lobby.draw(screen)
 
         pygame.display.flip()
         clock.tick(60)
 
     return False
+
+
+def _show_disconnect_message(screen):
+    """Show disconnect overlay message."""
+    screen_width = screen.get_width()
+    screen_height = screen.get_height()
+
+    # Dark overlay
+    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 200))
+    screen.blit(overlay, (0, 0))
+
+    # Fonts
+    font_large = pygame.font.SysFont("Arial", 60, bold=True)
+    font_small = pygame.font.SysFont("Arial", 30)
+
+    # Disconnect message
+    text1 = font_large.render("CONNECTION LOST", True, (255, 100, 100))
+    text2 = font_small.render("Your opponent has disconnected", True, (200, 200, 200))
+    text3 = font_small.render("Press any key to return", True, (150, 150, 150))
+
+    screen.blit(text1, (screen_width // 2 - text1.get_width() // 2, screen_height // 2 - 80))
+    screen.blit(text2, (screen_width // 2 - text2.get_width() // 2, screen_height // 2))
+    screen.blit(text3, (screen_width // 2 - text3.get_width() // 2, screen_height // 2 + 60))
+
+    pygame.display.flip()
+
+    # Wait for key press
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                import sys
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                waiting = False
