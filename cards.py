@@ -147,9 +147,9 @@ ALL_CARDS = {
 
     # --- Jaffa Rebellion ---
     "jaffa_tealc": Card("jaffa_tealc", "Teal'c", FACTION_JAFFA, 10, "ranged", "Legendary Commander"),
-    "jaffa_bratac": Card("jaffa_bratac", "Bra'tac", FACTION_JAFFA, 10, "ranged", "Legendary Commander"),
+    "jaffa_bratac": Card("jaffa_bratac", "Bra'tac", FACTION_JAFFA, 8, "ranged", "Legendary Commander"),
     "jaffa_raknor": Card("jaffa_raknor", "Rak'nor", FACTION_JAFFA, 5, "close", "Legendary Commander, Inspiring Leadership"),
-    "jaffa_master_bratac": Card("jaffa_master_bratac", "Master Bra'tac", FACTION_JAFFA, 12, "close", "Legendary Commander"),
+    "jaffa_master_bratac": Card("jaffa_master_bratac", "Master Bra'tac", FACTION_JAFFA, 10, "close", "Legendary Commander"),
     "jaffa_scout": Card("jaffa_scout", "Jaffa Scout", FACTION_JAFFA, 2, "agile", None),
     "jaffa_defector_1": Card("jaffa_defector_1", "Jaffa Defector", FACTION_JAFFA, 6, "agile", None),
     "jaffa_defector_2": Card("jaffa_defector_2", "Jaffa Defector", FACTION_JAFFA, 6, "agile", None),
