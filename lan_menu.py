@@ -139,6 +139,14 @@ def draw_button(surface, rect, text, font_size=32, hover=False, color_normal=(50
 
 
 def run_lan_menu(screen):
+    # Preload lobby background if available
+    lobby_background = None
+    try:
+        bg_image = pygame.image.load("assets/lobby_background.png")
+        lobby_background = pygame.transform.scale(bg_image, screen.get_size())
+    except pygame.error:
+        lobby_background = None
+
     clock = pygame.time.Clock()
     state = "menu"
     session = None
@@ -172,13 +180,16 @@ def run_lan_menu(screen):
 
     running = True
     while running:
-        # Draw gradient background
-        for y in range(screen_h):
-            ratio = y / screen_h
-            r = int(10 + ratio * 15)
-            g = int(15 + ratio * 20)
-            b = int(30 + ratio * 40)
-            pygame.draw.line(screen, (r, g, b), (0, y), (screen_w, y))
+        # Draw background (image if available, fallback gradient)
+        if lobby_background:
+            screen.blit(lobby_background, (0, 0))
+        else:
+            for y in range(screen_h):
+                ratio = y / screen_h
+                r = int(10 + ratio * 15)
+                g = int(15 + ratio * 20)
+                b = int(30 + ratio * 40)
+                pygame.draw.line(screen, (r, g, b), (0, y), (screen_w, y))
 
         mx, my = pygame.mouse.get_pos()
 
