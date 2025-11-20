@@ -94,7 +94,7 @@ ALL_CARDS = {
     "tauri_railgun_3": Card("tauri_railgun_3", "Railgun Emplacement", FACTION_TAURI, 6, "siege", None),
     "tauri_bc304_1": Card("tauri_bc304_1", "BC-304 Heavy Cruiser", FACTION_TAURI, 8, "siege", "Tactical Formation"),
     "tauri_bc304_2": Card("tauri_bc304_2", "BC-304 Heavy Cruiser", FACTION_TAURI, 8, "siege", "Tactical Formation"),
-    "tauri_analyst": Card("tauri_analyst", "Torus Stardrive Analyst", FACTION_TAURI, 1, "siege", "Deep Cover Agent"),
+    "tauri_analyst": Card("tauri_analyst", "Analyst", FACTION_TAURI, 1, "siege", "Deep Cover Agent"),
     "tauri_prometheus_1": Card("tauri_prometheus_1", "X-303 Prometheus", FACTION_TAURI, 6, "siege", None),
     "tauri_prometheus_2": Card("tauri_prometheus_2", "X-303 Prometheus", FACTION_TAURI, 6, "siege", None),
 

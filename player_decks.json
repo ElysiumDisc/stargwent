@@ -1,6 +1,6 @@
 {
   "Tau'ri": {
-    "leader": "tauri_langford",
+    "leader": "tauri_oneill",
     "cards": [
       "tauri_turret_1",
       "tauri_hammond",
@@ -17,7 +17,6 @@
       "neutral_commanders_horn_2",
       "tauri_medic_1",
       "tauri_marksman",
-      "neutral_clear_weather_2",
       "tauri_tokra_op_2",
       "tauri_railgun_1",
       "tauri_turret_3",
@@ -40,7 +39,7 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_yu",
+    "leader": "goauld_hathor_unlock",
     "cards": [
       "goauld_osiris_guard_1",
       "goauld_kull_warrior_2",

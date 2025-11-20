@@ -51,7 +51,7 @@ UNLOCKABLE_LEADERS = {
     FACTION_GOAULD: [
         {"name": "Ba'al", "ability": "System Lord's Cunning: Resurrect card from discard", "ability_desc": "Once per game: Return a destroyed unit from discard pile to your hand", "card_id": "goauld_baal"},
         {"name": "Anubis", "ability": "Ascended power: Naquadah Overload every 2 rounds", "ability_desc": "Automatically trigger Naquadah Overload at start of rounds 2 and 3", "card_id": "goauld_anubis"},
-        {"name": "Hathor", "ability": "Seduction: Steal the lowest power enemy unit", "ability_desc": "Use her charm to take control of the enemy's weakest unit (manual activation)", "card_id": "goauld_hathor_unlock", "image_path": "assets/hathor_leader.png"},
+        {"name": "Hathor", "ability": "Seduction: Steal the lowest power enemy unit", "ability_desc": "Use her charm to take control of the enemy's weakest unit (manual activation)", "card_id": "goauld_hathor_unlock", "image_path": "assets/goauld_hathor_unlock_leader.png"},
         {"name": "Cronus", "ability": "Ancient Goa'uld: All units gain +1 power per round number", "ability_desc": "Units get +1 in round 1, +2 in round 2, +3 in round 3", "card_id": "goauld_cronus"},
     ],
     FACTION_JAFFA: [

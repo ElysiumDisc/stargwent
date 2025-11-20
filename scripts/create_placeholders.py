@@ -21,7 +21,7 @@ pygame.font.init()
 # --- CONFIGURATION ---
 # Get the directory where this script is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(SCRIPT_DIR, "assets")
+ASSETS_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), "assets")
 # Card dimensions: Match existing card assets (200x280)
 CARD_WIDTH, CARD_HEIGHT = 200, 280  # Standard card size for all cards
 BOARD_WIDTH, BOARD_HEIGHT = 3840, 2160  # 4K resolution
@@ -83,7 +83,6 @@ def resolve_faction_name(name):
 
 # Some unlockable leaders intentionally reuse the same portrait art as their base counterparts.
 LEADER_PORTRAIT_ALIASES = {
-    "goauld_hathor_unlock": "goauld_hathor",
 }
 
 def should_create_file(file_path):
@@ -225,6 +224,25 @@ def create_leader_portrait(leader_id, faction):
     # Save the leader portrait only if allowed
     portrait_id = LEADER_PORTRAIT_ALIASES.get(leader_id, leader_id)
     image_path = os.path.join(ASSETS_DIR, f"{portrait_id}_leader.png")
+    if should_create_file(image_path):
+        pygame.image.save(surface, image_path)
+        return image_path
+    return None
+
+def create_decoy_placeholder():
+    """Create the shared decoy placeholder used by Ring Transport."""
+    surface = pygame.Surface((CARD_WIDTH, CARD_HEIGHT))
+    surface.fill((110, 110, 110))
+    pygame.draw.rect(surface, WHITE, surface.get_rect(), width=3, border_radius=10)
+    title_text = TITLE_FONT.render("Asgard Decoy", True, WHITE)
+    title_rect = title_text.get_rect(center=(CARD_WIDTH / 2, 28))
+    surface.blit(title_text, title_rect)
+    label_font = pygame.font.SysFont("Arial", 22, bold=True)
+    label_text = label_font.render("DECOY", True, WHITE)
+    label_rect = label_text.get_rect(center=(CARD_WIDTH / 2, CARD_HEIGHT - 30))
+    surface.blit(label_text, label_rect)
+
+    image_path = os.path.join(ASSETS_DIR, "decoy.png")
     if should_create_file(image_path):
         pygame.image.save(surface, image_path)
         return image_path
@@ -918,6 +936,13 @@ def main():
             print(f"  ✓ {path} [{card_data['rarity'].upper()}]")
         else:
             print(f"  ⊗ Skipped: {card_id}.png (already exists)")
+
+    print("\nGenerating DECOY placeholder...")
+    decoy_path = create_decoy_placeholder()
+    if decoy_path:
+        print(f"  ✓ {decoy_path}")
+    else:
+        print("  ⊗ Skipped: decoy.png (already exists)")
     
     print("\nGenerating SHIP placeholders for background battles...")
     # Generate generic faction ships

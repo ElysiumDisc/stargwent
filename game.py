@@ -2,7 +2,7 @@ import random
 import copy
 import time
 import pygame
-from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
+from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, Card
 from sound_manager import get_sound_manager
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
@@ -1861,6 +1861,31 @@ class Game:
         card_owner.board[card_row].remove(target_card)
         self.current_player.hand.append(target_card)
 
+        # Load decoy image once
+        if not hasattr(self, "_decoy_image"):
+            try:
+                self._decoy_image = pygame.image.load("assets/decoy.png").convert_alpha()
+            except pygame.error:
+                self._decoy_image = None
+        decoy_image = self._decoy_image or getattr(ring_transport_card, "image", None)
+
+        # Create a decoy placeholder and drop it where the target was
+        decoy_token = Card(
+            "ring_transport_decoy",
+            "Asgard Decoy",
+            FACTION_NEUTRAL,
+            0,
+            card_row,
+            "Decoy Placeholder"
+        )
+        decoy_token.image = decoy_image
+        card_owner.board[card_row].insert(card_index, decoy_token)
+
+        # Consume the Ring Transport card (discard)
+        if ring_transport_card in self.current_player.hand:
+            self.current_player.hand.remove(ring_transport_card)
+        self.current_player.discard_pile.append(ring_transport_card)
+
         # Play ring transport sound
         sound_manager = get_sound_manager()
         sound_manager.play_ring_transport_sound(volume=0.6)
@@ -1868,11 +1893,6 @@ class Game:
         # Update scoreboard immediately for both players
         self.calculate_scores_and_log()
 
-        # Move the Ring Transport card to the discard pile
-        if ring_transport_card in self.current_player.hand:
-            self.current_player.hand.remove(ring_transport_card)
-        self.current_player.discard_pile.append(ring_transport_card)
-        
         self.add_history_event(
             "special",
             f"{self.current_player.name} used Ring Transport on {target_card.name}",
