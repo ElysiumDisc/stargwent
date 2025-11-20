@@ -77,8 +77,6 @@ def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_
     else:
         payload = wait_for_message(session, LanMessageType.SEED.value)
         seed = payload.get("seed", 0)
-    random.seed(seed)
-    
     local_leader = find_leader(local_payload["faction"], local_payload["leader_id"])
     remote_leader = find_leader(remote_payload["faction"], remote_payload["leader_id"])
     

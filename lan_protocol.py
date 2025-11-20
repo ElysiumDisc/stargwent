@@ -56,8 +56,10 @@ def build_seed_message(seed: int) -> Dict[str, Any]:
     return build_message(LanMessageType.SEED, {"seed": seed})
 
 
-def build_action_message(action_type: str, data: Dict[str, Any], *, turn_token: str) -> Dict[str, Any]:
+def build_action_message(action_type: str, data: Dict[str, Any], *, turn_token: str, target_id: Optional[str] = None) -> Dict[str, Any]:
     payload = {"action": action_type, "data": data}
+    if target_id is not None:
+        payload["target_id"] = target_id
     return build_message(LanMessageType.GAME_ACTION, payload, turn_token=turn_token)
 
 

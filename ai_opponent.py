@@ -14,6 +14,7 @@ class AIStrategy:
         self.opponent = game.player1  # Assume AI is always player2
         self.difficulty = "medium"  # easy, medium, hard
         self.power_used = False  # Track if faction power has been used
+        self.rng = getattr(game, "rng", random)
     
     def decide_action(self) -> Tuple[str, Optional[object], Optional[str]]:
         """
@@ -109,11 +110,11 @@ class AIStrategy:
 
         # 3. If opponent has many cards on board (likely has strong cards)
         if context['opponent_cards_on_board'] >= 5 and context['score_diff'] > 0:
-            if random.random() < 0.3:  # 30% chance to activate
+            if self.rng.random() < 0.3:  # 30% chance to activate
                 return True
 
         # 4. Random chance when ahead to be unpredictable
-        if context['score_diff'] > 5 and random.random() < 0.15:
+        if context['score_diff'] > 5 and self.rng.random() < 0.15:
             return True
 
         return False
@@ -139,18 +140,18 @@ class AIStrategy:
         # Strategic passing scenarios
         
         # Round 1: If winning by 10+ and used 6+ cards, consider passing
-        if context['round_number'] == 1:
-            if context['score_diff'] > 10 and context['cards_on_board'] >= 6:
-                return random.random() < 0.7  # 70% chance to pass
+            if context['round_number'] == 1:
+                if context['score_diff'] > 10 and context['cards_on_board'] >= 6:
+                    return self.rng.random() < 0.7  # 70% chance to pass
         
         # If winning significantly and opponent hasn't passed
         if context['score_diff'] > 20 and not context['opponent_passed']:
-            return random.random() < 0.4  # 40% chance to pass
+            return self.rng.random() < 0.4  # 40% chance to pass
         
         # Card advantage: if we have many more cards, might pass to save them
         card_advantage = context['ai_cards_left'] - context['opponent_cards_left']
         if card_advantage > 3 and context['score_diff'] > 5:
-            return random.random() < 0.3  # 30% chance
+            return self.rng.random() < 0.3  # 30% chance
         
         # Don't pass by default
         return False
@@ -215,12 +216,12 @@ class AIStrategy:
         # Add some randomness for medium difficulty
         if self.difficulty == "medium":
             # 70% best play, 30% second best
-            if len(plays) > 1 and random.random() < 0.3:
+            if len(plays) > 1 and self.rng.random() < 0.3:
                 return (plays[1][0], plays[1][1])
         elif self.difficulty == "easy":
             # More randomness
             if len(plays) > 2:
-                choice = random.choice(plays[:3])
+                choice = self.rng.choice(plays[:3])
                 return (choice[0], choice[1])
         
         return (plays[0][0], plays[0][1])

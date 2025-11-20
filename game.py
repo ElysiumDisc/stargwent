@@ -165,7 +165,7 @@ class DHDMechanic:
         """Check if DHD can be used."""
         return not self.used_this_round
     
-    def use(self, player):
+    def use(self, player, rng=None):
         """Use DHD to retrieve a random card from discard."""
         if self.can_use() and player.discard_pile:
             self.used_this_round = True
@@ -175,7 +175,8 @@ class DHDMechanic:
                 if "Hero" not in (c.ability or "") and c.row not in ["special", "weather"]
             ]
             if eligible_cards:
-                card = random.choice(eligible_cards)
+                rand = rng or random
+                card = rand.choice(eligible_cards)
                 player.discard_pile.remove(card)
                 player.hand.append(card)
                 return card
@@ -357,10 +358,11 @@ ALLIANCE_COMBOS = [
 
 class Player:
     """Represents a player in the game."""
-    def __init__(self, name, faction, custom_deck=None, leader=None):
+    def __init__(self, name, faction, custom_deck=None, leader=None, rng=None):
         self.name = name
         self.faction = faction
         self.leader = leader  # Leader selection with special ability
+        self._rng = rng if rng is not None else random
         self.deck = custom_deck if custom_deck else self.build_deck()
         self.hand = []
         self.board = { "close": [], "ranged": [], "siege": [] }
@@ -395,7 +397,7 @@ class Player:
     def build_deck(self):
         """Builds a starting deck for the player based on their faction."""
         deck = [card for card in ALL_CARDS.values() if card.faction == self.faction]
-        random.shuffle(deck)
+        self._rng.shuffle(deck)
         return deck
 
     def calculate_score(self):
@@ -642,12 +644,15 @@ class Player:
 class Game:
     """Manages the overall game state and logic."""
     def __init__(self, player1_faction=FACTION_TAURI, player1_deck=None, player1_leader=None,
-                 player2_faction=FACTION_GOAULD, player2_deck=None, player2_leader=None):
-        self.player1 = Player("Player 1", player1_faction, player1_deck, player1_leader)
-        self.player2 = Player("Player 2", player2_faction, player2_deck, player2_leader)
+                 player2_faction=FACTION_GOAULD, player2_deck=None, player2_leader=None, seed=None):
+        self.seed = seed if seed is not None else random.randint(0, 2**32 - 1)
+        self.rng = random.Random(self.seed)
+
+        self.player1 = Player("Player 1", player1_faction, player1_deck, player1_leader, rng=self.rng)
+        self.player2 = Player("Player 2", player2_faction, player2_deck, player2_leader, rng=self.rng)
         
         # Randomize who goes first (50/50 coin toss)
-        self.current_player = random.choice([self.player1, self.player2])
+        self.current_player = self.rng.choice([self.player1, self.player2])
         
         self.round_number = 1
         self.game_state = "mulligan"  # Start with mulligan phase
@@ -772,7 +777,7 @@ class Game:
             if card in player.hand:
                 player.hand.remove(card)
                 player.deck.append(card)
-        random.shuffle(player.deck)
+        self.rng.shuffle(player.deck)
         player.draw_cards(len(cards_to_redraw))
     
     def end_mulligan_phase(self):
@@ -1005,7 +1010,7 @@ class Game:
                         # Add power to a random friendly unit
                         friendly_units = [c for row in player.board.values() for c in row if "Legendary Commander" not in (c.ability or "")]
                         if friendly_units:
-                            random.choice(friendly_units).power += 1
+                            self.rng.choice(friendly_units).power += 1
                         print(f"Loki stole 1 power from {strongest.name} (now {strongest.power})")
 
 
@@ -1115,8 +1120,7 @@ class Game:
             
             if drainable_units:
                 # Drain power from random unit
-                import random
-                target = random.choice(drainable_units)
+                target = self.rng.choice(drainable_units)
                 new_power = max(1, target.power - 1)
                 target.power = new_power
                 target.displayed_power = new_power
@@ -1153,11 +1157,11 @@ class Game:
                         drainable_units.append(card)
             if not drainable_units:
                 break
-            target = random.choice(drainable_units)
+            target = self.rng.choice(drainable_units)
             target.power = max(1, target.power - 1)
             target.displayed_power = min(target.displayed_power, target.power)
             
-            recipient = random.choice(muster_group)
+            recipient = self.rng.choice(muster_group)
             recipient.power += 1
             recipient.displayed_power += 1
     
@@ -1418,6 +1422,99 @@ class Game:
             self.calculate_scores_and_log()
         return result
 
+    def apply_remote_leader_ability(self, player, payload):
+        """Replay a peer's leader ability using provided data."""
+        if not player or not payload:
+            return False
+
+        ability = payload.get("ability", "")
+        if not ability:
+            return False
+
+        # Prevent double-activation locally
+        if self.leader_ability_used.get(player, False):
+            return False
+        self.leader_ability_used[player] = True
+
+        # Apophis: weather decree
+        if ability in ("Ice Planet Hazard", "Nebula Interference", "Asteroid Storm", "Electromagnetic Pulse"):
+            rows = payload.get("rows") or []
+            template_candidates = [
+                c for c in ALL_CARDS.values()
+                if c.row == "weather" and (c.ability or "") == ability
+            ]
+            if not template_candidates:
+                return False
+            weather_card = copy.deepcopy(template_candidates[0])
+            target_rows = rows or ["close"]
+            for row_name in target_rows:
+                self.apply_weather_effect(weather_card, row_name, acting_player=player, target_side="both")
+                self._set_weather_slot(row_name, {"card": weather_card, "owner": None})
+            self.calculate_scores_and_log()
+            return True
+
+        # Catherine Langford: choose one of top three cards
+        if ability == "Ancient Knowledge":
+            revealed_ids = payload.get("revealed_ids") or []
+            choice_id = payload.get("choice_id")
+            top_cards = []
+            if revealed_ids:
+                for cid in revealed_ids:
+                    card = next((c for c in player.deck if getattr(c, "id", None) == cid), None)
+                    if card and card not in top_cards:
+                        top_cards.append(card)
+            if not top_cards:
+                top_cards = list(player.deck[:min(3, len(player.deck))])
+
+            # Remove the revealed cards from the top of the deck
+            for card in top_cards:
+                if card in player.deck:
+                    player.deck.remove(card)
+
+            chosen_card = next((c for c in top_cards if getattr(c, "id", None) == choice_id), None)
+            if chosen_card:
+                player.hand.append(chosen_card)
+                self.add_history_event(
+                    "ability",
+                    f"{player.name} used Ancient Knowledge and drew {chosen_card.name}",
+                    self._owner_label(player),
+                    card_ref=chosen_card
+                )
+
+            # Put the rest at the bottom of the deck preserving reveal order
+            for card in top_cards:
+                if card != chosen_card:
+                    player.deck.append(card)
+            return bool(chosen_card)
+
+        # Ba'al: resurrect from discard
+        if ability == "System Lord's Cunning":
+            choice_id = payload.get("choice_id")
+            if not choice_id:
+                return False
+            chosen_card = next((c for c in player.discard_pile if getattr(c, "id", None) == choice_id), None)
+            if not chosen_card:
+                return False
+            return self.baal_resurrect_card(player, chosen_card)
+
+        # Jonas Quinn: copy a card
+        if ability == "Eidetic Memory":
+            card_id = payload.get("card_id")
+            if not card_id or card_id not in ALL_CARDS:
+                return False
+            memorized_card = copy.deepcopy(ALL_CARDS[card_id])
+            player.hand.append(memorized_card)
+            self.add_history_event(
+                "ability",
+                f"{player.name} (Jonas Quinn) memorized {memorized_card.name} and copied it!",
+                self._owner_label(player),
+                card_ref=memorized_card,
+                icon="🧠"
+            )
+            return True
+
+        return False
+
     def _activate_apophis_weather(self, player):
         """Apophis: unleash a random battlefield weather once per game."""
         weather_rows = ["close", "ranged", "siege"]
@@ -1425,16 +1522,16 @@ class Game:
             ("Ice Planet Hazard", "close"),
             ("Nebula Interference", "ranged"),
             ("Asteroid Storm", "siege"),
-            ("Electromagnetic Pulse", random.choice(weather_rows))
+            ("Electromagnetic Pulse", self.rng.choice(weather_rows))
         ]
-        ability_name, chosen_row = random.choice(options)
+        ability_name, chosen_row = self.rng.choice(options)
         template_candidates = [
             c for c in ALL_CARDS.values()
             if c.row == "weather" and (c.ability or "") == ability_name
         ]
         if not template_candidates:
             return None
-        weather_card = copy.deepcopy(random.choice(template_candidates))
+        weather_card = copy.deepcopy(self.rng.choice(template_candidates))
         weather_card.id = f"apophis_weather_{ability_name.replace(' ', '_').lower()}"
         weather_card.name = f"{player.leader.get('name', 'Leader')} Decree"
 
@@ -1546,7 +1643,7 @@ class Game:
             return None
 
         # Show up to 5 random cards from what opponent drew
-        revealed_cards = random.sample(self.opponent_drawn_cards, min(5, len(self.opponent_drawn_cards)))
+        revealed_cards = self.rng.sample(self.opponent_drawn_cards, min(5, len(self.opponent_drawn_cards)))
 
         return {
             "ability": "Eidetic Memory",
@@ -1871,7 +1968,7 @@ class Game:
             return []
         min_power = min(card.displayed_power for card, _ in eligible)
         lowest = [(card, row) for card, row in eligible if card.displayed_power == min_power]
-        victim, victim_row = random.choice(lowest)
+        victim, victim_row = self.rng.choice(lowest)
         if victim in target_player.board[victim_row]:
             target_player.board[victim_row].remove(victim)
             target_player.discard_pile.append(victim)
@@ -2032,7 +2129,7 @@ class Game:
                 elif "Vala" in leader_name and self.round_number == 2:
                     opponent = self.player2 if p == self.player1 else self.player1
                     if opponent.hand:
-                        stolen_card = random.choice(opponent.hand)
+                        stolen_card = self.rng.choice(opponent.hand)
                         opponent.hand.remove(stolen_card)
                         p.hand.append(stolen_card)
                         self.add_history_event(
@@ -2044,14 +2141,14 @@ class Game:
                 # NEW: Penegal: Revive 1 unit at start of rounds 2 and 3
                 elif "Penegal" in leader_name and self.round_number > 1:
                     if p.discard_pile:
-                        revived = random.choice(p.discard_pile)
+                        revived = self.rng.choice(p.discard_pile)
                         p.discard_pile.remove(revived)
                         # Place in appropriate row
                         if revived.row in ["close", "ranged", "siege"]:
                             p.board[revived.row].append(revived)
                         elif revived.row == "agile":
                             # Place agile in random valid row
-                            p.board[random.choice(["close", "ranged", "siege"])].append(revived)
+                            p.board[self.rng.choice(["close", "ranged", "siege"])].append(revived)
                         self.add_history_event(
                             "ability",
                             f"{p.name} (Penegal) revived {revived.name} from discard",

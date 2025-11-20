@@ -5,8 +5,6 @@ Each faction has a unique, once-per-round, cinematic ability
 import pygame
 import math
 import random
-import random
-import math
 
 
 class FactionPower:
@@ -108,12 +106,13 @@ class GoauldFactionPower(FactionPower):
         
         # Revive up to 2 random cards
         num_to_revive = min(2, len(valid_cards))
-        revived_cards = random.sample(valid_cards, num_to_revive)
+        rng = getattr(game, "rng", random)
+        revived_cards = rng.sample(valid_cards, num_to_revive)
         
         for card in revived_cards:
             player.discard_pile.remove(card)
             # Place in appropriate row
-            target_row = card.row if card.row != "agile" else random.choice(["close", "ranged"])
+            target_row = card.row if card.row != "agile" else rng.choice(["close", "ranged"])
             player.board[target_row].append(card)
         
         return True
@@ -185,7 +184,8 @@ class JaffaFactionPower(FactionPower):
         discarded_cards = []
         if len(player.hand) >= 3:
             import random
-            cards_to_discard = random.sample(player.hand, 3)
+            rng = getattr(game, "rng", random)
+            cards_to_discard = rng.sample(player.hand, 3)
             for card in cards_to_discard:
                 player.hand.remove(card)
                 player.discard_pile.append(card)

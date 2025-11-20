@@ -5,6 +5,7 @@ import random
 import os
 from pygame.math import Vector2
 from game import Game
+from lan_protocol import LanMessageType, parse_message
 from cards import (
     ALL_CARDS,
     reload_card_images,
@@ -2951,7 +2952,8 @@ def run_game_with_context(screen_param, lan_context):
         player1_leader=local_leader,
         player2_faction=remote_faction,
         player2_deck=remote_deck,
-        player2_leader=remote_leader
+        player2_leader=remote_leader,
+        seed=lan_context.seed
     )
     game.start_game()
 
@@ -3198,6 +3200,8 @@ def main(lan_game_data=None):
     target_hover_scale = 1.0
     hovered_card = None
     mulligan_selected = []
+    mulligan_local_done = False
+    mulligan_remote_done = not LAN_MODE
     inspected_card = None  # Card being inspected with spacebar
     inspected_leader = None  # Leader being inspected
     player_leader_rect = None
@@ -3323,6 +3327,37 @@ def main(lan_game_data=None):
                 stop_battle_music()
                 main()
                 return
+
+        # Handle remote mulligan selections in LAN mode
+        if LAN_MODE and LAN_CONTEXT and game.game_state == "mulligan" and not mulligan_remote_done:
+            while True:
+                msg = LAN_CONTEXT.session.receive()
+                if not msg:
+                    break
+                try:
+                    parsed = parse_message(msg)
+                except ValueError:
+                    continue
+
+                msg_type = parsed.get("type")
+                if msg_type == LanMessageType.MULLIGAN.value:
+                    payload = parsed.get("payload", {})
+                    indices = payload.get("indices", [])
+                    remote_cards = []
+                    for idx in indices:
+                        if isinstance(idx, int) and 0 <= idx < len(game.player2.hand):
+                            remote_cards.append(game.player2.hand[idx])
+                    if remote_cards:
+                        game.mulligan(game.player2, remote_cards)
+                    mulligan_remote_done = True
+                    continue
+
+                # Not a mulligan message - put it back for game logic
+                LAN_CONTEXT.session.inbox.put(parsed)
+                break
+
+        if game.game_state == "mulligan" and mulligan_local_done and mulligan_remote_done:
+            game.end_mulligan_phase()
 
         if getattr(game, "history_dirty", False):
             if not history_manual_scroll:
@@ -3687,6 +3722,11 @@ def main(lan_game_data=None):
                                 elif result.get("rows"):
                                     # Weather ability (Apophis) - show weather visual effects
                                     ability_name = result.get("ability", "Weather Decree")
+                                    if network_proxy:
+                                        network_proxy.send_leader_ability(
+                                            ability_name,
+                                            {"rows": result.get("rows", [])}
+                                        )
                                     anim_manager.add_effect(create_ability_animation(
                                         ability_name,
                                         SCREEN_WIDTH // 2,
@@ -3705,6 +3745,10 @@ def main(lan_game_data=None):
                                             if rect:
                                                 anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
                                                 anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
+                                else:
+                                    if network_proxy:
+                                        ability_name = result.get("ability", game.player1.leader.get("name", "leader_ability"))
+                                        network_proxy.send_leader_ability(ability_name, {})
                 # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
                 if event.button == 3:  # Right click
                     button_info_popup = None
@@ -3885,6 +3929,9 @@ def main(lan_game_data=None):
                 
                 # Mulligan phase
                 if game.game_state == "mulligan":
+                    if mulligan_local_done:
+                        continue
+
                     # Select cards to mulligan (max 2)
                     for card in game.player1.hand:
                         if card.rect.collidepoint(event.pos):
@@ -3905,14 +3952,21 @@ def main(lan_game_data=None):
                             # Show error message
                             print("Cannot mulligan more than 5 cards!")
                             continue
-                        
+                        selected_indices = [i for i, card in enumerate(game.player1.hand) if card in mulligan_selected]
                         game.mulligan(game.player1, mulligan_selected)
+                        mulligan_local_done = True
                         mulligan_selected = []
-                        # AI does simple mulligan (redraw 2-4 cards randomly)
-                        ai_mulligan_count = random.randint(2, 4)
-                        ai_cards = random.sample(game.player2.hand, min(ai_mulligan_count, len(game.player2.hand)))
-                        game.mulligan(game.player2, ai_cards)
-                        game.end_mulligan_phase()
+
+                        if network_proxy:
+                            network_proxy.send_mulligan(selected_indices)
+                        else:
+                            # Single-player fallback: redraw for AI immediately
+                            ai_rng = getattr(game, "rng", random)
+                            ai_mulligan_count = ai_rng.randint(2, 4)
+                            ai_cards = ai_rng.sample(game.player2.hand, min(ai_mulligan_count, len(game.player2.hand)))
+                            game.mulligan(game.player2, ai_cards)
+                            mulligan_remote_done = True
+                            game.end_mulligan_phase()
                 
                 # Playing phase - START DRAG
                 elif game.game_state == "playing":
@@ -4965,6 +5019,8 @@ def main(lan_game_data=None):
                         game.player2.calculate_score()
                         game.last_turn_actor = game.player1
                         game.switch_turn()
+                        if network_proxy:
+                            network_proxy.send_medic_choice(card.id)
                         medic_selection_mode = False
                         medic_card_played = None
                         pygame.time.wait(200)  # Small delay to prevent double-click
@@ -4988,6 +5044,8 @@ def main(lan_game_data=None):
                             game.player2.calculate_score()
                             game.last_turn_actor = game.player1
                             game.switch_turn()
+                            if network_proxy:
+                                network_proxy.send_decoy_choice(card.id)
                             decoy_selection_mode = False
                             decoy_card_played = None
                             pygame.time.wait(200)  # Small delay to prevent double-click
@@ -5041,7 +5099,7 @@ def main(lan_game_data=None):
                         for c in vala_cards_to_choose:
                             if c != card:
                                 game.player1.deck.append(c)
-                        random.shuffle(game.player1.deck)
+                        game.rng.shuffle(game.player1.deck)
                         vala_selection_mode = False
                         vala_cards_to_choose = []
                         pygame.time.wait(200)
@@ -5055,7 +5113,13 @@ def main(lan_game_data=None):
             if pygame.mouse.get_pressed()[0]:
                 for card, rect in catherine_card_rects:
                     if rect.collidepoint(mouse_pos):
+                        revealed_ids = [c.id for c in catherine_cards_to_choose]
                         game.catherine_play_chosen_card(game.player1, card)
+                        if network_proxy:
+                            network_proxy.send_leader_ability(
+                                "Ancient Knowledge",
+                                {"choice_id": card.id, "revealed_ids": revealed_ids}
+                            )
                         catherine_selection_mode = False
                         catherine_cards_to_choose = []
                         pygame.time.wait(200)
@@ -5072,8 +5136,18 @@ def main(lan_game_data=None):
                         ability_name = pending_leader_choice.get("ability", "")
                         if ability_name == "Eidetic Memory":
                             game.jonas_memorize_card(game.player1, card)
+                            if network_proxy:
+                                network_proxy.send_leader_ability(
+                                    "Eidetic Memory",
+                                    {"card_id": card.id}
+                                )
                         elif ability_name == "System Lord's Cunning":
                             game.baal_resurrect_card(game.player1, card)
+                            if network_proxy:
+                                network_proxy.send_leader_ability(
+                                    "System Lord's Cunning",
+                                    {"choice_id": card.id}
+                                )
                         pending_leader_choice = None
                         pygame.time.wait(200)
                         break

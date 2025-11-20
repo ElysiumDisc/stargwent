@@ -37,14 +37,24 @@ class LanChatPanel:
 
     def poll_session(self):
         msg = self.session.receive()
-        if msg:
+        if not msg:
+            return
+
+        try:
             parsed = parse_message(msg)
-            if parsed["type"] == LanMessageType.CHAT.value:
-                payload = parsed.get("payload", {})
-                self.add_message("Peer", payload.get("text", ""))
-            elif parsed["type"] == "disconnect":
-                self.add_message("System", "Peer disconnected.")
-                self.active = False
+        except ValueError:
+            return
+
+        msg_type = parsed.get("type")
+        if msg_type == LanMessageType.CHAT.value:
+            payload = parsed.get("payload", {})
+            self.add_message("Peer", payload.get("text", ""))
+        elif msg_type == "disconnect":
+            self.add_message("System", "Peer disconnected.")
+            self.active = False
+        else:
+            # Put non-chat messages back so game logic can consume them
+            self.session.inbox.put(parsed)
 
     def draw(self, surface, rect: pygame.Rect, title: Optional[str] = None):
         pygame.draw.rect(surface, (25, 30, 50), rect)

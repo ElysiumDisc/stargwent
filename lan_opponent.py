@@ -76,11 +76,13 @@ class NetworkOpponent:
         if msg_type == LanMessageType.GAME_ACTION.value:
             action_type = payload.get("action")
             data = payload.get("data", {})
+            target_id = payload.get("target_id")
 
             # Return action in format expected by game loop
             return {
                 "type": action_type,
-                "data": data
+                "data": data,
+                "target_id": target_id
             }
 
         elif msg_type == LanMessageType.MULLIGAN.value:
@@ -100,7 +102,7 @@ class NetworkOpponent:
         # Unknown message type - ignore
         return None
 
-    def send_action(self, action_type: str, data: Dict[str, Any]):
+    def send_action(self, action_type: str, data: Dict[str, Any], target_id: Optional[str] = None):
         """
         Send local player's action to remote player.
 
@@ -109,7 +111,7 @@ class NetworkOpponent:
             data: Action-specific data
         """
         turn_token = self.next_turn_token()
-        msg = build_action_message(action_type, data, turn_token=turn_token)
+        msg = build_action_message(action_type, data, turn_token=turn_token, target_id=target_id)
         self.session.send(msg["type"], msg["payload"])
 
     def send_mulligan(self, indices: list):
@@ -157,6 +159,24 @@ class NetworkController:
         self.role = role
         self.turn_token_counter = 0
 
+    def _find_card_in_discard(self, player, card_id):
+        if not card_id:
+            return None
+        for card in player.discard_pile:
+            if card.id == card_id:
+                return card
+        return None
+
+    def _find_card_on_board(self, card_id):
+        if not card_id:
+            return None
+        for player in [self.game.player1, self.game.player2]:
+            for row_cards in player.board.values():
+                for card in row_cards:
+                    if card.id == card_id:
+                        return card
+        return None
+
     def choose_move(self):
         """
         Wait for network action and return (card, row) tuple.
@@ -184,6 +204,7 @@ class NetworkController:
         if msg_type == LanMessageType.GAME_ACTION.value:
             action_type = payload.get("action")
             data = payload.get("data", {})
+            target_id = payload.get("target_id")
 
             if action_type == "play_card":
                 # Find the card in hand
@@ -214,6 +235,26 @@ class NetworkController:
                                 f"{self.network_player.name} used {self.network_player.faction_power.name}",
                                 "network"
                             )
+                return (None, None)
+            elif action_type == "leader_ability":
+                self.game.apply_remote_leader_ability(self.network_player, data)
+                return (None, None)
+            elif action_type == "medic_choice":
+                card = self._find_card_in_discard(self.network_player, target_id)
+                if card:
+                    self.game.trigger_medic(self.network_player, card)
+                    self.game.player1.calculate_score()
+                    self.game.player2.calculate_score()
+                    self.game.last_turn_actor = self.network_player
+                    self.game.switch_turn()
+                return (None, None)
+            elif action_type == "decoy_choice":
+                card = self._find_card_on_board(target_id)
+                if card and self.game.apply_decoy(card):
+                    self.game.player1.calculate_score()
+                    self.game.player2.calculate_score()
+                    self.game.last_turn_actor = self.network_player
+                    self.game.switch_turn()
                 return (None, None)
 
         elif msg_type == "disconnect":
@@ -249,6 +290,11 @@ class NetworkPlayerProxy:
         self.turn_token_counter += 1
         return f"{self.role}-{self.turn_token_counter}"
 
+    def _send_action(self, action_type: str, data: Dict[str, Any], target_id: Optional[str] = None):
+        turn_token = self.next_turn_token()
+        msg = build_action_message(action_type, data, turn_token=turn_token, target_id=target_id)
+        self.session.send(msg["type"], msg["payload"])
+
     def send_play_card(self, card_id: str, row: str):
         """
         Send card play action to remote player.
@@ -257,18 +303,11 @@ class NetworkPlayerProxy:
             card_id: ID of card being played
             row: Row where card is being played
         """
-        turn_token = self.next_turn_token()
-        msg = build_action_message("play_card", {
-            "card_id": card_id,
-            "row": row
-        }, turn_token=turn_token)
-        self.session.send(msg["type"], msg["payload"])
+        self._send_action("play_card", {"card_id": card_id, "row": row})
 
     def send_pass(self):
         """Send pass action to remote player."""
-        turn_token = self.next_turn_token()
-        msg = build_action_message("pass", {}, turn_token=turn_token)
-        self.session.send(msg["type"], msg["payload"])
+        self._send_action("pass", {})
 
     def send_faction_power(self, power_type: str = ""):
         """
@@ -277,11 +316,14 @@ class NetworkPlayerProxy:
         Args:
             power_type: Type of faction power (for logging)
         """
-        turn_token = self.next_turn_token()
-        msg = build_action_message("faction_power", {
-            "power_type": power_type
-        }, turn_token=turn_token)
-        self.session.send(msg["type"], msg["payload"])
+        self._send_action("faction_power", {"power_type": power_type})
+
+    def send_leader_ability(self, ability_name: str, data: Optional[Dict[str, Any]] = None):
+        """Send leader ability activation/result to remote player."""
+        payload = {"ability": ability_name}
+        if data:
+            payload.update(data)
+        self._send_action("leader_ability", payload)
 
     def send_mulligan(self, indices: list):
         """
@@ -293,3 +335,11 @@ class NetworkPlayerProxy:
         turn_token = self.next_turn_token()
         msg = build_mulligan_message(indices, turn_token=turn_token)
         self.session.send(msg["type"], msg["payload"])
+
+    def send_medic_choice(self, target_card_id: str):
+        """Send medic revive selection."""
+        self._send_action("medic_choice", {}, target_id=target_card_id)
+
+    def send_decoy_choice(self, target_card_id: str):
+        """Send decoy target selection."""
+        self._send_action("decoy_choice", {}, target_id=target_card_id)
