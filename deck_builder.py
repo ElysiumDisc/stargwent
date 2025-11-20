@@ -9,6 +9,7 @@ from cards import (
     ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
     FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 )
+from game_settings import get_settings
 
 # Faction theme music paths for hover preview
 FACTION_THEME_MUSIC = {
@@ -24,6 +25,17 @@ _current_faction_theme = None
 _faction_theme_start_time = 0
 _FACTION_THEME_DURATION_MS = 10000  # Restart theme every 10 seconds
 
+
+def _get_faction_theme_volume() -> float:
+    """Get preview volume scaled by current settings."""
+    settings = get_settings()
+    try:
+        volume = settings.get_effective_music_volume()
+    except AttributeError:
+        volume = settings.get_master_volume()
+    return max(0.0, min(1.0, volume))
+
+
 def _play_faction_theme(faction):
     """Play faction theme music when hovering over faction button."""
     global _current_faction_theme, _faction_theme_start_time
@@ -33,6 +45,7 @@ def _play_faction_theme(faction):
         if faction and pygame.time.get_ticks() - _faction_theme_start_time >= _FACTION_THEME_DURATION_MS:
             _faction_theme_start_time = pygame.time.get_ticks()
             try:
+                pygame.mixer.music.set_volume(_get_faction_theme_volume())
                 pygame.mixer.music.play(0)  # Play once, will restart on next check
             except pygame.error:
                 pass
@@ -49,7 +62,7 @@ def _play_faction_theme(faction):
     if theme_path and os.path.exists(theme_path):
         try:
             pygame.mixer.music.load(theme_path)
-            pygame.mixer.music.set_volume(0.5)  # Preview volume
+            pygame.mixer.music.set_volume(_get_faction_theme_volume())
             pygame.mixer.music.play(0)  # Play once (will restart every 10s)
         except pygame.error as e:
             print(f"[audio] Failed to play faction theme: {e}")

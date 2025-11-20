@@ -6,6 +6,8 @@ Handles loading, caching, and playing commander audio clips.
 import pygame
 import os
 
+from game_settings import get_settings
+
 
 class SoundEffectManager:
     """Manages card-specific sound effects, particularly legendary commander snippets."""
@@ -16,6 +18,7 @@ class SoundEffectManager:
     def __init__(self):
         self._ensure_mixer_ready()
         self.loaded_sounds = {}
+        self.settings = get_settings()
 
     def _ensure_mixer_ready(self):
         """Initialize pygame mixer if not already done."""
@@ -27,6 +30,17 @@ class SoundEffectManager:
         except pygame.error as exc:
             print(f"[audio] Unable to init mixer for sound effects: {exc}")
             return False
+
+    def _get_effective_sfx_volume(self, requested_volume: float) -> float:
+        """Scale requested volume by the user's settings."""
+        base_volume = 1.0
+        if self.settings:
+            try:
+                base_volume = self.settings.get_effective_sfx_volume()
+            except AttributeError:
+                base_volume = self.settings.get_master_volume()
+        final_volume = max(0.0, min(1.0, requested_volume * base_volume))
+        return final_volume
 
     def get_commander_sound(self, card_id):
         """
@@ -72,7 +86,7 @@ class SoundEffectManager:
         sound = self.get_commander_sound(card_id)
         if sound:
             try:
-                sound.set_volume(volume)
+                sound.set_volume(self._get_effective_sfx_volume(volume))
                 sound.play()
                 return True
             except pygame.error as exc:
@@ -127,7 +141,7 @@ class SoundEffectManager:
         sound = self.get_row_sound(row_type)
         if sound:
             try:
-                sound.set_volume(volume)
+                sound.set_volume(self._get_effective_sfx_volume(volume))
                 sound.play()
                 return True
             except pygame.error as exc:
@@ -158,7 +172,7 @@ class SoundEffectManager:
 
         sound = self.loaded_sounds[cache_key]
         try:
-            sound.set_volume(volume)
+            sound.set_volume(self._get_effective_sfx_volume(volume))
             sound.play()
             return True
         except pygame.error as exc:
@@ -189,7 +203,7 @@ class SoundEffectManager:
 
         sound = self.loaded_sounds[cache_key]
         try:
-            sound.set_volume(volume)
+            sound.set_volume(self._get_effective_sfx_volume(volume))
             sound.play()
             return True
         except pygame.error as exc:

@@ -98,7 +98,6 @@ def stop_menu_music(fade_ms=600):
 
 def _get_stargate_sequence_sound():
     """Load and cache the Stargate sequence clip."""
-    from game_settings import get_settings
     global _stargate_sequence_sound, _stargate_sequence_sound_loaded
     if _stargate_sequence_sound_loaded:
         return _stargate_sequence_sound
@@ -109,13 +108,9 @@ def _get_stargate_sequence_sound():
     if not _ensure_mixer():
         return None
     try:
-        settings = get_settings()
         sound = pygame.mixer.Sound(STARGATE_SEQUENCE_PATH)
-        # Apply settings volume (SFX) with original 0.85 multiplier
-        volume = settings.get_effective_sfx_volume() * _STARGATE_SEQUENCE_VOLUME
-        sound.set_volume(volume)
         _stargate_sequence_sound = sound
-        print(f"[audio] Stargate sequence loaded at volume {volume:.2f}")
+        print(f"[audio] Stargate sequence loaded from {STARGATE_SEQUENCE_PATH}")
     except pygame.error as exc:
         print(f"[audio] Unable to load Stargate sequence audio: {exc}")
         _stargate_sequence_sound = None
@@ -1089,12 +1084,39 @@ class StargateOpeningAnimation:
                 'alpha': 255,
                 'lifetime': random.uniform(0.5, 1.5)  # How long it lives
             })
+        
+        # Starfield backdrop and glyph engravings for extra fidelity
+        self.starfield = [{
+            'x': random.randint(0, screen_width),
+            'y': random.randint(0, screen_height),
+            'speed': random.uniform(0.01, 0.05),
+            'phase': random.uniform(0, math.tau),
+            'size': random.choice([1, 1, 2])
+        } for _ in range(200)]
+        self.gate_glyphs = [{
+            'angle': i * 10 + random.uniform(-2, 2),
+            'width': random.randint(2, 3),
+            'length': random.randint(16, 22)
+        } for i in range(36)]
+        
+        self.ripple_phase = 0.0
+        self.title_pulse = 0.0
     
     def update(self, dt):
         """Update animation."""
         self.elapsed += dt
         self.progress = min(1.0, self.elapsed / self.duration)
+        self.ripple_phase = (self.ripple_phase + dt * 0.003) % (math.tau)
+        self.title_pulse = (self.title_pulse + dt * 0.005) % (math.tau)
         
+        # Parallax starfield (slow drift + twinkle)
+        for star in self.starfield:
+            star['phase'] = (star['phase'] + dt * 0.002) % (math.tau)
+            star['y'] += star['speed'] * dt * 0.05
+            if star['y'] > self.screen_height:
+                star['y'] = 0
+                star['x'] = random.randint(0, self.screen_width)
+    
         # Lock chevrons progressively
         for chevron in self.chevrons:
             if self.elapsed >= chevron['lock_time'] and not chevron['locked']:
@@ -1134,16 +1156,44 @@ class StargateOpeningAnimation:
     
     def draw(self, surface):
         """Draw the Stargate opening animation."""
-        # Dark background
-        surface.fill((5, 5, 15))
+        # Deep-space background with subtle nebula
+        surface.fill((4, 6, 16))
+        nebula = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        pygame.draw.circle(nebula, (20, 60, 140, 90), (self.center_x - 200, self.center_y - 150), self.gate_radius * 2)
+        pygame.draw.circle(nebula, (10, 30, 80, 70), (self.center_x + 260, self.center_y + 80), self.gate_radius * 2)
+        surface.blit(nebula, (0, 0), special_flags=pygame.BLEND_ADD)
         
-        # Outer ring (stone)
-        pygame.draw.circle(surface, (80, 80, 100), (self.center_x, self.center_y), self.gate_radius, 20)
-        pygame.draw.circle(surface, (120, 120, 140), (self.center_x, self.center_y), self.gate_radius, 3)
-        pygame.draw.circle(surface, (60, 60, 80), (self.center_x, self.center_y), self.gate_radius - 20, 3)
+        for star in self.starfield:
+            brightness = 150 + int(100 * (math.sin(star['phase']) * 0.5 + 0.5))
+            color = (brightness, brightness, min(255, brightness + 80))
+            pygame.draw.circle(surface, color, (int(star['x']), int(star['y'])), star['size'])
         
-        # Inner ring
-        pygame.draw.circle(surface, (40, 40, 60), (self.center_x, self.center_y), self.inner_radius, 15)
+        # Gate body (layered metallic gradient)
+        gate_surface = pygame.Surface((self.gate_radius * 2 + 80, self.gate_radius * 2 + 80), pygame.SRCALPHA)
+        gate_center = gate_surface.get_width() // 2
+        for i in range(26):
+            radius = self.gate_radius + 30 - i * 2
+            shade = 40 + i * 3
+            pygame.draw.circle(gate_surface, (shade, shade, shade + 20, 250), (gate_center, gate_center), radius, 2)
+        pygame.draw.circle(gate_surface, (30, 30, 45, 255), (gate_center, gate_center), self.inner_radius + 22, 22)
+        surface.blit(gate_surface, (self.center_x - gate_center, self.center_y - gate_center))
+        
+        # Glyph engravings around the ring
+        for glyph in self.gate_glyphs:
+            angle_rad = math.radians(glyph['angle'])
+            outer = (
+                self.center_x + math.cos(angle_rad) * (self.gate_radius - 5),
+                self.center_y + math.sin(angle_rad) * (self.gate_radius - 5)
+            )
+            inner = (
+                self.center_x + math.cos(angle_rad) * (self.gate_radius - glyph['length']),
+                self.center_y + math.sin(angle_rad) * (self.gate_radius - glyph['length'])
+            )
+            pygame.draw.line(surface, (110, 130, 170), inner, outer, glyph['width'])
+        
+        # Inner ring accent
+        pygame.draw.circle(surface, (30, 40, 80), (self.center_x, self.center_y), self.inner_radius, 10)
+        pygame.draw.circle(surface, (0, 0, 0), (self.center_x, self.center_y), self.inner_radius - 5, 0)
         
         # Draw chevrons
         for chevron in self.chevrons:
@@ -1172,6 +1222,10 @@ class StargateOpeningAnimation:
                     surface.blit(glow_surf, (int(x - size * 2), int(y - size * 2)))
                 
                 pygame.draw.polygon(surface, color, points)
+                inner_glow = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                pygame.draw.polygon(inner_glow, (255, 220, 120, 200), [(p[0] - x + size, p[1] - y + size) for p in points])
+                inner_glow = pygame.transform.smoothscale(inner_glow, (size * 3, size * 3))
+                surface.blit(inner_glow, (int(x - 1.5 * size), int(y - 1.5 * size)), special_flags=pygame.BLEND_ADD)
             else:
                 # Inactive chevron
                 pygame.draw.polygon(surface, (60, 60, 70), points)
@@ -1183,13 +1237,28 @@ class StargateOpeningAnimation:
             # Base event horizon glow
             horizon_alpha = int(min(255, (self.progress - 0.3) * 400))
             horizon_surf = pygame.Surface((self.inner_radius * 2, self.inner_radius * 2), pygame.SRCALPHA)
+            center = (self.inner_radius, self.inner_radius)
             
-            # Blue vortex
-            for i in range(5):
-                radius = self.inner_radius - i * 15
-                alpha = horizon_alpha // (i + 1)
-                color = (50, 150 + i * 20, 255, alpha)
-                pygame.draw.circle(horizon_surf, color, (self.inner_radius, self.inner_radius), radius)
+            # Pulsing watery ripples
+            ripple_layers = 6
+            for i in range(ripple_layers):
+                wave_offset = math.sin(self.ripple_phase + i * 0.6) * 8
+                radius = self.inner_radius - i * 18 + wave_offset
+                alpha = max(10, horizon_alpha - i * 25)
+                blue_component = min(255, 120 + i * 30)
+                alpha_int = int(max(0, min(255, alpha)))
+                color = (40, blue_component, 255, alpha_int)
+                pygame.draw.circle(horizon_surf, color, center, int(max(10, radius)))
+            
+            # Energy swirl accent
+            swirl_surf = pygame.Surface((self.inner_radius * 2, self.inner_radius * 2), pygame.SRCALPHA)
+            for i in range(8):
+                angle = self.ripple_phase * 180 / math.pi + i * 45
+                start_angle = math.radians(angle)
+                end_angle = start_angle + math.radians(40)
+                color = (120, 200, 255, 90)
+                pygame.draw.arc(swirl_surf, color, swirl_surf.get_rect(), start_angle, end_angle, 3)
+            horizon_surf.blit(swirl_surf, (0, 0), special_flags=pygame.BLEND_ADD)
             
             surface.blit(horizon_surf, (self.center_x - self.inner_radius, self.center_y - self.inner_radius))
             
@@ -1218,18 +1287,44 @@ class StargateOpeningAnimation:
                     
                     particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
                     # Bright white/blue vortex particles
-                    color = (255, 255, 255, alpha)
+                    color = (200, 230, 255, alpha)
                     pygame.draw.circle(particle_surf, color, (size, size), size)
                     surface.blit(particle_surf, (int(x - size), int(y - size)))
+            
+            # Lens flare burst
+            flare = pygame.Surface((self.gate_radius * 2, self.gate_radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(flare, (80, 180, 255, 70), (self.gate_radius, self.gate_radius), self.gate_radius)
+            surface.blit(flare, (self.center_x - self.gate_radius, self.center_y - self.gate_radius), special_flags=pygame.BLEND_ADD)
+        
+        # Subtle gate shadow for depth
+        shadow = pygame.Surface((self.gate_radius * 2 + 120, 80), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow, (0, 0, 0, 120), shadow.get_rect())
+        surface.blit(shadow, (self.center_x - shadow.get_width() // 2, self.center_y + self.gate_radius - 20))
         
         # Title text (fades in at end)
         if self.progress > 0.7:
             title_alpha = int(min(255, (self.progress - 0.7) * 850))
-            title_font = pygame.font.SysFont("Arial", 72, bold=True)
-            title_text = title_font.render("STARGWENT", True, (255, 255, 255))
+            pulse_scale = 1.0 + 0.03 * math.sin(self.title_pulse * 2)
+            title_font = pygame.font.SysFont("Eurostile", 80, bold=True)
+            title_text = title_font.render("STARGWENT", True, (230, 240, 255))
+            title_text = pygame.transform.rotozoom(title_text, 0, pulse_scale)
+            title_rect = title_text.get_rect(center=(self.center_x, self.screen_height - 140))
+            
+            # Stargate-style glow layers
+            glow_surface = pygame.Surface((title_rect.width + 120, title_rect.height + 80), pygame.SRCALPHA)
+            pygame.draw.ellipse(glow_surface, (40, 120, 255, min(180, title_alpha)), glow_surface.get_rect())
+            surface.blit(glow_surface, (title_rect.x - 60, title_rect.y - 40), special_flags=pygame.BLEND_ADD)
+            
             title_text.set_alpha(title_alpha)
-            title_rect = title_text.get_rect(center=(self.center_x, self.screen_height - 150))
             surface.blit(title_text, title_rect)
+            
+            # Metallic edge + light sweep
+            highlight = pygame.Surface((title_rect.width, 6), pygame.SRCALPHA)
+            for i in range(title_rect.width):
+                fade = 1.0 - abs(i - title_rect.width / 2) / (title_rect.width / 2)
+                alpha = int(title_alpha * 0.25 * max(0, fade))
+                highlight.fill((200, 220, 255, alpha), rect=pygame.Rect(i, 0, 1, 6))
+            surface.blit(highlight, (title_rect.x, title_rect.y - 3), special_flags=pygame.BLEND_ADD)
             
             # Subtitle
             if self.progress > 0.85:
@@ -1243,15 +1338,16 @@ class StargateOpeningAnimation:
 
 def show_stargate_opening(screen):
     """Show the Stargate opening animation."""
+    from game_settings import get_settings
     animation = StargateOpeningAnimation(screen.get_width(), screen.get_height())
     clock = pygame.time.Clock()
     sound_channel = None
     stargate_sound = _get_stargate_sequence_sound()
     if stargate_sound:
         try:
+            settings = get_settings()
+            stargate_sound.set_volume(settings.get_effective_sfx_volume() * _STARGATE_SEQUENCE_VOLUME)
             sound_channel = stargate_sound.play()
-            if sound_channel:
-                sound_channel.set_volume(_STARGATE_SEQUENCE_VOLUME)
         except pygame.error as exc:
             print(f"[audio] Unable to play Stargate sequence audio: {exc}")
             sound_channel = None
