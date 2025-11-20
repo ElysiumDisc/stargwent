@@ -9,6 +9,7 @@ from cards import (
     ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
     FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 )
+from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
 from game_settings import get_settings
 
 # Faction theme music paths for hover preview
@@ -106,12 +107,13 @@ FACTION_BACKGROUND_ASSET_IDS = {
 class DeckBuilderUI:
     """Deck builder interface for selecting faction and leader."""
     
-    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False):
+    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False, unlock_system=None):
         reload_card_images()
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.for_new_game = for_new_game  # Track if this is for new game or deck customization
         self.unlock_override = unlock_override
+        self.unlock_system = unlock_system or CardUnlockSystem()
         self.selected_faction = None
         self.selected_leader = None
         self.state = "faction_select"  # faction_select, leader_select, deck_review, complete
@@ -121,7 +123,7 @@ class DeckBuilderUI:
         self.pool_scroll_offset = 0  # Separate scroll for card pool
         self.inspected_card_id = None  # Card being inspected with spacebar
         self.card_pool_ids = []  # Available cards for the faction
-        self.current_tab = "all"  # Current card type tab: close, ranged, siege, agile, special, weather, all
+        self.current_tab = "all"  # Current card type tab: close, ranged, siege, agile, special, weather, neutral, all
         self.tab_rects = {}
         self.return_to_menu = False  # Flag for when user clicks MAIN MENU button
         self.leader_scroll_offset = 0
@@ -678,7 +680,7 @@ class DeckBuilderUI:
                             if not self.selected_leader and available_leaders:
                                 self.selected_leader = available_leaders[0]
                             self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                            self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                            self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
                             self.current_tab = "all"
                             self.inspected_card_id = None
                             self.state = "deck_review"
@@ -710,7 +712,7 @@ class DeckBuilderUI:
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                    self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                    self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
                     self.current_tab = "all"
                     self.inspected_card_id = None
                     self.deck_scroll_offset = 0
@@ -829,7 +831,7 @@ class DeckBuilderUI:
                         
                         # Generate deck and go to review
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                        self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                        self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
                         self.current_tab = "all"
                         self.inspected_card_id = None
                         self.state = "deck_review"
@@ -941,7 +943,7 @@ class DeckBuilderUI:
                         
                         # Generate deck and go to review
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                        self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                        self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
                         self.current_tab = "all"
                         self.inspected_card_id = None
                         self.state = "deck_review"
@@ -978,7 +980,7 @@ class DeckBuilderUI:
                             
                             # Generate deck and go to review
                             self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                            self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                            self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
                             self.current_tab = "all"
                             self.inspected_card_id = None
                             self.state = "deck_review"
@@ -1018,7 +1020,7 @@ class DeckBuilderUI:
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                     # Build card pool (all available cards for faction)
-                    self.card_pool_ids = get_faction_card_pool(self.selected_faction)
+                    self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
                     self.current_tab = "all"
                     self.inspected_card_id = None
                     self.deck_scroll_offset = 0
@@ -1647,7 +1649,8 @@ class DeckBuilderUI:
             ("Siege", "siege"),
             ("Agile", "agile"),
             ("Special", "special"),
-            ("Weather", "weather")
+            ("Weather", "weather"),
+            ("Neutral", "neutral")
         ]
         
         tab_width = 100
@@ -1748,7 +1751,7 @@ def validate_deck(deck):
     return True, "Deck valid"
 
 
-def build_faction_deck(faction, leader=None):
+def build_faction_deck(faction, leader=None, *, unlock_system=None, unlock_override=False):
     """
     Build a deck for the specified faction following Gwent rules.
     First checks if there's a saved deck, otherwise creates a new random one.
@@ -1764,17 +1767,27 @@ def build_faction_deck(faction, leader=None):
     # No saved deck found, build a new random one
     print(f"Building new default deck for {faction}...")
     
-    # Get all card IDs from the selected faction
-    faction_card_ids = [card.id for card in ALL_CARDS.values() if card.faction == faction]
+    unlock_system = unlock_system or CardUnlockSystem()
+
+    # Get all card IDs from the selected faction (respect unlocks)
+    faction_card_ids = [
+        card.id for card in ALL_CARDS.values()
+        if card.faction == faction and is_card_available(card.id, unlock_system, unlock_override)
+    ]
     
     # If faction has more than 40 cards, randomly select 35 of them to leave room for neutrals
     if len(faction_card_ids) > 35:
         faction_card_ids = random.sample(faction_card_ids, 35)
     
     # Add some neutral cards (randomly select 3-5 neutral card IDs)
-    neutral_card_ids = [card.id for card in ALL_CARDS.values() if card.faction == FACTION_NEUTRAL]
-    # Filter out heroes and limit to useful neutral cards
-    useful_neutrals = [id for id in neutral_card_ids if ALL_CARDS[id].row in ["special", "weather"]]
+    neutral_card_ids = [
+        card.id for card in ALL_CARDS.values()
+        if card.faction == FACTION_NEUTRAL
+        and "Legendary Commander" not in (card.ability or "")
+        and is_card_available(card.id, unlock_system, unlock_override)
+    ]
+    # Filter out Legendary Commander neutrals to keep balance, but allow all rows
+    useful_neutrals = neutral_card_ids
     num_neutrals = min(5, len(useful_neutrals))
     selected_neutrals = random.sample(useful_neutrals, num_neutrals) if useful_neutrals else []
     
@@ -1813,35 +1826,49 @@ def build_faction_deck(faction, leader=None):
     return deck_ids
 
 
-def get_faction_card_pool(faction):
+def is_card_available(card_id: str, unlock_system, unlock_override: bool) -> bool:
+    """Return True if the card is usable given unlock state/override."""
+    if unlock_override:
+        return True
+    if card_id not in UNLOCKABLE_CARDS:
+        return True
+    if unlock_system:
+        return unlock_system.is_unlocked(card_id)
+    return False
+
+
+def get_faction_card_pool(faction, unlock_system=None, unlock_override=False):
     """
     Get all available cards for a faction (card pool).
-    Returns a list of card IDs.
+    Returns a list of card IDs including all neutral cards, filtered by unlocks.
     """
-    # Get all card IDs from the selected faction
-    faction_card_ids = [card.id for card in ALL_CARDS.values() if card.faction == faction]
-    
-    # Add some neutral card IDs
-    neutral_card_ids = [card.id for card in ALL_CARDS.values() if card.faction == FACTION_NEUTRAL]
-    useful_neutrals = [id for id in neutral_card_ids if ALL_CARDS[id].row in ["special", "weather"]]
-    
-    # Combine and return the full pool
-    card_pool_ids = faction_card_ids + useful_neutrals
-    
+    unlock_system = unlock_system or CardUnlockSystem()
+    faction_card_ids = [
+        card.id for card in ALL_CARDS.values()
+        if card.faction == faction and is_card_available(card.id, unlock_system, unlock_override)
+    ]
+    neutral_card_ids = [
+        card.id for card in ALL_CARDS.values()
+        if card.faction == FACTION_NEUTRAL and is_card_available(card.id, unlock_system, unlock_override)
+    ]
+
+    # Combine and deduplicate
+    card_pool_ids = list(dict.fromkeys(faction_card_ids + neutral_card_ids))
     return card_pool_ids
 
 
 def get_cards_by_type_and_strength(card_id_list, card_type=None):
     """
     Filter cards by type and sort by strength (power).
-    card_type can be: 'close', 'ranged', 'siege', 'agile', 'special', 'weather', or None for all.
+    card_type can be: 'close', 'ranged', 'siege', 'agile', 'special', 'weather', 'neutral', or None for all.
     Returns sorted list of card IDs.
     """
-    # Filter by type if specified
+    filtered_ids = card_id_list
     if card_type and card_type != "all":
-        filtered_ids = [id for id in card_id_list if ALL_CARDS[id].row == card_type]
-    else:
-        filtered_ids = card_id_list
+        if card_type == "neutral":
+            filtered_ids = [id for id in card_id_list if ALL_CARDS[id].faction == FACTION_NEUTRAL]
+        else:
+            filtered_ids = [id for id in card_id_list if ALL_CARDS[id].row == card_type]
     
     # Sort by type first, then by power (descending)
     def sort_key(card_id):
@@ -1855,13 +1882,14 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None):
             "special": 4,
             "weather": 5
         }
-        return (type_priority.get(card.row, 99), -card.power)
+        neutral_priority = -1 if card.faction == FACTION_NEUTRAL else 0
+        return (type_priority.get(card.row, 99), neutral_priority, -card.power)
     
     sorted_ids = sorted(filtered_ids, key=sort_key)
     return sorted_ids
 
 
-def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, toggle_fullscreen_callback=None):
+def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None):
     """
     Run the deck builder interface.
     Args:
@@ -1882,7 +1910,8 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, toggle
         screen_width,
         screen_height,
         for_new_game=for_new_game,
-        unlock_override=unlock_override
+        unlock_override=unlock_override,
+        unlock_system=unlock_system
     )
     clock = pygame.time.Clock()
     

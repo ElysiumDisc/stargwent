@@ -984,6 +984,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                     screen,
                     for_new_game=False,
                     unlock_override=unlock_system.is_unlock_override_enabled(),
+                    unlock_system=unlock_system,
                     toggle_fullscreen_callback=toggle_fullscreen_callback
                 )
                 deck_manager.load_decks()

@@ -3039,6 +3039,7 @@ def main(lan_game_data=None):
         deck_selection = run_deck_builder(
             screen,
             unlock_override=unlock_system.is_unlock_override_enabled(),
+            unlock_system=unlock_system,
             toggle_fullscreen_callback=toggle_fullscreen_mode
         )
 
@@ -3704,6 +3705,17 @@ def main(lan_game_data=None):
                                         on_finish=lambda: game.switch_turn()
                                     )
                                     anim_manager.add_animation(animation)
+                                    steal_info["animation_started"] = True
+                                    if network_proxy:
+                                        network_proxy.send_leader_ability(
+                                            "Hathor Steal",
+                                            {
+                                                "from_row": steal_info.get("from_row"),
+                                                "from_index": steal_info.get("from_index"),
+                                                "target_row": steal_info.get("target_row"),
+                                                "card_id": steal_info.get("card_id"),
+                                            }
+                                        )
                             # After attempting Hathor's ability, don't process any other click logic for this event
                             continue
                         else:
@@ -4814,6 +4826,24 @@ def main(lan_game_data=None):
             draw_board(screen, game, selected_card, dragging_card=dragging_card,
                        drag_hover_highlight=drag_hover_highlight, drag_row_highlights=drag_row_highlights)
             draw_scores(screen, game, anim_manager, render_static=False)
+
+            # Auto-start Hathor steal animation (LAN/AI) if pending and not started yet
+            steal_info = getattr(game, "hathor_steal_info", None)
+            if steal_info and not steal_info.get("animation_started"):
+                card = steal_info.get("card")
+                target_row = steal_info.get("target_row", "close")
+                if card and hasattr(card, "rect"):
+                    start_pos = (card.rect.centerx, card.rect.centery)
+                    target_rect = PLAYER_ROW_RECTS.get(target_row) or OPPONENT_ROW_RECTS.get(target_row)
+                    end_pos = (target_rect.centerx, target_rect.centery) if target_rect else (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                    h_anim = HathorStealAnimation(
+                        card,
+                        start_pos,
+                        end_pos,
+                        on_finish=lambda: game.switch_turn()
+                    )
+                    anim_manager.add_animation(h_anim)
+                    steal_info["animation_started"] = True
 
             history_rect = pygame.Rect(
                 HUD_LEFT + int(HUD_WIDTH * 0.42),

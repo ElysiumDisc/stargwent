@@ -1262,13 +1262,18 @@ class Game:
                     lowest_row = row_name
 
         if lowest_card:
+            from_index = opponent.board[lowest_row].index(lowest_card)
             # Store the card info for animation
             self.hathor_steal_info = {
                 'card': lowest_card,
+                'card_id': getattr(lowest_card, "id", None),
                 'from_row': lowest_row,
+                'from_index': from_index,
                 'from_player': opponent,
                 'to_player': player,
-                'animation_start': pygame.time.get_ticks()
+                'target_row': lowest_row if lowest_row in player.board and lowest_row not in ["special", "weather"] else "close",
+                'animation_start': pygame.time.get_ticks(),
+                'animation_started': False
             }
 
             # Remove card from opponent's board
@@ -1511,6 +1516,40 @@ class Game:
                 card_ref=memorized_card,
                 icon="🧠"
             )
+            return True
+
+        # Hathor: steal lowest power enemy unit (payload includes source row/index)
+        if "Hathor" in ability:
+            from_row = payload.get("from_row")
+            from_index = payload.get("from_index")
+            target_row = payload.get("target_row") or "close"
+            opponent = self.player2 if player == self.player1 else self.player1
+            if from_row not in opponent.board or from_index is None:
+                return False
+            try:
+                target_card = opponent.board[from_row][from_index]
+            except IndexError:
+                return False
+
+            # Remove from opponent board
+            opponent.board[from_row].remove(target_card)
+
+            # Store pending info so switch_turn can place it after animation
+            player.hathor_ability_pending = {
+                "card": target_card,
+                "target_row": target_row
+            }
+            self.hathor_steal_info = {
+                "card": target_card,
+                "card_id": getattr(target_card, "id", None),
+                "from_row": from_row,
+                "from_index": from_index,
+                "from_player": opponent,
+                "to_player": player,
+                "target_row": target_row,
+                "animation_start": pygame.time.get_ticks(),
+                "animation_started": False
+            }
             return True
 
         return False

@@ -196,6 +196,7 @@ All abilities renamed and themed around Stargate lore:
   - Connects to Tailscale coordination server (100.100.100.100)
   - Falls back to standard socket methods
   - No sudo required, no network traffic sent
+- ✅ **LAN State Sync Fixes** – Mulligans and Hathor’s steal now stay in lockstep: both players see the heart-kiss animation and the stolen card lands in the correct row before turns switch.
 - ✅ **Connection Robustness** – Improved network reliability:
   - 10-second join timeout (was infinite)
   - 1-second recv timeout prevents hangs

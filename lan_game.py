@@ -55,7 +55,12 @@ def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_
         return None
 
     clock = pygame.time.Clock()
-    selection = run_deck_builder(screen, unlock_override=True, toggle_fullscreen_callback=toggle_fullscreen_callback)
+    selection = run_deck_builder(
+        screen,
+        unlock_override=True,  # In LAN, always give full pool to both players
+        unlock_system=unlock_system,
+        toggle_fullscreen_callback=toggle_fullscreen_callback
+    )
     if selection is None:
         session.close()
         return None
