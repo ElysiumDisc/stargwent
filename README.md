@@ -197,6 +197,10 @@ All abilities renamed and themed around Stargate lore:
   - Falls back to standard socket methods
   - No sudo required, no network traffic sent
 - ✅ **LAN State Sync Fixes** – Mulligans and Hathor’s steal now stay in lockstep: both players see the heart-kiss animation and the stolen card lands in the correct row before turns switch.
+
+### 🗺️ Roadmap / Future Implementation Notes
+- **New Factions**: Add Ori faction (leader count parity with other factions) and Replicator faction (matching leader count).
+- **Legendary Depth**: One additional Legendary Commander card per existing faction.
 - ✅ **Connection Robustness** – Improved network reliability:
   - 10-second join timeout (was infinite)
   - 1-second recv timeout prevents hangs
@@ -1276,6 +1280,13 @@ Play when a legendary commander is deployed. Place all in `assets/audio/commande
 | `neutral_ancient_drone.ogg` | Ancients Drone |
 | `neutral_weir.ogg` | Dr. Elizabeth Weir |
 
+- **Weather, Horn**: Weather and horn cues now hook to dedicated files; add these to `assets/audio/`:
+  - `weather_clear.ogg`
+  - `weather_ice_planet_hazard.ogg`
+  - `weather_nebula_interference.ogg`
+  - `weather_asteroid_storm.ogg`
+  - `weather_electromagnetic_pulse.ogg`
+  - `horn.ogg`
 ---
 
 #### Audio File Summary

@@ -179,6 +179,54 @@ class SoundEffectManager:
             print(f"[audio] Failed to play ring transport sound: {exc}")
         return False
 
+    def _load_generic_sound(self, cache_key, filename):
+        """Helper to load a one-off sound with caching (no fallbacks)."""
+        if cache_key in self.loaded_sounds:
+            return self.loaded_sounds[cache_key]
+        sound_path = os.path.join(self.ROW_SOUNDS_PATH, filename)
+        if not os.path.exists(sound_path):
+            return None
+        try:
+            self.loaded_sounds[cache_key] = pygame.mixer.Sound(sound_path)
+            return self.loaded_sounds[cache_key]
+        except pygame.error as exc:
+            print(f"[audio] Failed to load {filename}: {exc}")
+            return None
+
+    def play_weather_sound(self, weather_key="generic", volume=1.0):
+        """
+        Play a weather-related sound. Looks for assets/audio/weather_<key>.ogg.
+        No fallback; silent if missing.
+        """
+        key = weather_key.lower().replace(" ", "_")
+        cache_key = f"weather_{key}"
+        sound = self._load_generic_sound(cache_key, f"weather_{key}.ogg")
+        if not sound:
+            return False
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play weather sound {key}: {exc}")
+            return False
+
+    def play_horn_sound(self, volume=1.0):
+        """
+        Play Commander Horn sound from assets/audio/horn.ogg.
+        No fallback; silent if missing.
+        """
+        sound = self._load_generic_sound("horn", "horn.ogg")
+        if not sound:
+            return False
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play horn sound: {exc}")
+            return False
+
     def play_iris_sound(self, volume=1.0):
         """
         Play iris sound when Tau'ri faction power is used.

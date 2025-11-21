@@ -1303,6 +1303,8 @@ class Game:
         def has_leader(player, name):
             return player.leader and name in player.leader.get('name', '')
 
+        weather_sound_played = False
+
         if "Wormhole Stabilization" in ability:
             # Clears all weather
             self.discard_active_weather_cards()
@@ -1317,6 +1319,11 @@ class Game:
                 self._owner_label(acting_player),
                 icon="☀️"
             )
+            try:
+                get_sound_manager().play_weather_sound("clear")
+                weather_sound_played = True
+            except Exception:
+                pass
             return affected_rows
 
         # Asgard shielding: opponent can block the first enemy weather each round
@@ -1399,6 +1406,12 @@ class Game:
                 self._owner_label(acting_player),
                 icon="🌩️"
             )
+            if not weather_sound_played:
+                try:
+                    sound_key = weather_name.lower().replace(" ", "_")
+                    get_sound_manager().play_weather_sound(sound_key)
+                except Exception:
+                    pass
 
         return affected_rows
 
@@ -1713,6 +1726,10 @@ class Game:
             if row_name in ["close", "ranged", "siege"]:
                 self.current_player.horn_effects[row_name] = True
                 self.current_player.horn_slots[row_name] = card
+                try:
+                    get_sound_manager().play_horn_sound()
+                except Exception:
+                    pass
                 self.add_history_event(
                     "horn",
                     f"{self.current_player.name} activated a Horn on {row_name.title()}",
