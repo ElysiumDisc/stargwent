@@ -295,6 +295,19 @@ class MainMenu:
 
         # Status text below label
         status_font = pygame.font.SysFont("Arial", 28)
+        
+        # Fullscreen toggle below DHD
+        fullscreen_y = button_y + dhd_radius + 80
+        fs_label_surface = self.button_font.render("Fullscreen Mode", True, (220, 220, 220))
+        fs_label_rect = fs_label_surface.get_rect(midright=(button_x - dhd_radius - 30, fullscreen_y))
+        
+        # Stargate toggle rect
+        gate_radius = 40
+        gate_rect = pygame.Rect(0, 0, gate_radius * 2, gate_radius * 2)
+        gate_rect.center = (button_x, fullscreen_y)
+
+        # Status text below label
+        status_font = pygame.font.SysFont("Arial", 28)
 
         # Title above everything
         title_font = pygame.font.SysFont("Arial", 48, bold=True)
@@ -341,6 +354,37 @@ class MainMenu:
                 pygame.draw.circle(glow, (80, 180, 255, 80), (dhd_radius, dhd_radius), dhd_radius + 15)
                 dhd_surface.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
             return dhd_surface
+            
+        def draw_stargate_toggle(active, rect):
+            gate_surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+            radius = rect.width // 2
+            center = (radius, radius)
+            
+            # Outer ring
+            pygame.draw.circle(gate_surf, (80, 80, 100), center, radius)
+            pygame.draw.circle(gate_surf, (40, 40, 50), center, radius - 5)
+            
+            # Chevrons (9)
+            for i in range(9):
+                angle = (i / 9) * 2 * math.pi
+                cx = radius + int(math.cos(angle) * (radius - 5))
+                cy = radius + int(math.sin(angle) * (radius - 5))
+                color = (255, 100, 0) if active else (100, 60, 60)
+                pygame.draw.circle(gate_surf, color, (cx, cy), 4)
+            
+            # Event horizon
+            if active:
+                # Watery blue effect
+                pygame.draw.circle(gate_surf, (0, 100, 200), center, radius - 10)
+                pygame.draw.circle(gate_surf, (100, 200, 255, 100), center, radius - 15)
+            else:
+                # Closed iris / dark
+                pygame.draw.circle(gate_surf, (10, 10, 20), center, radius - 10)
+                # Iris lines
+                pygame.draw.line(gate_surf, (40, 40, 50), (radius-10, radius-10), (radius+10, radius+10), 2)
+                pygame.draw.line(gate_surf, (40, 40, 50), (radius+10, radius-10), (radius-10, radius+10), 2)
+                
+            return gate_surf
 
         def get_slider_handle_pos():
             """Get slider handle X position based on volume"""
@@ -374,6 +418,12 @@ class MainMenu:
                         set_volume_from_pos(event.pos[0])
                     elif dhd_rect.collidepoint(event.pos):
                         self.toggle_unlock_override()
+                    elif gate_rect.collidepoint(event.pos):
+                        pygame.display.toggle_fullscreen()
+                        # Update layout in case resolution changed? 
+                        # toggle_fullscreen keeps surface size usually, but just in case
+                        pass
+                        
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     dragging_slider = False
                 elif event.type == pygame.MOUSEMOTION:
@@ -431,17 +481,17 @@ class MainMenu:
                 center_x - 400,
                 center_y - 20,  # Adjusted to match moved DHD button
                 800,
-                160
+                240  # Taller for FS toggle
             )
             panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
             panel_surf.fill((30, 40, 60, 200))
             surface.blit(panel_surf, panel_rect.topleft)
             pygame.draw.rect(surface, (100, 150, 200), panel_rect, width=2, border_radius=10)
 
-            # Draw label
+            # Draw Unlock label
             surface.blit(label_surface, label_rect)
 
-            # Draw status text below label
+            # Draw Unlock status text
             state_text = "ENABLED" if self._unlock_override_state() else "DISABLED"
             state_color = (100, 255, 100) if self._unlock_override_state() else (255, 100, 100)
             status_surface = status_font.render(f"Status: {state_text}", True, state_color)
@@ -451,14 +501,22 @@ class MainMenu:
             # Draw DHD toggle button
             dhd_surface = draw_dhd(self._unlock_override_state())
             surface.blit(dhd_surface, dhd_rect.topleft)
+            
+            # Draw Fullscreen label
+            surface.blit(fs_label_surface, fs_label_rect)
+            
+            # Draw Fullscreen Stargate Toggle
+            is_fullscreen = (surface.get_flags() & pygame.FULLSCREEN) != 0
+            gate_surface = draw_stargate_toggle(is_fullscreen, gate_rect)
+            surface.blit(gate_surface, gate_rect.topleft)
 
             # Draw instruction
             surface.blit(instruction_surface, instruction_rect)
 
             # Draw hint text
-            hint_text = "(Drag slider or click DHD to toggle unlock)"
+            hint_text = "(Drag slider or click buttons to toggle options)"
             hint_surface = instruction_font.render(hint_text, True, (150, 150, 150))
-            hint_rect = hint_surface.get_rect(center=(center_x, center_y + 160))
+            hint_rect = hint_surface.get_rect(center=(center_x, center_y + 240))
             surface.blit(hint_surface, hint_rect)
 
             pygame.display.flip()

@@ -15,7 +15,14 @@ class LanChatPanel:
         self.input_text = ""
         self.font = pygame.font.SysFont("Consolas", 24)
         self.title_font = pygame.font.SysFont("Arial", 28)
+        self.font_small = pygame.font.SysFont("Arial", 14, bold=True)
         self.active = True
+        
+        # Typing indicator state
+        self.peer_is_typing = False
+        self.local_is_typing = False
+        self.last_local_input_time = 0
+        self.typing_timeout = 2000  # Send "stopped typing" after 2s of inactivity
 
     def add_message(self, prefix: str, text: str):
         self.chat_log.append(f"{prefix}: {text}")
@@ -24,18 +31,38 @@ class LanChatPanel:
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and self.active:
+            self.last_local_input_time = pygame.time.get_ticks()
+            
             if event.key == pygame.K_RETURN:
                 cleaned = self.input_text.strip()
                 if cleaned:
                     self.session.send(LanMessageType.CHAT.value, {"text": cleaned})
                     self.add_message("You", cleaned)
                 self.input_text = ""
+                # Stop typing status immediately on send
+                if self.local_is_typing:
+                    self.local_is_typing = False
+                    self.session.send(LanMessageType.TYPING.value, {"typing": False})
             elif event.key == pygame.K_BACKSPACE:
                 self.input_text = self.input_text[:-1]
+                # If text becomes empty, we technically stopped typing "content"
+                if not self.input_text and self.local_is_typing:
+                    self.local_is_typing = False
+                    self.session.send(LanMessageType.TYPING.value, {"typing": False})
             else:
                 self.input_text += event.unicode
+                # Started typing
+                if not self.local_is_typing and self.input_text:
+                    self.local_is_typing = True
+                    self.session.send(LanMessageType.TYPING.value, {"typing": True})
 
     def poll_session(self):
+        # Check local typing timeout
+        if self.local_is_typing:
+            if pygame.time.get_ticks() - self.last_local_input_time > self.typing_timeout:
+                self.local_is_typing = False
+                self.session.send(LanMessageType.TYPING.value, {"typing": False})
+
         msg = self.session.receive()
         if not msg:
             return
@@ -46,15 +73,58 @@ class LanChatPanel:
             return
 
         msg_type = parsed.get("type")
+        payload = parsed.get("payload", {})
+        
         if msg_type == LanMessageType.CHAT.value:
-            payload = parsed.get("payload", {})
             self.add_message("Peer", payload.get("text", ""))
+            # If we receive a message, they clearly stopped typing (or sent it)
+            self.peer_is_typing = False
+        elif msg_type == LanMessageType.TYPING.value:
+            self.peer_is_typing = payload.get("typing", False)
         elif msg_type == "disconnect":
             self.add_message("System", "Peer disconnected.")
             self.active = False
+            self.peer_is_typing = False
         else:
             # Put non-chat messages back so game logic can consume them
             self.session.inbox.put(parsed)
+
+    def _draw_typing_indicator(self, surface, input_rect):
+        """Draw 'Dialing...' text and animated chevrons."""
+        # Position above the input box
+        base_x = input_rect.x + 10
+        base_y = input_rect.y - 25
+        
+        # 1. "Dialing..." text
+        text_surf = self.font_small.render("Incoming Wormhole...", True, (100, 200, 255))
+        surface.blit(text_surf, (base_x, base_y))
+        
+        # 2. Animated Chevrons (>>>)
+        text_width = text_surf.get_width()
+        chevron_start_x = base_x + text_width + 10
+        
+        # Animation cycle: 3 chevrons lighting up over 1.5s
+        now = pygame.time.get_ticks()
+        cycle = now % 1500
+        active_chevron = (cycle // 500)  # 0, 1, or 2
+        
+        for i in range(3):
+            # Color: Bright Orange if active, Dim Red if inactive
+            if i == active_chevron:
+                color = (255, 160, 50)  # Bright Amber
+            else:
+                color = (80, 40, 30)    # Dim Rust
+            
+            # Draw Chevron shape (pointing right)
+            cx = chevron_start_x + i * 15
+            cy = base_y + 8
+            points = [
+                (cx, cy - 6),
+                (cx + 8, cy),
+                (cx, cy + 6),
+                (cx + 4, cy) # Inner notch
+            ]
+            pygame.draw.polygon(surface, color, points)
 
     def draw(self, surface, rect: pygame.Rect, title: Optional[str] = None):
         pygame.draw.rect(surface, (25, 30, 50), rect)
@@ -67,7 +137,13 @@ class LanChatPanel:
             surf = self.font.render(line, True, (220, 220, 220))
             surface.blit(surf, (rect.x + 10, y))
             y += 24
+        
         input_rect = pygame.Rect(rect.x, rect.bottom + 10, rect.width, 40)
+        
+        # Draw typing indicator if peer is typing
+        if self.peer_is_typing:
+            self._draw_typing_indicator(surface, input_rect)
+            
         pygame.draw.rect(surface, (30, 35, 60), input_rect)
         pygame.draw.rect(surface, (80, 120, 160), input_rect, 2)
         placeholder = self.input_text or "Type message..."

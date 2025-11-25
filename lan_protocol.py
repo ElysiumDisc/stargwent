@@ -25,6 +25,7 @@ class LanMessageType(str, Enum):
     LEADER_MATCHUP_READY = "leader_ready"
     READY_CHECK = "ready_check"
     STATUS = "status"
+    TYPING = "typing"
 
 
 def build_message(message_type: LanMessageType, payload: Optional[Dict[str, Any]] = None, turn_token: Optional[str] = None) -> Dict[str, Any]:
