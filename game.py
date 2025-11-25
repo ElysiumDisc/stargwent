@@ -80,7 +80,7 @@ class GoauldAbility(FactionAbility):
                         card.displayed_power += BALANCE_CONFIG["goauld_command_bonus"]
 
 
-class JaffarAbility(FactionAbility):
+class JaffaAbility(FactionAbility):
     """Jaffa: 'Brotherhood' - Units get +1 for each other unit in the same row (max +3)."""
     def __init__(self):
         super().__init__(
@@ -144,7 +144,7 @@ class LucianAbility(FactionAbility):
 FACTION_ABILITIES = {
     FACTION_TAURI: TauriAbility(),
     FACTION_GOAULD: GoauldAbility(),
-    FACTION_JAFFA: JaffarAbility(),
+    FACTION_JAFFA: JaffaAbility(),
     FACTION_ASGARD: AsgardAbility(),
     FACTION_LUCIAN: LucianAbility(),
 }

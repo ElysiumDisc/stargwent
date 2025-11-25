@@ -481,6 +481,11 @@ class RulesMenuScreen:
         self.card_list_offset = 0
         self.lore_faction = FACTION_DISPLAY[0]
         self.status_message = "IDLE"
+        
+        # Navigation
+        self.should_exit = False
+        self.back_button_rect = pygame.Rect(0, 0, 0, 0)
+        
         initial_sections = list(self.card_data.get(self.card_faction, {}).keys())
         if initial_sections:
             self.card_section = initial_sections[0]
@@ -598,12 +603,22 @@ class RulesMenuScreen:
         return entries
 
     def _load_background(self) -> Optional[pygame.Surface]:
+        # Try specific rule menu bg first
         bg_path = Path("assets") / "rule_menu_bg.png"
         if bg_path.exists():
             try:
                 return pygame.image.load(bg_path.as_posix()).convert()
             except pygame.error:
-                return None
+                pass
+        
+        # Fallback to deck building bg (common asset)
+        bg_path = Path("assets") / "deck_building_bg.png"
+        if bg_path.exists():
+            try:
+                return pygame.image.load(bg_path.as_posix()).convert()
+            except pygame.error:
+                pass
+                
         return None
 
     def _extract_card_id(self, text: str) -> str:
@@ -754,6 +769,11 @@ class RulesMenuScreen:
             radius * 2,
             radius * 2,
         )
+        
+        # Position back button in bottom left (scaled from 4k ref)
+        # Position: x=100, y=2000, w=350, h=100
+        self.back_button_rect = self._scale_rect((100, 2000, 350, 100))
+        
         self._rebuild_viewport_mask()
         self._rebuild_scanlines()
         self._build_chevron_slots()
@@ -889,6 +909,9 @@ class RulesMenuScreen:
             self._handle_click(event.pos)
         elif event.type == pygame.MOUSEWHEEL:
             self._handle_scroll(event.y)
+        
+        if self.should_exit:
+            return "back"
         return None
 
     def _handle_keypress(self, event):
@@ -938,7 +961,9 @@ class RulesMenuScreen:
 
     def _process_hit(self, hit: Dict):
         action = hit["type"]
-        if action == "chevron":
+        if action == "exit":
+            self.should_exit = True
+        elif action == "chevron":
             self._activate_chevron(hit["slot"])
         elif action == "faction":
             self.active_faction = hit["name"]
@@ -1019,6 +1044,29 @@ class RulesMenuScreen:
         self._draw_chevrons(surface)
         if self.background_scaled:
             surface.blit(self.background_scaled, (0, 0))
+        self._draw_back_button(surface)
+
+    def _draw_back_button(self, surface: pygame.Surface):
+        rect = self.back_button_rect
+        # Use mouse pos for hover effect (if available via external update, otherwise static)
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = rect.collidepoint(mouse_pos)
+        
+        color = self.accent_color if hovered else self.deep_accent
+        bg_color = (20, 40, 60) if hovered else (10, 20, 30)
+        
+        # Draw button background
+        pygame.draw.rect(surface, bg_color, rect, border_radius=8)
+        pygame.draw.rect(surface, color, rect, 2, border_radius=8)
+        
+        # Draw text
+        text = self.body_font.render("MAIN MENU", True, self.text_color)
+        text_rect = text.get_rect(center=rect.center)
+        surface.blit(text, text_rect)
+        
+        # Register hit region
+        self.hit_regions.append({"type": "exit", "rect": rect})
+
 
     def _draw_soft_grid(self, surface: pygame.Surface):
         spacing = max(80, int(140 * self.scale))
