@@ -1608,6 +1608,10 @@ class DeckBuilderUI:
         _, _, normal_card_width, normal_card_height = self.get_card_layout_params(left_panel_width)
         preview_card_width = normal_card_width * 2
         preview_card_height = normal_card_height * 2
+        
+        # Text area height
+        text_area_height = 140
+        total_height = preview_card_height + text_area_height
 
         # Position in top right corner of left panel with some padding
         preview_padding = 15
@@ -1615,8 +1619,8 @@ class DeckBuilderUI:
         preview_y = left_panel_y + preview_padding
 
         # Draw semi-transparent background
-        bg_surface = pygame.Surface((preview_card_width + 10, preview_card_height + 10), pygame.SRCALPHA)
-        bg_surface.fill((0, 0, 0, 180))
+        bg_surface = pygame.Surface((preview_card_width + 10, total_height + 10), pygame.SRCALPHA)
+        bg_surface.fill((10, 10, 15, 230))  # Darker, more opaque background for readability
         surface.blit(bg_surface, (preview_x - 5, preview_y - 5))
 
         # Draw the card image scaled to preview size
@@ -1627,18 +1631,72 @@ class DeckBuilderUI:
             # Fallback: draw a colored rectangle if image fails
             pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), border_radius=8)
 
-        # Draw golden border to make it stand out
-        pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), width=4, border_radius=8)
+        # Determine border color based on card type/rarity
+        border_color = (205, 127, 50)  # Bronze (default for units)
+        
+        is_hero = False
+        if card.ability and "Legendary" in card.ability:
+            is_hero = True
+        elif card.power >= 10 and card.row not in ["special", "weather"]:
+            is_hero = True
+            
+        if is_hero:
+            border_color = (255, 215, 0)  # Gold for Heroes
+        elif card.row in ["special", "weather"]:
+            border_color = (192, 192, 192)  # Silver for Special/Weather
+            
+        # Draw border around the IMAGE only
+        pygame.draw.rect(surface, border_color, pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), width=4, border_radius=8)
 
-        # Draw power overlay for unit cards
+        # Draw power overlay for unit cards (on the image)
         if card.row not in ["special", "weather"]:
             power_font = pygame.font.SysFont("Arial", 28, bold=True)
             power_text = power_font.render(str(card.power), True, (255, 255, 255))
             power_rect = power_text.get_rect(center=(preview_x + preview_card_width // 2, preview_y + preview_card_height - 25))
             # Black background for power text
-            bg_rect = power_rect.inflate(8, 4)
+            bg_rect = power_rect.inflate(16, 8)
             pygame.draw.rect(surface, (0, 0, 0), bg_rect, border_radius=3)
+            pygame.draw.rect(surface, (200, 200, 200), bg_rect, width=1, border_radius=3)
             surface.blit(power_text, power_rect)
+            
+        # --- Draw Text Info Below Image ---
+        text_start_y = preview_y + preview_card_height + 10
+        center_x = preview_x + preview_card_width // 2
+        
+        # 1. Card Name
+        name_font = pygame.font.SysFont("Arial", 20, bold=True)
+        name_text = name_font.render(card.name, True, (255, 215, 0)) # Gold color
+        name_rect = name_text.get_rect(center=(center_x, text_start_y + 10))
+        surface.blit(name_text, name_rect)
+        
+        # 2. Row / Type
+        type_font = pygame.font.SysFont("Arial", 16, italic=True)
+        row_str = card.row.capitalize()
+        if card.row == "close": row_str = "Melee Combat"
+        elif card.row == "ranged": row_str = "Ranged Combat"
+        elif card.row == "siege": row_str = "Siege Combat"
+        
+        type_text = type_font.render(f"{row_str} • {card.faction}", True, (180, 180, 180))
+        type_rect = type_text.get_rect(center=(center_x, text_start_y + 32))
+        surface.blit(type_text, type_rect)
+        
+        # 3. Ability Description
+        if card.ability:
+            desc_font = pygame.font.SysFont("Arial", 16)
+            # Wrap text
+            wrapped_lines = self.wrap_text(card.ability, desc_font, preview_card_width - 10)
+            line_y = text_start_y + 55
+            for line in wrapped_lines:
+                line_text = desc_font.render(line, True, (220, 220, 220))
+                line_rect = line_text.get_rect(center=(center_x, line_y))
+                surface.blit(line_text, line_rect)
+                line_y += 18
+        else:
+            # No ability text
+            desc_font = pygame.font.SysFont("Arial", 16)
+            no_ab_text = desc_font.render("No special ability.", True, (100, 100, 100))
+            no_ab_rect = no_ab_text.get_rect(center=(center_x, text_start_y + 60))
+            surface.blit(no_ab_text, no_ab_rect)
 
     def draw_card_type_tabs(self, surface, faction_color):
         """Draw tabs for filtering cards by type."""
