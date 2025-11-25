@@ -54,6 +54,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
 - **⚡ NEW v2.9: LAN MULTIPLAYER OVERHAUL** - Fixed game loop, added all animations for both players, robust disconnect handling!
+- **⚡ NEW v2.9: IN-MATCH LAN CHAT OVERLAY** - Toggle T/ESC to open the "Subspace Communications" modal with typing indicators while keeping history visible!
 - **⚡ NEW v2.9: TAILSCALE SUPPORT** - Smart IP detection prioritizes Tailscale VPN addresses for easy remote play!
 - **⚡ NEW v2.8: LEGENDARY COMMANDER VOICE SNIPPETS** - Every legendary commander plays a character voice clip when deployed!
 - **⚡ NEW v2.7: ALLIANCE COMBO TRACKING** - Alliance activations now show in history viewer with full visibility!
@@ -196,6 +197,7 @@ All abilities renamed and themed around Stargate lore:
   - Connects to Tailscale coordination server (100.100.100.100)
   - Falls back to standard socket methods
   - No sudo required, no network traffic sent
+- ✅ **LAN Chat Overlay in Main Loop** – Chat now lives in the core game loop: toggle with `T` or `ESC`, modal "Subspace Communications" window, "Press T to Chat" hint when closed, "Dialing..." typing indicator, and the history panel stays visible during LAN matches.
 - ✅ **LAN State Sync Fixes** – Mulligans and Hathor’s steal now stay in lockstep: both players see the heart-kiss animation and the stolen card lands in the correct row before turns switch.
 
 ### 🗺️ Roadmap / Future Implementation Notes
@@ -957,6 +959,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **SPACEBAR** - Activate Faction Power OR preview selected card
 - **D** - View discard pile (scroll with mouse wheel, ESC to close)
 - **ESC** - Close overlays / Pause menu
+- **T** - Toggle LAN chat overlay ("Subspace Communications"); consumes keyboard input while active
 - **F11 / Alt+Enter** - Toggle fullscreen (mode persists across menus/matchups; also selectable via `--fullscreen` or `STARGWENT_FULLSCREEN=1`)
 - **R** - Restart (game over)
 - **Arrow Keys / WASD** - Navigate menus
@@ -1131,7 +1134,7 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - `lan_opponent.py` (296 lines) - NetworkController and NetworkPlayerProxy
 - `lan_menu.py` (170 lines) - Host/Join connection interface
 - `lan_lobby.py` (195 lines) - **NEW v2.5!** Waiting room with ready system
-- `lan_chat.py` (66 lines) - Chat panel for multiplayer
+- `lan_chat.py` (66 lines) - "Subspace Communications" overlay, chat hint, and typing indicator for LAN matches
 - `lan_context.py` (25 lines) - Data structures for LAN state
 
 #### **Utility Files**
@@ -1314,7 +1317,7 @@ All files are optional - missing files are silently skipped (no crashes).
   - Pass turn synchronization
   - Faction power activation sync
   - NetworkController seamlessly replaces AI
-- **Chat System**: Built-in chat replaces history panel during multiplayer - type to communicate!
+- **Chat System**: "Subspace Communications" overlay toggles with `T`/`ESC`; when active it captures keyboard focus, when closed a subtle "Press T to Chat" hint sits below history, and the history panel stays visible during LAN matches.
 - **Unlock Override**: All factions, leaders, and cards automatically unlocked in LAN mode (no grind)
 - **Single-Player Unaffected**: Your progression system remains intact for solo games
 - **Zero Dependencies**: Uses only Python's built-in `socket` module - no extra packages needed!
@@ -1631,6 +1634,7 @@ Suggestions and feedback welcome!
 | Pass Turn | Click DHD button (glowing red center) |
 | **Activate Faction Power** | **Press SPACEBAR or click ACTIVATE** |
 | **Debug Overlay** | **F3 (toggle zone boundaries)** |
+| Open LAN Chat | Press T (ESC to close; LAN matches only) |
 | View Discard | Press D |
 | Inspect Leader | Right click leader portrait |
 | Drag Card (Deck Builder) | LEFT CLICK + DRAG |
@@ -1748,8 +1752,8 @@ Stargwent features **peer-to-peer TCP-based LAN multiplayer** where two players 
 - **YOU (Player 1)**: Hand face-up, full control
 - **OPPONENT (Player 2)**: Hand as card backs (hidden), replays network actions
 - **Board**: Shared view, all cards visible
-- **Chat Panel**: Bottom-right corner during match
-- **History Panel**: Left side shows game events (NOT chat)
+- **Chat Overlay**: Toggle with `T` (or `ESC` to close) to open the modal "Subspace Communications" window; "Press T to Chat" hint appears when inactive; overlay consumes keyboard input while typing.
+- **History Panel**: Left side shows game events and stays visible even during LAN chat
 
 ### Key Components
 
