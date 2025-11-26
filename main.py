@@ -34,6 +34,11 @@ from animations import (
     ClearWeatherBlackHole,
     MeteorShowerImpactEffect,
     HathorStealAnimation,
+    ThorsHammerPurgeEffect,
+    ZPMSurgeEffect,
+    CommunicationRevealEffect,
+    MerlinAntiOriEffect,
+    DakaraShockwaveEffect,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -536,6 +541,29 @@ def _draw_drag_trail(surface, trail_entries):
             trail_surface,
             (int(pos[0] - width // 2), int(pos[1] - height // 2))
         )
+
+
+def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width, screen_height):
+    """Trigger unique animations for special cards matching lore/logic."""
+    name_lower = (card.name or "").lower()
+    ability_lower = (card.ability or "").lower()
+
+    if "thor" in name_lower or "remove all goa'uld" in ability_lower:
+        anim_manager.add_effect(ThorsHammerPurgeEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    if "zero point module" in name_lower or "zpm" in name_lower or "double all your siege" in ability_lower:
+        anim_manager.add_effect(ZPMSurgeEffect(effect_x, effect_y))
+        return True
+    if "communication device" in name_lower or "reveal opponent's hand" in ability_lower:
+        anim_manager.add_effect(CommunicationRevealEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    if "merlin" in name_lower or "anti-ori" in name_lower:
+        anim_manager.add_effect(MerlinAntiOriEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    if "dakara" in name_lower:
+        anim_manager.add_effect(DakaraShockwaveEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    return False
 
 
 def draw_card(surface, card, x, y, selected=False, hover_scale=1.0, tilt_angle=0.0,
@@ -4266,6 +4294,17 @@ def main(lan_game_data=None):
                                         # Default stargate effect if no special ability
                                         if not ability_triggered:
                                             anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y))
+
+                                    # Special card unique visuals
+                                    if dragging_card.row == "special":
+                                        add_special_card_effect(
+                                            dragging_card,
+                                            effect_x,
+                                            effect_y,
+                                            anim_manager,
+                                            SCREEN_WIDTH,
+                                            SCREEN_HEIGHT
+                                        )
                                     
                                     # Add ship to space battle if siege card is PLAYED
                                     if dragging_card.row == "siege":
@@ -4506,6 +4545,17 @@ def main(lan_game_data=None):
                         if not ability_triggered:
                             stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
                             anim_manager.add_effect(stargate_effect)
+
+                        # Special card unique visuals
+                        if ai_card_to_play.row == "special":
+                            add_special_card_effect(
+                                ai_card_to_play,
+                                effect_x,
+                                effect_y,
+                                anim_manager,
+                                SCREEN_WIDTH,
+                                SCREEN_HEIGHT
+                            )
                 
                 ai_turn_anim.start_resolving()
             
@@ -4583,6 +4633,15 @@ def main(lan_game_data=None):
                     target_rect = PLAYER_ROW_RECTS.get(row_to_play) or target_rect
                 effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
                 effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
+                if card_to_play.row == "special":
+                    add_special_card_effect(
+                        card_to_play,
+                        effect_x,
+                        effect_y,
+                        anim_manager,
+                        SCREEN_WIDTH,
+                        SCREEN_HEIGHT
+                    )
 
                 weather_visual_applied = False
                 if card_to_play.row == "weather":

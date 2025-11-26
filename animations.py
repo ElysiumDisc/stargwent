@@ -2662,6 +2662,147 @@ class ClearWeatherBlackHole(HeroEntryAnimation):
                 p['alpha'] = max(0, p['alpha'] - 8 * (dt / 16.0))
         
         return not self.finished
+
+
+# === Special Card Effects ===
+
+class ThorsHammerPurgeEffect(Animation):
+    """Blue-white vertical purge beam for Thor's Hammer."""
+    def __init__(self, x, y, width, height, duration=1100):
+        super().__init__(duration=duration, easing='linear')
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+        alpha = int(255 * (1 - abs(progress - 0.5) * 2))
+        beam_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        core_color = (120, 200, 255, max(60, alpha))
+        glow_color = (80, 160, 255, max(30, alpha // 2))
+
+        beam_rect = pygame.Rect(self.x - 6, 0, 12, self.height)
+        pygame.draw.rect(beam_surface, core_color, beam_rect)
+        pygame.draw.rect(beam_surface, glow_color, beam_rect.inflate(30, 0))
+
+        max_radius = int(180 + 220 * progress)
+        for r in range(0, max_radius, 30):
+            ring_alpha = max(0, int(150 * (1 - r / max_radius)))
+            pygame.draw.circle(
+                beam_surface,
+                (120, 200, 255, ring_alpha),
+                (self.x, self.y),
+                r,
+                width=3
+            )
+
+        surface.blit(beam_surface, (0, 0))
+
+
+class ZPMSurgeEffect(Animation):
+    """Cyan-gold pulse that doubles siege power."""
+    def __init__(self, x, y, duration=1000):
+        super().__init__(duration=duration, easing='linear')
+        self.x = x
+        self.y = y
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+        pulse = math.sin(progress * math.pi)
+        radius = int(80 + 180 * progress)
+        surge_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+        center = (radius, radius)
+
+        pygame.draw.circle(surge_surface, (40, 200, 255, int(180 * pulse)), center, radius, width=6)
+        pygame.draw.circle(surge_surface, (255, 215, 120, int(120 * pulse)), center, max(10, radius // 3))
+        pygame.draw.circle(surge_surface, (255, 255, 255, int(90 * pulse)), center, max(6, radius // 6))
+
+        surface.blit(surge_surface, (self.x - radius, self.y - radius))
+
+
+class CommunicationRevealEffect(Animation):
+    """Eye sweep revealing opponent hand."""
+    def __init__(self, x, y, screen_width, screen_height, duration=1200):
+        super().__init__(duration=duration, easing='linear')
+        self.x = x
+        self.y = y
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        sweep_x = int(self.screen_width * progress)
+        sweep_width = 240
+        sweep_rect = pygame.Rect(sweep_x - sweep_width // 2, 0, sweep_width, self.screen_height)
+        pygame.draw.rect(overlay, (120, 200, 255, 90), sweep_rect)
+
+        eye_radius = 42
+        pygame.draw.circle(overlay, (180, 220, 255, 200), (self.x, self.y), eye_radius)
+        pygame.draw.circle(overlay, (40, 80, 140, 230), (self.x, self.y), max(12, eye_radius // 2))
+        pygame.draw.line(overlay, (200, 240, 255, 200), (self.x - 50, self.y), (self.x + 50, self.y), 3)
+
+        surface.blit(overlay, (0, 0))
+
+
+class MerlinAntiOriEffect(Animation):
+    """Golden-white anti-Ori blast that only hits the opponent."""
+    def __init__(self, x, y, screen_width, screen_height, duration=1100):
+        super().__init__(duration=duration, easing='linear')
+        self.x = x
+        self.y = y
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        blast_radius = int(120 + 260 * progress)
+        center = (self.x, self.y)
+        pygame.draw.circle(overlay, (255, 230, 180, 150), center, blast_radius, width=6)
+        pygame.draw.circle(overlay, (255, 255, 200, 120), center, max(10, blast_radius // 3))
+        pygame.draw.circle(overlay, (255, 255, 255, 90), center, max(8, blast_radius // 6))
+
+        beam_height = self.screen_height // 2
+        beam_rect = pygame.Rect(self.x - 12, 0, 24, beam_height)
+        pygame.draw.rect(overlay, (255, 230, 180, 140), beam_rect)
+        pygame.draw.rect(overlay, (255, 255, 200, 90), beam_rect.inflate(30, 0))
+
+        surface.blit(overlay, (0, 0))
+
+
+class DakaraShockwaveEffect(Animation):
+    """Massive radial shockwave for Dakara Superweapon."""
+    def __init__(self, x, y, screen_width, screen_height, duration=1300):
+        super().__init__(duration=duration, easing='linear')
+        self.x = x
+        self.y = y
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+
+        radius = int(progress * max(self.screen_width, self.screen_height))
+        ring_alpha = max(0, int(180 * (1 - progress)))
+        pygame.draw.circle(overlay, (255, 140, 80, ring_alpha), (self.x, self.y), radius, width=10)
+
+        core_radius = int(120 + 120 * progress)
+        pygame.draw.circle(overlay, (255, 200, 120, ring_alpha), (self.x, self.y), core_radius)
+
+        surface.blit(overlay, (0, 0))
     
     def draw(self, surface):
         progress = self.get_progress()

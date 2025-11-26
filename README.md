@@ -786,21 +786,21 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 ### Special Card Abilities
 
 #### **Thor's Hammer** ⚡
-- Removes ALL Goa'uld units from both boards
-- Faction-specific destruction
+- Removes ALL Goa'uld units from both boards (instant purge)
+- Asgard anti-Goa'uld failsafe
 
 #### **Zero Point Module (ZPM)** ⚡
-- Doubles ALL your siege units' power
+- Doubles ALL your siege units' power for the rest of the round
 - Ancient power source
 
 #### **Communication Device** 📡
-- Reveals opponent's hand for rest of round
+- Reveals opponent's hand for the rest of the round
 - Ancient stones allow you to see through enemy eyes
 - Intelligence gathering
 
 #### **Merlin's Anti-Ori Weapon** ⚡
 - One-sided Naquadah Overload
-- Destroys ONLY opponent's strongest units (yours are safe)
+- Destroys ONLY opponent's strongest non-Hero units (yours are safe)
 - Designed to destroy ascended beings
 
 #### **Dakara Superweapon** 💥
