@@ -654,6 +654,12 @@ class Game:
         # Randomize who goes first (50/50 coin toss)
         self.current_player = self.rng.choice([self.player1, self.player2])
         
+        # Stats tracking
+        self.turn_count = 0
+        self.player_mulligan_count = 0
+        self.ability_usage = {"medic": 0, "decoy": 0, "faction_power": 0, "iris_blocks": 0}
+        self.cards_played_ids = []
+        
         self.round_number = 1
         self.game_state = "mulligan"  # Start with mulligan phase
         self.weather_active = {"close": False, "ranged": False, "siege": False}
@@ -817,6 +823,8 @@ class Game:
             self.current_player = self.player2
         else:
             self.current_player = self.player1
+        # Track turn changes
+        self.turn_count += 1
         
         # Reset plays this turn counter when switching turns
         self.current_player.plays_this_turn = 0
@@ -848,6 +856,8 @@ class Game:
             self.current_player.hand.remove(card)
             self.current_player.discard_pile.append(card)
             opponent.iris_defense.deactivate()
+            if opponent == self.player1:
+                self.ability_usage["iris_blocks"] = self.ability_usage.get("iris_blocks", 0) + 1
 
             # Log the blocked card in history
             blocker_label = "player" if opponent == self.player1 else "opponent"
@@ -865,6 +875,9 @@ class Game:
         if card in self.current_player.hand:
             self.current_player.hand.remove(card)
             self.last_turn_actor = player
+            
+            if self.current_player == self.player1 and hasattr(card, "id"):
+                self.cards_played_ids.append(card.id)
             
             # Handle weather cards
             if card.row == "weather":
@@ -1233,6 +1246,8 @@ class Game:
         # Place in appropriate row
         target_row = revived.row if revived.row != "agile" else "close"
         player.board[target_row].append(revived)
+        if player == self.player1:
+            self.ability_usage["medic"] = self.ability_usage.get("medic", 0) + 1
         return revived
     
     def get_medic_valid_cards(self, player):
@@ -1833,6 +1848,8 @@ class Game:
         
         # Add to current player's hand (who played the decoy)
         self.current_player.hand.append(selected_card)
+        if self.current_player == self.player1:
+            self.ability_usage["decoy"] = self.ability_usage.get("decoy", 0) + 1
         
         return True
     

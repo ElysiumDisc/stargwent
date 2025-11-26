@@ -174,6 +174,12 @@ class DeckPersistence:
             self.unlock_data["consecutive_wins"] = 0
             print("✗ Loss recorded. Win streak reset.")
         
+        # Track max streak
+        current_streak = self.unlock_data.get("consecutive_wins", 0)
+        max_streak = self.unlock_data.get("max_streak", 0)
+        if current_streak > max_streak:
+            self.unlock_data["max_streak"] = current_streak
+        
         self.save_unlocks()
     
     def get_consecutive_wins(self) -> int:
@@ -190,9 +196,19 @@ class DeckPersistence:
             "lan_games": self.unlock_data.get("lan_games", 0),
             "lan_wins": self.unlock_data.get("lan_wins", 0),
             "consecutive_wins": self.unlock_data.get("consecutive_wins", 0),
+            "max_streak": self.unlock_data.get("max_streak", 0),
             "faction_wins": self.unlock_data.get("faction_wins", {}),
             "unlocked_leaders": len(self.unlock_data.get("unlocked_leaders", [])),
-            "unlocked_cards": len(self.unlock_data.get("unlocked_cards", []))
+            "unlocked_cards": len(self.unlock_data.get("unlocked_cards", [])),
+            "leader_stats": self.unlock_data.get("leader_stats", {}),
+            "matchups": self.unlock_data.get("matchups", {}),
+            "last_results": self.unlock_data.get("last_results", []),
+            "turn_stats": self.unlock_data.get("turn_stats", {}),
+            "mulligans": self.unlock_data.get("mulligans", {}),
+            "ability_usage": self.unlock_data.get("ability_usage", {}),
+            "top_cards": self.unlock_data.get("top_cards", {}),
+            "lan_reliability": self.unlock_data.get("lan_reliability", {}),
+            "ai_difficulty": self.unlock_data.get("ai_difficulty", {}),
         }
 
     def reset_stats(self):
@@ -200,11 +216,99 @@ class DeckPersistence:
         self.unlock_data["total_games"] = 0
         self.unlock_data["total_wins"] = 0
         self.unlock_data["consecutive_wins"] = 0
+        self.unlock_data["max_streak"] = 0
         self.unlock_data["faction_wins"] = {}
         self.unlock_data["ai_games"] = 0
         self.unlock_data["ai_wins"] = 0
         self.unlock_data["lan_games"] = 0
         self.unlock_data["lan_wins"] = 0
+        self.unlock_data["leader_stats"] = {}
+        self.unlock_data["matchups"] = {}
+        self.unlock_data["last_results"] = []
+        self.unlock_data["turn_stats"] = {}
+        self.unlock_data["mulligans"] = {}
+        self.unlock_data["ability_usage"] = {}
+        self.unlock_data["top_cards"] = {}
+        self.unlock_data["lan_reliability"] = {}
+        self.unlock_data["ai_difficulty"] = {}
+        self.save_unlocks()
+
+    def record_game_summary(self, summary: Dict):
+        """Record rich game summary for advanced stats."""
+        # Leader stats
+        leader_name = summary.get("leader") or "Unknown"
+        leader_stats = self.unlock_data.setdefault("leader_stats", {})
+        leader_entry = leader_stats.setdefault(leader_name, {"games": 0, "wins": 0})
+        leader_entry["games"] += 1
+        if summary.get("won"):
+            leader_entry["wins"] += 1
+
+        # Matchups
+        pf = summary.get("player_faction", "Unknown")
+        of = summary.get("opponent_faction", "Unknown")
+        matchups = self.unlock_data.setdefault("matchups", {})
+        pf_map = matchups.setdefault(pf, {})
+        pair = pf_map.setdefault(of, {"games": 0, "wins": 0})
+        pair["games"] += 1
+        if summary.get("won"):
+            pair["wins"] += 1
+
+        # Max streak already tracked elsewhere; store last results for form
+        last_results = self.unlock_data.setdefault("last_results", [])
+        last_results.append("W" if summary.get("won") else "L")
+        self.unlock_data["last_results"] = last_results[-10:]
+
+        # Turn stats
+        turn_stats = self.unlock_data.setdefault("turn_stats", {"total": 0, "games": 0, "min": None, "max": None, "history": []})
+        turns = summary.get("turns")
+        if isinstance(turns, int):
+            turn_stats["total"] += turns
+            turn_stats["games"] += 1
+            turn_stats["min"] = turns if turn_stats["min"] is None else min(turn_stats["min"], turns)
+            turn_stats["max"] = turns if turn_stats["max"] is None else max(turn_stats["max"], turns)
+            turn_history = turn_stats.setdefault("history", [])
+            turn_history.append(turns)
+            turn_stats["history"] = turn_history[-50:]
+
+        # Mulligans
+        mull_data = self.unlock_data.setdefault("mulligans", {"total": 0, "games": 0})
+        mulls = summary.get("mulligans")
+        if isinstance(mulls, int):
+            mull_data["total"] += mulls
+            mull_data["games"] += 1
+
+        # Ability usage
+        abilities = self.unlock_data.setdefault("ability_usage", {})
+        for key in ("medic", "decoy", "faction_power", "iris_blocks"):
+            abilities[key] = abilities.get(key, 0) + int(summary.get("abilities", {}).get(key, 0))
+
+        # Top cards
+        top_cards = self.unlock_data.setdefault("top_cards", {})
+        for cid in summary.get("cards_played", []):
+            if not cid:
+                continue
+            entry = top_cards.setdefault(cid, {"plays": 0, "wins": 0})
+            entry["plays"] += 1
+            if summary.get("won"):
+                entry["wins"] += 1
+
+        # Mode details
+        if summary.get("mode") == "lan":
+            lan_reliability = self.unlock_data.setdefault("lan_reliability", {"completed": 0, "disconnects": 0})
+            if summary.get("lan_completed"):
+                lan_reliability["completed"] += 1
+            if summary.get("lan_disconnect"):
+                lan_reliability["disconnects"] += 1
+
+        # AI difficulty split
+        ai_difficulty = summary.get("ai_difficulty")
+        if ai_difficulty:
+            ai_stats = self.unlock_data.setdefault("ai_difficulty", {})
+            entry = ai_stats.setdefault(ai_difficulty, {"games": 0, "wins": 0})
+            entry["games"] += 1
+            if summary.get("won"):
+                entry["wins"] += 1
+
         self.save_unlocks()
 
 # Global instance

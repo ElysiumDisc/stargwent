@@ -1007,6 +1007,11 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **Placeholder Generation** - Run `create_placeholders.py` to (re)create the universal template plus all cards/portraits (including Bra'tac alias cleanup).
 - **Simplified Keyboard** - Only essential keys: D (discard), Space (preview/power), ESC (close/pause)
 
+### 📊 Stats & Analytics
+- **New Stats Screen** - Main menu “Stats” shows games/wins/losses, winrate, streaks, AI vs LAN records, most-played faction/leader, matchups, form (last 10), game length (avg/fastest/longest), mulligan averages, ability usage (Medic/Decoy/Faction Power/Iris blocks), top cards, AI difficulty split, and LAN reliability.
+- **Hard AI Only** - Single-player AI now always runs at the hardest difficulty (no easy/medium variants).
+- **Rich Tracking** - Per-leader records, faction-vs-faction matrix, turn counts, mulligans, ability triggers, top-card plays/wins, streak history, and mode-aware stats persisted across sessions.
+
 #### **NEW v0.9: Cinematic & Polish Updates**
 - **Leader Matchup Animation** - 5-second cinematic confrontation with Stargate event horizon, lightning collision, and 40+ lore-based quotes for every leader combination
 - **Pause Menu System** - ESC anytime to pause with Resume/Main Menu/Quit options

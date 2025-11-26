@@ -275,16 +275,57 @@ class MainMenu:
             ai_wins = stats.get("ai_wins", 0)
             lan_games = stats.get("lan_games", 0)
             lan_wins = stats.get("lan_wins", 0)
+            leader_stats = stats.get("leader_stats", {})
+            matchups = stats.get("matchups", {})
+            last_results = stats.get("last_results", [])
+            turn_stats = stats.get("turn_stats", {})
+            mulligans = stats.get("mulligans", {})
+            abilities = stats.get("ability_usage", {})
+            top_cards = stats.get("top_cards", {})
+            lan_rel = stats.get("lan_reliability", {})
+            ai_difficulties = stats.get("ai_difficulty", {})
+            top_leader = max(leader_stats.items(), key=lambda kv: kv[1].get("games", 0))[0] if leader_stats else None
+            best_matchup = None
+            if matchups:
+                flat = []
+                for pf, opps in matchups.items():
+                    for of, rec in opps.items():
+                        flat.append((pf, of, rec.get("wins", 0), rec.get("games", 0)))
+                if flat:
+                    best_matchup = max(flat, key=lambda x: x[2])
+            turn_avg = 0
+            turn_min = turn_stats.get("min")
+            turn_max = turn_stats.get("max")
+            if turn_stats.get("games", 0) > 0:
+                turn_avg = turn_stats.get("total", 0) / max(1, turn_stats.get("games", 1))
+            mull_avg = 0
+            if mulligans.get("games", 0) > 0:
+                mull_avg = mulligans.get("total", 0) / max(1, mulligans.get("games", 1))
+            top_card_list = sorted(top_cards.items(), key=lambda kv: kv[1].get("plays", 0), reverse=True)[:3] if top_cards else []
             return {
                 "total_games": total_games,
                 "total_wins": total_wins,
                 "total_losses": total_losses,
                 "streak": streak,
+                "max_streak": stats.get("max_streak", 0),
                 "top_faction": top_faction,
                 "ai_games": ai_games,
                 "ai_wins": ai_wins,
                 "lan_games": lan_games,
                 "lan_wins": lan_wins,
+                "leader_stats": leader_stats,
+                "top_leader": top_leader,
+                "matchups": matchups,
+                "best_matchup": best_matchup,
+                "last_results": last_results,
+                "turn_avg": turn_avg,
+                "turn_min": turn_min,
+                "turn_max": turn_max,
+                "mull_avg": mull_avg,
+                "abilities": abilities,
+                "top_cards": top_card_list,
+                "lan_reliability": lan_rel,
+                "ai_difficulties": ai_difficulties,
             }
 
         computed = compute(stats)
@@ -402,8 +443,9 @@ class MainMenu:
             draw_row("Games Played", str(computed["total_games"]), row_y); row_y += row_gap
             draw_row("Wins", str(computed["total_wins"]), row_y); row_y += row_gap
             draw_row("Losses", str(computed["total_losses"]), row_y); row_y += row_gap
-            draw_row("Win Rate", f"{winrate:.1f}% ", row_y); row_y += row_gap
+            draw_row("Win Rate", f"{winrate:.1f}%", row_y); row_y += row_gap
             draw_row("Current Streak", f"{computed['streak']} wins", row_y); row_y += row_gap
+            draw_row("Max Streak", f"{computed['max_streak']} wins", row_y); row_y += row_gap
 
             # Faction highlight
             top_faction_text = computed["top_faction"] if computed["top_faction"] else "No games yet"
@@ -427,8 +469,75 @@ class MainMenu:
             panel_surf.blit(section_leader, section_leader_rect)
             row_y += row_gap
 
-            # Leader placeholder
-            draw_row("Most Played Leader", "Coming soon (leader stats)", row_y); row_y += row_gap
+            # Leader
+            draw_row("Most Played Leader", computed.get("top_leader") or "No data", row_y); row_y += row_gap
+
+            # Matchups
+            section_match = section_font.render("Matchups", True, (150, 210, 255))
+            panel_surf.blit(section_match, section_match.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            if computed.get("best_matchup"):
+                pf, of, wins, games = computed["best_matchup"]
+                draw_row("Best Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L", row_y); row_y += row_gap
+            else:
+                draw_row("Best Matchup", "No data", row_y); row_y += row_gap
+
+            # Form
+            section_form = section_font.render("Form", True, (150, 210, 255))
+            panel_surf.blit(section_form, section_form.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            last10 = "".join(computed.get("last_results", [])) or "No games"
+            draw_row("Last 10", last10, row_y); row_y += row_gap
+
+            # Game length
+            section_len = section_font.render("Game Length", True, (150, 210, 255))
+            panel_surf.blit(section_len, section_len.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            draw_row("Avg Turns", f"{computed['turn_avg']:.1f}" if computed.get("turn_avg") else "N/A", row_y); row_y += row_gap
+            draw_row("Fastest / Longest", f"{computed.get('turn_min','N/A')} / {computed.get('turn_max','N/A')}", row_y); row_y += row_gap
+
+            # Mulligans
+            draw_row("Mulligans (avg)", f"{computed['mull_avg']:.1f}" if computed.get("mull_avg") else "N/A", row_y); row_y += row_gap
+
+            # Abilities
+            section_ab = section_font.render("Abilities", True, (150, 210, 255))
+            panel_surf.blit(section_ab, section_ab.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            ab = computed.get("abilities", {})
+            draw_row("Medic Uses", str(ab.get("medic", 0)), row_y); row_y += row_gap
+            draw_row("Decoy Uses", str(ab.get("decoy", 0)), row_y); row_y += row_gap
+            draw_row("Faction Power", str(ab.get("faction_power", 0)), row_y); row_y += row_gap
+            draw_row("Iris Blocks", str(ab.get("iris_blocks", 0)), row_y); row_y += row_gap
+
+            # Top cards
+            section_cards = section_font.render("Top Cards", True, (150, 210, 255))
+            panel_surf.blit(section_cards, section_cards.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            if computed.get("top_cards"):
+                for cid, rec in computed["top_cards"]:
+                    card_name = ALL_CARDS[cid].name if cid in ALL_CARDS else cid
+                    draw_row(card_name, f"{rec.get('plays',0)} plays / {rec.get('wins',0)} wins", row_y); row_y += row_gap
+            else:
+                draw_row("Top Cards", "No data", row_y); row_y += row_gap
+
+            # AI difficulty
+            section_ai_d = section_font.render("AI Difficulty", True, (150, 210, 255))
+            panel_surf.blit(section_ai_d, section_ai_d.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            ai_diff = computed.get("ai_difficulties") or {}
+            if ai_diff:
+                for diff, rec in ai_diff.items():
+                    draw_row(diff.title(), f"{rec.get('wins',0)}W / {rec.get('games',0)-rec.get('wins',0)}L", row_y); row_y += row_gap
+            else:
+                draw_row("Hard", "No data", row_y); row_y += row_gap
+
+            # LAN reliability
+            section_lan = section_font.render("LAN Reliability", True, (150, 210, 255))
+            panel_surf.blit(section_lan, section_lan.get_rect(topleft=(40, row_y + 8)))
+            row_y += row_gap
+            lan_rel = computed.get("lan_reliability") or {}
+            draw_row("Completed LAN", str(lan_rel.get("completed", 0)), row_y); row_y += row_gap
+            draw_row("Disconnects", str(lan_rel.get("disconnects", 0)), row_y); row_y += row_gap
 
             hint = value_font.render("Click or press ESC/Enter to go back", True, (170, 190, 210))
             hint_rect = hint.get_rect(center=(panel_rect.width // 2, panel_rect.height - 50))

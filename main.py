@@ -3939,6 +3939,8 @@ def main(lan_game_data=None):
                             # Send over network in LAN mode
                             if network_proxy:
                                 network_proxy.send_faction_power(game.player1.faction_power.name)
+                            # Track ability usage
+                            game.ability_usage["faction_power"] = game.ability_usage.get("faction_power", 0) + 1
                             game.player1.calculate_score()
                             game.player2.calculate_score()
                     continue
@@ -3999,6 +4001,7 @@ def main(lan_game_data=None):
                             continue
                         selected_indices = [i for i, card in enumerate(game.player1.hand) if card in mulligan_selected]
                         game.mulligan(game.player1, mulligan_selected)
+                        game.player_mulligan_count = len(selected_indices)
                         mulligan_local_done = True
                         mulligan_selected = []
 
@@ -4875,6 +4878,29 @@ def main(lan_game_data=None):
                     else:
                         record_defeat(player_faction, mode_label)
                         unlock_system.record_game_result(False)
+
+                    # Record rich stats summary once per game
+                    try:
+                        leader_name = (game.player1.leader or {}).get('name', 'Unknown') if isinstance(game.player1.leader, dict) else str(game.player1.leader)
+                        opponent_leader = (game.player2.leader or {}).get('name', 'Unknown') if isinstance(game.player2.leader, dict) else str(game.player2.leader)
+                        summary = {
+                            "won": player_won,
+                            "player_faction": player_faction,
+                            "opponent_faction": game.player2.faction,
+                            "leader": leader_name,
+                            "opponent_leader": opponent_leader,
+                            "turns": getattr(game, "turn_count", 0),
+                            "mulligans": getattr(game, "player_mulligan_count", 0),
+                            "abilities": getattr(game, "ability_usage", {}),
+                            "cards_played": getattr(game, "cards_played_ids", []),
+                            "mode": mode_label,
+                            "lan_completed": LAN_MODE,
+                            "lan_disconnect": False,
+                            "ai_difficulty": "hard" if not LAN_MODE else None,
+                        }
+                        get_persistence().record_game_summary(summary)
+                    except Exception as exc:
+                        print(f"[stats] Unable to record summary: {exc}")
             
             score_text = UI_FONT.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, WHITE)
             screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2))

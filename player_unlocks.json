@@ -3,6 +3,71 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 0,
-  "total_games": 1,
-  "unlock_override_enabled": true
+  "total_games": 2,
+  "unlock_override_enabled": true,
+  "ai_games": 1,
+  "leader_stats": {
+    "Col. Jack O'Neill": {
+      "games": 1,
+      "wins": 0
+    }
+  },
+  "matchups": {
+    "Tau'ri": {
+      "Goa'uld": {
+        "games": 1,
+        "wins": 0
+      }
+    }
+  },
+  "last_results": [
+    "L"
+  ],
+  "turn_stats": {
+    "total": 25,
+    "games": 1,
+    "min": 25,
+    "max": 25,
+    "history": [
+      25
+    ]
+  },
+  "mulligans": {
+    "total": 2,
+    "games": 1
+  },
+  "ability_usage": {
+    "medic": 0,
+    "decoy": 0,
+    "faction_power": 1,
+    "iris_blocks": 1
+  },
+  "top_cards": {
+    "tauri_railgun_1": {
+      "plays": 1,
+      "wins": 0
+    },
+    "tauri_prometheus_1": {
+      "plays": 1,
+      "wins": 0
+    },
+    "tauri_hammond": {
+      "plays": 1,
+      "wins": 0
+    },
+    "neutral_commanders_horn_3": {
+      "plays": 1,
+      "wins": 0
+    },
+    "tauri_turret_3": {
+      "plays": 1,
+      "wins": 0
+    }
+  },
+  "ai_difficulty": {
+    "hard": {
+      "games": 1,
+      "wins": 0
+    }
+  }
 }
