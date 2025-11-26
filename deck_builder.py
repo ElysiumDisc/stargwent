@@ -136,7 +136,12 @@ class DeckBuilderUI:
         self.dragging_card = None  # Card ID being dragged
         self.drag_start_x = 0
         self.drag_start_y = 0
+        self.drag_current_x = 0  # Smoothed position
+        self.drag_current_y = 0  # Smoothed position
+        self.drag_target_x = 0  # Mouse target position
+        self.drag_target_y = 0  # Mouse target position
         self.drag_from_pool = False  # True if dragging from pool, False if from deck
+        self.drag_smoothing = 0.25  # Lerp factor for smooth movement (lower = smoother)
 
         # HOVER PREVIEW STATE
         self.hovered_card_id = None  # Card ID being hovered over for preview
@@ -464,11 +469,11 @@ class DeckBuilderUI:
         """Handle input events."""
         if event.type == pygame.MOUSEMOTION:
             mouse_pos = event.pos
-            
-            # If dragging, update drag position
+
+            # If dragging, update target position for smooth interpolation
             if self.dragging_card:
-                self.drag_start_x = mouse_pos[0]
-                self.drag_start_y = mouse_pos[1]
+                self.drag_target_x = mouse_pos[0]
+                self.drag_target_y = mouse_pos[1]
             
             # Update hover states for faction buttons and change background
             if self.state == "faction_select":
@@ -1158,8 +1163,11 @@ class DeckBuilderUI:
                                 # Start dragging from pool
                                 self.dragging_card = card_id
                                 self.drag_from_pool = True
-                                self.drag_start_x = mouse_pos[0]
-                                self.drag_start_y = mouse_pos[1]
+                                # Initialize both current and target to mouse position
+                                self.drag_current_x = mouse_pos[0]
+                                self.drag_current_y = mouse_pos[1]
+                                self.drag_target_x = mouse_pos[0]
+                                self.drag_target_y = mouse_pos[1]
                                 return
 
                     # Check cards in DECK (right panel)
@@ -1180,13 +1188,27 @@ class DeckBuilderUI:
                                     # Start dragging from deck
                                     self.dragging_card = card_id
                                     self.drag_from_pool = False
-                                    self.drag_start_x = mouse_pos[0]
-                                    self.drag_start_y = mouse_pos[1]
+                                    # Initialize both current and target to mouse position
+                                    self.drag_current_x = mouse_pos[0]
+                                    self.drag_current_y = mouse_pos[1]
+                                    self.drag_target_x = mouse_pos[0]
+                                    self.drag_target_y = mouse_pos[1]
                                     return
                 
     
+    def update(self, delta_time=0.016):
+        """Update animations and smooth movement (delta_time in seconds)."""
+        # Smooth card drag position using lerp
+        if self.dragging_card:
+            # Lerp toward target position for smooth movement
+            self.drag_current_x += (self.drag_target_x - self.drag_current_x) * self.drag_smoothing
+            self.drag_current_y += (self.drag_target_y - self.drag_current_y) * self.drag_smoothing
+
     def draw(self, surface):
         """Draw the deck builder UI."""
+        # Update smooth animations
+        self.update()
+
         # Draw background - use image if available, otherwise use solid color
         if self.current_bg_image is not None:
             surface.blit(self.current_bg_image, (0, 0))
@@ -1200,19 +1222,31 @@ class DeckBuilderUI:
         elif self.state == "deck_review":
             self.draw_deck_review(surface)
         
-        # Draw dragging card (follows mouse)
+        # Draw dragging card (follows mouse smoothly)
         if self.dragging_card:
             card = ALL_CARDS[self.dragging_card]
-            card_width = 120
-            card_height = 180
+            card_width = 130  # Slightly larger when dragging
+            card_height = 195
+
+            # Draw shadow behind card for depth
+            shadow_offset = 8
+            shadow_surf = pygame.Surface((card_width + 10, card_height + 10), pygame.SRCALPHA)
+            pygame.draw.rect(shadow_surf, (0, 0, 0, 80), shadow_surf.get_rect(), border_radius=10)
+            surface.blit(shadow_surf, (int(self.drag_current_x) - card_width // 2 + shadow_offset,
+                                      int(self.drag_current_y) - card_height // 2 + shadow_offset))
+
+            # Draw card image
             scaled_image = pygame.transform.scale(card.image, (card_width, card_height))
-            # Draw slightly transparent
-            scaled_image.set_alpha(200)
-            surface.blit(scaled_image, (self.drag_start_x - card_width // 2, self.drag_start_y - card_height // 2))
-            # Bright border to show it's being dragged
-            pygame.draw.rect(surface, (255, 255, 0), 
-                           pygame.Rect(self.drag_start_x - card_width // 2, self.drag_start_y - card_height // 2, 
-                                     card_width, card_height), width=4)
+            scaled_image.set_alpha(240)  # Slightly transparent
+            surface.blit(scaled_image, (int(self.drag_current_x) - card_width // 2,
+                                       int(self.drag_current_y) - card_height // 2))
+
+            # Glowing border to show it's being dragged
+            card_rect = pygame.Rect(int(self.drag_current_x) - card_width // 2,
+                                   int(self.drag_current_y) - card_height // 2,
+                                   card_width, card_height)
+            pygame.draw.rect(surface, (255, 220, 100), card_rect, width=4, border_radius=8)
+            pygame.draw.rect(surface, (255, 255, 150), card_rect, width=2, border_radius=8)
         
         # Draw inspected card overlay (on top of everything)
         if self.inspected_card_id:
@@ -1435,12 +1469,70 @@ class DeckBuilderUI:
         right_panel_y = 120  # Adjusted for tabs (was 80)
         right_panel_height = self.screen_height - 180  # Adjusted for tabs
         
-        # RIGHT PANEL HEADER with deck count
+        # RIGHT PANEL HEADER with deck count (top left)
         if self.deck_preview_ids:
             right_header = self.desc_font.render(f"Your Deck ({len(self.deck_preview_ids)} cards)", True, self.highlight_color)
         else:
             right_header = self.desc_font.render("Your Deck (0 cards)", True, self.highlight_color)
         surface.blit(right_header, (right_panel_x, right_panel_y - 30))
+
+        # Deck stats in top right corner (if deck has cards)
+        if self.deck_preview_ids:
+            deck_cards = [ALL_CARDS[id] for id in self.deck_preview_ids]
+            close_cards = [c for c in deck_cards if c.row == "close"]
+            ranged_cards = [c for c in deck_cards if c.row == "ranged"]
+            siege_cards = [c for c in deck_cards if c.row == "siege"]
+            agile_cards = [c for c in deck_cards if c.row == "agile"]
+            special_cards = [c for c in deck_cards if c.row == "special"]
+            weather_cards = [c for c in deck_cards if c.row == "weather"]
+
+            close_power = sum(c.power for c in close_cards)
+            ranged_power = sum(c.power for c in ranged_cards)
+            siege_power = sum(c.power for c in siege_cards)
+            agile_power = sum(c.power for c in agile_cards)
+            total_power = close_power + ranged_power + siege_power + agile_power
+
+            # Stats box in top right
+            stats_font = pygame.font.SysFont("Arial", 18, bold=True)
+
+            # Line 1: Card counts
+            stats_text1 = stats_font.render(
+                f"C:{len(close_cards)} R:{len(ranged_cards)} S:{len(siege_cards)} A:{len(agile_cards)} Sp:{len(special_cards)} W:{len(weather_cards)}",
+                True, (200, 200, 200)
+            )
+            stats_rect1 = stats_text1.get_rect(topright=(right_panel_x + right_panel_width - 10, right_panel_y - 70))
+
+            # Line 2: Power breakdown
+            stats_text2 = stats_font.render(
+                f"Power: C{close_power} R{ranged_power} S{siege_power} A{agile_power}",
+                True, (255, 215, 100)
+            )
+            stats_rect2 = stats_text2.get_rect(topright=(right_panel_x + right_panel_width - 10, right_panel_y - 50))
+
+            # Line 3: Total power (larger and highlighted)
+            total_font = pygame.font.SysFont("Arial", 22, bold=True)
+            stats_text3 = total_font.render(
+                f"TOTAL: {total_power}",
+                True, (100, 255, 100)
+            )
+            stats_rect3 = stats_text3.get_rect(topright=(right_panel_x + right_panel_width - 10, right_panel_y - 25))
+
+            # Draw semi-transparent background for stats
+            stats_bg_rect = pygame.Rect(
+                stats_rect1.left - 10,
+                stats_rect1.top - 5,
+                max(stats_rect1.width, stats_rect2.width, stats_rect3.width) + 20,
+                stats_rect3.bottom - stats_rect1.top + 10
+            )
+            stats_bg = pygame.Surface((stats_bg_rect.width, stats_bg_rect.height), pygame.SRCALPHA)
+            stats_bg.fill((20, 20, 30, 180))
+            surface.blit(stats_bg, stats_bg_rect.topleft)
+            pygame.draw.rect(surface, (100, 200, 100), stats_bg_rect, width=2, border_radius=5)
+
+            # Draw stats text
+            surface.blit(stats_text1, stats_rect1)
+            surface.blit(stats_text2, stats_rect2)
+            surface.blit(stats_text3, stats_rect3)
         
         # Draw right panel background (semi-transparent)
         deck_panel_surf = pygame.Surface((right_panel_width, right_panel_height), pygame.SRCALPHA)
@@ -1525,29 +1617,6 @@ class DeckBuilderUI:
                         self.deck_remove_buttons[card_id] = remove_btn
 
             surface.set_clip(None)
-
-            # Deck stats with power by row type below header
-            deck_cards = [ALL_CARDS[id] for id in self.deck_preview_ids]
-            close_cards = [c for c in deck_cards if c.row == "close"]
-            ranged_cards = [c for c in deck_cards if c.row == "ranged"]
-            siege_cards = [c for c in deck_cards if c.row == "siege"]
-            agile_cards = [c for c in deck_cards if c.row == "agile"]
-            special_cards = [c for c in deck_cards if c.row == "special"]
-            weather_cards = [c for c in deck_cards if c.row == "weather"]
-
-            # Calculate power by row
-            close_power = sum(c.power for c in close_cards)
-            ranged_power = sum(c.power for c in ranged_cards)
-            siege_power = sum(c.power for c in siege_cards)
-            agile_power = sum(c.power for c in agile_cards)
-            total_power = close_power + ranged_power + siege_power + agile_power
-
-            # Single-line compact stats
-            stats_line = self.stat_font.render(
-                f"C:{len(close_cards)}({close_power}) R:{len(ranged_cards)}({ranged_power}) S:{len(siege_cards)}({siege_power}) A:{len(agile_cards)}({agile_power}) | Special:{len(special_cards)} Weather:{len(weather_cards)} | Total Power: {total_power}",
-                True, (220, 220, 220)
-            )
-            surface.blit(stats_line, (right_panel_x, right_panel_y - 55))
         
         # Instructions at top center - clearer and more concise
         if self.inspected_card_id:
@@ -2073,6 +2142,6 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
         # Draw
         deck_builder.draw(screen)
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(144)  # Higher FPS for buttery smooth card movement
     
     return None

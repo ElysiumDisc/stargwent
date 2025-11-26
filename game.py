@@ -1032,13 +1032,14 @@ class Game:
             
             # Trigger Medical Evac ability - Check if player should choose
             if "Medical Evac" in (card.ability or ""):
-                # Don't trigger yet - will be handled by medic selection UI
-                # Just mark that medic ability is pending
-                pass
-            else:
-                # Non-medic cards switch turn normally
-                self.calculate_scores_and_log()
-                self.switch_turn()
+                # If there are valid revive targets, the UI will handle selection.
+                # If none are available, treat as a normal play and end the turn.
+                if self.get_medic_valid_cards(player):
+                    return
+
+            # Non-medic cards OR medic with no valid targets switch turn normally
+            self.calculate_scores_and_log()
+            self.switch_turn()
 
     def pass_turn(self):
         """The current player passes their turn."""

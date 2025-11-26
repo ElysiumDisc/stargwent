@@ -78,6 +78,11 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
 - **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
 - **⚡ NEW v1.6: IMPROVED HAND LAYOUT** - Hand area dynamically reserves 25% of screen height to prevent card cutoff in fullscreen!
+
+### 🆕 Recent UI Updates
+- **Options Menu Alignment** — All labels/status text are perfectly centered above/below their toggles with consistent 40px/45px spacing, unified 26px bold status font, and resized toggles (DHD radius 80px, Stargate radius 35px) on a 700x360 panel.
+- **Deck Builder Layout** — Type headers removed; cards use a simple grid with unified positioning and click detection for hover, inspect, and drag/drop; compact stats now sit in a clean box at the top-right of **Your Deck**.
+- **Smooth Dragging Everywhere** — Deck builder runs at 144 FPS with lerped card dragging, subtle shadows, and glow borders for a buttery feel; in-match rendering already uses the same smooth follow/hover easing.
 - **⚡ NEW v1.5: APOPHIS WEATHER DECREE** - Once per game Apophis unleashes a random battlefield hazard that blankets both sides and honors weather immunities.
 - **⚡ NEW v1.5: WEATHER & HORN PANELS** - Left-side slots display active weather cards and Commander Horns while doubling as drag-and-drop targets.
 - **⚡ NEW v1.5: LEGENDARY LIGHTNING** - Every Legendary Commander arrival now gets a one-shot lightning outline (player + AI).

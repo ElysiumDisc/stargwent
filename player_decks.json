@@ -130,7 +130,6 @@
     "cards": [
       "lucian_heavy_gunner",
       "lucian_odyssey_spy",
-      "lucian_dealer",
       "lucian_prisoner",
       "lucian_ship_mechanic",
       "lucian_grunt",
@@ -139,7 +138,6 @@
       "lucian_sodan_master",
       "lucian_mercenary",
       "lucian_vannesa",
-      "lucian_foot_soldier_1",
       "lucian_thug",
       "lucian_interceptor_1",
       "lucian_mothership",
@@ -147,10 +145,7 @@
       "neutral_biting_frost_1",
       "neutral_commanders_horn_2",
       "lucian_medic_1",
-      "lucian_commander",
       "lucian_cargo_ship_2",
-      "lucian_foot_soldier_2",
-      "lucian_cargo_ship_1",
       "neutral_decoy_3",
       "lucian_hatak",
       "lucian_smuggler_1",
@@ -159,7 +154,6 @@
       "lucian_vulkar",
       "neutral_clear_weather_2",
       "lucian_tyrus",
-      "lucian_enforcer_1",
       "neutral_skellige_storm_3",
       "lucian_security",
       "lucian_baal_clone",
@@ -167,7 +161,8 @@
       "lucian_sodan_warrior",
       "lucian_sniper",
       "lucian_enforcer_2",
-      "lucian_smuggler_2"
+      "lucian_smuggler_2",
+      "neutral_oma_desala"
     ]
   },
   "Asgard": {

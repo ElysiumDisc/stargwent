@@ -3289,7 +3289,7 @@ def main(lan_game_data=None):
     
     while running:
         enforce_display_mode()
-        dt = clock.tick(60)  # 60 FPS, returns milliseconds since last frame
+        dt = clock.tick(144)  # 144 FPS for buttery smooth animations and card movement
         update_battle_music()
 
         # Poll chat messages in LAN mode
@@ -4404,6 +4404,13 @@ def main(lan_game_data=None):
                         )
                         anim_manager.add_effect(faction_power_effect)
 
+                        # Add history event for AI faction power use
+                        game.add_history_event(
+                            "faction_power",
+                            f"{game.player2.name} used {game.player2.faction_power.name}",
+                            "ai"
+                        )
+
                         # Add Iris closing animation for Tau'ri Gate Shutdown
                         if game.player2.faction == FACTION_TAURI:
                             from animations import IrisClosingEffect
@@ -5055,27 +5062,43 @@ def main(lan_game_data=None):
         # Medical Evac selection overlay
         medic_card_rects = []
         if medic_selection_mode:
-            medic_card_rects = draw_medic_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-            
-            # Handle clicks on medic cards
-            mouse_pos = pygame.mouse.get_pos()
-            mouse_clicked = pygame.mouse.get_pressed()[0]
-            
-            if mouse_clicked:
-                for card, rect in medic_card_rects:
-                    if rect.collidepoint(mouse_pos):
-                        # Player selected this card to revive
-                        game.trigger_medic(game.player1, card)
-                        game.player1.calculate_score()
-                        game.player2.calculate_score()
-                        game.last_turn_actor = game.player1
-                        game.switch_turn()
-                        if network_proxy:
-                            network_proxy.send_medic_choice(card.id)
-                        medic_selection_mode = False
-                        medic_card_played = None
-                        pygame.time.wait(200)  # Small delay to prevent double-click
-                        break
+            medic_valid_cards = game.get_medic_valid_cards(game.player1)
+            if not medic_valid_cards:
+                # No valid targets (discard pile empty) — exit selection and end turn cleanly
+                medic_selection_mode = False
+                medic_card_played = None
+                game.add_history_event(
+                    "ability",
+                    f"{game.player1.name}'s medic had no targets to revive",
+                    "player",
+                    icon="🏥"
+                )
+                game.player1.calculate_score()
+                game.player2.calculate_score()
+                game.last_turn_actor = game.player1
+                game.switch_turn()
+            else:
+                medic_card_rects = draw_medic_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+                
+                # Handle clicks on medic cards
+                mouse_pos = pygame.mouse.get_pos()
+                mouse_clicked = pygame.mouse.get_pressed()[0]
+                
+                if mouse_clicked:
+                    for card, rect in medic_card_rects:
+                        if rect.collidepoint(mouse_pos):
+                            # Player selected this card to revive
+                            game.trigger_medic(game.player1, card)
+                            game.player1.calculate_score()
+                            game.player2.calculate_score()
+                            game.last_turn_actor = game.player1
+                            game.switch_turn()
+                            if network_proxy:
+                                network_proxy.send_medic_choice(card.id)
+                            medic_selection_mode = False
+                            medic_card_played = None
+                            pygame.time.wait(200)  # Small delay to prevent double-click
+                            break
         
         # Ring Transport selection overlay
         decoy_card_rects = []

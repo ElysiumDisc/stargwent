@@ -589,32 +589,44 @@ class FactionPowerEffect:
             # Draw beam from top center (leader area) to multiple points on board
             start_x = self.center_x
             start_y = 100
-            
+
             for i in range(2):
                 end_x = self.center_x - 200 + (i * 400)
                 end_y = self.center_y
-                
+
                 # Multiple beam layers for glow effect
                 for width in range(10, 0, -2):
                     alpha = beam_alpha * (width / 10)
                     beam_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-                    pygame.draw.line(beam_surface, (255, 215, 0, int(alpha)), 
+                    pygame.draw.line(beam_surface, (255, 215, 0, int(alpha)),
                                    (start_x, start_y), (end_x, end_y), width)
                     surface.blit(beam_surface, (0, 0))
-                
+
                 # Energy particle at end
                 particle_radius = int(20 + 10 * math.sin(progress * math.pi * 4))
                 particle_surface = pygame.Surface((particle_radius * 2, particle_radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(particle_surface, (255, 215, 0, beam_alpha), 
+                pygame.draw.circle(particle_surface, (255, 215, 0, beam_alpha),
                                  (particle_radius, particle_radius), particle_radius)
                 surface.blit(particle_surface, (end_x - particle_radius, end_y - particle_radius))
+
+        # Text overlay
+        if 0.3 < progress < 0.9:
+            text_alpha = int(255 * min(1.0, (progress - 0.3) * 5) * (1 - max(0, (progress - 0.7) * 5)))
+            font = pygame.font.SysFont("Arial", 60, bold=True)
+            text = font.render("SARCOPHAGUS REVIVAL", True, (255, 215, 0))
+            text_surf = pygame.Surface(text.get_size(), pygame.SRCALPHA)
+            text_surf.fill((0, 0, 0, 0))
+            text_surf.blit(text, (0, 0))
+            text_surf.set_alpha(text_alpha)
+            text_rect = text.get_rect(center=(self.center_x, self.center_y + 150))
+            surface.blit(text_surf, text_rect)
     
     def draw_naquadah_explosion(self, surface, progress):
         """Lucian Alliance - Green energy wave expanding from center."""
         # Expanding shockwave
         wave_radius = int(50 + progress * 600)
         wave_alpha = int(200 * (1 - progress))
-        
+
         if wave_alpha > 0:
             # Green shockwave rings
             for i in range(3):
@@ -622,16 +634,28 @@ class FactionPowerEffect:
                 radius = wave_radius - offset
                 if radius > 0:
                     wave_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                    pygame.draw.circle(wave_surface, (50, 255, 50, wave_alpha // (i + 1)), 
+                    pygame.draw.circle(wave_surface, (50, 255, 50, wave_alpha // (i + 1)),
                                      (radius, radius), radius, width=5)
                     surface.blit(wave_surface, (self.center_x - radius, self.center_y - radius))
-            
+
             # Distortion effect (visual glitch)
             if progress < 0.5:
                 glitch_alpha = int(100 * (0.5 - progress) * 2)
                 glitch_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
                 glitch_surface.fill((50, 255, 50, glitch_alpha))
                 surface.blit(glitch_surface, (0, 0))
+
+        # Text overlay
+        if 0.2 < progress < 0.9:
+            text_alpha = int(255 * min(1.0, (progress - 0.2) * 5) * (1 - max(0, (progress - 0.7) * 5)))
+            font = pygame.font.SysFont("Arial", 60, bold=True)
+            text = font.render("NAQUADAH ASSAULT", True, (50, 255, 50))
+            text_surf = pygame.Surface(text.get_size(), pygame.SRCALPHA)
+            text_surf.fill((0, 0, 0, 0))
+            text_surf.blit(text, (0, 0))
+            text_surf.set_alpha(text_alpha)
+            text_rect = text.get_rect(center=(self.center_x, self.center_y))
+            surface.blit(text_surf, text_rect)
     
     def draw_teltak_delivery(self, surface, progress):
         """Jaffa Rebellion - Tel'tak ship delivers 3 cards from above."""
@@ -769,6 +793,18 @@ class FactionPowerEffect:
                     px = int(target1_x + (target2_x - target1_x) * particle_progress)
                     py = int(target1_y + (target2_y - target1_y) * particle_progress)
                     pygame.draw.circle(surface, (200, 230, 255, beam_alpha), (px, py), 5)
+
+        # Text overlay
+        if 0.2 < progress < 0.9:
+            text_alpha = int(255 * min(1.0, (progress - 0.2) * 5) * (1 - max(0, (progress - 0.7) * 5)))
+            font = pygame.font.SysFont("Arial", 60, bold=True)
+            text = font.render("HOLOGRAM MANIPULATION", True, (150, 220, 255))
+            text_surf = pygame.Surface(text.get_size(), pygame.SRCALPHA)
+            text_surf.fill((0, 0, 0, 0))
+            text_surf.blit(text, (0, 0))
+            text_surf.set_alpha(text_alpha)
+            text_rect = text.get_rect(center=(self.center_x, self.center_y + 150))
+            surface.blit(text_surf, text_rect)
 
 
 # === SPECIAL FACTION-SPECIFIC ABILITIES ===

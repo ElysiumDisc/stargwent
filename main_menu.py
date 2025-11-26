@@ -268,15 +268,21 @@ class MainMenu:
         running = True
         center_x = self.screen_width // 2
         center_y = self.screen_height // 2
+        back_rect = pygame.Rect(40, 30, 160, 50)
 
         settings = get_settings()
 
         # Slider state
         dragging_slider = False
 
-        # Volume slider (above unlock section)
-        slider_y = center_y - 220
-        slider_width = 500
+        # Panel geometry to keep spacing consistent
+        panel_width = 720
+        panel_height = 680
+        panel_top = center_y - 260
+
+        # Volume slider (below title with added spacing)
+        slider_y = panel_top + 90
+        slider_width = 520
         slider_height = 40
         slider_rect = pygame.Rect(center_x - slider_width // 2, slider_y, slider_width, slider_height)
         slider_track_height = 8
@@ -285,74 +291,34 @@ class MainMenu:
         # Status font (used for both unlock and fullscreen status)
         status_font = pygame.font.SysFont("Arial", 26, bold=True)
 
-        # DHD button - CENTERED not offset
-        dhd_radius = 80
-        button_x = center_x  # CENTER IT
-        button_y = center_y + 20
-        dhd_rect = pygame.Rect(0, 0, dhd_radius * 2, dhd_radius * 2)
-        dhd_rect.center = (button_x, button_y)
-
-        # Unlock label ABOVE button
-        label_surface = self.button_font.render("Unlock All Cards & Leaders", True, (220, 220, 220))
-        label_rect = label_surface.get_rect(center=(center_x, button_y - dhd_radius - 40))
-
-        # Stargate toggle rect
-        gate_radius = 35
+        # Shared toggle geometry using Stargate icon (fullscreen + unlock)
+        gate_radius = 55
         gate_rect = pygame.Rect(0, 0, gate_radius * 2, gate_radius * 2)
 
-        # Fullscreen toggle BELOW DHD with more spacing
-        fullscreen_y = button_y + dhd_radius + 150
+        # Fullscreen toggle placed between volume and unlock (lowered for spacing)
+        fullscreen_y = slider_y + 240
         fs_label_surface = self.button_font.render("Fullscreen Mode", True, (220, 220, 220))
-        fs_label_rect = fs_label_surface.get_rect(center=(center_x, fullscreen_y - gate_radius - 40))
+        fs_label_rect = fs_label_surface.get_rect(center=(center_x, fullscreen_y - gate_radius - 42))
+        gate_rect.center = (center_x, fullscreen_y)  # Also centered
 
-        gate_rect.center = (button_x, fullscreen_y)  # Also centered
+        # Unlock toggle (last, using Stargate icon)
+        unlock_gate_radius = 55
+        unlock_gate_rect = pygame.Rect(0, 0, unlock_gate_radius * 2, unlock_gate_radius * 2)
+        unlock_y = fullscreen_y + 230
+        unlock_gate_rect.center = (center_x, unlock_y)
+        label_surface = self.button_font.render("Unlock All Cards & Leaders", True, (220, 220, 220))
+        label_rect = label_surface.get_rect(center=(center_x, unlock_y - unlock_gate_radius - 42))
 
         # Title above everything
         title_font = pygame.font.SysFont("Arial", 48, bold=True)
         title_surface = title_font.render("OPTIONS", True, (100, 200, 255))
-        title_rect = title_surface.get_rect(center=(center_x, center_y - 180))
+        title_rect = title_surface.get_rect(center=(center_x, panel_top - 40))
 
         # Instruction text at bottom
         instruction_font = pygame.font.SysFont("Arial", 24)
         instruction_surface = instruction_font.render("Press ESC or ENTER to return", True, (180, 180, 180))
         instruction_rect = instruction_surface.get_rect(center=(center_x, self.screen_height - 80))
 
-        def draw_dhd(active):
-            dhd_surface = pygame.Surface(dhd_rect.size, pygame.SRCALPHA)
-            base_color = (60, 60, 80)
-            pygame.draw.circle(dhd_surface, base_color, (dhd_radius, dhd_radius), dhd_radius)
-            pygame.draw.circle(dhd_surface, (30, 30, 40), (dhd_radius, dhd_radius), dhd_radius, width=8)
-            ring_segments = 36
-            for i in range(ring_segments):
-                angle = (i / ring_segments) * 2 * math.pi
-                inner = (
-                    dhd_radius + int(math.cos(angle) * (dhd_radius - 18)),
-                    dhd_radius + int(math.sin(angle) * (dhd_radius - 18)),
-                )
-                outer = (
-                    dhd_radius + int(math.cos(angle) * (dhd_radius - 5)),
-                    dhd_radius + int(math.sin(angle) * (dhd_radius - 5)),
-                )
-                color = (100, 160, 255) if active else (60, 80, 120)
-                pygame.draw.line(dhd_surface, color, inner, outer, 3)
-            chevron_color = (80, 180, 255) if active else (90, 90, 110)
-            for i in range(7):
-                angle = math.pi / 2 + (i - 3) * (math.pi / 7)
-                points = []
-                for offset in (-1, 0, 1):
-                    px = dhd_radius + int(math.cos(angle + offset * 0.08) * (dhd_radius - 35))
-                    py = dhd_radius + int(math.sin(angle + offset * 0.08) * (dhd_radius - 35))
-                    points.append((px, py))
-                pygame.draw.polygon(dhd_surface, chevron_color, points)
-            center_color = (80, 200, 255) if active else (70, 70, 90)
-            pygame.draw.circle(dhd_surface, center_color, (dhd_radius, dhd_radius), 35)
-            pygame.draw.circle(dhd_surface, (255, 255, 255, 100), (dhd_radius, dhd_radius), 37, width=3)
-            if active:
-                glow = pygame.Surface((dhd_radius * 2, dhd_radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(glow, (80, 180, 255, 80), (dhd_radius, dhd_radius), dhd_radius + 15)
-                dhd_surface.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
-            return dhd_surface
-            
         def draw_stargate_toggle(active, rect):
             gate_surf = pygame.Surface(rect.size, pygame.SRCALPHA)
             radius = rect.width // 2
@@ -403,6 +369,11 @@ class MainMenu:
                     if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                         running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # Back button click
+                    if back_rect.collidepoint(event.pos):
+                        running = False
+                        continue
+
                     # Check slider first
                     handle_x = get_slider_handle_pos()
                     handle_rect = pygame.Rect(
@@ -414,7 +385,7 @@ class MainMenu:
                     if handle_rect.collidepoint(event.pos) or slider_rect.collidepoint(event.pos):
                         dragging_slider = True
                         set_volume_from_pos(event.pos[0])
-                    elif dhd_rect.collidepoint(event.pos):
+                    elif unlock_gate_rect.collidepoint(event.pos):
                         self.toggle_unlock_override()
                     elif gate_rect.collidepoint(event.pos):
                         pygame.display.toggle_fullscreen()
@@ -430,6 +401,28 @@ class MainMenu:
 
             # Draw overlay
             surface.blit(overlay, (0, 0))
+
+            # Draw panel background (for options) with brighter outline
+            panel_rect = pygame.Rect(
+                center_x - panel_width // 2,
+                panel_top,
+                panel_width,
+                panel_height  # Taller for all controls and added spacing
+            )
+            panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+            panel_surf.fill((30, 40, 60, 200))
+            surface.blit(panel_surf, panel_rect.topleft)
+            pygame.draw.rect(surface, (80, 180, 255), panel_rect, width=4, border_radius=12)
+
+            # Draw back button (top-left)
+            # Draw back button (top-left) with softer styling
+            back_surf = pygame.Surface(back_rect.size, pygame.SRCALPHA)
+            back_surf.fill((20, 30, 50, 200))
+            pygame.draw.rect(back_surf, (90, 170, 240), back_surf.get_rect(), width=2, border_radius=10)
+            back_text = self.button_font.render("← Back", True, (210, 230, 255))
+            back_text_rect = back_text.get_rect(center=back_rect.center)
+            surface.blit(back_surf, back_rect.topleft)
+            surface.blit(back_text, back_text_rect)
 
             # Draw title
             surface.blit(title_surface, title_rect)
@@ -470,35 +463,8 @@ class MainMenu:
             # Volume percentage text
             volume_pct = int(volume * 100)
             volume_text = status_font.render(f"{volume_pct}%", True, (180, 180, 180))
-            volume_text_rect = volume_text.get_rect(center=(center_x, slider_y + 50))
+            volume_text_rect = volume_text.get_rect(center=(center_x, slider_y + 60))
             surface.blit(volume_text, volume_text_rect)
-
-            # Draw panel background (for unlock section)
-            panel_padding = 40
-            panel_rect = pygame.Rect(
-                center_x - 350,
-                center_y - 120,
-                700,
-                360  # Taller for both toggles with spacing
-            )
-            panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-            panel_surf.fill((30, 40, 60, 200))
-            surface.blit(panel_surf, panel_rect.topleft)
-            pygame.draw.rect(surface, (100, 150, 200), panel_rect, width=2, border_radius=10)
-
-            # Draw Unlock label
-            surface.blit(label_surface, label_rect)
-
-            # Draw DHD toggle button
-            dhd_surface = draw_dhd(self._unlock_override_state())
-            surface.blit(dhd_surface, dhd_rect.topleft)
-
-            # Draw Unlock status text BELOW the toggle button with proper spacing
-            state_text = "ENABLED" if self._unlock_override_state() else "DISABLED"
-            state_color = (100, 255, 100) if self._unlock_override_state() else (255, 100, 100)
-            status_surface = status_font.render(state_text, True, state_color)
-            status_rect = status_surface.get_rect(center=(center_x, button_y + dhd_radius + 45))
-            surface.blit(status_surface, status_rect)
 
             # Draw Fullscreen label
             surface.blit(fs_label_surface, fs_label_rect)
@@ -508,12 +474,26 @@ class MainMenu:
             gate_surface = draw_stargate_toggle(is_fullscreen, gate_rect)
             surface.blit(gate_surface, gate_rect.topleft)
 
-            # Draw Fullscreen status text BELOW the toggle with proper spacing
+            # Draw Fullscreen status text next to the toggle
             fs_state_text = "ACTIVE" if is_fullscreen else "WINDOWED"
             fs_state_color = (100, 255, 100) if is_fullscreen else (180, 180, 180)
             fs_status_surface = status_font.render(fs_state_text, True, fs_state_color)
-            fs_status_rect = fs_status_surface.get_rect(center=(center_x, fullscreen_y + gate_radius + 45))
+            fs_status_rect = fs_status_surface.get_rect(midleft=(gate_rect.right + 18, gate_rect.centery))
             surface.blit(fs_status_surface, fs_status_rect)
+
+            # Draw Unlock label (last option)
+            surface.blit(label_surface, label_rect)
+
+            # Draw Unlock Stargate toggle
+            unlock_surface = draw_stargate_toggle(self._unlock_override_state(), unlock_gate_rect)
+            surface.blit(unlock_surface, unlock_gate_rect.topleft)
+
+            # Draw Unlock status text next to the toggle
+            state_text = "ACTIVE" if self._unlock_override_state() else "LOCKED"
+            state_color = (100, 255, 100) if self._unlock_override_state() else (180, 180, 180)
+            status_surface = status_font.render(state_text, True, state_color)
+            status_rect = status_surface.get_rect(midleft=(unlock_gate_rect.right + 18, unlock_gate_rect.centery))
+            surface.blit(status_surface, status_rect)
 
             # Draw instruction
             surface.blit(instruction_surface, instruction_rect)
