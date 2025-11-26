@@ -232,8 +232,8 @@ class MainMenu:
             {'text': 'DECK BUILDING', 'action': 'deck_building'},
             {'text': 'MULTIPLAYER', 'action': 'lan_menu'},
             {'text': 'RULE MENU', 'action': 'rules_menu'},
-            {'text': 'OPTIONS', 'action': 'options_menu'},
             {'text': 'STATS', 'action': 'stats_menu'},
+            {'text': 'OPTIONS', 'action': 'options_menu'},
             {'text': 'QUIT', 'action': 'quit'}
         ]
         self.unlock_option_index = -1
@@ -353,6 +353,10 @@ class MainMenu:
         clock = pygame.time.Clock()
         bg_phase = 0
         running = True
+        scroll_offset = 0
+        max_scroll = 0
+        content_top = 120
+        viewport_height = panel_height - 200
         while running:
             dt = clock.tick(60)
             bg_phase += dt / 1000.0
@@ -370,10 +374,16 @@ class MainMenu:
                         get_persistence().reset_stats()
                         stats = get_persistence().get_stats()
                         computed = compute(stats)
+                        scroll_offset = 0
+                        max_scroll = 0
                         continue
                     # Click anywhere else closes
                     if not panel_rect.collidepoint(event.pos):
                         running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (4, 5):
+                    if panel_rect.collidepoint(event.pos):
+                        delta = -60 if event.button == 4 else 60
+                        scroll_offset = max(0, min(max_scroll, scroll_offset + delta))
 
             # Thematic Stargate background layer
             bg_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
@@ -422,124 +432,246 @@ class MainMenu:
             title_rect = title.get_rect(center=(panel_rect.width // 2, 60))
             panel_surf.blit(title, title_rect)
 
-            # Rows of stats
-            row_y = 130
-            row_gap = 48
+            # Build rows for scrollable content
+            row_gap = 46
+            rows = []
+            def add_section(text):
+                rows.append({"type": "section", "text": text})
+            def add_row(label, value, meta=None):
+                rows.append({"type": "row", "label": label, "value": value, "meta": meta})
 
-            # Section headers
-            section_header = section_font.render("Overall", True, (150, 210, 255))
-            section_rect = section_header.get_rect(topleft=(40, row_y - 32))
-            panel_surf.blit(section_header, section_rect)
-
-            def draw_row(label, value, y):
-                lbl = label_font.render(label, True, (180, 200, 230))
-                val = value_font.render(value, True, (220, 240, 255))
-                lbl_rect = lbl.get_rect(topleft=(60, y))
-                val_rect = val.get_rect(topright=(panel_rect.width - 60, y))
-                panel_surf.blit(lbl, lbl_rect)
-                panel_surf.blit(val, val_rect)
-
+            # Overall
+            add_section("Overall")
             winrate = (computed["total_wins"] / computed["total_games"] * 100) if computed["total_games"] > 0 else 0
-            draw_row("Games Played", str(computed["total_games"]), row_y); row_y += row_gap
-            draw_row("Wins", str(computed["total_wins"]), row_y); row_y += row_gap
-            draw_row("Losses", str(computed["total_losses"]), row_y); row_y += row_gap
-            draw_row("Win Rate", f"{winrate:.1f}%", row_y); row_y += row_gap
-            draw_row("Current Streak", f"{computed['streak']} wins", row_y); row_y += row_gap
-            draw_row("Max Streak", f"{computed['max_streak']} wins", row_y); row_y += row_gap
-
-            # Faction highlight
+            add_row("Games Played", str(computed["total_games"]))
+            add_row("Wins", str(computed["total_wins"]))
+            add_row("Losses", str(computed["total_losses"]))
+            add_row("Win Rate", f"{winrate:.1f}%")
+            add_row("Current Streak", f"{computed['streak']} wins")
+            add_row("Max Streak", f"{computed['max_streak']} wins")
             top_faction_text = computed["top_faction"] if computed["top_faction"] else "No games yet"
-            draw_row("Most Played Faction", top_faction_text, row_y); row_y += row_gap
+            add_row("Most Played Faction", top_faction_text)
 
-            # Section headers
-            section_ai = section_font.render("By Mode", True, (150, 210, 255))
-            section_ai_rect = section_ai.get_rect(topleft=(40, row_y + 8))
-            panel_surf.blit(section_ai, section_ai_rect)
-            row_y += row_gap
-
-            # AI / LAN records
+            # By Mode
+            add_section("By Mode")
             ai_losses = max(0, computed["ai_games"] - computed["ai_wins"])
             lan_losses = max(0, computed["lan_games"] - computed["lan_wins"])
-            draw_row("AI Record", f"{computed['ai_wins']}W / {ai_losses}L", row_y); row_y += row_gap
-            draw_row("LAN Record", f"{computed['lan_wins']}W / {lan_losses}L", row_y); row_y += row_gap
+            add_row("AI Record", f"{computed['ai_wins']}W / {ai_losses}L")
+            add_row("LAN Record", f"{computed['lan_wins']}W / {lan_losses}L")
 
-            # Section headers
-            section_leader = section_font.render("Leaders", True, (150, 210, 255))
-            section_leader_rect = section_leader.get_rect(topleft=(40, row_y + 8))
-            panel_surf.blit(section_leader, section_leader_rect)
-            row_y += row_gap
-
-            # Leader
-            draw_row("Most Played Leader", computed.get("top_leader") or "No data", row_y); row_y += row_gap
+            # Leaders
+            add_section("Leaders")
+            top_leader = computed.get("top_leader") or "No data"
+            leader_meta = None
+            if computed.get("top_leader"):
+                # FACTION_LEADERS values are lists of leader dicts
+                for faction_id, leader_list in FACTION_LEADERS.items():
+                    for ldata in leader_list:
+                        if ldata.get("name") == computed["top_leader"]:
+                            leader_meta = {"leader_id": ldata.get("card_id"), "faction": faction_id, "name": ldata.get("name")}
+                            break
+                    if leader_meta:
+                        break
+            add_row("Most Played Leader", top_leader, meta=leader_meta)
 
             # Matchups
-            section_match = section_font.render("Matchups", True, (150, 210, 255))
-            panel_surf.blit(section_match, section_match.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
+            add_section("Matchups")
             if computed.get("best_matchup"):
                 pf, of, wins, games = computed["best_matchup"]
-                draw_row("Best Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L", row_y); row_y += row_gap
+                add_row("Best Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L")
             else:
-                draw_row("Best Matchup", "No data", row_y); row_y += row_gap
+                add_row("Best Matchup", "No data")
 
             # Form
-            section_form = section_font.render("Form", True, (150, 210, 255))
-            panel_surf.blit(section_form, section_form.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
+            add_section("Form")
             last10 = "".join(computed.get("last_results", [])) or "No games"
-            draw_row("Last 10", last10, row_y); row_y += row_gap
+            add_row("Last 10", last10)
 
             # Game length
-            section_len = section_font.render("Game Length", True, (150, 210, 255))
-            panel_surf.blit(section_len, section_len.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
-            draw_row("Avg Turns", f"{computed['turn_avg']:.1f}" if computed.get("turn_avg") else "N/A", row_y); row_y += row_gap
-            draw_row("Fastest / Longest", f"{computed.get('turn_min','N/A')} / {computed.get('turn_max','N/A')}", row_y); row_y += row_gap
+            add_section("Game Length")
+            add_row("Avg Turns", f"{computed['turn_avg']:.1f}" if computed.get("turn_avg") else "N/A")
+            add_row("Fastest / Longest", f"{computed.get('turn_min','N/A')} / {computed.get('turn_max','N/A')}")
 
             # Mulligans
-            draw_row("Mulligans (avg)", f"{computed['mull_avg']:.1f}" if computed.get("mull_avg") else "N/A", row_y); row_y += row_gap
+            add_section("Mulligans")
+            add_row("Mulligans (avg)", f"{computed['mull_avg']:.1f}" if computed.get("mull_avg") else "N/A")
 
             # Abilities
-            section_ab = section_font.render("Abilities", True, (150, 210, 255))
-            panel_surf.blit(section_ab, section_ab.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
+            add_section("Abilities")
             ab = computed.get("abilities", {})
-            draw_row("Medic Uses", str(ab.get("medic", 0)), row_y); row_y += row_gap
-            draw_row("Decoy Uses", str(ab.get("decoy", 0)), row_y); row_y += row_gap
-            draw_row("Faction Power", str(ab.get("faction_power", 0)), row_y); row_y += row_gap
-            draw_row("Iris Blocks", str(ab.get("iris_blocks", 0)), row_y); row_y += row_gap
+            add_row("Medic Uses", str(ab.get("medic", 0)))
+            add_row("Decoy Uses", str(ab.get("decoy", 0)))
+            add_row("Faction Power", str(ab.get("faction_power", 0)))
+            add_row("Iris Blocks", str(ab.get("iris_blocks", 0)))
 
             # Top cards
-            section_cards = section_font.render("Top Cards", True, (150, 210, 255))
-            panel_surf.blit(section_cards, section_cards.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
+            add_section("Top Cards")
             if computed.get("top_cards"):
                 for cid, rec in computed["top_cards"]:
                     card_name = ALL_CARDS[cid].name if cid in ALL_CARDS else cid
-                    draw_row(card_name, f"{rec.get('plays',0)} plays / {rec.get('wins',0)} wins", row_y); row_y += row_gap
+                    add_row(card_name, f"{rec.get('plays',0)} plays / {rec.get('wins',0)} wins", meta={"card_id": cid})
             else:
-                draw_row("Top Cards", "No data", row_y); row_y += row_gap
-
-            # AI difficulty
-            section_ai_d = section_font.render("AI Difficulty", True, (150, 210, 255))
-            panel_surf.blit(section_ai_d, section_ai_d.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
-            ai_diff = computed.get("ai_difficulties") or {}
-            if ai_diff:
-                for diff, rec in ai_diff.items():
-                    draw_row(diff.title(), f"{rec.get('wins',0)}W / {rec.get('games',0)-rec.get('wins',0)}L", row_y); row_y += row_gap
-            else:
-                draw_row("Hard", "No data", row_y); row_y += row_gap
+                add_row("Top Cards", "No data")
 
             # LAN reliability
-            section_lan = section_font.render("LAN Reliability", True, (150, 210, 255))
-            panel_surf.blit(section_lan, section_lan.get_rect(topleft=(40, row_y + 8)))
-            row_y += row_gap
+            add_section("LAN Reliability")
             lan_rel = computed.get("lan_reliability") or {}
-            draw_row("Completed LAN", str(lan_rel.get("completed", 0)), row_y); row_y += row_gap
-            draw_row("Disconnects", str(lan_rel.get("disconnects", 0)), row_y); row_y += row_gap
+            add_row("Completed LAN", str(lan_rel.get("completed", 0)))
+            add_row("Disconnects", str(lan_rel.get("disconnects", 0)))
 
-            hint = value_font.render("Click or press ESC/Enter to go back", True, (170, 190, 210))
+            # Build content surface
+            content_height = max(800, len(rows) * row_gap + 200)
+            content = pygame.Surface((panel_rect.width, content_height), pygame.SRCALPHA)
+            y_cursor = 20
+            hover_targets = []
+            for entry in rows:
+                if entry["type"] == "section":
+                    section = section_font.render(entry["text"], True, (150, 210, 255))
+                    content.blit(section, (40, y_cursor))
+                else:
+                    lbl = label_font.render(entry["label"], True, (180, 200, 230))
+                    val = value_font.render(entry["value"], True, (220, 240, 255))
+                    lbl_rect = lbl.get_rect(topleft=(60, y_cursor))
+                    val_rect = val.get_rect(topright=(panel_rect.width - 60, y_cursor))
+                    content.blit(lbl, lbl_rect)
+                    content.blit(val, val_rect)
+                    meta = entry.get("meta")
+                    if meta:
+                        hover_targets.append({
+                            "meta": meta,
+                            "rect": pygame.Rect(lbl_rect.left, lbl_rect.top, val_rect.right - lbl_rect.left, lbl_rect.height),
+                        })
+                y_cursor += row_gap
+
+            max_scroll = max(0, content_height - viewport_height)
+            scroll_offset = max(0, min(max_scroll, scroll_offset))
+
+            view_rect = pygame.Rect(0, scroll_offset, panel_rect.width, viewport_height)
+            panel_surf.blit(content, (0, content_top), area=view_rect)
+
+            # Hover previews for leader/card rows
+            mouse_pos = pygame.mouse.get_pos()
+            faction_colors = {
+                FACTION_TAURI: (100, 180, 255),
+                FACTION_GOAULD: (220, 180, 80),
+                FACTION_JAFFA: (140, 90, 60),
+                FACTION_LUCIAN: (150, 200, 120),
+                FACTION_ASGARD: (180, 220, 255),
+                FACTION_NEUTRAL: (200, 200, 200),
+            }
+            # Hover preview - show in center of panel
+            hovered_meta = None
+            for ht in hover_targets:
+                meta = ht["meta"]
+                rect = ht["rect"]
+                # Convert to screen rect for hover detection
+                screen_rect = pygame.Rect(
+                    panel_rect.x + rect.x,
+                    panel_rect.y + content_top + rect.y - scroll_offset,
+                    rect.width,
+                    rect.height
+                )
+                if screen_rect.collidepoint(mouse_pos):
+                    hovered_meta = meta
+                    break
+
+            # Draw centered preview if hovering
+            if hovered_meta:
+                if hovered_meta.get("card_id") and hovered_meta["card_id"] in ALL_CARDS:
+                    card = ALL_CARDS[hovered_meta["card_id"]]
+                    # 4x card scale
+                    card_w = card.rect.width * 4
+                    card_h = card.rect.height * 4
+                    preview_width = card_w + 60
+                    preview_height = card_h + 120
+
+                    preview = pygame.Surface((preview_width, preview_height), pygame.SRCALPHA)
+                    preview.fill((15, 25, 45, 250))
+                    pygame.draw.rect(preview, (100, 180, 255), preview.get_rect(), width=4, border_radius=12)
+
+                    # Card name at top
+                    fact = card.faction
+                    color = faction_colors.get(fact, (200, 200, 200))
+                    name_surf = title_font.render(card.name, True, color)
+                    name_rect = name_surf.get_rect(centerx=preview_width // 2, top=20)
+                    preview.blit(name_surf, name_rect)
+
+                    # 4x scaled card art centered
+                    art = pygame.transform.smoothscale(card.image, (card_w, card_h))
+                    art_x = (preview_width - art.get_width()) // 2
+                    art_y = name_rect.bottom + 20
+                    preview.blit(art, (art_x, art_y))
+
+                    # Faction and power at bottom
+                    info_font = pygame.font.SysFont("Arial", 28, bold=True)
+                    faction_surf = info_font.render(fact, True, (180, 210, 230))
+                    faction_rect = faction_surf.get_rect(centerx=preview_width // 2, bottom=preview_height - 50)
+                    preview.blit(faction_surf, faction_rect)
+
+                    power_surf = info_font.render(f"Power: {card.power}", True, (220, 240, 255))
+                    power_rect = power_surf.get_rect(centerx=preview_width // 2, bottom=preview_height - 15)
+                    preview.blit(power_surf, power_rect)
+
+                    # Center in panel
+                    draw_x = (panel_rect.width - preview_width) // 2
+                    draw_y = (panel_rect.height - preview_height) // 2
+                    panel_surf.blit(preview, (draw_x, draw_y))
+
+                elif hovered_meta.get("leader_id"):
+                    # 4x leader card scale
+                    leader_id = hovered_meta.get("leader_id")
+                    if leader_id and leader_id in ALL_CARDS:
+                        leader_card = ALL_CARDS[leader_id]
+                        card_w = leader_card.rect.width * 4
+                        card_h = leader_card.rect.height * 4
+                    else:
+                        # Default size
+                        card_w = 320
+                        card_h = 480
+
+                    preview_width = card_w + 60
+                    preview_height = card_h + 120
+
+                    preview = pygame.Surface((preview_width, preview_height), pygame.SRCALPHA)
+                    preview.fill((15, 25, 45, 250))
+                    pygame.draw.rect(preview, (100, 180, 255), preview.get_rect(), width=4, border_radius=12)
+
+                    # Leader name at top
+                    lname = hovered_meta.get("name", "Leader")
+                    fact = hovered_meta.get("faction", FACTION_NEUTRAL)
+                    color = faction_colors.get(fact, (200, 200, 200))
+                    name_surf = title_font.render(lname, True, color)
+                    name_rect = name_surf.get_rect(centerx=preview_width // 2, top=20)
+                    preview.blit(name_surf, name_rect)
+
+                    # 4x scaled leader portrait centered
+                    if leader_id and leader_id in ALL_CARDS:
+                        leader_card = ALL_CARDS[leader_id]
+                        portrait = pygame.transform.smoothscale(leader_card.image, (card_w, card_h))
+                        portrait_x = (preview_width - portrait.get_width()) // 2
+                        portrait_y = name_rect.bottom + 20
+                        preview.blit(portrait, (portrait_x, portrait_y))
+                    else:
+                        # Fallback placeholder
+                        placeholder = pygame.Surface((card_w, card_h))
+                        placeholder.fill((40, 60, 90))
+                        pygame.draw.rect(placeholder, color, placeholder.get_rect(), width=4)
+                        placeholder_x = (preview_width - placeholder.get_width()) // 2
+                        placeholder_y = name_rect.bottom + 20
+                        preview.blit(placeholder, (placeholder_x, placeholder_y))
+
+                    # Faction at bottom
+                    info_font = pygame.font.SysFont("Arial", 28, bold=True)
+                    faction_surf = info_font.render(fact, True, (180, 210, 230))
+                    faction_rect = faction_surf.get_rect(centerx=preview_width // 2, bottom=preview_height - 15)
+                    preview.blit(faction_surf, faction_rect)
+
+                    # Center in panel
+                    draw_x = (panel_rect.width - preview_width) // 2
+                    draw_y = (panel_rect.height - preview_height) // 2
+                    panel_surf.blit(preview, (draw_x, draw_y))
+
+            hint = value_font.render("Scroll / ESC / Enter to go back", True, (170, 190, 210))
             hint_rect = hint.get_rect(center=(panel_rect.width // 2, panel_rect.height - 50))
             panel_surf.blit(hint, hint_rect)
 

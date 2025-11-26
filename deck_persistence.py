@@ -208,7 +208,6 @@ class DeckPersistence:
             "ability_usage": self.unlock_data.get("ability_usage", {}),
             "top_cards": self.unlock_data.get("top_cards", {}),
             "lan_reliability": self.unlock_data.get("lan_reliability", {}),
-            "ai_difficulty": self.unlock_data.get("ai_difficulty", {}),
         }
 
     def reset_stats(self):
@@ -230,7 +229,6 @@ class DeckPersistence:
         self.unlock_data["ability_usage"] = {}
         self.unlock_data["top_cards"] = {}
         self.unlock_data["lan_reliability"] = {}
-        self.unlock_data["ai_difficulty"] = {}
         self.save_unlocks()
 
     def record_game_summary(self, summary: Dict):
@@ -301,14 +299,6 @@ class DeckPersistence:
                 lan_reliability["disconnects"] += 1
 
         # AI difficulty split
-        ai_difficulty = summary.get("ai_difficulty")
-        if ai_difficulty:
-            ai_stats = self.unlock_data.setdefault("ai_difficulty", {})
-            entry = ai_stats.setdefault(ai_difficulty, {"games": 0, "wins": 0})
-            entry["games"] += 1
-            if summary.get("won"):
-                entry["wins"] += 1
-
         self.save_unlocks()
 
 # Global instance

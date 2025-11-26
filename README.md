@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-2.9-blue)
+![Version](https://img.shields.io/badge/version-2.9.1-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -53,6 +53,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
+- **⚡ NEW v2.9.1: ADVANCED AI OVERHAUL** - Smart mulligan logic, strategic pass timing, intelligent power/iris usage, and advanced target selection for Hathor/Medic abilities!
+- **⚡ NEW v2.9.1: ENHANCED STATS MENU** - Scrollable interface with mouse wheel support, leader metadata display, and reorganized sections!
 - **⚡ NEW v2.9: LAN MULTIPLAYER OVERHAUL** - Fixed game loop, added all animations for both players, robust disconnect handling!
 - **⚡ NEW v2.9: IN-MATCH LAN CHAT OVERLAY** - Toggle T/ESC to open the "Subspace Communications" modal with typing indicators while keeping history visible!
 - **⚡ NEW v2.9: TAILSCALE SUPPORT** - Smart IP detection prioritizes Tailscale VPN addresses for easy remote play!
@@ -1008,9 +1010,17 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - **Simplified Keyboard** - Only essential keys: D (discard), Space (preview/power), ESC (close/pause)
 
 ### 📊 Stats & Analytics
-- **New Stats Screen** - Main menu “Stats” shows games/wins/losses, winrate, streaks, AI vs LAN records, most-played faction/leader, matchups, form (last 10), game length (avg/fastest/longest), mulligan averages, ability usage (Medic/Decoy/Faction Power/Iris blocks), top cards, AI difficulty split, and LAN reliability.
-- **Hard AI Only** - Single-player AI now always runs at the hardest difficulty (no easy/medium variants).
+- **⚡ NEW v2.9.1: SCROLLABLE STATS PANEL** - Mouse wheel support for navigating extensive statistics, leader metadata display, and reorganized sections for better readability!
+- **Comprehensive Stats Screen** - Main menu "Stats" shows games/wins/losses, winrate, streaks, AI vs LAN records, most-played faction/leader, matchups, form (last 10), game length (avg/fastest/longest), mulligan averages, ability usage (Medic/Decoy/Faction Power/Iris blocks), top cards, AI difficulty split, and LAN reliability.
 - **Rich Tracking** - Per-leader records, faction-vs-faction matrix, turn counts, mulligans, ability triggers, top-card plays/wins, streak history, and mode-aware stats persisted across sessions.
+
+### 🤖 Advanced AI Opponent
+- **⚡ NEW v2.9.1: SMART MULLIGAN LOGIC** - AI now intelligently evaluates starting hands, keeping synergies (Tactical Formation combos, Gate Reinforcement), prioritizing spies for card advantage, and mulliganing based on hand composition (too many heroes, weak cards, no units)!
+- **⚡ NEW v2.9.1: STRATEGIC PASS TIMING** - Round-aware passing strategy (conservative Round 1 to save cards, aggressive Round 2 if must-win, tactical Round 3 bluffing), hand quality evaluation, and card advantage preservation!
+- **⚡ NEW v2.9.1: INTELLIGENT POWER USAGE** - Evaluates faction power value before activation based on power type (resurrect values discard pile, scorch values opponent strength, boost values board state), round importance, and alternative plays!
+- **⚡ NEW v2.9.1: ENHANCED IRIS DEFENSE** - Dynamic probability based on score differential, round criticality (80% protection in close Round 3), opponent cards remaining, and card advantage scenarios!
+- **⚡ NEW v2.9.1: ADVANCED TARGET SELECTION** - Hathor ability now prioritizes breaking opponent synergies and stealing high-value abilities; Medic revival evaluates synergy bonuses, horn effects, and weather penalties for optimal card resurrection!
+- **Hard Difficulty Only** - Single-player AI always runs at maximum challenge level with strategic decision-making across all abilities!
 
 #### **NEW v0.9: Cinematic & Polish Updates**
 - **Leader Matchup Animation** - 5-second cinematic confrontation with Stargate event horizon, lightning collision, and 40+ lore-based quotes for every leader combination

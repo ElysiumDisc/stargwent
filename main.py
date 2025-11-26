@@ -4008,10 +4008,10 @@ def main(lan_game_data=None):
                         if network_proxy:
                             network_proxy.send_mulligan(selected_indices)
                         else:
-                            # Single-player fallback: redraw for AI immediately
-                            ai_rng = getattr(game, "rng", random)
-                            ai_mulligan_count = ai_rng.randint(2, 4)
-                            ai_cards = ai_rng.sample(game.player2.hand, min(ai_mulligan_count, len(game.player2.hand)))
+                            # Single-player: Use AI strategy for mulligan
+                            from ai_opponent import AIStrategy
+                            ai_strategy = AIStrategy(game, game.player2)
+                            ai_cards = ai_strategy.decide_mulligan()
                             game.mulligan(game.player2, ai_cards)
                             mulligan_remote_done = True
                             game.end_mulligan_phase()
