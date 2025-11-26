@@ -812,6 +812,11 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 
 ## 🏆 Progression System
 
+## 🔮 Future Roadmap (Ideas)
+- **Single-Player Campaign**: Story-driven runs for all four factions, blending comic-book style cutscenes, roguelite replayability, and branching scenarios.
+- **Cinematic Comic Panels**: Hand-drawn panels and motion layouts between missions to deliver a gripping Stargate narrative.
+- **Roguelite Progression**: Draft between battles, evolving decks, leader upgrades, and escalating anomalies to keep each run fresh.
+
 ### Card Unlocks ✅
 - **Trigger**: Win any game
 - **Reward**: Choose 1 of 3 random cards

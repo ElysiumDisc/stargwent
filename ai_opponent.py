@@ -12,7 +12,7 @@ class AIStrategy:
         self.game = game
         self.ai_player = ai_player
         self.opponent = game.player1  # Assume AI is always player2
-        self.difficulty = "medium"  # easy, medium, hard
+        self.difficulty = "hard"  # single top difficulty
         self.power_used = False  # Track if faction power has been used
         self.rng = getattr(game, "rng", random)
     
@@ -418,11 +418,11 @@ class AIStrategy:
 class AIController:
     """Controls the AI player's actions."""
     
-    def __init__(self, game, ai_player, difficulty="medium"):
+    def __init__(self, game, ai_player, difficulty="hard"):
         self.game = game
         self.ai_player = ai_player
         self.strategy = AIStrategy(game, ai_player)
-        self.strategy.difficulty = difficulty
+        self.strategy.difficulty = "hard"
     
     def choose_move(self):
         """Choose a move without executing it. Returns (card, row) tuple."""

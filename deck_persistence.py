@@ -152,13 +152,18 @@ class DeckPersistence:
             self.save_unlocks()
             print(f"✓ Card unlocked: {card_id}")
     
-    def record_game_result(self, won: bool, faction: str):
-        """Record game result and update stats"""
+    def record_game_result(self, won: bool, faction: str, mode: str = "ai"):
+        """Record game result and update stats (mode: ai or lan)."""
         self.unlock_data["total_games"] = self.unlock_data.get("total_games", 0) + 1
+        mode_key = "ai" if mode not in ("ai", "lan") else mode
+        games_key = f"{mode_key}_games"
+        wins_key = f"{mode_key}_wins"
+        self.unlock_data[games_key] = self.unlock_data.get(games_key, 0) + 1
         
         if won:
             self.unlock_data["total_wins"] = self.unlock_data.get("total_wins", 0) + 1
             self.unlock_data["consecutive_wins"] = self.unlock_data.get("consecutive_wins", 0) + 1
+            self.unlock_data[wins_key] = self.unlock_data.get(wins_key, 0) + 1
             
             # Track faction-specific wins
             faction_wins = self.unlock_data.setdefault("faction_wins", {})
@@ -180,11 +185,27 @@ class DeckPersistence:
         return {
             "total_games": self.unlock_data.get("total_games", 0),
             "total_wins": self.unlock_data.get("total_wins", 0),
+            "ai_games": self.unlock_data.get("ai_games", 0),
+            "ai_wins": self.unlock_data.get("ai_wins", 0),
+            "lan_games": self.unlock_data.get("lan_games", 0),
+            "lan_wins": self.unlock_data.get("lan_wins", 0),
             "consecutive_wins": self.unlock_data.get("consecutive_wins", 0),
             "faction_wins": self.unlock_data.get("faction_wins", {}),
             "unlocked_leaders": len(self.unlock_data.get("unlocked_leaders", [])),
             "unlocked_cards": len(self.unlock_data.get("unlocked_cards", []))
         }
+
+    def reset_stats(self):
+        """Reset tracked stats (games, wins, streak, faction wins)."""
+        self.unlock_data["total_games"] = 0
+        self.unlock_data["total_wins"] = 0
+        self.unlock_data["consecutive_wins"] = 0
+        self.unlock_data["faction_wins"] = {}
+        self.unlock_data["ai_games"] = 0
+        self.unlock_data["ai_wins"] = 0
+        self.unlock_data["lan_games"] = 0
+        self.unlock_data["lan_wins"] = 0
+        self.save_unlocks()
 
 # Global instance
 _persistence = None
@@ -216,15 +237,15 @@ def load_leader_choice(faction: str) -> str:
     persistence = get_persistence()
     return persistence.get_leader(faction)
 
-def record_victory(faction: str):
+def record_victory(faction: str, mode: str = "ai"):
     """Record a victory"""
     persistence = get_persistence()
-    persistence.record_game_result(True, faction)
+    persistence.record_game_result(True, faction, mode=mode)
 
-def record_defeat(faction: str):
+def record_defeat(faction: str, mode: str = "ai"):
     """Record a defeat"""
     persistence = get_persistence()
-    persistence.record_game_result(False, faction)
+    persistence.record_game_result(False, faction, mode=mode)
 
 def check_leader_unlock() -> Optional[str]:
     """Check if player unlocked a new leader (3 consecutive wins)"""

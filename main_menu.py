@@ -8,6 +8,7 @@ import json
 import os
 import math
 import random
+from deck_persistence import get_persistence
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 from deck_builder import FACTION_LEADERS, MIN_DECK_SIZE, MAX_DECK_SIZE, validate_deck
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
@@ -232,6 +233,7 @@ class MainMenu:
             {'text': 'MULTIPLAYER', 'action': 'lan_menu'},
             {'text': 'RULE MENU', 'action': 'rules_menu'},
             {'text': 'OPTIONS', 'action': 'options_menu'},
+            {'text': 'STATS', 'action': 'stats_menu'},
             {'text': 'QUIT', 'action': 'quit'}
         ]
         self.unlock_option_index = -1
@@ -257,6 +259,184 @@ class MainMenu:
         elif hasattr(self.unlock_system, "set_unlock_override"):
             self.unlock_system.set_unlock_override(not self._unlock_override_state())
         self._update_unlock_option_label()
+    
+    def run_stats_menu(self, surface):
+        """Show a stats overlay with win/loss and faction usage."""
+        stats = get_persistence().get_stats()
+
+        def compute(stats):
+            total_games = stats.get("total_games", 0)
+            total_wins = stats.get("total_wins", 0)
+            total_losses = max(0, total_games - total_wins)
+            streak = stats.get("consecutive_wins", 0)
+            faction_wins = stats.get("faction_wins", {})
+            top_faction = max(faction_wins.items(), key=lambda kv: kv[1])[0] if faction_wins else None
+            ai_games = stats.get("ai_games", 0)
+            ai_wins = stats.get("ai_wins", 0)
+            lan_games = stats.get("lan_games", 0)
+            lan_wins = stats.get("lan_wins", 0)
+            return {
+                "total_games": total_games,
+                "total_wins": total_wins,
+                "total_losses": total_losses,
+                "streak": streak,
+                "top_faction": top_faction,
+                "ai_games": ai_games,
+                "ai_wins": ai_wins,
+                "lan_games": lan_games,
+                "lan_wins": lan_wins,
+            }
+
+        computed = compute(stats)
+
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        panel_width = int(self.screen_width * 0.7)
+        panel_height = int(self.screen_height * 0.7)
+        panel_rect = pygame.Rect(
+            (self.screen_width - panel_width) // 2,
+            (self.screen_height - panel_height) // 2,
+            panel_width,
+            panel_height
+        )
+
+        title_font = pygame.font.SysFont("Arial", 68, bold=True)
+        section_font = pygame.font.SysFont("Arial", 32, bold=True)
+        label_font = pygame.font.SysFont("Arial", 32, bold=True)
+        value_font = pygame.font.SysFont("Arial", 30)
+
+        # Buttons
+        back_rect = pygame.Rect(panel_rect.x + 28, panel_rect.y + 22, 140, 48)
+        reset_rect = pygame.Rect(panel_rect.right - 168, panel_rect.bottom - 70, 140, 42)
+
+        clock = pygame.time.Clock()
+        bg_phase = 0
+        running = True
+        while running:
+            dt = clock.tick(60)
+            bg_phase += dt / 1000.0
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return 'quit'
+                if event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                        running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if back_rect.collidepoint(event.pos):
+                        running = False
+                        continue
+                    if reset_rect.collidepoint(event.pos):
+                        get_persistence().reset_stats()
+                        stats = get_persistence().get_stats()
+                        computed = compute(stats)
+                        continue
+                    # Click anywhere else closes
+                    if not panel_rect.collidepoint(event.pos):
+                        running = False
+
+            # Thematic Stargate background layer
+            bg_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            center = (self.screen_width // 2, self.screen_height // 2)
+            pulse = (math.sin(bg_phase * 2) + 1) * 0.5
+            for r in range(120, min(self.screen_width, self.screen_height) // 2, 80):
+                alpha = max(20, int(80 * (1 - r / (self.screen_width // 2)) * (0.6 + 0.4 * pulse)))
+                pygame.draw.circle(bg_layer, (60, 120, 200, alpha), center, r, width=4)
+            # Rotating chevron rays
+            for i in range(9):
+                angle = bg_phase * 0.8 + i * (2 * math.pi / 9)
+                length = min(self.screen_width, self.screen_height) // 2
+                sx = center[0] + math.cos(angle) * 80
+                sy = center[1] + math.sin(angle) * 80
+                ex = center[0] + math.cos(angle) * length
+                ey = center[1] + math.sin(angle) * length
+                pygame.draw.line(bg_layer, (100, 180, 255, 60), (sx, sy), (ex, ey), 2)
+
+            surface.blit(bg_layer, (0, 0))
+
+            # Dark overlay to keep readability
+            dynamic_overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            dynamic_overlay.fill((0, 0, 20, 200))
+            surface.blit(dynamic_overlay, (0, 0))
+
+            panel_surf = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+            panel_surf.fill((20, 30, 50, 230))
+            pygame.draw.rect(panel_surf, (90, 170, 240), panel_surf.get_rect(), width=3, border_radius=16)
+
+            # Back button
+            pygame.draw.rect(panel_surf, (30, 45, 70), back_rect.move(-panel_rect.x, -panel_rect.y), border_radius=8)
+            pygame.draw.rect(panel_surf, (90, 170, 240), back_rect.move(-panel_rect.x, -panel_rect.y), width=2, border_radius=8)
+            back_text = self.button_font.render("← Back", True, (210, 230, 255))
+            back_text_rect = back_text.get_rect(center=back_rect.move(-panel_rect.x, -panel_rect.y).center)
+            panel_surf.blit(back_text, back_text_rect)
+
+            # Reset button
+            pygame.draw.rect(panel_surf, (50, 70, 100), reset_rect.move(-panel_rect.x, -panel_rect.y), border_radius=8)
+            pygame.draw.rect(panel_surf, (200, 90, 90), reset_rect.move(-panel_rect.x, -panel_rect.y), width=2, border_radius=8)
+            reset_text = value_font.render("Reset Stats", True, (240, 200, 200))
+            reset_text_rect = reset_text.get_rect(center=reset_rect.move(-panel_rect.x, -panel_rect.y).center)
+            panel_surf.blit(reset_text, reset_text_rect)
+
+            # Title
+            title = title_font.render("PLAYER STATS", True, (200, 230, 255))
+            title_rect = title.get_rect(center=(panel_rect.width // 2, 60))
+            panel_surf.blit(title, title_rect)
+
+            # Rows of stats
+            row_y = 130
+            row_gap = 48
+
+            # Section headers
+            section_header = section_font.render("Overall", True, (150, 210, 255))
+            section_rect = section_header.get_rect(topleft=(40, row_y - 32))
+            panel_surf.blit(section_header, section_rect)
+
+            def draw_row(label, value, y):
+                lbl = label_font.render(label, True, (180, 200, 230))
+                val = value_font.render(value, True, (220, 240, 255))
+                lbl_rect = lbl.get_rect(topleft=(60, y))
+                val_rect = val.get_rect(topright=(panel_rect.width - 60, y))
+                panel_surf.blit(lbl, lbl_rect)
+                panel_surf.blit(val, val_rect)
+
+            winrate = (computed["total_wins"] / computed["total_games"] * 100) if computed["total_games"] > 0 else 0
+            draw_row("Games Played", str(computed["total_games"]), row_y); row_y += row_gap
+            draw_row("Wins", str(computed["total_wins"]), row_y); row_y += row_gap
+            draw_row("Losses", str(computed["total_losses"]), row_y); row_y += row_gap
+            draw_row("Win Rate", f"{winrate:.1f}% ", row_y); row_y += row_gap
+            draw_row("Current Streak", f"{computed['streak']} wins", row_y); row_y += row_gap
+
+            # Faction highlight
+            top_faction_text = computed["top_faction"] if computed["top_faction"] else "No games yet"
+            draw_row("Most Played Faction", top_faction_text, row_y); row_y += row_gap
+
+            # Section headers
+            section_ai = section_font.render("By Mode", True, (150, 210, 255))
+            section_ai_rect = section_ai.get_rect(topleft=(40, row_y + 8))
+            panel_surf.blit(section_ai, section_ai_rect)
+            row_y += row_gap
+
+            # AI / LAN records
+            ai_losses = max(0, computed["ai_games"] - computed["ai_wins"])
+            lan_losses = max(0, computed["lan_games"] - computed["lan_wins"])
+            draw_row("AI Record", f"{computed['ai_wins']}W / {ai_losses}L", row_y); row_y += row_gap
+            draw_row("LAN Record", f"{computed['lan_wins']}W / {lan_losses}L", row_y); row_y += row_gap
+
+            # Section headers
+            section_leader = section_font.render("Leaders", True, (150, 210, 255))
+            section_leader_rect = section_leader.get_rect(topleft=(40, row_y + 8))
+            panel_surf.blit(section_leader, section_leader_rect)
+            row_y += row_gap
+
+            # Leader placeholder
+            draw_row("Most Played Leader", "Coming soon (leader stats)", row_y); row_y += row_gap
+
+            hint = value_font.render("Click or press ESC/Enter to go back", True, (170, 190, 210))
+            hint_rect = hint.get_rect(center=(panel_rect.width // 2, panel_rect.height - 50))
+            panel_surf.blit(hint, hint_rect)
+
+            surface.blit(panel_surf, panel_rect.topleft)
+            pygame.display.flip()
+        return None
     
 
     def run_options_menu(self, surface):
@@ -1040,6 +1220,8 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                 if isinstance(lan_data, dict):
                     stop_menu_music()
                     return lan_data
+            elif action == 'stats_menu':
+                main_menu.run_stats_menu(screen)
             elif action == 'toggle_unlock_override':
                 main_menu.toggle_unlock_override()
             elif action == 'quit':

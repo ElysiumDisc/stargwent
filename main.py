@@ -3207,8 +3207,8 @@ def main(lan_game_data=None):
         network_proxy = NetworkPlayerProxy(LAN_CONTEXT.session, LAN_CONTEXT.role)
         print(f"[LAN] Running in {LAN_CONTEXT.role} mode with NetworkController")
     else:
-        # Single player mode - use AIController
-        ai_controller = AIController(game, game.player2, difficulty="medium")
+        # Single player mode - use AIController (always hardest)
+        ai_controller = AIController(game, game.player2, difficulty="hard")
         network_proxy = None
 
     # Initialize chat panel for LAN mode
@@ -4827,8 +4827,9 @@ def main(lan_game_data=None):
                     # Record win/loss using persistence system
                     player_won = (game.winner == game.player1)
                     
+                    mode_label = "lan" if LAN_MODE else "ai"
                     if player_won:
-                        record_victory(player_faction)
+                        record_victory(player_faction, mode_label)
                         
                         # FIRST: Check for leader unlock (every 3 consecutive wins)
                         persistence = get_persistence()
@@ -4872,7 +4873,7 @@ def main(lan_game_data=None):
                                     remaining = 0  # Just got a leader unlock
                                 game.streak_message = UI_FONT.render(f"Win Streak: {streak}! ({remaining} more for leader unlock)", True, (100, 255, 100))
                     else:
-                        record_defeat(player_faction)
+                        record_defeat(player_faction, mode_label)
                         unlock_system.record_game_result(False)
             
             score_text = UI_FONT.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, WHITE)
