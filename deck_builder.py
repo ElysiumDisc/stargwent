@@ -140,13 +140,15 @@ class DeckBuilderUI:
 
         # HOVER PREVIEW STATE
         self.hovered_card_id = None  # Card ID being hovered over for preview
-        
+        self.deck_remove_buttons = {}  # Track remove button positions for click detection
+
         # Fonts
         self.title_font = pygame.font.SysFont("Arial", 64, bold=True)
         self.subtitle_font = pygame.font.SysFont("Arial", 36, bold=True)
         self.desc_font = pygame.font.SysFont("Arial", 24)
         self.button_font = pygame.font.SysFont("Arial", 28, bold=True)
-        self.small_font = pygame.font.SysFont("Arial", 18)
+        self.small_font = pygame.font.SysFont("Arial", 20)  # Increased from 18
+        self.stat_font = pygame.font.SysFont("Arial", 22)  # New font for stats
         
         # Colors
         self.bg_color = (15, 15, 25)
@@ -1114,13 +1116,13 @@ class DeckBuilderUI:
                             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
                             start_x = right_panel_x + spacing
                             start_y = right_panel_y + 15 - self.deck_scroll_offset
-                            
+
                             for i, card_id in enumerate(visible_deck_ids):
                                 row_idx = i // cards_per_row
                                 col_idx = i % cards_per_row
                                 x = start_x + col_idx * (card_width + spacing)
                                 y = start_y + row_idx * (card_height + spacing)
-                                
+
                                 card_rect = pygame.Rect(x, y, card_width, card_height)
                                 if card_rect.collidepoint(mouse_pos):
                                     self.inspected_card_id = card_id
@@ -1129,19 +1131,28 @@ class DeckBuilderUI:
                 
                 # LEFT CLICK = DRAG (only if not inspecting)
                 if event.button == 1 and not self.inspected_card_id:
+                    # First check for remove button clicks in deck
+                    if hasattr(self, 'deck_remove_buttons') and self.deck_remove_buttons:
+                        for card_id, btn_rect in self.deck_remove_buttons.items():
+                            if btn_rect.collidepoint(mouse_pos):
+                                # Remove card from deck
+                                if card_id in self.deck_preview_ids:
+                                    self.deck_preview_ids.remove(card_id)
+                                return
+
                     # Check cards in POOL (left panel)
                     if left_panel_rect.collidepoint(mouse_pos):
                         sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
                         cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
                         start_x = left_panel_x + spacing
                         start_y = left_panel_y + 15 - self.pool_scroll_offset
-                        
+
                         for i, card_id in enumerate(sorted_pool):
                             row_idx = i // cards_per_row
                             col_idx = i % cards_per_row
                             x = start_x + col_idx * (card_width + spacing)
                             y = start_y + row_idx * (card_height + spacing)
-                            
+
                             card_rect = pygame.Rect(x, y, card_width, card_height)
                             if card_rect.collidepoint(mouse_pos):
                                 # Start dragging from pool
@@ -1150,20 +1161,20 @@ class DeckBuilderUI:
                                 self.drag_start_x = mouse_pos[0]
                                 self.drag_start_y = mouse_pos[1]
                                 return
-                    
+
                     # Check cards in DECK (right panel)
                     elif right_panel_rect.collidepoint(mouse_pos):
                         if visible_deck_ids:
                             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
                             start_x = right_panel_x + spacing
                             start_y = right_panel_y + 15 - self.deck_scroll_offset
-                            
+
                             for i, card_id in enumerate(visible_deck_ids):
                                 row_idx = i // cards_per_row
                                 col_idx = i % cards_per_row
                                 x = start_x + col_idx * (card_width + spacing)
                                 y = start_y + row_idx * (card_height + spacing)
-                                
+
                                 card_rect = pygame.Rect(x, y, card_width, card_height)
                                 if card_rect.collidepoint(mouse_pos):
                                     # Start dragging from deck
@@ -1324,6 +1335,9 @@ class DeckBuilderUI:
     
     def draw_deck_review(self, surface):
         """Draw deck review screen with two-panel layout and card type tabs."""
+        # Clear remove button positions from previous frame
+        self.deck_remove_buttons = {}
+
         # Full background (use deck_building_bg.png if available)
         if self.deck_building_bg:
             surface.blit(self.deck_building_bg, (0, 0))
@@ -1409,9 +1423,9 @@ class DeckBuilderUI:
             pool_special_cards = [c for c in pool_cards if c.row == "special"]
             pool_weather_cards = [c for c in pool_cards if c.row == "weather"]
             
-            pool_stats_text = self.small_font.render(
-                f"Total: {len(self.card_pool_ids)} | Units: {len(pool_unit_cards)} | Special: {len(pool_special_cards)} | Weather: {len(pool_weather_cards)}", 
-                True, (180, 180, 180)
+            pool_stats_text = self.stat_font.render(
+                f"Total: {len(self.card_pool_ids)} | Units: {len(pool_unit_cards)} | Special: {len(pool_special_cards)} | Weather: {len(pool_weather_cards)}",
+                True, (200, 200, 200)
             )
             surface.blit(pool_stats_text, (left_panel_x, left_panel_y - 55))
         
@@ -1438,23 +1452,29 @@ class DeckBuilderUI:
         if self.deck_preview_ids:
             deck_filter_type = None if self.current_tab == "all" else self.current_tab
             sorted_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type)
-            
+
+            # Count duplicates for badges
+            from collections import Counter
+            card_counts = Counter(self.deck_preview_ids)
+
             # Cards in 3 columns with better sizing
             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
             start_x = right_panel_x + spacing
             start_y = right_panel_y + 15 - self.deck_scroll_offset
-            
+
             # Create clip rect for scrolling
             clip_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
             surface.set_clip(clip_rect)
-            
+
             for i, card_id in enumerate(sorted_deck_ids):
                 card = ALL_CARDS[card_id]
+
+                # Calculate card position (no headers - they were causing spacing issues)
                 row_idx = i // cards_per_row
                 col_idx = i % cards_per_row
                 x = start_x + col_idx * (card_width + spacing)
                 y = start_y + row_idx * (card_height + spacing)
-                
+
                 # Only draw if visible
                 if y + card_height >= right_panel_y and y <= right_panel_y + right_panel_height:
                     # Draw card
@@ -1463,9 +1483,14 @@ class DeckBuilderUI:
                         surface.blit(scaled_image, (x, y))
                     except:
                         pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(x, y, card_width, card_height), border_radius=5)
-                    
-                    pygame.draw.rect(surface, (255, 255, 255), pygame.Rect(x, y, card_width, card_height), width=2, border_radius=5)
-                    
+
+                    # Highlight if hovered
+                    card_rect = pygame.Rect(x, y, card_width, card_height)
+                    is_hovered = self.hovered_card_id == card_id and not self.dragging_card
+                    border_color = (100, 255, 100) if is_hovered else (255, 255, 255)
+                    border_width = 3 if is_hovered else 2
+                    pygame.draw.rect(surface, border_color, card_rect, width=border_width, border_radius=5)
+
                     # Power overlay
                     if card.row not in ["special", "weather"]:
                         power_font = pygame.font.SysFont("Arial", 18, bold=True)
@@ -1473,26 +1498,62 @@ class DeckBuilderUI:
                         power_rect = power_text.get_rect(center=(x + card_width // 2, y + card_height - 15))
                         pygame.draw.rect(surface, (0, 0, 0), power_rect.inflate(4, 2))
                         surface.blit(power_text, power_rect)
-            
+
+                    # Duplicate count badge (top-right corner)
+                    count = card_counts[card_id]
+                    if count > 1:
+                        badge_font = pygame.font.SysFont("Arial", 16, bold=True)
+                        badge_text = badge_font.render(f"x{count}", True, (255, 255, 255))
+                        badge_bg = pygame.Rect(x + card_width - 30, y + 5, 25, 20)
+                        pygame.draw.rect(surface, (200, 50, 50), badge_bg, border_radius=3)
+                        pygame.draw.rect(surface, (255, 255, 255), badge_bg, width=1, border_radius=3)
+                        badge_rect = badge_text.get_rect(center=badge_bg.center)
+                        surface.blit(badge_text, badge_rect)
+
+                    # Quick remove button (top-left corner when hovered)
+                    if is_hovered:
+                        remove_btn = pygame.Rect(x + 5, y + 5, 20, 20)
+                        pygame.draw.rect(surface, (200, 50, 50), remove_btn, border_radius=3)
+                        pygame.draw.rect(surface, (255, 255, 255), remove_btn, width=2, border_radius=3)
+                        # Draw X
+                        x_font = pygame.font.SysFont("Arial", 14, bold=True)
+                        x_text = x_font.render("X", True, (255, 255, 255))
+                        x_rect = x_text.get_rect(center=remove_btn.center)
+                        surface.blit(x_text, x_rect)
+
+                        # Store remove button rect for click detection
+                        self.deck_remove_buttons[card_id] = remove_btn
+
             surface.set_clip(None)
-            
-            # Deck stats below header
+
+            # Deck stats with power by row type below header
             deck_cards = [ALL_CARDS[id] for id in self.deck_preview_ids]
-            unit_cards = [c for c in deck_cards if c.row in ["close", "ranged", "siege", "agile"]]
+            close_cards = [c for c in deck_cards if c.row == "close"]
+            ranged_cards = [c for c in deck_cards if c.row == "ranged"]
+            siege_cards = [c for c in deck_cards if c.row == "siege"]
+            agile_cards = [c for c in deck_cards if c.row == "agile"]
             special_cards = [c for c in deck_cards if c.row == "special"]
             weather_cards = [c for c in deck_cards if c.row == "weather"]
-            
-            stats_text = self.small_font.render(
-                f"Units: {len(unit_cards)} | Special: {len(special_cards)} | Weather: {len(weather_cards)}", 
-                True, (180, 180, 180)
+
+            # Calculate power by row
+            close_power = sum(c.power for c in close_cards)
+            ranged_power = sum(c.power for c in ranged_cards)
+            siege_power = sum(c.power for c in siege_cards)
+            agile_power = sum(c.power for c in agile_cards)
+            total_power = close_power + ranged_power + siege_power + agile_power
+
+            # Single-line compact stats
+            stats_line = self.stat_font.render(
+                f"C:{len(close_cards)}({close_power}) R:{len(ranged_cards)}({ranged_power}) S:{len(siege_cards)}({siege_power}) A:{len(agile_cards)}({agile_power}) | Special:{len(special_cards)} Weather:{len(weather_cards)} | Total Power: {total_power}",
+                True, (220, 220, 220)
             )
-            surface.blit(stats_text, (right_panel_x, right_panel_y - 55))
+            surface.blit(stats_line, (right_panel_x, right_panel_y - 55))
         
-        # Instructions at top center
+        # Instructions at top center - clearer and more concise
         if self.inspected_card_id:
-            instructions = self.small_font.render("Click or Spacebar to close inspection", True, (200, 200, 200))
+            instructions = self.small_font.render("Press SPACE or Click to close", True, (255, 255, 100))
         else:
-            instructions = self.small_font.render("Scroll each panel independently | Click cards to inspect", True, (200, 200, 200))
+            instructions = self.small_font.render("Drag cards to add/remove • Right-click to zoom • Hover for X button", True, (200, 220, 255))
         inst_rect = instructions.get_rect(center=(self.screen_width // 2, 60))
         surface.blit(instructions, inst_rect)
         

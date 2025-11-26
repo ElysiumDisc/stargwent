@@ -15,7 +15,6 @@
       "tauri_fraiser",
       "tauri_sg3",
       "neutral_commanders_horn_2",
-      "tauri_medic_1",
       "tauri_marksman",
       "tauri_tokra_op_2",
       "tauri_railgun_1",
@@ -36,7 +35,11 @@
       "neutral_decoy_1",
       "tauri_prometheus_2",
       "tauri_prometheus_1",
-      "neutral_ascended_daniel"
+      "neutral_ascended_daniel",
+      "tauri_medic_1",
+      "neutral_commanders_horn_3",
+      "neutral_scorch_2",
+      "neutral_scorch_1"
     ]
   },
   "Goa'uld": {
