@@ -3078,6 +3078,8 @@ def main(lan_game_data=None):
             main()
             return
 
+        is_draft_mode = False  # Track if this is a draft mode game
+
         if menu_result == 'draft_mode':
             # Launch Draft Mode
             from draft_controller import launch_draft_mode
@@ -3089,6 +3091,7 @@ def main(lan_game_data=None):
                 return
 
             # Use the drafted deck for the game
+            is_draft_mode = True
             player_leader = drafted_deck['leader']
             player_deck = drafted_deck['cards']
             player_faction = player_leader.get('faction', 'Neutral')
@@ -4890,11 +4893,26 @@ def main(lan_game_data=None):
                     
                     # Record win/loss using persistence system
                     player_won = (game.winner == game.player1)
-                    
+
+                    # Record draft mode completion if this was a draft game
+                    if is_draft_mode:
+                        persistence = get_persistence()
+                        leader_name = player_leader.get('name', 'Unknown')
+                        leader_id = player_leader.get('card_id', '')
+                        deck_power = sum(card.power for card in player_deck)
+                        persistence.record_draft_completion(
+                            leader_id=leader_id,
+                            leader_name=leader_name,
+                            faction=player_faction,
+                            cards=player_deck,
+                            deck_power=deck_power,
+                            won=player_won
+                        )
+
                     mode_label = "lan" if LAN_MODE else "ai"
                     if player_won:
                         record_victory(player_faction, mode_label)
-                        
+
                         # FIRST: Check for leader unlock (every 3 consecutive wins)
                         persistence = get_persistence()
                         consecutive_wins = persistence.get_consecutive_wins()

@@ -10,6 +10,7 @@ from draft_mode import DraftPool, DraftRun, calculate_draft_rewards
 from draft_mode_ui import DraftModeUI
 from unlocks import CardUnlockSystem
 from cards import ALL_CARDS
+from deck_persistence import get_persistence
 
 
 class DraftModeController:
@@ -65,6 +66,9 @@ class DraftModeController:
         self.current_choices = []
         self.ui.hovered_index = None
         self.ui.selected_index = None
+
+        # Track draft start
+        get_persistence().record_draft_start()
 
     def render(self, surface: pygame.Surface):
         """

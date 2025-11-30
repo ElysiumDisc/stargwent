@@ -132,5 +132,8 @@
   "faction_wins": {
     "Tau'ri": 1
   },
-  "max_streak": 1
+  "max_streak": 1,
+  "draft_stats": {
+    "runs_started": 1
+  }
 }

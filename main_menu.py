@@ -539,6 +539,69 @@ class MainMenu:
             add_row("Completed LAN", str(lan_rel.get("completed", 0)))
             add_row("Disconnects", str(lan_rel.get("disconnects", 0)))
 
+            # Draft Mode (Arena)
+            add_section("Draft Mode (Arena)")
+            draft = stats.get("draft_stats", {})
+            if draft and draft.get("runs_started", 0) > 0:
+                # Draft run stats
+                runs_started = draft.get("runs_started", 0)
+                runs_completed = draft.get("runs_completed", 0)
+                add_row("Runs Started", str(runs_started))
+                add_row("Runs Completed", str(runs_completed))
+
+                # Win/loss record
+                battles_won = draft.get("battles_won", 0)
+                battles_lost = draft.get("battles_lost", 0)
+                total_battles = battles_won + battles_lost
+                if total_battles > 0:
+                    draft_winrate = (battles_won / total_battles) * 100
+                    add_row("Battle Record", f"{battles_won}W / {battles_lost}L ({draft_winrate:.1f}%)")
+                else:
+                    add_row("Battle Record", "No battles yet")
+
+                # Best run
+                best_run = draft.get("best_run_wins", 0)
+                add_row("Best Run", f"{best_run} win{'s' if best_run != 1 else ''}")
+
+                # Deck stats
+                total_cards = draft.get("total_cards_drafted", 0)
+                if runs_completed > 0:
+                    avg_cards = total_cards / runs_completed
+                    add_row("Avg Cards/Run", f"{avg_cards:.1f}")
+
+                avg_power = draft.get("avg_deck_power", 0.0)
+                highest_power = draft.get("highest_deck_power", 0)
+                add_row("Avg Deck Power", f"{avg_power:.1f}")
+                add_row("Highest Deck Power", str(highest_power))
+
+                # Most drafted leader (with hover preview)
+                drafted_leaders = draft.get("drafted_leaders", {})
+                if drafted_leaders:
+                    most_leader = max(drafted_leaders.items(), key=lambda x: x[1])
+                    # Find leader_id for hover preview
+                    leader_id = None
+                    for lid, ldata in ALL_CARDS.items():
+                        if ldata.name == most_leader[0]:
+                            leader_id = lid
+                            break
+                    add_row("Favorite Leader", f"{most_leader[0]} ({most_leader[1]}x)", meta={"card_id": leader_id} if leader_id else None)
+
+                # Most drafted faction
+                drafted_factions = draft.get("drafted_factions", {})
+                if drafted_factions:
+                    most_faction = max(drafted_factions.items(), key=lambda x: x[1])
+                    add_row("Favorite Faction", f"{most_faction[0]} ({most_faction[1]}x)")
+
+                # Most drafted card
+                most_card = draft.get("most_drafted_card")
+                if most_card and most_card in ALL_CARDS:
+                    card_counts = draft.get("card_draft_counts", {})
+                    count = card_counts.get(most_card, 0)
+                    card_name = ALL_CARDS[most_card].name
+                    add_row("Favorite Card", f"{card_name} ({count}x)", meta={"card_id": most_card})
+            else:
+                add_row("Draft Runs", "Play Draft Mode to see stats!")
+
             # Build content surface
             content_height = max(800, len(rows) * row_gap + 200)
             content = pygame.Surface((panel_rect.width, content_height), pygame.SRCALPHA)

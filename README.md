@@ -105,6 +105,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **⚡ DEV UPDATE: WEATHER BALANCE & SMARTER AI** - Persistent ability buffs, symmetrical weather shields, and retuned AI decision making.
 - **⚡ NEW v1.0: FACTION POWERS RENAMED** - IrisPower → FactionPower (Tau'ri IrisDefense kept separate)!
 - **⚡ NEW v1.0: MATCHUP BACKGROUNDS** - PNG backgrounds load for each leader combination!
+- **⚡ NEW v0.9: Finite State Machine** - Replaced 20+ boolean flags with robust FSM for UI management!
 - **⚡ NEW v0.9: ESC Pause Menu** - Pause anytime with Resume/Main Menu/Quit options
 - **⚡ NEW v0.9: Round 3 Asteroids** - Animated asteroid field appears in final round!
 - **⚡ NEW v0.9: Enhanced Jaffa Animation** - Tel'tak ship delivers 3 cards with title and effects
@@ -1758,6 +1759,7 @@ Suggestions and feedback welcome!
 - **⚡ v1.0: FactionPower system (renamed from IrisPower)**
 - **⚡ v1.0: Leader matchup PNG background support**
 - **⚡ v1.0: Unlock system verified (card every win, leader every 3 wins)**
+- **⚡ v0.9: Finite State Machine (FSM) - Eliminated "Boolean Flag Hell" for cleaner UI management**
 - **⚡ v0.9: Cinematic leader matchups with 40+ lore-based quotes**
 - **⚡ v0.9: ESC pause menu system**
 - **⚡ v0.9: Round 3 asteroid field animation**

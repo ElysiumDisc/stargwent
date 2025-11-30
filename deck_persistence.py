@@ -97,6 +97,21 @@ class DeckPersistence:
                 "Jaffa Rebellion": 0,
                 "Lucian Alliance": 0,
                 "Asgard": 0
+            },
+            # Draft Mode Stats
+            "draft_stats": {
+                "runs_started": 0,
+                "runs_completed": 0,
+                "battles_won": 0,
+                "battles_lost": 0,
+                "best_run_wins": 0,
+                "total_cards_drafted": 0,
+                "drafted_leaders": {},  # leader_id: count
+                "drafted_factions": {},  # faction: count
+                "avg_deck_power": 0.0,
+                "highest_deck_power": 0,
+                "most_drafted_card": None,
+                "card_draft_counts": {}  # card_id: count
             }
         }
     
@@ -208,6 +223,7 @@ class DeckPersistence:
             "ability_usage": self.unlock_data.get("ability_usage", {}),
             "top_cards": self.unlock_data.get("top_cards", {}),
             "lan_reliability": self.unlock_data.get("lan_reliability", {}),
+            "draft_stats": self.unlock_data.get("draft_stats", {}),
         }
 
     def reset_stats(self):
@@ -229,6 +245,20 @@ class DeckPersistence:
         self.unlock_data["ability_usage"] = {}
         self.unlock_data["top_cards"] = {}
         self.unlock_data["lan_reliability"] = {}
+        self.unlock_data["draft_stats"] = {
+            "runs_started": 0,
+            "runs_completed": 0,
+            "battles_won": 0,
+            "battles_lost": 0,
+            "best_run_wins": 0,
+            "total_cards_drafted": 0,
+            "drafted_leaders": {},
+            "drafted_factions": {},
+            "avg_deck_power": 0.0,
+            "highest_deck_power": 0,
+            "most_drafted_card": None,
+            "card_draft_counts": {}
+        }
         self.save_unlocks()
 
     def record_game_summary(self, summary: Dict):
@@ -300,6 +330,71 @@ class DeckPersistence:
 
         # AI difficulty split
         self.save_unlocks()
+
+    def record_draft_start(self):
+        """Record that a draft run has started."""
+        draft_stats = self.unlock_data.setdefault("draft_stats", {})
+        draft_stats["runs_started"] = draft_stats.get("runs_started", 0) + 1
+        self.save_unlocks()
+
+    def record_draft_completion(self, leader_id: str, leader_name: str, faction: str,
+                               cards: list, deck_power: int, won: bool):
+        """
+        Record draft run completion with full details.
+
+        Args:
+            leader_id: ID of drafted leader
+            leader_name: Name of drafted leader
+            faction: Leader's faction
+            cards: List of drafted cards
+            deck_power: Total power of drafted deck
+            won: Whether the draft battle was won
+        """
+        draft_stats = self.unlock_data.setdefault("draft_stats", {})
+
+        # Completion count
+        draft_stats["runs_completed"] = draft_stats.get("runs_completed", 0) + 1
+
+        # Win/loss
+        if won:
+            draft_stats["battles_won"] = draft_stats.get("battles_won", 0) + 1
+            # For now, best run is just 1 (could expand for multi-battle runs later)
+            if draft_stats.get("best_run_wins", 0) < 1:
+                draft_stats["best_run_wins"] = 1
+        else:
+            draft_stats["battles_lost"] = draft_stats.get("battles_lost", 0) + 1
+
+        # Cards drafted
+        draft_stats["total_cards_drafted"] = draft_stats.get("total_cards_drafted", 0) + len(cards)
+
+        # Leader tracking
+        drafted_leaders = draft_stats.setdefault("drafted_leaders", {})
+        drafted_leaders[leader_name] = drafted_leaders.get(leader_name, 0) + 1
+
+        # Faction tracking
+        drafted_factions = draft_stats.setdefault("drafted_factions", {})
+        drafted_factions[faction] = drafted_factions.get(faction, 0) + 1
+
+        # Deck power tracking
+        total_power_sum = draft_stats.get("avg_deck_power", 0.0) * draft_stats.get("runs_completed", 1) - deck_power
+        draft_stats["avg_deck_power"] = (total_power_sum + deck_power) / draft_stats["runs_completed"]
+
+        if deck_power > draft_stats.get("highest_deck_power", 0):
+            draft_stats["highest_deck_power"] = deck_power
+
+        # Card draft counts
+        card_counts = draft_stats.setdefault("card_draft_counts", {})
+        for card in cards:
+            card_id = card.id if hasattr(card, 'id') else str(card)
+            card_counts[card_id] = card_counts.get(card_id, 0) + 1
+
+        # Find most drafted card
+        if card_counts:
+            most_drafted = max(card_counts.items(), key=lambda x: x[1])
+            draft_stats["most_drafted_card"] = most_drafted[0]
+
+        self.save_unlocks()
+        print(f"✓ Draft run recorded: {leader_name} ({'Win' if won else 'Loss'}), Deck Power: {deck_power}")
 
 # Global instance
 _persistence = None

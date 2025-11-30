@@ -190,7 +190,12 @@ def get_leader_banner_name(card_id):
     return LEADER_BANNER_NAMES.get(card_id, LEADER_NAME_BY_ID.get(card_id, card_id))
 
 
-# Full registry of all leaders (base + unlockable)
+# Full registry of all leaders (base + unlockable) with faction info
 LEADER_REGISTRY = []
 for faction in {*BASE_FACTION_LEADERS.keys(), *UNLOCKABLE_LEADERS.keys()}:
-    LEADER_REGISTRY.extend(get_all_leaders_for_faction(faction))
+    leaders = get_all_leaders_for_faction(faction)
+    # Add faction field to each leader for easier lookup
+    for leader in leaders:
+        if 'faction' not in leader:
+            leader['faction'] = faction
+    LEADER_REGISTRY.extend(leaders)
