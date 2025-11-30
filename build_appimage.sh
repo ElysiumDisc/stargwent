@@ -66,24 +66,31 @@ PY
 
 # Bundle Python and pygame-ce using python-appimage
 PYTHON_APPIMAGE_DIR="$BUILD_ROOT/python-appimage"
-PYTHON_VERSION="3.11"
+PYTHON_VERSION="3.13"
 
-if [[ ! -d "$PYTHON_APPIMAGE_DIR" ]]; then
+# Check for incomplete download
+PYTHON_APPIMAGE="$BUILD_ROOT/python${PYTHON_VERSION}-x86_64.AppImage"
+if [[ -f "$PYTHON_APPIMAGE" && ! -s "$PYTHON_APPIMAGE" ]]; then
+    echo "Removing incomplete Python AppImage download..."
+    rm "$PYTHON_APPIMAGE"
+fi
+
+if [[ ! -d "$PYTHON_APPIMAGE_DIR/python" ]]; then
     echo "Setting up Python appimage base..."
+    rm -rf "$PYTHON_APPIMAGE_DIR"
     mkdir -p "$PYTHON_APPIMAGE_DIR"
 
     # Download python-appimage
-    PYTHON_APPIMAGE="$BUILD_ROOT/python${PYTHON_VERSION}-x86_64.AppImage"
     if [[ ! -f "$PYTHON_APPIMAGE" ]]; then
         echo "Downloading Python ${PYTHON_VERSION} AppImage..."
-        wget -q -O "$PYTHON_APPIMAGE" "https://github.com/niess/python-appimage/releases/download/python3.11/python${PYTHON_VERSION}.*-cp311-cp311-manylinux*_x86_64.AppImage" 2>/dev/null || \
-        wget -q -O "$PYTHON_APPIMAGE" "https://github.com/niess/python-appimage/releases/download/python3.11/python3.11.9-cp311-cp311-manylinux2014_x86_64.AppImage"
+        wget -q -O "$PYTHON_APPIMAGE" "https://github.com/niess/python-appimage/releases/download/python3.13/python3.13.9-cp313-cp313-manylinux2014_x86_64.AppImage"
         chmod +x "$PYTHON_APPIMAGE"
     fi
 
     # Extract Python AppImage
     cd "$PYTHON_APPIMAGE_DIR"
-    "$PYTHON_APPIMAGE" --appimage-extract >/dev/null 2>&1
+    echo "Extracting Python runtime..."
+    "$PYTHON_APPIMAGE" --appimage-extract >/dev/null 2>&1 || { echo "Failed to extract Python AppImage"; exit 1; }
     mv squashfs-root python
     cd "$ROOT_DIR"
 fi
@@ -91,23 +98,24 @@ fi
 # Copy Python runtime to AppDir
 echo "Bundling Python runtime..."
 cp -r "$PYTHON_APPIMAGE_DIR/python/"* "$APPDIR/"
+rm -f "$APPDIR/AppRun"
 
 # Install pygame-ce into the bundled Python
 echo "Installing pygame-ce..."
-"$APPDIR/opt/python${PYTHON_VERSION}/bin/python3" -m pip install --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce >/dev/null 2>&1
+"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce >/dev/null 2>&1
 
 # Create launcher script
-cat <<'LAUNCHER' > "$APPDIR/AppRun"
+cat <<LAUNCHER > "$APPDIR/AppRun"
 #!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=${SELF%/*}
-export PATH="${HERE}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-export PYTHONPATH="${HERE}/usr/lib/python3/site-packages:${PYTHONPATH}"
-export PYTHONHOME="${HERE}/opt/python3.11"
+SELF=\$(readlink -f "\$0")
+HERE=\${SELF%/*}
+export PATH="\${HERE}/usr/bin:\${PATH}"
+export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${LD_LIBRARY_PATH}"
+export PYTHONPATH="\${HERE}/usr/lib/python3/site-packages:\${PYTHONPATH}"
+export PYTHONHOME="\${HERE}/opt/python${PYTHON_VERSION}"
 
-cd "${HERE}/usr/share/stargwent"
-exec "${HERE}/opt/python3.11/bin/python3" main.py "$@"
+cd "\${HERE}/usr/share/stargwent"
+exec "\${HERE}/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" main.py "\$@"
 LAUNCHER
 chmod +x "$APPDIR/AppRun"
 
@@ -136,6 +144,6 @@ EOF
 # Build AppImage
 OUTPUT="$RELEASE_ROOT/${PKG_NAME}-${VERSION}-x86_64.AppImage"
 echo "Building AppImage..."
-ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$OUTPUT" >/dev/null 2>&1
+ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT" >/dev/null 2>&1
 
 echo "AppImage created: $OUTPUT"
