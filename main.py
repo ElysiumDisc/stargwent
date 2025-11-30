@@ -16,6 +16,29 @@ from cards import (
     FACTION_ASGARD,
 )
 from ai_opponent import AIController
+from enum import Enum, auto
+
+class UIState(Enum):
+    """Finite State Machine for UI interaction modes."""
+    # Core Game Phases (synced with game.game_state)
+    MULLIGAN = auto()
+    PLAYING = auto()
+    GAME_OVER = auto()
+    
+    # Overlays & Special Modes
+    LEADER_MATCHUP = auto()
+    PAUSED = auto()
+    DISCARD_VIEW = auto()
+    MEDIC_SELECT = auto()
+    DECOY_SELECT = auto()
+    RING_TRANSPORT_SELECT = auto()
+    JONAS_PEEK = auto()
+    BAAL_CLONE_SELECT = auto()
+    VALA_SELECT = auto()
+    CATHERINE_SELECT = auto()
+    LEADER_CHOICE_SELECT = auto()
+    THOR_MOVE_SELECT = auto()
+    LAN_CHAT = auto()
 
 # LAN Mode globals - set by lan_game.py when running multiplayer
 LAN_MODE = False
@@ -3055,52 +3078,67 @@ def main(lan_game_data=None):
             main()
             return
 
-        if menu_result != 'new_game':
-            pygame.quit()
-            sys.exit()
+        if menu_result == 'draft_mode':
+            # Launch Draft Mode
+            from draft_controller import launch_draft_mode
+            drafted_deck = launch_draft_mode(screen, unlock_system)
 
-        # --- SHOW STARGATE OPENING ANIMATION ---
-        if not show_stargate_opening(screen):
-            # User closed window during animation
-            pygame.quit()
-            sys.exit()
+            if drafted_deck is None:
+                # User exited draft mode - return to main menu
+                main()
+                return
 
-        # Sync display mode in case menu/rules toggled fullscreen
-        sync_fullscreen_from_surface()
+            # Use the drafted deck for the game
+            player_leader = drafted_deck['leader']
+            player_deck = drafted_deck['cards']
+            player_faction = player_leader.get('faction', 'Neutral')
 
-        # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
-        deck_selection = run_deck_builder(
-            screen,
-            unlock_override=unlock_system.is_unlock_override_enabled(),
-            unlock_system=unlock_system,
-            toggle_fullscreen_callback=toggle_fullscreen_mode
-        )
+        elif menu_result == 'new_game':
+            # --- SHOW STARGATE OPENING ANIMATION ---
+            if not show_stargate_opening(screen):
+                # User closed window during animation
+                pygame.quit()
+                sys.exit()
 
-        if deck_selection is None:
-            # User cancelled - go back to main menu
-            main()
-            return
+            # Sync display mode in case menu/rules toggled fullscreen
+            sync_fullscreen_from_surface()
 
-        # Build player deck based on selection
-        player_faction = deck_selection['faction']
-        player_leader = dict(deck_selection['leader'])
-        player_leader.setdefault('faction', player_faction)
-        player_deck_ids = deck_selection['deck_ids']
+            # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
+            deck_selection = run_deck_builder(
+                screen,
+                unlock_override=unlock_system.is_unlock_override_enabled(),
+                unlock_system=unlock_system,
+                toggle_fullscreen_callback=toggle_fullscreen_mode
+            )
 
-        # Check if player has a custom deck for this faction
-        deck_manager.load_decks()  # Reload in case the player saved new changes in the deck builder
-        custom_deck_data = deck_manager.get_deck(player_faction)
-        if custom_deck_data and custom_deck_data.get("cards"):
-            # Use custom deck
-            custom_card_ids = custom_deck_data["cards"]
-            # Filter out 'leader' key and invalid cards
-            player_deck = [ALL_CARDS[id] for id in custom_card_ids if id != 'leader' and id in ALL_CARDS]
-            # Shuffle custom deck
-            import random
-            random.shuffle(player_deck)
+            if deck_selection is None:
+                # User cancelled - go back to main menu
+                main()
+                return
+
+            # Build player deck based on selection
+            player_faction = deck_selection['faction']
+            player_leader = dict(deck_selection['leader'])
+            player_leader.setdefault('faction', player_faction)
+            player_deck_ids = deck_selection['deck_ids']
+
+            # Check if player has a custom deck for this faction
+            deck_manager.load_decks()  # Reload in case the player saved new changes in the deck builder
+            custom_deck_data = deck_manager.get_deck(player_faction)
+            if custom_deck_data and custom_deck_data.get("cards"):
+                # Use custom deck
+                custom_card_ids = custom_deck_data["cards"]
+                # Filter out 'leader' key and invalid cards
+                player_deck = [ALL_CARDS[id] for id in custom_card_ids if id != 'leader' and id in ALL_CARDS]
+                # Shuffle custom deck
+                import random
+                random.shuffle(player_deck)
+            else:
+                # Use default faction deck
+                player_deck = [ALL_CARDS[id] for id in player_deck_ids]
         else:
-            # Use default faction deck
-            player_deck = [ALL_CARDS[id] for id in player_deck_ids]
+            pygame.quit()
+            sys.exit()
 
         # AI gets a random faction (different from player) and random leader
         from cards import FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
@@ -3242,11 +3280,13 @@ def main(lan_game_data=None):
     ai_leader_rect = None
     player_ability_rect = None
     ai_ability_rect = None
-    medic_selection_mode = False  # When player needs to choose card from discard
+    
+    # UI State Machine Initialization
+    ui_state = UIState.PLAYING
+    
+    # State Data Holders
     medic_card_played = None  # The medic card that was just played
-    decoy_selection_mode = False  # When player needs to choose card to return to hand
     decoy_card_played = None  # The decoy card that was just played
-    ring_transport_selection = False  # When Goa'uld player is choosing card for ring transport
     ring_transport_animation = None  # Active ring transportation animation
     ring_transport_button_rect = None  # Ring button for click detection
     decoy_drag_target = None  # Card being hovered over when dragging Ring Transport
@@ -3254,21 +3294,14 @@ def main(lan_game_data=None):
     iris_button_rect = None  # Iris button for click detection
     previous_round = game.round_number  # Track round changes
     previous_weather = {"close": False, "ranged": False, "siege": False}  # Track weather changes
-    paused = False  # Pause menu state
     
-    # Discard pile viewer
-    viewing_discard = False  # True when viewing discard pile
+    # Discard pile viewer data
     discard_scroll = 0  # Scroll offset for discard viewer
     discard_rect = None  # Assigned during draw phase
     
-    # Leader ability selection modes
-    jonas_peek_active = False  # Jonas Quinn: Showing opponent's next card
-    baal_clone_selection = False  # Ba'al: Choosing unit to clone
-    vala_selection_mode = False  # Vala: Choosing 1 of 3 cards
+    # Leader ability selection data
     vala_cards_to_choose = []  # The 3 cards Vala can choose from
-    catherine_selection_mode = False  # Catherine Langford: pick 1 of top 3 cards
     catherine_cards_to_choose = []  # Cached revealed cards for Catherine
-    thor_move_mode = False  # Thor: Selecting unit to move
     thor_selected_unit = None  # The unit Thor is moving
     pending_leader_choice = None  # Generic leader ability card selection (Jonas Quinn, Ba'al, etc.)
     
@@ -3364,7 +3397,20 @@ def main(lan_game_data=None):
 
         # Handle remote mulligan selections in LAN mode
         if LAN_MODE and LAN_CONTEXT and game.game_state == "mulligan" and not mulligan_remote_done:
-            while True:
+            # Timeout after 30 seconds to prevent infinite loops
+            mulligan_timeout = 30000  # 30 seconds in milliseconds
+            mulligan_start_time = pygame.time.get_ticks()
+            max_iterations = 1000  # Safety limit on iterations
+            iteration_count = 0
+
+            while iteration_count < max_iterations:
+                # Check timeout
+                if pygame.time.get_ticks() - mulligan_start_time > mulligan_timeout:
+                    print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
+                    mulligan_remote_done = True
+                    break
+
+                iteration_count += 1
                 msg = LAN_CONTEXT.session.receive()
                 if not msg:
                     break
@@ -3607,15 +3653,20 @@ def main(lan_game_data=None):
                     if inspected_card or inspected_leader:
                         inspected_card = None
                         inspected_leader = None
-                    elif viewing_discard:
-                        viewing_discard = False
+                    elif ui_state == UIState.DISCARD_VIEW:
+                        ui_state = UIState.PLAYING
                         discard_scroll = 0
-                    elif jonas_peek_active:
-                        jonas_peek_active = False
+                    elif ui_state == UIState.JONAS_PEEK:
+                        ui_state = UIState.PLAYING
                         # Clear the tracked cards after viewing
                         game.opponent_drawn_cards = []
+                    elif ui_state == UIState.LAN_CHAT:
+                        ui_state = UIState.PLAYING
                     elif game.game_state == "playing":
-                        paused = not paused
+                        if ui_state == UIState.PAUSED:
+                            ui_state = UIState.PLAYING
+                        else:
+                            ui_state = UIState.PAUSED
                 
                 # Toggle fullscreen with F11 or Alt+Enter
                 elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
@@ -3668,19 +3719,28 @@ def main(lan_game_data=None):
                                 game.player2.calculate_score()
                                 print(f"✓ Faction Power activated with F key: {game.player1.faction_power.name}")
                 
+                # T key = Toggle LAN Chat
+                elif event.key == pygame.K_t:
+                    if lan_chat_panel:
+                        if ui_state == UIState.LAN_CHAT:
+                            ui_state = UIState.PLAYING
+                            lan_chat_panel.active = False
+                        else:
+                            ui_state = UIState.LAN_CHAT
+                            lan_chat_panel.active = True
+                
                 # SPACEBAR = Alternative preview (same as right-click)
                 elif event.key == pygame.K_SPACE:
                     if inspected_card or inspected_leader:
                         # Close preview
                         inspected_card = None
                         inspected_leader = None
-                    elif viewing_discard or jonas_peek_active:
+                    elif ui_state in (UIState.DISCARD_VIEW, UIState.JONAS_PEEK):
                         # Close overlays
-                        viewing_discard = False
-                        if jonas_peek_active:
+                        if ui_state == UIState.JONAS_PEEK:
                             # Clear the tracked cards after viewing
                             game.opponent_drawn_cards = []
-                        jonas_peek_active = False
+                        ui_state = UIState.PLAYING
                         discard_scroll = 0
                     elif selected_card and game.game_state == "playing":
                         # Preview selected card
@@ -3759,11 +3819,12 @@ def main(lan_game_data=None):
                                     ability_name = result.get("ability", "")
                                     if ability_name == "Ancient Knowledge":
                                         # Catherine Langford
-                                        catherine_selection_mode = True
+                                        ui_state = UIState.CATHERINE_SELECT
                                         catherine_cards_to_choose = result.get("revealed_cards", [])
                                     elif ability_name in ["Eidetic Memory", "System Lord's Cunning"]:
                                         # Jonas Quinn or Ba'al
                                         pending_leader_choice = result
+                                        ui_state = UIState.LEADER_CHOICE_SELECT
                                 elif result.get("rows"):
                                     # Weather ability (Apophis) - show weather visual effects
                                     ability_name = result.get("ability", "Weather Decree")
@@ -3833,13 +3894,13 @@ def main(lan_game_data=None):
                     if history_clicked:
                         continue
                     # Check if right-clicking discard pile to view it
-                    if discard_rect and discard_rect.collidepoint(event.pos) and not viewing_discard:
-                        viewing_discard = True
+                    if discard_rect and discard_rect.collidepoint(event.pos) and ui_state != UIState.DISCARD_VIEW:
+                        ui_state = UIState.DISCARD_VIEW
                         discard_scroll = 0
                         continue
                     
                     # Check if right-clicking a card in the discard viewer to inspect it
-                    if viewing_discard:
+                    if ui_state == UIState.DISCARD_VIEW:
                         card_clicked = False
                         for card in game.player1.discard_pile:
                             if hasattr(card, 'rect') and card.rect.collidepoint(event.pos):
@@ -3853,7 +3914,7 @@ def main(lan_game_data=None):
                             continue
                         
                         # Otherwise close the discard viewer
-                        viewing_discard = False
+                        ui_state = UIState.PLAYING
                         discard_scroll = 0
                         continue
                     
@@ -3896,23 +3957,23 @@ def main(lan_game_data=None):
                     continue
                 
                 # Click discard pile to view it
-                if discard_rect and discard_rect.collidepoint(event.pos) and not viewing_discard:
-                    viewing_discard = True
+                if discard_rect and discard_rect.collidepoint(event.pos) and ui_state != UIState.DISCARD_VIEW:
+                    ui_state = UIState.DISCARD_VIEW
                     discard_scroll = 0
                 
                 # Close discard viewer with click
-                if viewing_discard and event.button == 1:
-                    viewing_discard = False
+                if ui_state == UIState.DISCARD_VIEW and event.button == 1:
+                    ui_state = UIState.PLAYING
                 
                 # Handle discard scroll with mouse wheel
-                if viewing_discard and event.button in [4, 5]:
+                if ui_state == UIState.DISCARD_VIEW and event.button in [4, 5]:
                     if event.button == 4:  # Scroll up
                         discard_scroll = min(0, discard_scroll + 50)
                     else:  # Scroll down
                         discard_scroll -= 50
                 
                 # Handle medic selection mode
-                if medic_selection_mode:
+                if ui_state == UIState.MEDIC_SELECT:
                     # Check if clicking on a card in the medic selection overlay
                     # This will be handled after drawing
                     pass
@@ -4050,10 +4111,10 @@ def main(lan_game_data=None):
                         elif ring_transport_button_rect and ring_transport_button_rect.collidepoint(event.pos):
                             if game.player1.ring_transportation and game.player1.ring_transportation.can_use():
                                 # Enter card selection mode - next card clicked will be transported
-                                ring_transport_selection = True
+                                ui_state = UIState.RING_TRANSPORT_SELECT
                         else:
                             # Ring Transport selection mode - clicking a card on player's board
-                            if ring_transport_selection:
+                            if ui_state == UIState.RING_TRANSPORT_SELECT:
                                 # Check if clicking on player's CLOSE COMBAT cards only
                                 card_clicked = False
                                 row_cards = game.player1.board.get("close", [])
@@ -4081,7 +4142,7 @@ def main(lan_game_data=None):
                                         game.player1.calculate_score()
                                         game.player2.calculate_score()
                                         
-                                        ring_transport_selection = False
+                                        ui_state = UIState.PLAYING
                                         card_clicked = True
                                         break
                                 
@@ -4318,7 +4379,7 @@ def main(lan_game_data=None):
                                         valid_medic_cards = game.get_medic_valid_cards(game.player1)
                                         if valid_medic_cards:
                                             # Enter medic selection mode
-                                            medic_selection_mode = True
+                                            ui_state = UIState.MEDIC_SELECT
                                             medic_card_played = dragging_card
                                             game.play_card(dragging_card, row_name)
                                         else:
@@ -4382,7 +4443,7 @@ def main(lan_game_data=None):
             if game.player1.leader and "Jonas" in game.player1.leader.get('name', ''):
                 # Show overlay if opponent has drawn cards (not starting hand)
                 if game.opponent_drawn_cards:
-                    jonas_peek_active = True
+                    ui_state = UIState.JONAS_PEEK
             
             # Vala: Look at 3 cards, keep 1 (once per round, manual trigger with V key)
             # Ba'al Clone: Clone highest unit (once per round, manual trigger with B key)
@@ -4962,7 +5023,7 @@ def main(lan_game_data=None):
             
             # LAN Chat Overlay
             if lan_chat_panel:
-                if chat_overlay_active:
+                if ui_state == UIState.LAN_CHAT:
                     # Draw large centered chat overlay
                     overlay_width = min(800, int(SCREEN_WIDTH * 0.6))
                     overlay_height = min(600, int(SCREEN_HEIGHT * 0.6))
@@ -5147,11 +5208,11 @@ def main(lan_game_data=None):
         
         # Medical Evac selection overlay
         medic_card_rects = []
-        if medic_selection_mode:
+        if ui_state == UIState.MEDIC_SELECT:
             medic_valid_cards = game.get_medic_valid_cards(game.player1)
             if not medic_valid_cards:
                 # No valid targets (discard pile empty) — exit selection and end turn cleanly
-                medic_selection_mode = False
+                ui_state = UIState.PLAYING
                 medic_card_played = None
                 game.add_history_event(
                     "ability",
@@ -5181,14 +5242,14 @@ def main(lan_game_data=None):
                             game.switch_turn()
                             if network_proxy:
                                 network_proxy.send_medic_choice(card.id)
-                            medic_selection_mode = False
+                            ui_state = UIState.PLAYING
                             medic_card_played = None
                             pygame.time.wait(200)  # Small delay to prevent double-click
                             break
         
         # Ring Transport selection overlay
         decoy_card_rects = []
-        if decoy_selection_mode:
+        if ui_state == UIState.DECOY_SELECT:
             decoy_card_rects = draw_decoy_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             # Handle clicks on decoy cards
@@ -5206,25 +5267,25 @@ def main(lan_game_data=None):
                             game.switch_turn()
                             if network_proxy:
                                 network_proxy.send_decoy_choice(card.id)
-                            decoy_selection_mode = False
+                            ui_state = UIState.PLAYING
                             decoy_card_played = None
                             pygame.time.wait(200)  # Small delay to prevent double-click
                         break
         
         # Jonas Quinn peek overlay
-        if jonas_peek_active:
+        if ui_state == UIState.JONAS_PEEK:
             draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
 
             # Handle click to close
             if pygame.mouse.get_pressed()[0]:
-                jonas_peek_active = False
+                ui_state = UIState.PLAYING
                 # Clear the tracked cards after viewing
                 game.opponent_drawn_cards = []
                 pygame.time.wait(200)
         
         # Ba'al Clone selection overlay
         baal_card_rects = []
-        if baal_clone_selection:
+        if ui_state == UIState.BAAL_CLONE_SELECT:
             baal_card_rects = draw_baal_clone_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             mouse_pos = pygame.mouse.get_pos()
@@ -5240,13 +5301,13 @@ def main(lan_game_data=None):
                                 game.player1.board[row_name].append(cloned_card)
                                 break
                         game.player1.calculate_score()
-                        baal_clone_selection = False
+                        ui_state = UIState.PLAYING
                         pygame.time.wait(200)
                         break
         
         # Vala selection overlay
         vala_card_rects = []
-        if vala_selection_mode:
+        if ui_state == UIState.VALA_SELECT:
             vala_card_rects = draw_vala_selection_overlay(screen, vala_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             mouse_pos = pygame.mouse.get_pos()
@@ -5260,14 +5321,14 @@ def main(lan_game_data=None):
                             if c != card:
                                 game.player1.deck.append(c)
                         game.rng.shuffle(game.player1.deck)
-                        vala_selection_mode = False
+                        ui_state = UIState.PLAYING
                         vala_cards_to_choose = []
                         pygame.time.wait(200)
                         break
 
         # Catherine Langford selection overlay
         catherine_card_rects = []
-        if catherine_selection_mode:
+        if ui_state == UIState.CATHERINE_SELECT:
             catherine_card_rects = draw_catherine_selection_overlay(screen, catherine_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
             mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
@@ -5280,7 +5341,7 @@ def main(lan_game_data=None):
                                 "Ancient Knowledge",
                                 {"choice_id": card.id, "revealed_ids": revealed_ids}
                             )
-                        catherine_selection_mode = False
+                        ui_state = UIState.PLAYING
                         catherine_cards_to_choose = []
                         pygame.time.wait(200)
                         break
@@ -5288,6 +5349,10 @@ def main(lan_game_data=None):
         # Generic leader choice overlay (Jonas Quinn, Ba'al, etc.)
         leader_choice_rects = []
         if pending_leader_choice:
+            # Sync state if needed
+            if ui_state != UIState.LEADER_CHOICE_SELECT:
+                ui_state = UIState.LEADER_CHOICE_SELECT
+                
             leader_choice_rects = draw_leader_choice_overlay(screen, pending_leader_choice, SCREEN_WIDTH, SCREEN_HEIGHT)
             mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
@@ -5309,11 +5374,12 @@ def main(lan_game_data=None):
                                     {"choice_id": card.id}
                                 )
                         pending_leader_choice = None
+                        ui_state = UIState.PLAYING
                         pygame.time.wait(200)
                         break
 
         # Thor move mode - simple visual indicator
-        if thor_move_mode:
+        if ui_state == UIState.THOR_MOVE_SELECT:
             # Draw indicator
             indicator_font = pygame.font.Font(None, 48)
             indicator_text = indicator_font.render("THOR: Click a unit to move, then click destination row", True, (50, 200, 150))
@@ -5349,18 +5415,18 @@ def main(lan_game_data=None):
                                     row_cards.remove(thor_selected_unit)
                                     game.player1.board[row_name].append(thor_selected_unit)
                                     game.player1.calculate_score()
-                                    thor_move_mode = False
+                                    ui_state = UIState.PLAYING
                                     thor_selected_unit = None
                                     pygame.time.wait(200)
                                     break
                             break
         
         # Discard pile viewer overlay
-        if viewing_discard:
+        if ui_state == UIState.DISCARD_VIEW:
             draw_discard_viewer(screen, game.player1.discard_pile, SCREEN_WIDTH, SCREEN_HEIGHT, discard_scroll)
 
         # Context popup for leader column buttons
-        if button_info_popup and not paused and not inspected_card and not inspected_leader:
+        if button_info_popup and ui_state != UIState.PAUSED and not inspected_card and not inspected_leader:
             expires_at = button_info_popup.get("expires_at")
             if expires_at and pygame.time.get_ticks() > expires_at:
                 button_info_popup = None
@@ -5368,7 +5434,7 @@ def main(lan_game_data=None):
                 draw_button_info_popup(screen, button_info_popup)
         
         # Pause menu overlay
-        if paused:
+        if ui_state == UIState.PAUSED:
             # Semi-transparent overlay
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
@@ -5421,7 +5487,7 @@ def main(lan_game_data=None):
             if event and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = event.pos
                 if resume_button.collidepoint(mouse_pos):
-                    paused = False
+                    ui_state = UIState.PLAYING
                 elif main_menu_button.collidepoint(mouse_pos):
                     # Return to main menu
                     stop_battle_music()

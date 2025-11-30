@@ -188,3 +188,9 @@ def iter_unlockable_leader_ids():
 def get_leader_banner_name(card_id):
     """Get a short display name for a leader (falls back to full name if needed)."""
     return LEADER_BANNER_NAMES.get(card_id, LEADER_NAME_BY_ID.get(card_id, card_id))
+
+
+# Full registry of all leaders (base + unlockable)
+LEADER_REGISTRY = []
+for faction in {*BASE_FACTION_LEADERS.keys(), *UNLOCKABLE_LEADERS.keys()}:
+    LEADER_REGISTRY.extend(get_all_leaders_for_faction(faction))

@@ -1005,6 +1005,8 @@ def main():
     create_menu_background()
     create_rule_menu_background()
     create_deck_building_background()
+    create_stats_menu_background()
+    create_draft_mode_background()
     create_custom_font()
     create_card_back_image()
     create_universal_matchup_background()
@@ -1016,7 +1018,7 @@ def main():
     num_leaders = sum(len(l) for l in leaders.values())
     num_ships = len(factions_for_ships)  # One ship per faction
     num_faction_bgs = len(FACTION_BACKGROUND_IDS)
-    num_other = 7  # board, menu, rule menu, deck bg, card back, universal matchup bg, lobby bg
+    num_other = 9  # board, menu, rule menu, deck bg, stats bg, draft bg, card back, universal matchup bg, lobby bg
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
     
@@ -1030,8 +1032,194 @@ def main():
     print(f"  Universal Matchup Backgrounds: 1 (dynamic overlay handles text/names)")
     print(f"  Ships: {num_ships} (1 per faction)")
     print(f"  Faction Backgrounds: {num_faction_bgs}")
-    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, card back, universal matchup bg, lobby bg) + 1 font config")
+    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, stats bg, draft bg, card back, universal matchup bg, lobby bg) + 1 font config")
     print(f"  Total Images: {total_images}")
+
+
+def create_stats_menu_background():
+    """Create background for stats menu with data visualization aesthetic."""
+    path = os.path.join(ASSETS_DIR, "stats_menu_bg.png")
+    if not should_create_file(path):
+        print(f"  ⊗ Skipped: stats_menu_bg.png (already exists)")
+        return None
+
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+
+    # Dark blue-grey gradient background (professional data look)
+    for y in range(BOARD_HEIGHT):
+        progress = y / BOARD_HEIGHT
+        r = int(15 + progress * 15)
+        g = int(20 + progress * 20)
+        b = int(35 + progress * 30)
+        pygame.draw.line(surface, (r, g, b), (0, y), (BOARD_WIDTH, y))
+
+    # Subtle starfield (less dense for readability)
+    for _ in range(300):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.randint(1, 2)
+        brightness = random.randint(80, 160)
+        pygame.draw.circle(surface, (brightness, brightness, brightness), (x, y), size)
+
+    # Data grid pattern (subtle)
+    grid_color = (40, 60, 90)
+    grid_spacing = 80
+    for x in range(0, BOARD_WIDTH, grid_spacing):
+        pygame.draw.line(surface, grid_color, (x, 0), (x, BOARD_HEIGHT), 1)
+    for y in range(0, BOARD_HEIGHT, grid_spacing):
+        pygame.draw.line(surface, grid_color, (0, y), (BOARD_WIDTH, y), 1)
+
+    # Holographic data panels (corner accents)
+    panel_color = (60, 100, 160, 100)
+    corner_size = 400
+
+    # Top-left data panel
+    panel_surf = pygame.Surface((corner_size, corner_size), pygame.SRCALPHA)
+    pygame.draw.rect(panel_surf, panel_color, (0, 0, corner_size, corner_size), border_radius=20)
+    pygame.draw.rect(panel_surf, (100, 160, 220, 80), (0, 0, corner_size, corner_size), width=3, border_radius=20)
+    surface.blit(panel_surf, (50, 50))
+
+    # Bottom-right data panel
+    panel_surf = pygame.Surface((corner_size, corner_size), pygame.SRCALPHA)
+    pygame.draw.rect(panel_surf, panel_color, (0, 0, corner_size, corner_size), border_radius=20)
+    pygame.draw.rect(panel_surf, (100, 160, 220, 80), (0, 0, corner_size, corner_size), width=3, border_radius=20)
+    surface.blit(panel_surf, (BOARD_WIDTH - corner_size - 50, BOARD_HEIGHT - corner_size - 50))
+
+    # Chart-like decorations (bar graph silhouette)
+    chart_x = 150
+    chart_y = BOARD_HEIGHT - 300
+    bar_width = 40
+    for i in range(10):
+        bar_height = random.randint(50, 200)
+        bar_color = (50, 120, 180, 60)
+        pygame.draw.rect(surface, bar_color, (chart_x + i * (bar_width + 10), chart_y - bar_height, bar_width, bar_height), border_radius=5)
+
+    # Circular stat wheels (top-right)
+    wheel_center = (BOARD_WIDTH - 300, 300)
+    for radius in range(150, 50, -30):
+        alpha = 40 + (150 - radius) // 2
+        pygame.draw.circle(surface, (60, 140, 200, alpha), wheel_center, radius, 3)
+
+    # Line graph silhouette (center-right)
+    graph_points = []
+    graph_x_start = BOARD_WIDTH - 600
+    graph_y_base = BOARD_HEIGHT // 2
+    for i in range(8):
+        x = graph_x_start + i * 70
+        y = graph_y_base + random.randint(-100, 100)
+        graph_points.append((x, y))
+
+    if len(graph_points) > 1:
+        pygame.draw.lines(surface, (80, 160, 220, 100), False, graph_points, 4)
+        for point in graph_points:
+            pygame.draw.circle(surface, (100, 180, 240), point, 8)
+            pygame.draw.circle(surface, (60, 140, 200), point, 6)
+
+    # "STATISTICS" title watermark (very faint)
+    title_font = pygame.font.SysFont("Arial", 180, bold=True)
+    title_surf = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    title_text = title_font.render("STATISTICS", True, (60, 100, 160, 30))
+    title_rect = title_text.get_rect(center=(BOARD_WIDTH // 2, BOARD_HEIGHT // 2))
+    title_surf.blit(title_text, title_rect)
+    surface.blit(title_surf, (0, 0))
+
+    pygame.image.save(surface, path)
+    print(f"  ✓ {path}")
+    return path
+
+
+def create_draft_mode_background():
+    """Create background for Draft Mode (Arena) with card-picking aesthetic."""
+    path = os.path.join(ASSETS_DIR, "draft_mode_bg.png")
+    if not should_create_file(path):
+        print(f"  ⊗ Skipped: draft_mode_bg.png (already exists)")
+        return None
+
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+
+    # Deep space with purple/blue nebula theme (mysterious, exciting)
+    for y in range(BOARD_HEIGHT):
+        progress = y / BOARD_HEIGHT
+        r = int(25 + progress * 30)
+        g = int(15 + progress * 25)
+        b = int(45 + progress * 60)
+        pygame.draw.line(surface, (r, g, b), (0, y), (BOARD_WIDTH, y))
+
+    # Dense starfield for excitement
+    for _ in range(800):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.choice([1, 1, 2, 3])
+        brightness = random.randint(100, 255)
+        pygame.draw.circle(surface, (brightness, brightness, brightness), (x, y), size)
+
+    # Nebula clouds (purple and blue)
+    for _ in range(15):
+        x = random.randint(-400, BOARD_WIDTH + 400)
+        y = random.randint(-400, BOARD_HEIGHT + 400)
+        size = random.randint(300, 700)
+        nebula_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+
+        color_choice = random.choice([
+            (150, 50, 200, 40),   # Purple nebula
+            (50, 100, 200, 40),   # Blue nebula
+            (200, 50, 150, 40),   # Pink nebula
+        ])
+        pygame.draw.circle(nebula_surf, color_choice, (size, size), size)
+        surface.blit(nebula_surf, (x - size, y - size))
+
+    # Card silhouettes floating in background (draft theme)
+    card_silhouette_color = (80, 60, 140, 60)
+    for i in range(12):
+        x = random.randint(100, BOARD_WIDTH - 100)
+        y = random.randint(100, BOARD_HEIGHT - 100)
+        rotation = random.randint(-30, 30)
+
+        # Create rotated card shape
+        card_surf = pygame.Surface((250, 350), pygame.SRCALPHA)
+        pygame.draw.rect(card_surf, card_silhouette_color, (0, 0, 250, 350), border_radius=15)
+        pygame.draw.rect(card_surf, (120, 100, 180, 80), (0, 0, 250, 350), width=3, border_radius=15)
+
+        # Rotate and blit
+        rotated = pygame.transform.rotate(card_surf, rotation)
+        rect = rotated.get_rect(center=(x, y))
+        surface.blit(rotated, rect)
+
+    # "DRAFT MODE" title watermark (center, very faint)
+    title_font = pygame.font.SysFont("Arial", 200, bold=True)
+    title_surf = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    title_text = title_font.render("DRAFT MODE", True, (100, 80, 180, 25))
+    title_rect = title_text.get_rect(center=(BOARD_WIDTH // 2, BOARD_HEIGHT // 2))
+    title_surf.blit(title_text, title_rect)
+    surface.blit(title_surf, (0, 0))
+
+    # Glowing particles (excitement effect)
+    for _ in range(50):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.randint(5, 15)
+
+        # Multi-layer glow
+        glow_surf = pygame.Surface((size * 4, size * 4), pygame.SRCALPHA)
+        for r in range(size * 2, 0, -3):
+            alpha = int(100 * (r / (size * 2)))
+            color = random.choice([
+                (180, 100, 255, alpha),  # Purple glow
+                (100, 180, 255, alpha),  # Blue glow
+            ])
+            pygame.draw.circle(glow_surf, color, (size * 2, size * 2), r)
+        surface.blit(glow_surf, (x - size * 2, y - size * 2))
+
+    # Spotlight effect from top (dramatic)
+    spotlight = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    for i in range(600, 0, -20):
+        alpha = max(0, 60 - (600 - i) // 10)
+        pygame.draw.circle(spotlight, (100, 150, 255, alpha), (BOARD_WIDTH // 2, -200), i)
+    surface.blit(spotlight, (0, 0))
+
+    pygame.image.save(surface, path)
+    print(f"  ✓ {path}")
+    return path
 
 
 def create_lobby_background():

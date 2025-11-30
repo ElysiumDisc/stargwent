@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-2.9.1-blue)
+![Version](https://img.shields.io/badge/version-3.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -51,7 +51,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### ✨ Key Features
 
 ### 🎮 Complete Card Game Experience
-- **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer!
+- **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.0.0: DRAFT MODE (ARENA)** - Roguelike deck-building mode! Choose from 3 random leaders, draft 30 cards from ALL factions (1 of 3 choices each pick), review your deck stats, then battle AI with your creation! Card pool includes ALL unlocked cards regardless of faction!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
 - **⚡ NEW v2.9.1: ADVANCED AI OVERHAUL** - Smart mulligan logic, strategic pass timing, intelligent power/iris usage, and advanced target selection for Hathor/Medic abilities!
 - **⚡ NEW v2.9.1: ENHANCED STATS MENU** - Scrollable interface with mouse wheel support, leader metadata display, and reorganized sections!
@@ -1518,6 +1519,50 @@ All 20 unlockable card abilities verified and confirmed working:
 - **Communication Device:** Clarified as "Reveal opponent's hand" (was ambiguous)
 
 **Status:** 100% of unlockable card abilities now verified and working correctly!
+
+#### **Finite State Machine (FSM) Implementation (v0.9.0)**
+Resolved the "Boolean Flag Hell" issue by implementing a robust Finite State Machine for UI management.
+
+**Problem (Before):**
+- 20+ independent boolean flags (`medic_selection_mode`, `viewing_discard`, `paused`, etc.)
+- Fragile state management prone to conflicts (e.g., two flags True simultaneously)
+- Undefined behavior when states overlapped
+- Difficult to debug and maintain
+
+**Solution (After):**
+```python
+class UIState(Enum):
+    # Core Game Phases
+    MULLIGAN = auto()
+    PLAYING = auto()
+    GAME_OVER = auto()
+
+    # Overlays & Special Modes
+    LEADER_MATCHUP = auto()
+    PAUSED = auto()
+    DISCARD_VIEW = auto()
+    LAN_CHAT = auto()
+
+    # Selection Modes
+    MEDIC_SELECT = auto()
+    DECOY_SELECT = auto()
+    RING_TRANSPORT_SELECT = auto()
+    JONAS_PEEK = auto()
+    BAAL_CLONE_SELECT = auto()
+    VALA_SELECT = auto()
+    CATHERINE_SELECT = auto()
+    LEADER_CHOICE_SELECT = auto()
+    THOR_MOVE_SELECT = auto()
+```
+
+**Key Improvements:**
+- ✅ **Single Source of Truth:** One `ui_state` variable replaces 20+ booleans
+- ✅ **No Conflicting States:** Only one state active at any time
+- ✅ **Clear State Transitions:** All state changes are explicit and traceable
+- ✅ **Integrated Input Handling:** ESC/SPACE keys intelligently close overlays based on current state
+- ✅ **Overlay Stack Management:** Proper hierarchy (Inspection → Discard/Chat → Pause)
+
+**Result:** Significantly cleaner code, eliminates state-related bugs, easier to maintain and extend
 
 ---
 

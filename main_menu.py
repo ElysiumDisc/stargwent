@@ -229,6 +229,7 @@ class MainMenu:
         # Menu options
         self.options = [
             {'text': 'NEW GAME', 'action': 'new_game'},
+            {'text': 'DRAFT MODE', 'action': 'draft_mode'},
             {'text': 'DECK BUILDING', 'action': 'deck_building'},
             {'text': 'MULTIPLAYER', 'action': 'lan_menu'},
             {'text': 'RULE MENU', 'action': 'rules_menu'},
@@ -263,6 +264,20 @@ class MainMenu:
     def run_stats_menu(self, surface):
         """Show a stats overlay with win/loss and faction usage."""
         stats = get_persistence().get_stats()
+
+        # Try to load stats menu background image
+        stats_bg = None
+        stats_bg_path = os.path.join("assets", "stats_menu_bg.png")
+        if os.path.exists(stats_bg_path):
+            try:
+                stats_bg = pygame.image.load(stats_bg_path).convert()
+                stats_bg = pygame.transform.scale(stats_bg, (self.screen_width, self.screen_height))
+                print(f"✓ Loaded stats menu background from {stats_bg_path}")
+            except Exception as e:
+                print(f"Warning: Could not load stats background: {e}")
+                stats_bg = None
+        else:
+            print(f"Stats menu background not found at {stats_bg_path}, using animated background")
 
         def compute(stats):
             total_games = stats.get("total_games", 0)
@@ -385,29 +400,34 @@ class MainMenu:
                         delta = -60 if event.button == 4 else 60
                         scroll_offset = max(0, min(max_scroll, scroll_offset + delta))
 
-            # Thematic Stargate background layer
-            bg_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-            center = (self.screen_width // 2, self.screen_height // 2)
-            pulse = (math.sin(bg_phase * 2) + 1) * 0.5
-            for r in range(120, min(self.screen_width, self.screen_height) // 2, 80):
-                alpha = max(20, int(80 * (1 - r / (self.screen_width // 2)) * (0.6 + 0.4 * pulse)))
-                pygame.draw.circle(bg_layer, (60, 120, 200, alpha), center, r, width=4)
-            # Rotating chevron rays
-            for i in range(9):
-                angle = bg_phase * 0.8 + i * (2 * math.pi / 9)
-                length = min(self.screen_width, self.screen_height) // 2
-                sx = center[0] + math.cos(angle) * 80
-                sy = center[1] + math.sin(angle) * 80
-                ex = center[0] + math.cos(angle) * length
-                ey = center[1] + math.sin(angle) * length
-                pygame.draw.line(bg_layer, (100, 180, 255, 60), (sx, sy), (ex, ey), 2)
+            # Draw background - use image if available, otherwise animated background
+            if stats_bg:
+                # Use static background image
+                surface.blit(stats_bg, (0, 0))
+            else:
+                # Fallback to animated Stargate background layer
+                bg_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+                center = (self.screen_width // 2, self.screen_height // 2)
+                pulse = (math.sin(bg_phase * 2) + 1) * 0.5
+                for r in range(120, min(self.screen_width, self.screen_height) // 2, 80):
+                    alpha = max(20, int(80 * (1 - r / (self.screen_width // 2)) * (0.6 + 0.4 * pulse)))
+                    pygame.draw.circle(bg_layer, (60, 120, 200, alpha), center, r, width=4)
+                # Rotating chevron rays
+                for i in range(9):
+                    angle = bg_phase * 0.8 + i * (2 * math.pi / 9)
+                    length = min(self.screen_width, self.screen_height) // 2
+                    sx = center[0] + math.cos(angle) * 80
+                    sy = center[1] + math.sin(angle) * 80
+                    ex = center[0] + math.cos(angle) * length
+                    ey = center[1] + math.sin(angle) * length
+                    pygame.draw.line(bg_layer, (100, 180, 255, 60), (sx, sy), (ex, ey), 2)
 
-            surface.blit(bg_layer, (0, 0))
+                surface.blit(bg_layer, (0, 0))
 
-            # Dark overlay to keep readability
-            dynamic_overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-            dynamic_overlay.fill((0, 0, 20, 200))
-            surface.blit(dynamic_overlay, (0, 0))
+                # Dark overlay to keep readability
+                dynamic_overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+                dynamic_overlay.fill((0, 0, 20, 200))
+                surface.blit(dynamic_overlay, (0, 0))
 
             panel_surf = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
             panel_surf.fill((20, 30, 50, 230))
@@ -1441,6 +1461,9 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             if action == 'new_game':
                 stop_menu_music()
                 return 'new_game'
+            elif action == 'draft_mode':
+                stop_menu_music()
+                return 'draft_mode'
             elif action == 'deck_building':
                 # Use the GOOD deck builder from deck_builder.py
                 from deck_builder import run_deck_builder

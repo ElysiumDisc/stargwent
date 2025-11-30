@@ -2,8 +2,16 @@ import random
 import copy
 import time
 import pygame
+import logging
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, Card
 from sound_manager import get_sound_manager
+
+# Configure logging
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
 
@@ -1338,8 +1346,8 @@ class Game:
             try:
                 get_sound_manager().play_weather_sound("clear")
                 weather_sound_played = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to play weather clear sound: {e}")
             return affected_rows
 
         # Asgard shielding: opponent can block the first enemy weather each round
@@ -1426,8 +1434,8 @@ class Game:
                 try:
                     sound_key = weather_name.lower().replace(" ", "_")
                     get_sound_manager().play_weather_sound(sound_key)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to play weather sound '{sound_key}': {e}")
 
         return affected_rows
 
@@ -1452,8 +1460,11 @@ class Game:
         elif "Jonas Quinn" in leader_name:
             result = self._activate_jonas_memory(player)
         if result:
-            self.leader_ability_used[player] = True
-            self.calculate_scores_and_log()
+            # Only mark as used if the ability doesn't require UI interaction
+            # UI-requiring abilities will set the flag in their completion functions
+            if not isinstance(result, dict) or not result.get("requires_ui", False):
+                self.leader_ability_used[player] = True
+                self.calculate_scores_and_log()
         return result
 
     def apply_remote_leader_ability(self, player, payload):
@@ -1468,7 +1479,6 @@ class Game:
         # Prevent double-activation locally
         if self.leader_ability_used.get(player, False):
             return False
-        self.leader_ability_used[player] = True
 
         # Apophis: weather decree
         if ability in ("Ice Planet Hazard", "Nebula Interference", "Asteroid Storm", "Electromagnetic Pulse"):
@@ -1485,6 +1495,8 @@ class Game:
                 self.apply_weather_effect(weather_card, row_name, acting_player=player, target_side="both")
                 self._set_weather_slot(row_name, {"card": weather_card, "owner": None})
             self.calculate_scores_and_log()
+            # Mark as used only after successful completion
+            self.leader_ability_used[player] = True
             return True
 
         # Catherine Langford: choose one of top three cards
@@ -1514,6 +1526,8 @@ class Game:
                     self._owner_label(player),
                     card_ref=chosen_card
                 )
+                # Mark as used only after successful completion
+                self.leader_ability_used[player] = True
 
             # Put the rest at the bottom of the deck preserving reveal order
             for card in top_cards:
@@ -1521,7 +1535,7 @@ class Game:
                     player.deck.append(card)
             return bool(chosen_card)
 
-        # Ba'al: resurrect from discard
+        # Ba'al: resurrect from discard (baal_resurrect_card sets the flag)
         if ability == "System Lord's Cunning":
             choice_id = payload.get("choice_id")
             if not choice_id:
@@ -1529,6 +1543,7 @@ class Game:
             chosen_card = next((c for c in player.discard_pile if getattr(c, "id", None) == choice_id), None)
             if not chosen_card:
                 return False
+            # Note: baal_resurrect_card sets leader_ability_used flag internally
             return self.baal_resurrect_card(player, chosen_card)
 
         # Jonas Quinn: copy a card
@@ -1545,6 +1560,8 @@ class Game:
                 card_ref=memorized_card,
                 icon="🧠"
             )
+            # Mark as used only after successful completion
+            self.leader_ability_used[player] = True
             return True
 
         # Hathor: steal lowest power enemy unit (payload includes source row/index)
@@ -1557,7 +1574,8 @@ class Game:
                 return False
             try:
                 target_card = opponent.board[from_row][from_index]
-            except IndexError:
+            except IndexError as e:
+                logger.warning(f"Hathor steal failed - invalid index {from_index} in row {from_row}: {e}")
                 return False
 
             # Remove from opponent board
@@ -1579,6 +1597,8 @@ class Game:
                 "animation_start": pygame.time.get_ticks(),
                 "animation_started": False
             }
+            # Mark as used only after successful completion
+            self.leader_ability_used[player] = True
             return True
 
         return False
@@ -1665,6 +1685,10 @@ class Game:
             card_ref=chosen_card
         )
 
+        # Mark leader ability as used after successful completion
+        self.leader_ability_used[player] = True
+        self.calculate_scores_and_log()
+
     def _activate_baal_resurrection(self, player):
         """Ba'al: Return a destroyed unit from discard pile to hand (once per game)."""
         # Get all non-Hero units from discard pile
@@ -1695,6 +1719,9 @@ class Game:
                 card_ref=chosen_card,
                 icon="♻️"
             )
+            # Mark leader ability as used after successful completion
+            self.leader_ability_used[player] = True
+            self.calculate_scores_and_log()
             return True
         return False
 
@@ -1744,8 +1771,8 @@ class Game:
                 self.current_player.horn_slots[row_name] = card
                 try:
                     get_sound_manager().play_horn_sound()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to play horn sound: {e}")
                 self.add_history_event(
                     "horn",
                     f"{self.current_player.name} activated a Horn on {row_name.title()}",

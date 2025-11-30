@@ -9,6 +9,11 @@ def get_scale_factor(screen_height):
     """Get resolution scale factor based on screen height."""
     return screen_height / 1080.0  # 1.0 for 1080p, 2.0 for 4K
 
+# Particle system limits to prevent memory accumulation
+MAX_TRAIL_PARTICLES = 50
+MAX_HEARTS_PARTICLES = 30
+MAX_GENERAL_PARTICLES = 100
+
 class Animation:
     """Base class for all animations."""
     def __init__(self, duration):
@@ -87,13 +92,18 @@ class CardStealAnimation(Animation):
         self.current_y = self.start_y + (self.end_y - self.start_y) * eased + arc
         self.scale = 1.05
         self.alpha = int(255 * (1 - progress * 0.2))
-        
+
         self.trail.append({
             'x': self.current_x,
             'y': self.current_y,
             'alpha': self.alpha,
             'age': 0
         })
+
+        # Enforce max trail particles limit
+        if len(self.trail) > MAX_TRAIL_PARTICLES:
+            self.trail = self.trail[-MAX_TRAIL_PARTICLES:]
+
         for particle in self.trail[:]:
             particle['age'] += dt
             particle['alpha'] = max(0, particle['alpha'] - dt * 0.4)
@@ -192,9 +202,9 @@ class HathorStealAnimation(Animation):
         
         # Remove dead hearts
         self.hearts = [h for h in self.hearts if h['life'] > 0]
-        
-        # Add new hearts during the animation
-        if progress < 0.7 and random.random() < 0.2:
+
+        # Add new hearts during the animation (with max limit)
+        if progress < 0.7 and random.random() < 0.2 and len(self.hearts) < MAX_HEARTS_PARTICLES:
             self.hearts.append({
                 'x': self.current_x + random.uniform(-20, 20),
                 'y': self.current_y + random.uniform(-20, 20),
@@ -204,6 +214,10 @@ class HathorStealAnimation(Animation):
                 'life': 1.0,
                 'color': (255, random.randint(100, 200), random.randint(150, 200))
             })
+
+        # Enforce max hearts limit (safety check)
+        if len(self.hearts) > MAX_HEARTS_PARTICLES:
+            self.hearts = self.hearts[-MAX_HEARTS_PARTICLES:]
             
         if self.finished and self.on_finish:
             self.on_finish()
@@ -318,6 +332,8 @@ class ParticleEffect:
     """Particle system for effects like Stargate event horizon."""
     def __init__(self, x, y, color=(100, 150, 255), count=20):
         self.particles = []
+        # Enforce max particle limit
+        count = min(count, MAX_GENERAL_PARTICLES)
         for _ in range(count):
             angle = math.radians(pygame.time.get_ticks() % 360 + _ * (360 / count))
             speed = pygame.math.Vector2(math.cos(angle) * 2, math.sin(angle) * 2)
