@@ -1,139 +1,42 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 1,
-  "total_wins": 1,
-  "total_games": 3,
+  "consecutive_wins": 0,
+  "total_wins": 0,
+  "total_games": 0,
   "unlock_override_enabled": true,
-  "ai_games": 2,
-  "leader_stats": {
-    "Col. Jack O'Neill": {
-      "games": 2,
-      "wins": 1
-    }
-  },
-  "matchups": {
-    "Tau'ri": {
-      "Goa'uld": {
-        "games": 2,
-        "wins": 1
-      }
-    }
-  },
-  "last_results": [
-    "L",
-    "W"
-  ],
-  "turn_stats": {
-    "total": 86,
-    "games": 2,
-    "min": 25,
-    "max": 61,
-    "history": [
-      25,
-      61
-    ]
-  },
-  "mulligans": {
-    "total": 4,
-    "games": 2
-  },
-  "ability_usage": {
-    "medic": 1,
-    "decoy": 0,
-    "faction_power": 1,
-    "iris_blocks": 1
-  },
-  "top_cards": {
-    "tauri_railgun_1": {
-      "plays": 2,
-      "wins": 1
-    },
-    "tauri_prometheus_1": {
-      "plays": 2,
-      "wins": 1
-    },
-    "tauri_hammond": {
-      "plays": 1,
-      "wins": 0
-    },
-    "neutral_commanders_horn_3": {
-      "plays": 1,
-      "wins": 0
-    },
-    "tauri_turret_3": {
-      "plays": 1,
-      "wins": 0
-    },
-    "tauri_oneill": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_fraiser": {
-      "plays": 1,
-      "wins": 1
-    },
-    "neutral_ascended_daniel": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_carter": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_tokra_op_1": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_jackson": {
-      "plays": 1,
-      "wins": 1
-    },
-    "neutral_scorch_1": {
-      "plays": 1,
-      "wins": 1
-    },
-    "neutral_commanders_horn_2": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_barrett": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_tokra_op_2": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_caldwell": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_quinn": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_medic_1": {
-      "plays": 1,
-      "wins": 1
-    },
-    "tauri_sg3": {
-      "plays": 1,
-      "wins": 1
-    }
-  },
+  "ai_games": 0,
+  "leader_stats": {},
+  "matchups": {},
+  "last_results": [],
+  "turn_stats": {},
+  "mulligans": {},
+  "ability_usage": {},
+  "top_cards": {},
   "ai_difficulty": {
     "hard": {
       "games": 1,
       "wins": 0
     }
   },
-  "ai_wins": 1,
-  "faction_wins": {
-    "Tau'ri": 1
-  },
-  "max_streak": 1,
+  "ai_wins": 0,
+  "faction_wins": {},
+  "max_streak": 0,
   "draft_stats": {
-    "runs_started": 1
-  }
+    "runs_started": 0,
+    "runs_completed": 0,
+    "battles_won": 0,
+    "battles_lost": 0,
+    "best_run_wins": 0,
+    "total_cards_drafted": 0,
+    "drafted_leaders": {},
+    "drafted_factions": {},
+    "avg_deck_power": 0.0,
+    "highest_deck_power": 0,
+    "most_drafted_card": null,
+    "card_draft_counts": {}
+  },
+  "lan_games": 0,
+  "lan_wins": 0,
+  "lan_reliability": {}
 }
