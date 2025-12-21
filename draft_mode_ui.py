@@ -53,6 +53,8 @@ class DraftModeUI:
         # Hover state
         self.hovered_index = None
         self.selected_index = None
+        self.review_scroll_y = 0  # For scrolling in review phase
+        self.draft_scroll_y = 0   # For scrolling in draft sidebar
 
         # Load draft mode background
         self.draft_bg = None
@@ -200,17 +202,11 @@ class DraftModeUI:
         else:
             surface.fill(COLOR_DARK_BG)
 
-        # Progress header
-        progress_text = f"PICK {current_pick + 1} of {total_picks}"
-        progress = self.font_header.render(progress_text, True, COLOR_ACCENT_GOLD)
-        progress_rect = progress.get_rect(center=(self.screen_width // 2, 40))
-        surface.blit(progress, progress_rect)
-
-        # Progress bar
+        # Progress bar (moved to bottom)
         bar_width = int(600 * self.scale)
         bar_height = int(20 * self.scale)
         bar_x = (self.screen_width - bar_width) // 2
-        bar_y = int(90 * self.scale)
+        bar_y = self.screen_height - int(100 * self.scale)
 
         # Background
         pygame.draw.rect(surface, COLOR_PANEL_BG, (bar_x, bar_y, bar_width, bar_height), border_radius=10)
@@ -218,6 +214,12 @@ class DraftModeUI:
         fill_width = int(bar_width * (current_pick / total_picks))
         if fill_width > 0:
             pygame.draw.rect(surface, COLOR_ACCENT_BLUE, (bar_x, bar_y, fill_width, bar_height), border_radius=10)
+
+        # Progress header text (above bar)
+        progress_text = f"PICK {current_pick + 1} of {total_picks}"
+        progress = self.font_header.render(progress_text, True, COLOR_ACCENT_GOLD)
+        progress_rect = progress.get_rect(center=(self.screen_width // 2, bar_y - 30))
+        surface.blit(progress, progress_rect)
 
         # Draw card choices
         choice_rects = []
@@ -330,90 +332,106 @@ class DraftModeUI:
         # Leader display with image
         leader_x = 50
         leader_y = 120
-        leader_card_width = int(150 * self.scale)
-        leader_card_height = int(225 * self.scale)
+        leader_card_width = int(180 * self.scale)
+        leader_card_height = int(270 * self.scale)
+
+        # Draw a backdrop for the whole left panel
+        left_panel_rect = pygame.Rect(30, 100, 400, self.screen_height - 250)
+        left_panel_bg = pygame.Surface((left_panel_rect.width, left_panel_rect.height), pygame.SRCALPHA)
+        left_panel_bg.fill((0, 0, 0, 160)) # Semi-transparent black
+        surface.blit(left_panel_bg, left_panel_rect.topleft)
+        pygame.draw.rect(surface, COLOR_ACCENT_BLUE, left_panel_rect, width=2, border_radius=10)
 
         # Try to load leader image (_leader.png variant)
         leader_card_id = drafted_leader.get('card_id')
         leader_image = None
 
         if leader_card_id:
-            # First try loading the _leader.png variant
             leader_image_path = os.path.join("assets", f"{leader_card_id}_leader.png")
             if os.path.exists(leader_image_path):
                 try:
                     leader_image = pygame.image.load(leader_image_path).convert_alpha()
                     leader_image = pygame.transform.smoothscale(leader_image, (leader_card_width, leader_card_height))
-                except Exception as e:
-                    print(f"Warning: Could not load {leader_image_path}: {e}")
+                except Exception:
                     leader_image = None
 
-            # Fallback to ALL_CARDS
             if leader_image is None and leader_card_id in ALL_CARDS:
                 leader_card = ALL_CARDS[leader_card_id]
                 leader_image = pygame.transform.smoothscale(leader_card.image, (leader_card_width, leader_card_height))
 
         if leader_image:
-            surface.blit(leader_image, (leader_x, leader_y))
-            # Draw border
-            leader_rect_border = pygame.Rect(leader_x, leader_y, leader_card_width, leader_card_height)
+            image_x = left_panel_rect.centerx - leader_card_width // 2
+            surface.blit(leader_image, (image_x, leader_y))
+            leader_rect_border = pygame.Rect(image_x, leader_y, leader_card_width, leader_card_height)
             pygame.draw.rect(surface, COLOR_ACCENT_GOLD, leader_rect_border, width=3, border_radius=8)
 
-            # Leader name below image
-            leader_name = self.font_body.render(drafted_leader['name'], True, COLOR_TEXT_PRIMARY)
-            leader_name_rect = leader_name.get_rect(topleft=(leader_x, leader_y + leader_card_height + 10))
+            leader_name = self.font_body.render(drafted_leader['name'], True, COLOR_ACCENT_GOLD)
+            leader_name_rect = leader_name.get_rect(center=(left_panel_rect.centerx, leader_y + leader_card_height + 30))
             surface.blit(leader_name, leader_name_rect)
         else:
-            # Fallback: just text
-            leader_name = self.font_header.render(f"Leader: {drafted_leader['name']}", True, COLOR_TEXT_PRIMARY)
-            leader_name_rect = leader_name.get_rect(topleft=(leader_x, leader_y))
+            leader_name = self.font_header.render(f"Leader: {drafted_leader['name']}", True, COLOR_ACCENT_GOLD)
+            leader_name_rect = leader_name.get_rect(center=(left_panel_rect.centerx, leader_y + 40))
             surface.blit(leader_name, leader_name_rect)
 
-        # Stats panel (positioned below leader image)
-        stats_x = 50
-        stats_y = leader_y + leader_card_height + 60 if leader_image else 200
+        # Stats section
+        stats_x = left_panel_rect.x + 30
+        stats_y = leader_y + leader_card_height + 80 if leader_image else leader_y + 100
+        
+        stats_header = self.font_body.render("DECK STATISTICS", True, COLOR_ACCENT_BLUE)
+        surface.blit(stats_header, (stats_x, stats_y))
+        
         stats_texts = [
             f"Total Cards: {stats['total_cards']}",
             f"Total Power: {stats['total_power']}",
             f"Average Power: {stats['avg_power']:.1f}",
-            f"Cards with Abilities: {stats['ability_count']}"
+            f"Abilities: {stats['ability_count']}"
         ]
 
         for i, text in enumerate(stats_texts):
-            stat_surf = self.font_body.render(text, True, COLOR_TEXT_SECONDARY)
-            surface.blit(stat_surf, (stats_x, stats_y + i * 40))
+            stat_surf = self.font_body.render(text, True, COLOR_TEXT_PRIMARY)
+            surface.blit(stat_surf, (stats_x + 10, stats_y + 40 + i * 35))
 
-        # Faction breakdown
-        faction_y = stats_y + len(stats_texts) * 40 + 40
-        faction_title = self.font_body.render("Faction Breakdown:", True, COLOR_ACCENT_BLUE)
+        # Faction breakdown (bottom left of left panel)
+        faction_y = stats_y + 40 + len(stats_texts) * 35 + 30
+        faction_title = self.font_body.render("FACTIONS", True, COLOR_ACCENT_BLUE)
         surface.blit(faction_title, (stats_x, faction_y))
 
         for i, (faction, count) in enumerate(stats['faction_breakdown'].items()):
-            text = self.font_small.render(f"  {faction}: {count} cards", True, COLOR_TEXT_SECONDARY)
-            surface.blit(text, (stats_x + 20, faction_y + 40 + i * 30))
+            color = self._get_faction_color(faction)
+            text = self.font_small.render(f"• {faction}: {count}", True, color)
+            surface.blit(text, (stats_x + 10, faction_y + 35 + i * 25))
 
-        # Buttons
-        button_width = 300
-        button_height = 60
-        button_y = self.screen_height - 120
-
-        # Start Battle button
-        battle_rect = pygame.Rect((self.screen_width // 2 - button_width - 20, button_y, button_width, button_height))
-        pygame.draw.rect(surface, COLOR_ACCENT_BLUE, battle_rect, border_radius=10)
+        # Buttons - Better Alignment
+        button_width = int(400 * self.scale)
+        button_height = int(80 * self.scale)
+        
+        # Start Battle button (large, centered)
+        battle_rect = pygame.Rect(0, 0, button_width, button_height)
+        battle_rect.center = (self.screen_width // 2, self.screen_height - 120)
+        
+        # Hover effect for button
+        battle_color = (60, 100, 200) if self.hovered_index == 0 else COLOR_ACCENT_BLUE
+        pygame.draw.rect(surface, battle_color, battle_rect, border_radius=15)
+        pygame.draw.rect(surface, COLOR_TEXT_PRIMARY, battle_rect, width=3, border_radius=15)
+        
         battle_text = self.font_header.render("START BATTLE", True, COLOR_TEXT_PRIMARY)
         battle_text_rect = battle_text.get_rect(center=battle_rect.center)
         surface.blit(battle_text, battle_text_rect)
 
-        # Redraft button
-        redraft_rect = pygame.Rect((self.screen_width // 2 + 20, button_y, button_width, button_height))
-        pygame.draw.rect(surface, COLOR_PANEL_BG, redraft_rect, border_radius=10)
-        pygame.draw.rect(surface, COLOR_TEXT_SECONDARY, redraft_rect, width=2, border_radius=10)
-        redraft_text = self.font_body.render("Redraft", True, COLOR_TEXT_SECONDARY)
+        # Redraft button (smaller, below or to the side)
+        redraft_rect = pygame.Rect(0, 0, int(200 * self.scale), int(50 * self.scale))
+        redraft_rect.center = (self.screen_width // 2, self.screen_height - 40)
+        
+        redraft_color = (80, 40, 40) if self.hovered_index == 1 else COLOR_PANEL_BG
+        pygame.draw.rect(surface, redraft_color, redraft_rect, border_radius=10)
+        pygame.draw.rect(surface, (200, 100, 100), redraft_rect, width=2, border_radius=10)
+        
+        redraft_text = self.font_body.render("Redraft", True, (200, 150, 150))
         redraft_text_rect = redraft_text.get_rect(center=redraft_rect.center)
         surface.blit(redraft_text, redraft_text_rect)
 
-        # Card grid preview (right side)
-        self._draw_full_deck_grid(surface, drafted_cards)
+        # Card List (Right side, grouped and scrollable)
+        self._draw_deck_list_scrollable(surface, drafted_cards)
 
         return battle_rect, redraft_rect
 
@@ -422,7 +440,8 @@ class DraftModeUI:
         preview_x = self.screen_width - 250
         preview_y = 160
         preview_width = 230
-        preview_height = 400
+        # Extend to bottom of screen with some padding
+        preview_height = self.screen_height - preview_y - 20
 
         # Background panel
         panel_rect = pygame.Rect(preview_x, preview_y, preview_width, preview_height)
@@ -439,46 +458,144 @@ class DraftModeUI:
         count_rect = count_text.get_rect(center=(preview_x + preview_width // 2, preview_y + 55))
         surface.blit(count_text, count_rect)
 
-        # List recent cards
+        # Aggregate cards
+        card_counts = {}
+        for card in cards:
+            if card.name in card_counts:
+                card_counts[card.name]['count'] += 1
+            else:
+                card_counts[card.name] = {
+                    'count': 1,
+                    'card': card
+                }
+        
+        # Sort by power desc
+        sorted_cards = sorted(card_counts.values(), key=lambda x: x['card'].power, reverse=True)
+
+        # List cards with clip
         list_y = preview_y + 90
-        max_display = 8
-        display_cards = cards[-max_display:] if len(cards) > max_display else cards
+        
+        # Clip area for list (leaves space at bottom of panel)
+        # Content height is calculated for clamping elsewhere
+        clip_rect = pygame.Rect(preview_x + 5, list_y, preview_width - 10, preview_height - 100)
+        original_clip = surface.get_clip()
+        surface.set_clip(clip_rect)
+        
+        y_offset = 0
+        line_height = 25
+        
+        for item in sorted_cards:
+            card = item['card']
+            count = item['count']
+            
+            # Apply scroll offset
+            current_y = list_y + y_offset + self.draft_scroll_y
+            
+            # Optimization: Skip if off-screen
+            if current_y + line_height < list_y or current_y > list_y + clip_rect.height:
+                y_offset += line_height
+                continue
 
-        for i, card in enumerate(display_cards):
-            card_text = self.font_small.render(f"{card.power} - {card.name[:15]}", True, COLOR_TEXT_PRIMARY)
-            surface.blit(card_text, (preview_x + 10, list_y + i * 30))
+            # Row indicator color
+            row_code = card.row[0].upper() if card.row else "?"
+            row_color = {
+                'close': (200, 50, 50),   # Red
+                'ranged': (50, 200, 50),  # Green
+                'siege': (200, 200, 200), # Gray/White
+                'agile': (200, 200, 50),  # Yellow
+            }.get(card.row, COLOR_TEXT_SECONDARY)
+            
+            # Draw row indicator
+            row_surf = self.font_small.render(f"[{row_code}]", True, row_color)
+            surface.blit(row_surf, (preview_x + 10, current_y))
+            
+            # Draw name and count
+            name_str = f"{card.power} {card.name[:13]}"
+            if count > 1:
+                name_str += f" x{count}"
+                
+            text_surf = self.font_small.render(name_str, True, COLOR_TEXT_PRIMARY)
+            surface.blit(text_surf, (preview_x + 40, current_y))
+            
+            y_offset += line_height
+            
+        surface.set_clip(original_clip)
+        
+        # Draw scroll hint if content overflows
+        content_height = len(sorted_cards) * line_height
+        if content_height > clip_rect.height:
+             hint = self.font_small.render("▼", True, COLOR_TEXT_SECONDARY)
+             surface.blit(hint, (preview_x + preview_width // 2, preview_y + preview_height - 15))
 
-        if len(cards) > max_display:
-            more_text = self.font_small.render(f"... +{len(cards) - max_display} more", True, COLOR_TEXT_SECONDARY)
-            surface.blit(more_text, (preview_x + 10, list_y + max_display * 30))
-
-    def _draw_full_deck_grid(self, surface: pygame.Surface, cards: List[Card]):
-        """Draw full deck as a grid on the review screen."""
-        grid_x = self.screen_width // 2 + 50
-        grid_y = 200
-        card_w = 80
-        card_h = 30
-        cols = 6
-        spacing = 5
-
-        for i, card in enumerate(cards):
-            row = i // cols
-            col = i % cols
-            x = grid_x + col * (card_w + spacing)
-            y = grid_y + row * (card_h + spacing)
-
-            # Mini card
-            rect = pygame.Rect(x, y, card_w, card_h)
-            pygame.draw.rect(surface, COLOR_CARD_BG, rect, border_radius=3)
-            pygame.draw.rect(surface, self._get_faction_color(card.faction), rect, width=1, border_radius=3)
-
-            # Power
-            power_text = self.font_small.render(str(card.power), True, COLOR_ACCENT_GOLD)
-            surface.blit(power_text, (x + 5, y + 7))
-
-            # Name (truncated)
-            name_text = self.font_small.render(card.name[:8], True, COLOR_TEXT_PRIMARY)
-            surface.blit(name_text, (x + 25, y + 7))
+    def _draw_deck_list_scrollable(self, surface: pygame.Surface, cards: List[Card]):
+        """Draw full deck as a grouped list with scrolling support."""
+        list_rect = pygame.Rect(self.screen_width - 500, 100, 450, self.screen_height - 250)
+        
+        # Backdrop
+        list_bg = pygame.Surface((list_rect.width, list_rect.height), pygame.SRCALPHA)
+        list_bg.fill((0, 0, 0, 160))
+        surface.blit(list_bg, list_rect.topleft)
+        pygame.draw.rect(surface, COLOR_ACCENT_BLUE, list_rect, width=2, border_radius=10)
+        
+        # Title
+        title = self.font_body.render("DECK COMPOSITION", True, COLOR_ACCENT_GOLD)
+        surface.blit(title, (list_rect.x + 20, list_rect.y + 20))
+        
+        # Group cards
+        card_counts = {}
+        for card in cards:
+            if card.name in card_counts:
+                card_counts[card.name]['count'] += 1
+            else:
+                card_counts[card.name] = {'count': 1, 'card': card}
+        
+        # Sort by power desc, then name
+        sorted_items = sorted(card_counts.values(), key=lambda x: (x['card'].power, x['card'].name), reverse=True)
+        
+        # Clipping area for the list
+        content_rect = pygame.Rect(list_rect.x + 10, list_rect.y + 60, list_rect.width - 20, list_rect.height - 80)
+        old_clip = surface.get_clip()
+        surface.set_clip(content_rect)
+        
+        line_height = 40
+        for i, item in enumerate(sorted_items):
+            card = item['card']
+            count = item['count']
+            
+            y_pos = content_rect.y + i * line_height + self.review_scroll_y
+            
+            # Skip if out of view
+            if y_pos + line_height < content_rect.y or y_pos > content_rect.bottom:
+                continue
+                
+            # Row icon/code
+            row_code = card.row[0].upper() if card.row else "?"
+            row_color = {
+                'close': (200, 80, 80),
+                'ranged': (80, 200, 80),
+                'siege': (180, 180, 180),
+                'agile': (200, 200, 80),
+            }.get(card.row, COLOR_TEXT_SECONDARY)
+            
+            row_surf = self.font_body.render(f"[{row_code}]", True, row_color)
+            surface.blit(row_surf, (content_rect.x + 10, y_pos))
+            
+            # Name and power
+            name_text = f"{card.power} - {card.name}"
+            name_surf = self.font_body.render(name_text, True, COLOR_TEXT_PRIMARY)
+            surface.blit(name_surf, (content_rect.x + 70, y_pos))
+            
+            # Count (if > 1)
+            if count > 1:
+                count_surf = self.font_body.render(f"x{count}", True, COLOR_ACCENT_GOLD)
+                surface.blit(count_surf, (content_rect.right - 60, y_pos))
+        
+        surface.set_clip(old_clip)
+        
+        # Scroll instructions if many cards
+        if len(sorted_items) * line_height > content_rect.height:
+            hint = self.font_small.render("Use mouse wheel to scroll", True, COLOR_TEXT_SECONDARY)
+            surface.blit(hint, (list_rect.right - 180, list_rect.bottom + 10))
 
     def _draw_wrapped_text(self, surface: pygame.Surface, text: str, pos: Tuple[int, int],
                           max_width: int, font: pygame.font.Font, color: Tuple[int, int, int]):

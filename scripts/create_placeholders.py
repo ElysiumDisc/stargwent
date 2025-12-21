@@ -911,6 +911,26 @@ def create_card_back_image():
         return path
     return None
 
+def create_oneill_clone_token():
+    """Creates the specific token for Jack O'Neill's clone ability."""
+    from cards import Card
+    # Temporary card object for generation
+    clone_card = Card(
+        "tauri_oneill_clone", 
+        "Jack O'Neill Clone", 
+        FACTION_TAURI, 
+        6, 
+        "close", 
+        "Temporary Clone"
+    )
+    
+    # Use standard card generation
+    path = create_card_image(clone_card)
+    if path:
+        print(f"  ✓ {path} [TOKEN]")
+    else:
+        print(f"  ⊗ Skipped: tauri_oneill_clone.png (already exists)")
+
 def main():
     """Generates all placeholder assets."""
     if not os.path.exists(ASSETS_DIR):
@@ -928,6 +948,9 @@ def main():
             print(f"  ✓ {path}")
         else:
             print(f"  ⊗ Skipped: {card_id}.png (already exists)")
+            
+    # Generate O'Neill Clone Token
+    create_oneill_clone_token()
     
     print("\nGenerating UNLOCKABLE card images...")
     for card_id, card_data in UNLOCKABLE_CARDS.items():

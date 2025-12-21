@@ -985,13 +985,34 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
             continue
 
         owner_color = player_color if entry.owner == "player" else ai_color
+        
+        # Override color for Chat/System events
+        if entry.event_type == "chat":
+            if "System" in entry.description:
+                owner_color = (255, 215, 0) # Gold
+            elif "You" in entry.description:
+                owner_color = (100, 255, 100) # Green
+            else:
+                owner_color = (200, 200, 255) # Blue
+        elif entry.event_type == "scorch" or entry.event_type == "destroy":
+             owner_color = (255, 80, 80) # Red
+        
         hovered = hover_pos and entry_rect.collidepoint(hover_pos)
         entry_surface = pygame.Surface((entry_rect.width, entry_rect.height), pygame.SRCALPHA)
         entry_surface.fill((owner_color[0], owner_color[1], owner_color[2], 160 if hovered else 120))
         pygame.draw.rect(entry_surface, owner_color, entry_surface.get_rect(), width=2, border_radius=8)
 
+        # Draw icon (or chat bubble)
         icon_rect = pygame.Rect(8, 6, icon_width, entry_rect.height - 12)
         pygame.draw.rect(entry_surface, (255, 255, 255, 90), icon_rect, border_radius=4)
+        
+        # Render the icon character/emoji
+        if entry.icon:
+            # Use smaller font for icon to fit in box
+            icon_surf = history_font.render(entry.icon, True, (255, 255, 255))
+            # Center in the icon box
+            icon_dest = icon_surf.get_rect(center=icon_rect.center)
+            entry_surface.blit(icon_surf, icon_dest)
 
         for idx, line in enumerate(wrapped_lines):
             text_surface = history_font.render(line, True, WHITE)
@@ -3256,8 +3277,22 @@ def main(lan_game_data=None):
     lan_chat_panel = None
     if LAN_MODE and LAN_CONTEXT:
         from lan_chat import LanChatPanel
-        lan_chat_panel = LanChatPanel(LAN_CONTEXT.session, LAN_CONTEXT.role, max_lines=12)
-        lan_chat_panel.add_message("System", f"Connected as {LAN_CONTEXT.role}. Type to chat!")
+        
+        # Callback: When chat message arrives/sent, push to Game History
+        def push_chat_to_history(prefix, text, color):
+            # Only add to history if it's actual chat (avoid duplicates if we re-enabled system loop)
+            # But since we removed the system->chat loop, this is safe.
+            owner = "player" if prefix == "You" else "ai"
+            game.add_history_event("chat", f"{prefix}: {text}", owner, icon="💬")
+
+        lan_chat_panel = LanChatPanel(
+            LAN_CONTEXT.session, 
+            LAN_CONTEXT.role, 
+            max_lines=12, 
+            on_message=push_chat_to_history
+        )
+        
+        lan_chat_panel.add_message("System", f"Connected as {LAN_CONTEXT.role}. Type 'T' to chat!")
         print("[LAN] Chat panel initialized")
 
     selected_card = None
@@ -3291,6 +3326,7 @@ def main(lan_game_data=None):
     medic_card_played = None  # The medic card that was just played
     decoy_card_played = None  # The decoy card that was just played
     ring_transport_animation = None  # Active ring transportation animation
+    ring_transport_selection = False  # Flag for Ring Transport (Decoy) selection mode
     ring_transport_button_rect = None  # Ring button for click detection
     decoy_drag_target = None  # Card being hovered over when dragging Ring Transport
     decoy_valid_targets = []  # List of (card, rect) for valid decoy targets
@@ -3722,15 +3758,15 @@ def main(lan_game_data=None):
                                 game.player2.calculate_score()
                                 print(f"✓ Faction Power activated with F key: {game.player1.faction_power.name}")
                 
-                # T key = Toggle LAN Chat
-                elif event.key == pygame.K_t:
-                    if lan_chat_panel:
-                        if ui_state == UIState.LAN_CHAT:
-                            ui_state = UIState.PLAYING
-                            lan_chat_panel.active = False
-                        else:
-                            ui_state = UIState.LAN_CHAT
-                            lan_chat_panel.active = True
+                # T key = Toggle LAN Chat Input
+                elif event.key == pygame.K_t or event.key == pygame.K_RETURN:
+                    if lan_chat_panel and not lan_chat_panel.active:
+                        lan_chat_panel.active = True
+                        # Consume the key press so it doesn't type 't' into the box immediately
+                        continue
+                    elif lan_chat_panel and lan_chat_panel.active and event.key == pygame.K_t:
+                         # Allow closing with T if empty? No, T is a letter. ESC closes.
+                         pass
                 
                 # SPACEBAR = Alternative preview (same as right-click)
                 elif event.key == pygame.K_SPACE:
@@ -4311,10 +4347,25 @@ def main(lan_game_data=None):
                             if rect.collidepoint(event.pos):
                                 if dragging_card.row == row_name or (dragging_card.row == "agile" and row_name in ["close", "ranged"]):
                                     
+                                    # Calculate insertion index
+                                    target_player = game.player2 if is_spy else game.player1
+                                    row_cards = target_player.board[row_name]
+                                    insert_index = len(row_cards)
+                                    
+                                    # Find drop position relative to existing cards
+                                    if row_cards:
+                                        mouse_x = event.pos[0]
+                                        for i, card in enumerate(row_cards):
+                                            if hasattr(card, 'rect'):
+                                                # If dropping to the left of a card's center, insert before it
+                                                if mouse_x < card.rect.centerx:
+                                                    insert_index = i
+                                                    break
+                                    
                                     # --- NEW: Check card for specific animations ---
                                     if "Naquadah Overload" in (dragging_card.ability or ""):
                                         # Naquadah Overload: Play card first, then show explosions on affected rows
-                                        game.play_card(dragging_card, row_name)
+                                        game.play_card(dragging_card, row_name, index=insert_index)
                                         
                                         # Create blue explosions ONLY on rows where cards were destroyed
                                         for player, destroyed_row in game.last_scorch_positions:
@@ -4384,12 +4435,12 @@ def main(lan_game_data=None):
                                             # Enter medic selection mode
                                             ui_state = UIState.MEDIC_SELECT
                                             medic_card_played = dragging_card
-                                            game.play_card(dragging_card, row_name)
+                                            game.play_card(dragging_card, row_name, index=insert_index)
                                         else:
                                             # No cards to revive, play normally
-                                            game.play_card(dragging_card, row_name)
+                                            game.play_card(dragging_card, row_name, index=insert_index)
                                     else:
-                                        game.play_card(dragging_card, row_name)
+                                        game.play_card(dragging_card, row_name, index=insert_index)
                                     
                                     played = True
                                     break
@@ -5039,27 +5090,53 @@ def main(lan_game_data=None):
                 pygame.mouse.get_pos()
             )
             
-            # LAN Chat Overlay
+            # LAN Chat Input (Integrated)
             if lan_chat_panel:
-                if ui_state == UIState.LAN_CHAT:
-                    # Draw large centered chat overlay
-                    overlay_width = min(800, int(SCREEN_WIDTH * 0.6))
-                    overlay_height = min(600, int(SCREEN_HEIGHT * 0.6))
-                    overlay_x = (SCREEN_WIDTH - overlay_width) // 2
-                    overlay_y = (SCREEN_HEIGHT - overlay_height) // 2
-                    chat_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
+                if lan_chat_panel.active:
+                    # Draw input box below history panel
+                    input_height = 40
+                    input_rect = pygame.Rect(
+                        history_rect.x, 
+                        history_rect.bottom + 5, 
+                        history_rect.width, 
+                        input_height
+                    )
                     
-                    # Dim background
-                    dim_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                    dim_surf.fill((0, 0, 0, 120))
-                    screen.blit(dim_surf, (0, 0))
+                    # Draw background
+                    pygame.draw.rect(screen, (30, 35, 60), input_rect, border_radius=5)
+                    pygame.draw.rect(screen, (100, 200, 255), input_rect, 2, border_radius=5)
                     
-                    lan_chat_panel.draw(screen, chat_rect, title="Subspace Communications")
+                    # Draw text
+                    font_input = pygame.font.SysFont("Consolas", 18)
+                    input_text = lan_chat_panel.input_text
+                    
+                    # Cursor blink
+                    if (pygame.time.get_ticks() // 500) % 2 == 0:
+                        input_text += "|"
+                        
+                    surf = font_input.render(input_text, True, (255, 255, 255))
+                    
+                    # Clip if too long
+                    area_rect = pygame.Rect(input_rect.x + 5, input_rect.y + 10, input_rect.width - 10, input_rect.height - 20)
+                    screen.set_clip(area_rect)
+                    screen.blit(surf, (input_rect.x + 5, input_rect.y + 10))
+                    screen.set_clip(None)
+                    
+                    # Typing indicator if peer is typing
+                    if lan_chat_panel.peer_is_typing:
+                        # Draw indicator slightly above input (overlapping bottom of history)
+                        lan_chat_panel._draw_typing_indicator(screen, input_rect)
+
                 else:
                     # Draw small hint
                     hint_font = pygame.font.SysFont("Arial", 14)
-                    hint_text = hint_font.render("Press T to Chat", True, (150, 200, 255))
+                    hint_text = hint_font.render("Press T or Enter to Chat", True, (150, 200, 255))
                     screen.blit(hint_text, (history_rect.x, history_rect.bottom + 5))
+                    
+                    # Show typing indicator even if closed (as a notification)
+                    if lan_chat_panel.peer_is_typing:
+                        typing_rect = pygame.Rect(history_rect.x, history_rect.bottom + 25, history_rect.width, 40)
+                        lan_chat_panel._draw_typing_indicator(screen, typing_rect)
 
             history_scroll_offset = max(0, min(history_scroll_offset, history_scroll_limit))
             if history_manual_scroll and history_scroll_offset <= 0:

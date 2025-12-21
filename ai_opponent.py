@@ -257,51 +257,78 @@ class AIStrategy:
 
         # Estimate the value we'd get from using the power
         power_value = self.estimate_faction_power_value()
+        
+        # Power Type Context
+        power_name = getattr(self.ai_player.faction_power, 'name', '').lower()
+        is_scorch = 'scorch' in power_name or 'destroy' in power_name
+        is_revive = 'resurrect' in power_name or 'revive' in power_name
+
+        # --- SCORCH SPECIFIC LOGIC ---
+        if is_scorch:
+            # Don't scorch if value is low (unless desperate)
+            if power_value < 12 and context['score_diff'] > -20:
+                return False
+            # If opponent hasn't passed, waiting might yield a better target
+            if not context['opponent_passed'] and power_value < 20:
+                # But if we are losing badly, maybe use it
+                if context['score_diff'] < -15:
+                    pass # Consider using
+                else:
+                    return False # Wait for bigger targets
+
+        # --- REVIVE SPECIFIC LOGIC ---
+        if is_revive:
+            # Don't revive weak stuff early
+            if power_value < 10:
+                return False
+            # Save revive for R3 if possible
+            if context['round_number'] < 3 and context['score_diff'] > -10:
+                return False
 
         # If the power would provide huge value, use it
-        if power_value >= 15:
+        if power_value >= 25:
             return True
 
         # Critical situations - we're losing badly
-        if context['score_diff'] < -20:
-            # Use if power provides meaningful value
-            if power_value >= 8:
-                return True
-
-        # Mid-range behind - use if it can swing the game
-        if -20 <= context['score_diff'] < -10:
+        if context['score_diff'] < -25:
             if power_value >= 10:
                 return True
 
         # Round-specific strategy
         if context['round_number'] == 1:
-            # Round 1: Only use if massive value and we're behind
-            if context['score_diff'] < -15 and power_value >= 12:
+            # Round 1: Only use if massive value (swing 20+ points)
+            if power_value >= 20:
                 return True
-        elif context['round_number'] == 2:
-            # Round 2: More willing to use, especially if must win
-            if context['ai_rounds_won'] == 0:  # Lost round 1, must win this
-                if context['score_diff'] < 0 and power_value >= 8:
+            # Or if it guarantees a pass-advantage (we catch up + get ahead)
+            if context['score_diff'] < 0 and (context['score_diff'] + power_value) > 5:
+                # But only if opponent passed, otherwise they can counter
+                if context['opponent_passed']:
                     return True
-            # If won round 1, save power for round 3 unless great value
+        elif context['round_number'] == 2:
+            # Round 2: Depends if we must win
+            if context['ai_rounds_won'] == 0:  # Lost round 1, must win
+                # Use if it swings the game
+                if context['score_diff'] < 0 and (context['score_diff'] + power_value) > 0:
+                    return True
+            # If won round 1, SAVE power for round 3 mostly
             elif context['ai_rounds_won'] == 1:
-                if power_value >= 15:
+                if power_value >= 30: # Only huge plays
                     return True
         elif context['round_number'] == 3:
             # Round 3: Use if it helps us win
-            if context['score_diff'] < 5 and power_value >= 6:
+            if power_value >= 8: # Lower threshold in final round
                 return True
             # Or if losing and need every advantage
             if context['score_diff'] < 0:
                 return True
 
         # Late in the round with few cards - use it or lose it
-        if context['ai_cards_left'] <= 2 and power_value >= 5:
+        if context['ai_cards_left'] == 0 and power_value >= 5:
             return True
 
-        # Opponent passed and we're behind - last chance
+        # Opponent passed and we're behind - last chance to catch up without spending cards
         if context['opponent_passed'] and context['score_diff'] < 0:
-            if power_value >= 5:
+            if (context['score_diff'] + power_value) >= 0:
                 return True
 
         return False
@@ -406,70 +433,78 @@ class AIStrategy:
             return True
 
         # Evaluate hand quality for decision making
-        hand_quality = self.evaluate_hand_quality()
         card_advantage = context['ai_cards_left'] - context['opponent_cards_left']
 
         # If opponent passed
         if context['opponent_passed']:
-            # If winning, pass immediately
+            # If winning, pass immediately (Standard Gwent logic)
             if context['score_diff'] > 0:
                 return True
-            # If it's round 3 and must win, keep playing
+            # If it's round 3 and must win, keep playing (obviously)
             if context['round_number'] == 3 and context['opponent_rounds_won'] >= 1:
                 return False
-            # If losing by a lot and low on cards, pass to save cards for next round
-            if context['score_diff'] < -15 and context['ai_cards_left'] <= 3:
+            # If we lost R1, we MUST win R2. Never pass if losing R2.
+            if context['round_number'] == 2 and context['ai_rounds_won'] == 0:
+                return False
+                
+            # If losing by a lot and low on cards, pass to save cards for next round?
+            # Only if we already WON a round (so this is R2/R3 context mismatch?)
+            # If we won R1, and opponent passes R2 with huge lead... we might pass to save CA for R3.
+            if context['ai_rounds_won'] == 1 and context['score_diff'] < -20:
+                # Calculating if catching up is worth it happens in card selection, 
+                # but sometimes cutting losses is better.
                 return True
 
-        # Strategic passing scenarios
+        # Strategic passing scenarios (Opponent still playing)
 
-        # Round 1: Conservative play - save cards for later rounds
+        # Round 1:
         if context['round_number'] == 1:
-            # If winning comfortably with decent cards played, pass to save hand
-            if context['score_diff'] > 10 and context['cards_on_board'] >= 5:
-                # More likely to pass if we have card advantage
-                pass_chance = 0.6 if card_advantage >= 0 else 0.4
-                return self.rng.random() < pass_chance
+            # If winning comfortably (15+) and opponent has to play 2+ cards to catch up
+            if context['score_diff'] > 15:
+                # Pass if we have fewer cards (CA preservation)
+                if card_advantage < 0:
+                    return True
+                # Or randomly if even cards, to force them down
+                if card_advantage == 0 and self.rng.random() < 0.4:
+                    return True
 
-            # If winning big with many cards played, definitely consider passing
-            if context['score_diff'] > 20 and context['cards_on_board'] >= 6:
-                return self.rng.random() < 0.8
+            # If we played many cards and winning big, pass to avoid overcommitting
+            if context['score_diff'] > 25:
+                return True
 
-            # If we used too many cards (7+) and barely winning, pass to cut losses
-            if context['cards_on_board'] >= 7 and context['score_diff'] > 0:
-                return self.rng.random() < 0.5
-
-        # Round 2: Depends on Round 1 outcome
+        # Round 2:
         elif context['round_number'] == 2:
-            # If we won round 1, can afford to pass early if ahead
+            # If we won Round 1 (The "Bleed" Round)
             if context['ai_rounds_won'] == 1:
-                if context['score_diff'] > 15 and context['cards_on_board'] >= 4:
-                    return self.rng.random() < 0.5
-            # If we lost round 1, must win this round - be more aggressive
+                # If we have card advantage, we can push or pass.
+                # If we forced them down to equal cards or fewer, pass to take CA into R3.
+                if context['ai_cards_left'] == context['opponent_cards_left']:
+                    # We have last say in R3 if we pass now (they play 1 to win, go to R3 with -1 CA but we start? No winner starts next.)
+                    # If we pass now, they MUST play. They go down to -1 card relative to us.
+                    # This gives us Card Advantage in R3.
+                    return True
+                
+                # If we are ahead on score in the bleed round, force them to play
+                if context['score_diff'] > 0:
+                    return True # They must play to catch up.
+            
+            # If we lost Round 1 (Must Win)
             elif context['ai_rounds_won'] == 0:
-                # Only pass if winning significantly
-                if context['score_diff'] > 25 and context['cards_on_board'] >= 6:
-                    return self.rng.random() < 0.3
+                # NEVER pass if losing or tied.
+                if context['score_diff'] <= 0:
+                    return False
+                # If winning, only pass if we are sure they can't catch up easily? 
+                # Risky. Usually better to stay ahead.
+                if context['score_diff'] > 20 and context['opponent_cards_left'] < 2:
+                    return True
 
-        # Round 3: All or nothing, but still strategic
+        # Round 3:
         elif context['round_number'] == 3:
-            # If winning by a lot and opponent hasn't passed, might bluff pass
-            if context['score_diff'] > 30 and not context['opponent_passed']:
-                return self.rng.random() < 0.2
+            # Never pass unless out of cards or guaranteed win (opp passed)
+            # If we are winning by huge amount and have cards left, maybe BM pass? 
+            # No, secure the win.
+            pass
 
-        # General: If winning significantly and opponent hasn't passed
-        if context['score_diff'] > 20 and not context['opponent_passed']:
-            # Consider hand quality - pass more if we have weak cards remaining
-            pass_chance = 0.3 if hand_quality > 5 else 0.5
-            return self.rng.random() < pass_chance
-
-        # Card advantage strategy: if we have more cards and winning, preserve advantage
-        if card_advantage >= 3 and context['score_diff'] > 5:
-            # Higher chance to pass if winning comfortably with big card advantage
-            pass_chance = min(0.5, card_advantage * 0.1)
-            return self.rng.random() < pass_chance
-
-        # Don't pass by default
         return False
 
     def should_use_hathor_ability(self, context: dict) -> bool:
@@ -710,28 +745,45 @@ class AIStrategy:
         """Evaluate how good it is to play this card in this row."""
         score = 0.0
         
-        # Base power value
-        score += card.power * 2
+        # Base power value (raw points)
+        score += card.power
         
-        # Hero cards are valuable
+        # --- HERO LOGIC ---
         if "Legendary Commander" in (card.ability or ""):
-            score += 15
+            # Heroes are high value, save them!
+            score += 10 # Intrinsic value
+            
+            # Penalize playing heroes early
+            if context['round_number'] == 1:
+                score -= 20
+            elif context['round_number'] == 2 and context['ai_rounds_won'] == 1:
+                score -= 15 # Save for R3
+            elif context['round_number'] == 3:
+                score += 10 # Play them now!
+            
             # Save heroes if weather is active
             if self.ai_player.weather_effects.get(row, False):
-                score += 20  # Heroes immune to weather
+                score += 25  # Heroes immune to weather - HUGE value in weather
         
-        # Spy cards - great for card advantage
+        # --- SPY LOGIC ---
         if "Deep Cover Agent" in (card.ability or ""):
-            # Very valuable early game or when behind on cards
+            # Spies give points to enemy but draw cards
+            # Play if we can afford the point loss, or desperate for cards
             card_diff = context['ai_cards_left'] - context['opponent_cards_left']
-            if card_diff <= 0:
-                score += 25
-            else:
+            
+            if context['round_number'] == 2 and context['ai_rounds_won'] == 1:
+                # Perfect time to bleed - play spy to gain CA
+                score += 30
+            elif context['score_diff'] > 15:
+                # We are winning, can afford to play spy
+                score += 20
+            elif context['round_number'] == 1 and card_diff < 0:
+                # Behind on cards, need to catch up
                 score += 15
-            # Less valuable if already winning big
-            if context['score_diff'] > 20:
-                score -= 10
+            else:
+                score += 5 # Neutral
         
+        # --- SYNERGY LOGIC ---
         # Tactical Formation evaluation (tight bond equivalent)
         if "Tactical Formation" in (card.ability or ""):
             # Check how many copies already on board
@@ -740,7 +792,12 @@ class AIStrategy:
                 if c.name == card.name
             )
             if copies_on_board > 0:
-                score += copies_on_board * card.power * 2  # Multiply bonus
+                score += copies_on_board * card.power * 2.5  # Exponential bonus
+            
+            # Check hand for more copies (potential future value)
+            copies_in_hand = sum(1 for c in self.ai_player.hand if c.name == card.name)
+            if copies_in_hand > 1:
+                score += 2 # Encourage starting the chain
         
         # Gate Reinforcement evaluation - auto-play all copies
         if "Gate Reinforcement" in (card.ability or ""):
@@ -749,7 +806,12 @@ class AIStrategy:
                 1 for c in self.ai_player.hand + self.ai_player.deck 
                 if c.name == card.name
             )
-            score += copies * card.power  # Massive value
+            # Massive tempo play
+            score += copies * card.power * 1.5
+            
+            # If round 1/2 and losing, this swings tempo
+            if context['score_diff'] < 0:
+                score += 5
         
         # Medic evaluation
         if "Medical Evac" in (card.ability or ""):
@@ -757,35 +819,48 @@ class AIStrategy:
             best_revive = self.select_best_medic_target()
             if best_revive:
                 revival_value = self.evaluate_medic_revival_value(best_revive, context)
-                score += revival_value
+                score += revival_value * 1.2
+            else:
+                score -= 10 # Don't play medic with no targets!
         
+        # --- WEATHER / BOARD STATE ---
         # Weather considerations
         if self.ai_player.weather_effects.get(row, False):
             # Weather is active on this row
             if "Legendary Commander" not in (card.ability or ""):
-                score -= card.power  # Card will be reduced to 1
+                score -= card.power * 0.8 # Card effectively worth 1
         
         # Horn considerations
         if self.ai_player.horn_effects.get(row, False):
             if "Legendary Commander" not in (card.ability or ""):
-                score += card.power  # Will be doubled
+                score += card.power * 1.2 # Bonus points
         
-        # Round strategy
-        if context['round_number'] == 1:
-            # Round 1: Play medium cards, save strong cards
-            if card.power > 8 and "Legendary Commander" not in (card.ability or ""):
-                score -= 10  # Penalty for playing strong cards early
-        elif context['round_number'] == 2:
-            # Round 2: Play strong cards if necessary
-            if context['ai_rounds_won'] == 0:  # Must win
-                score += 10
-        elif context['round_number'] == 3:
-            # Round 3: All or nothing
-            score += card.power  # Play everything
+        # --- TEMPO / ROUND STRATEGY ---
         
-        # If opponent passed and we're winning, prefer low-value cards
+        # If opponent passed and we're winning:
         if context['opponent_passed'] and context['score_diff'] > 0:
-            score -= card.power * 0.5  # Prefer cheap cards
+            # Why play? Pass instead. But if forced (logic in decide_action handles pass),
+            # play absolute trash.
+            score -= 100 
+        
+        # If opponent passed and we're losing:
+        if context['opponent_passed'] and context['score_diff'] < 0:
+            # We need to catch up. Calculate if this card is ENOUGH.
+            needed = abs(context['score_diff'])
+            if card.power >= needed:
+                score += 50 # Winning play
+            elif card.power + 5 >= needed: 
+                score += 20 # Close
+            else:
+                score -= 5 # Doesn't help enough, maybe save it?
+        
+        # Bleeding Strategy (Round 2, we won R1)
+        if context['round_number'] == 2 and context['ai_rounds_won'] == 1:
+            # If we have card advantage, press it? Or play weak cards to force them?
+            if card.power < 6:
+                score += 5 # Play weak cards
+            if "Deep Cover Agent" in (card.ability or ""):
+                score += 50 # ALWAYS spy here
         
         return score
     

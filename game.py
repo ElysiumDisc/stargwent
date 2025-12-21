@@ -236,13 +236,15 @@ class Artifact:
 
 class GameHistoryEntry:
     """Data container describing a single log entry for the HUD history feed."""
-    def __init__(self, event_type, description, owner, card_ref=None, icon=None, row=None):
+    def __init__(self, event_type, description, owner, card_ref=None, icon=None, row=None, delta=0, targets=None):
         self.event_type = event_type
         self.description = description
         self.owner = owner  # 'player' or 'ai'
         self.card_ref = card_ref
         self.icon = icon
         self.row = row
+        self.delta = delta      # How much the score changed (e.g., +5 or -10)
+        self.targets = targets  # List of cards/rows affected
         self.timestamp = time.time()
     
     def apply_effect(self, game, player):
@@ -392,7 +394,10 @@ class Player:
         # Stargate mechanics
         self.faction_ability = FACTION_ABILITIES.get(faction, None)
         self.dhd_mechanic = DHDMechanic()
-        self.iris_defense = IrisDefense()
+        
+        # Iris Defense (Tau'ri Only)
+        if faction == FACTION_TAURI:
+            self.iris_defense = IrisDefense()
         
         # Faction-specific special abilities (separate from Faction Powers)
         from power import RingTransportation
@@ -628,7 +633,7 @@ class Player:
             return
         from cards import Card
         clone = Card(
-            "token_oneill_clone",
+            "tauri_oneill_clone",
             "Jack O'Neill Clone",
             self.faction,
             6,
@@ -714,13 +719,18 @@ class Game:
                 icon="🤝"
             )
 
-    def add_history_event(self, event_type, description, owner, card_ref=None, icon=None, row=None):
+    def add_history_event(self, event_type, description, owner, card_ref=None, icon=None, row=None, delta=0, targets=None):
         """Append a new entry to the history log."""
-        entry = GameHistoryEntry(event_type, description, owner, card_ref=card_ref, icon=icon, row=row)
+        entry = GameHistoryEntry(event_type, description, owner, card_ref=card_ref, icon=icon, row=row, delta=delta, targets=targets)
         self.history.append(entry)
         if len(self.history) > 200:
             self.history.pop(0)
         self.history_dirty = True
+        
+        # Trigger external callback (e.g. for chat/narrator)
+        if hasattr(self, 'on_history_event') and self.on_history_event:
+            self.on_history_event(entry)
+            
         return entry
 
     def _log_card_play(self, player, card, row_name=None, note=None):
@@ -840,8 +850,15 @@ class Game:
         if self.current_player.has_passed:
             self.switch_turn() # Skip player if they have passed
 
-    def play_card(self, card, row_name, target_side=None):
-        """Plays a card from the current player's hand to the board."""
+    def play_card(self, card, row_name, target_side=None, index=None):
+        """Plays a card from the current player's hand to the board.
+        
+        Args:
+            card: Card object to play
+            row_name: Target row ('close', 'ranged', 'siege')
+            target_side: Optional side override (e.g. for spy cards)
+            index: Optional insertion index in the row
+        """
         if self.current_player.has_passed:
             return # Passed players can't play cards
         
@@ -859,7 +876,7 @@ class Game:
         
         # Check if opponent has Iris active
         opponent = self.player2 if self.current_player == self.player1 else self.player1
-        if opponent.iris_defense.is_active():
+        if hasattr(opponent, 'iris_defense') and opponent.iris_defense.is_active():
             # Card is blocked and destroyed
             self.current_player.hand.remove(card)
             self.current_player.discard_pile.append(card)
@@ -948,8 +965,33 @@ class Game:
                     draw_amount = 3
                 player.draw_cards(draw_amount)
 
-            target_player.board[row_name].append(card)
-            self._log_card_play(player, card, row_name=row_name)
+            # Add card to board (respecting insertion index if provided)
+            if index is not None and 0 <= index <= len(target_player.board[row_name]):
+                target_player.board[row_name].insert(index, card)
+            else:
+                target_player.board[row_name].append(card)
+            
+            # Log standard play
+            self._log_card_play(player, card, row_name=row_name, note="Spy" if is_spy else None)
+            
+            # Narrate specific passive abilities on play
+            ability = card.ability or ""
+            if "Inspiring Leadership" in ability:
+                self.add_history_event(
+                    "ability",
+                    f"{card.name} inspires adjacent units!",
+                    self._owner_label(player),
+                    card_ref=card,
+                    icon="💚"
+                )
+            if "System Lord's Curse" in ability:
+                self.add_history_event(
+                    "ability",
+                    f"{card.name} curses the enemy row!",
+                    self._owner_label(player),
+                    card_ref=card,
+                    icon="💀"
+                )
 
             # === CARD PLAY AUDIO ===
             sound_manager = get_sound_manager()
@@ -1111,6 +1153,14 @@ class Game:
             player.board[row_name].append(card)
         
         total_mustered = len(cards_from_hand) + len(cards_from_deck) + 1
+        
+        if total_mustered > 1:
+             self.add_history_event(
+                "ability",
+                f"{player.name} mustered {total_mustered-1} reinforcements!",
+                self._owner_label(player),
+                icon="🚪"
+            )
 
         # Life Force Drain siphons enemy strength and boosts the muster group
         if "Life Force Drain" in (played_card.ability or ""):
@@ -2023,6 +2073,12 @@ class Game:
     def apply_scorch_to_player(self, target_player):
         """Destroys the highest power non-Legendary Commander units for one player only.
         Returns: List of row_name strings where cards were destroyed."""
+        
+        # Calculate score BEFORE
+        self.player1.calculate_score()
+        self.player2.calculate_score()
+        score_before = target_player.score
+
         all_units = []
         for row_name, row_cards in target_player.board.items():
             for card in row_cards:
@@ -2063,16 +2119,37 @@ class Game:
                 destroyed_rows.append(row_name)
                 destroyed_cards.append(card)
 
+        # Calculate score AFTER
+        self.player1.calculate_score()
+        self.player2.calculate_score()
+        score_after = target_player.score
+        
+        delta = score_after - score_before
+
         # Log destroyed cards to history
         if destroyed_cards:
             target_label = "player" if target_player == self.player1 else "opponent"
-            for card in destroyed_cards:
+            
+            # Use specific narrator message if multiple cards
+            if len(destroyed_cards) > 1:
+                self.add_history_event(
+                    "scorch",
+                    f"Scorch vaporized {len(destroyed_cards)} units!",
+                    target_label,
+                    icon="💥",
+                    delta=delta,
+                    targets=[c.name for c in destroyed_cards]
+                )
+            else:
+                card = destroyed_cards[0]
                 self.add_history_event(
                     "destroy",
                     f"Scorch destroyed {card.name}",
                     target_label,
                     card_ref=card,
-                    icon="🔥"
+                    icon="🔥",
+                    delta=delta,
+                    targets=[card.name]
                 )
 
         return destroyed_rows

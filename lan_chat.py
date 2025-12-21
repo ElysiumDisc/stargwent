@@ -7,16 +7,17 @@ from lan_protocol import LanMessageType, build_chat_message, parse_message
 class LanChatPanel:
     """Reusable chat panel for LAN matches."""
 
-    def __init__(self, session: LanSession, role: str, *, max_lines: int = 20):
+    def __init__(self, session: LanSession, role: str, *, max_lines: int = 20, on_message=None):
         self.session = session
         self.role = role
         self.max_lines = max_lines
-        self.chat_log: List[str] = []
+        self.chat_log: List[dict] = []
         self.input_text = ""
         self.font = pygame.font.SysFont("Consolas", 24)
         self.title_font = pygame.font.SysFont("Arial", 28)
         self.font_small = pygame.font.SysFont("Arial", 14, bold=True)
         self.active = True
+        self.on_message = on_message # Callback(prefix, text, color)
         
         # Typing indicator state
         self.peer_is_typing = False
@@ -24,8 +25,22 @@ class LanChatPanel:
         self.last_local_input_time = 0
         self.typing_timeout = 2000  # Send "stopped typing" after 2s of inactivity
 
-    def add_message(self, prefix: str, text: str):
-        self.chat_log.append(f"{prefix}: {text}")
+    def add_message(self, prefix: str, text: str, color: Optional[tuple] = None):
+        if color is None:
+            # Default colors based on prefix
+            if prefix == "System":
+                color = (255, 215, 0)  # Gold for system
+            elif prefix == "You":
+                color = (100, 255, 100) # Greenish for self
+            else:
+                color = (220, 220, 255) # White/Blue for others
+
+        # If callback exists, delegate to it (e.g. to Game History)
+        if self.on_message:
+            self.on_message(prefix, text, color)
+        
+        # Keep local log as backup/fallback
+        self.chat_log.append({"text": f"{prefix}: {text}", "color": color})
         if len(self.chat_log) > self.max_lines:
             self.chat_log.pop(0)
 
@@ -133,8 +148,16 @@ class LanChatPanel:
             title_surf = self.title_font.render(title, True, (220, 220, 220))
             surface.blit(title_surf, (rect.x + 10, rect.y - 30))
         y = rect.y + 10
-        for line in self.chat_log:
-            surf = self.font.render(line, True, (220, 220, 220))
+        for entry in self.chat_log:
+            # Handle legacy string entries if any exist (though unlikely with fresh start)
+            if isinstance(entry, str):
+                text = entry
+                color = (220, 220, 220)
+            else:
+                text = entry["text"]
+                color = entry["color"]
+            
+            surf = self.font.render(text, True, color)
             surface.blit(surf, (rect.x + 10, y))
             y += 24
         

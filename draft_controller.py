@@ -122,6 +122,41 @@ class DraftModeController:
         if event.type == pygame.MOUSEMOTION:
             self.ui.handle_mouse_motion(event.pos, self.clickable_rects)
 
+        elif event.type == pygame.MOUSEWHEEL:
+            if self.current_run.phase == "review":
+                # Handle scrolling in review screen
+                self.ui.review_scroll_y += event.y * 30
+                # Clamp scroll
+                stats = self.current_run.get_draft_stats()
+                # Estimate content height: header(60) + unique_cards * line_height(40)
+                card_counts = {}
+                for card in self.current_run.drafted_cards:
+                    card_counts[card.name] = True
+                content_height = 60 + len(card_counts) * 40
+                max_scroll = max(0, content_height - (self.screen_height - 330))
+                self.ui.review_scroll_y = min(0, max(-max_scroll, self.ui.review_scroll_y))
+            
+            elif self.current_run.phase == "draft":
+                # Handle scrolling in draft sidebar
+                self.ui.draft_scroll_y += event.y * 25
+                
+                # Calculate content height for clamping
+                # Height logic must match _draw_deck_preview
+                card_counts = {}
+                for card in self.current_run.drafted_cards:
+                    card_counts[card.name] = True
+                
+                line_height = 25
+                content_height = len(card_counts) * line_height
+                
+                # Viewport height calculation (must match _draw_deck_preview)
+                preview_y = 160
+                preview_height = self.screen_height - preview_y - 20
+                viewport_height = preview_height - 100
+                
+                max_scroll = max(0, content_height - viewport_height)
+                self.ui.draft_scroll_y = min(0, max(-max_scroll, self.ui.draft_scroll_y))
+
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             clicked_index = self.ui.handle_click(event.pos, self.clickable_rects)
 

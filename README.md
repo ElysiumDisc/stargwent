@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.0.0-blue)
+![Version](https://img.shields.io/badge/version-3.6.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,12 +52,13 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.6.0: ELITE AI OVERHAUL** - AI logic rebuilt for strategic depth: Hero preservation, Round 2 bleeding, and tactical Faction Power usage. Single "Hard" difficulty now plays like a veteran!
+- **⚡ NEW v3.5.0: NARRATOR & INTEGRATED CHAT** - Game history now acts as a narrator, explaining score changes (e.g., "Scorch vaporized 3 units! (-15)") and card effects. Chat is fully integrated into the history panel—press 'T' to type without leaving the action!
+- **⚡ NEW v3.5.0: PRECISE CARD PLACEMENT** - You can now drop cards *between* existing units on the board, allowing for precise tactical positioning!
 - **⚡ NEW v3.0.0: DRAFT MODE (ARENA)** - Roguelike deck-building mode! Choose from 3 random leaders, draft 30 cards from ALL factions (1 of 3 choices each pick), review your deck stats, then battle AI with your creation! Card pool includes ALL unlocked cards regardless of faction!
 - **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
 - **⚡ NEW v2.9.1: ADVANCED AI OVERHAUL** - Smart mulligan logic, strategic pass timing, intelligent power/iris usage, and advanced target selection for Hathor/Medic abilities!
-- **⚡ NEW v2.9.1: ENHANCED STATS MENU** - Scrollable interface with mouse wheel support, leader metadata display, and reorganized sections!
 - **⚡ NEW v2.9: LAN MULTIPLAYER OVERHAUL** - Fixed game loop, added all animations for both players, robust disconnect handling!
-- **⚡ NEW v2.9: IN-MATCH LAN CHAT OVERLAY** - Toggle T/ESC to open the "Subspace Communications" modal with typing indicators while keeping history visible!
 - **⚡ NEW v2.9: TAILSCALE SUPPORT** - Smart IP detection prioritizes Tailscale VPN addresses for easy remote play!
 - **⚡ NEW v2.8: LEGENDARY COMMANDER VOICE SNIPPETS** - Every legendary commander plays a character voice clip when deployed!
 - **⚡ NEW v2.7: ALLIANCE COMBO TRACKING** - Alliance activations now show in history viewer with full visibility!
@@ -81,49 +82,17 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
 - **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
 - **⚡ NEW v1.6: IMPROVED HAND LAYOUT** - Hand area dynamically reserves 25% of screen height to prevent card cutoff in fullscreen!
-
+- **⚡ NEWv1.7 - Witcher 3 Gwent Layout: Authentic board design with clear separation, proper lane spacing, weather separator, and fixed hand positioning!*
+- **⚡ NEWv1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*
+- **⚡ NEWv1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
+- **⚡ NEWv1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul! *Legendary commanders now crackle with lightning as they land — embrace the spectacle!*
 ### 🆕 Recent UI Updates
-- **Options Menu Alignment** — All labels/status text are perfectly centered above/below their toggles with consistent 40px/45px spacing, unified 26px bold status font, and resized toggles (DHD radius 80px, Stargate radius 35px) on a 700x360 panel.
+- **Elite AI Strategy** - The AI now uses Gwent-style "bleeding" and hero preservation tactics to challenge even experienced players.
+- **Draft Mode Polish** - "Your Deck" list is now scrollable, groups duplicates (e.g. "3x Alpha Team"), and features a centered "Start Battle" layout.
+- **Integrated Comms** - Chat and Game History are now unified. Press 'T' to open a non-intrusive input box directly below the history panel.
+- **Options Menu Alignment** — All labels/status text are perfectly centered above/below their toggles with consistent spacing.
 - **Deck Builder Layout** — Type headers removed; cards use a simple grid with unified positioning and click detection for hover, inspect, and drag/drop; compact stats now sit in a clean box at the top-right of **Your Deck**.
 - **Smooth Dragging Everywhere** — Deck builder runs at 144 FPS with lerped card dragging, subtle shadows, and glow borders for a buttery feel; in-match rendering already uses the same smooth follow/hover easing.
-- **⚡ NEW v1.5: APOPHIS WEATHER DECREE** - Once per game Apophis unleashes a random battlefield hazard that blankets both sides and honors weather immunities.
-- **⚡ NEW v1.5: WEATHER & HORN PANELS** - Left-side slots display active weather cards and Commander Horns while doubling as drag-and-drop targets.
-- **⚡ NEW v1.5: LEGENDARY LIGHTNING** - Every Legendary Commander arrival now gets a one-shot lightning outline (player + AI).
-- **⚡ NEW v1.4: APOPHIS RAID** - If the opponent piles 4+ siege ships, Apophis teleports one to your board once per round.
-- **⚡ NEW v1.4: REFINED DISCARD PANEL** - Dedicated UI panel with safe spacing replaces the old D-key shortcut.
-- **⚡ NEW v1.2: GOA'ULD RING TRANSPORTATION** - Return close combat unit to hand EVERY ROUND!
-- **⚡ NEW v1.2: 3-PHASE RING ANIMATION** - Golden rings descend → activate → ascend with card!
-- **⚡ NEW v1.2: CLOSE COMBAT ONLY** - Rings can only retrieve close range fighters (once per round)!
-- **⚡ NEW v1.3: TARGETED WEATHER DEPLOYMENT** - Drag weather cards directly onto opponent lanes (specials still go anywhere)!
-- **⚡ NEW v1.3: EMP & NEBULA VFX** - Electromagnetic Pulse gets pulsing plasma motes; Nebula Fields add drifting pink clouds.
-- **⚡ NEW v1.1.1: VISUAL DROP ZONES** - Blue highlights show all valid targets when dragging weather cards!
-- **⚡ NEW v1.1: FLUID CARD FEEL** - Smooth dragging with easing, hover scale effects, enhanced shadows!
-- **⚡ NEW v1.1: ANIMATED AI TURNS** - 4-phase AI animations: thinking particles → card selection → playing → resolving!
-- **⚡ NEW v1.1: VISUAL FEEDBACK** - Cards feel weighted and responsive, every action is readable at 60 FPS!
-- **⚡ NEW v1.0: UI OVERHAUL** - Streamlined controls: Right-click to preview cards, left-click drag & drop, removed keyboard shortcuts!
-- **⚡ NEW v1.0: LEADER ABILITIES FIXED** - All leaders working correctly: Vulkar, Lord Yu, Rak'nor, Freyr verified!
-- **⚡ DEV UPDATE: WEATHER BALANCE & SMARTER AI** - Persistent ability buffs, symmetrical weather shields, and retuned AI decision making.
-- **⚡ NEW v1.0: FACTION POWERS RENAMED** - IrisPower → FactionPower (Tau'ri IrisDefense kept separate)!
-- **⚡ NEW v1.0: MATCHUP BACKGROUNDS** - PNG backgrounds load for each leader combination!
-- **⚡ NEW v0.9: Finite State Machine** - Replaced 20+ boolean flags with robust FSM for UI management!
-- **⚡ NEW v0.9: ESC Pause Menu** - Pause anytime with Resume/Main Menu/Quit options
-- **⚡ NEW v0.9: Round 3 Asteroids** - Animated asteroid field appears in final round!
-- **⚡ NEW v0.9: Enhanced Jaffa Animation** - Tel'tak ship delivers 3 cards with title and effects
-- **⚡ NEW v0.9: Minimum Deck Size** - Must have at least 20 cards to start a game!
-- **⚡ NEW v0.9: Card Back System** - Opponent's hand shows card backs until revealed
-- **⚡ NEW v0.9: Leader Backgrounds** - Each leader has unique background art during selection
-- **⚡ v0.8.1: Code Cleanup** - Removed 100+ lines of dead code for cleaner codebase!
-- **⚡ v0.8.1: Verified Abilities** - All 20 unlockable card abilities confirmed working (100%)!
-- **⚡ v0.8: Deck Persistence** - Your deck choices are saved between games!
-- **⚡ v0.8: Win Streak System** - Track your wins and unlock leaders every 3 victories!
-- **⚡ v0.8: Automatic Saving** - Leaders and deck configurations saved automatically!
-- **⚡ v0.7: Mulligan System** - Redraw 2-5 cards at game start!
-- **⚡ v0.7: Random First Player** - Fair coin flip determines who goes first!
-- **⚡ v0.7: Enhanced UI** - Left-click drag, right-click zoom everywhere!
-- **⚡ v0.6: 4K Support** - Full 3840×2160 native resolution!
-- **⚡ v0.6: Enhanced Animations** - Stargate KAWOOSH, hyperspace transitions, faction-specific effects!
-- **⚡ Faction Power System** - Once-per-game cinematic abilities with unique visuals!
-- **🖱️ Intuitive Controls** - Left-click to drag, right-click to inspect!
 
 ### 💾 Persistent Progression
 - **Automatic Deck Saving** - Your deck is saved every time you finish customizing
@@ -170,7 +139,7 @@ All abilities renamed and themed around Stargate lore:
 - **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
 - **Nebula Clouds** - Layered pink fog drifting through affected lanes
 - **Black Hole Animation** - When clearing weather effects
-- **Particle Systems** - Fire explosions, energy bursts, faction-specific effects
+- **Particle Systems** - Fire, energy bursts, faction-specific effects
 - **DHD Button** - Glowing red center button with chevron ring
 - **Faction Power Effects** - Unique cinematic animations for each faction:
   - **Tau'ri**: Fiery explosions destroying units
@@ -182,6 +151,41 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 3.6.0 (December 2025)
+**Grand AI Overhaul & Tactical Precision**
+
+- ✅ **Elite AI Opponent** – AI logic rebuilt for strategic depth:
+  - **Hero Preservation**: AI now saves Legendary Commanders for Round 3 or critical weather turns.
+  - **Bleeding Strategy**: AI will "bleed" the opponent in Round 2 if it wins Round 1.
+  - **Smarter Powers**: Faction Powers reserved for high-value targets (e.g., Scorch hits 12+ power units).
+- ✅ **Iris Defense Fix** – Fixed a critical bug where non-Tau'ri factions could use Iris Defense.
+- ✅ **O'Neill Clone Token** – Jack O'Neill's ability spawns a dedicated `tauri_oneill_clone` token card.
+- ✅ **Icon Rendering Fix** – Fixed missing icons in the history log (🔥, 🤝, 🚪 now display correctly).
+
+### Version 3.5.0 (December 2025)
+**Narrator, Chat Integration & Precision Gameplay**
+
+- ✅ **Integrated "Narrator" History** – The history log is now a storytelling tool! Instead of just "Card Played", it explains *why* things happen:
+  - *"Scorch vaporized 3 units! (-15)"* - Shows exact score impact.
+  - *"Rak'nor inspires adjacent units!"* - Narrates passive triggers.
+  - *"Iris blocked Wraith Hive!"* - Confirms defensive moves.
+- ✅ **Seamless Chat Integration** – Chat messages are now injected directly into the History Panel with color coding:
+  - **Gold**: System/Narrator messages
+  - **Green**: Your messages
+  - **Blue**: Opponent messages
+  - **Red**: Destruction events
+- ✅ **Non-Intrusive Input** – Removed the full-screen chat modal. Press 'T' or 'Enter' to toggle a sleek input line below the history panel.
+- ✅ **Precision Card Placement** – You can now drop cards **between** existing units on the board! The game calculates the insertion index based on your mouse position, giving you full control over adjacency bonuses (vital for Inspiring Leadership!).
+- ✅ **Draft Mode UI Polish** – "Your Deck" sidebar is now scrollable and groups duplicate cards (e.g., "2x Jaffa Guard") for cleaner reading. "Start Battle" button is centered and prominent.
+
+### Version 3.0.0 (December 2025)
+**Draft Mode (Arena)**
+
+- ✅ **Roguelike Deck Building** – New game mode! Build a deck from scratch by picking 1 of 3 cards at a time until you have 30.
+- ✅ **Cross-Faction Chaos** – Draft pool includes ALL unlocked cards from ALL factions. Combine Asgard tech with Goa'uld numbers!
+- ✅ **Risk/Reward** – Choose your leader wisely at the start—their ability defines your run.
+- ✅ **Battle & Rewards** – Take your drafted deck into battle against the AI. Wins earn massive XP and card unlocks.
 
 ### Version 2.9 (November 2025)
 **LAN Multiplayer Overhaul & Robustness**
@@ -208,22 +212,6 @@ All abilities renamed and themed around Stargate lore:
   - No sudo required, no network traffic sent
 - ✅ **LAN Chat Overlay in Main Loop** – Chat now lives in the core game loop: toggle with `T` or `ESC`, modal "Subspace Communications" window, "Press T to Chat" hint when closed, "Dialing..." typing indicator, and the history panel stays visible during LAN matches.
 - ✅ **LAN State Sync Fixes** – Mulligans and Hathor’s steal now stay in lockstep: both players see the heart-kiss animation and the stolen card lands in the correct row before turns switch.
-
-### 🗺️ Roadmap / Future Implementation Notes
-- **New Factions**: Add Ori faction (leader count parity with other factions) and Replicator faction (matching leader count).
-- **Legendary Depth**: One additional Legendary Commander card per existing faction.
-- ✅ **Connection Robustness** – Improved network reliability:
-  - 10-second join timeout (was infinite)
-  - 1-second recv timeout prevents hangs
-  - 5-second keepalive heartbeat
-  - 30-second connection timeout detection
-  - TCP keepalive at OS level
-- ✅ **Disconnect Detection** – Graceful handling of connection loss:
-  - "CONNECTION LOST" overlay with red text
-  - Automatic detection via keepalive failures
-  - Clean return to main menu
-  - Works in both lobby and game
-- ✅ **Network Sync for Actions** – Faction power usage now syncs over network
 
 ### Version 2.8 (November 2025)
 **Complete Audio System Overhaul**
@@ -352,8 +340,6 @@ All abilities renamed and themed around Stargate lore:
 - ✅ **Spec Alignment** – Codex plan captured for the new percentage-based layout, accordion hands, right-HUD history column, and AI faction-power parity; implementation will land in the next tagged build.
 - ℹ️ **Gameplay Code** – Currently identical to v1.7 so existing saves, decks, and ESC pause behavior remain untouched while we stage the next wave of UI fixes.
 
----
-
 ### Version 1.7 (September 2025)
 **Stargwent Gwent-Style Balanced Layout**
 
@@ -366,30 +352,6 @@ All abilities renamed and themed around Stargate lore:
 - ✅ **Lane Labels** - Faded row labels (⚔ CLOSE, 🏹 RANGED, ⚙ SIEGE) on right side
 - ✅ **Unified Command Bar** - Bottom-right "command zone" with Faction Power and Pass button aligned
 
-#### Layout Specifications
-- ✅ **ROW_HEIGHT**: 9.5% screen height (perfectly fits cards with breathing room)
-- ✅ **ROW_GAP**: 1.2% screen height (clean spacing between lanes)
-- ✅ **DIVIDER_HEIGHT**: 5% screen height (prominent weather separator)
-- ✅ **TOP_MARGIN**: 7% + card height + 2% (space for opponent hand)
-- ✅ **HAND_Y_OFFSET**: 18% screen height (generous player hand area)
-- ✅ **Opponent Rows**: Start after opponent hand with proper margin
-- ✅ **Player Rows**: Start after weather separator with clean gaps
-
-#### UI Improvements
-- ✅ **Command Bar Positioning** - Faction Power and Pass button form right-side control zone
-- ✅ **Player Faction Power** - Left of Pass button at `x=SCREEN_WIDTH-780`, `y=COMMAND_BAR_Y`
-- ✅ **AI Faction Power** - Top-left at `x=140`, `y=TOP_MARGIN+10`
-- ✅ **Pass Button (DHD)** - Bottom-right with safe margins (already positioned correctly)
-- ✅ **Leader Portraits** - Player bottom-left, AI top-left (unchanged)
-
-#### Visual Polish
-- ✅ **Active Player Glow** - Subtle blue glow (alpha 30) on active player's lanes
-- ✅ **Inactive Lane Darkening** - Vignette effect when player has passed
-- ✅ **Weather Separator Visual** - Semi-transparent dark bar with subtle borders
-- ✅ **Score Positioning** - Next to leader portraits with proper alignment
-
----
-
 ### Version 1.6 (September 2025)
 **Fullscreen Polish & Round Winner Announcements**
 
@@ -401,126 +363,10 @@ All abilities renamed and themed around Stargate lore:
 
 #### Round Winner System
 - ✅ **Cinematic Round Winner Overlay** - Beautiful 3-second announcement showing who won each round
-- ✅ **Detailed Scoreboard** - Displays all 3 rounds with:
-  - **Blue highlights (100, 150, 255)** for won rounds
-  - **Light grey (150, 150, 150)** for lost/draw rounds  
-  - **Dark grey (80, 80, 80)** for future rounds
-  - Total rounds won for each player
-- ✅ **Round-by-Round Tracking** - Shows completed round number (e.g., "YOU WIN ROUND 2!")
-- ✅ **Skip Option** - Press SPACE to continue immediately
+- ✅ **Detailed Scoreboard** - Displays all 3 rounds with highlights for wins/losses
 - ✅ **Perfect Timing** - Announcement appears BEFORE hyperspace transition to next round
 
-#### Technical Improvements
-- ✅ **Scale Factor Adjustments** - All UI elements properly scale with fullscreen resolution changes
-- ✅ **F11 Fullscreen Toggle** - Recalculates all margins when switching between windowed/fullscreen
-- ✅ **Faction Power UI Positioning** - Moved up with safe margin calculation to stay visible
-- ✅ **Hand Y Offset Calculation** - Improved formula ensures cards never get cut off at bottom
 
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8 or higher
-- pip (Python package manager)
-
-### Installation
-
-```bash
-# 1. Navigate to game directory
-cd stargwent
-
-# 2. Create virtual environment
-python -m venv venv
-
-# 3. Activate venv
-source venv/bin/activate  # Linux/Mac
-# OR
-venv\Scripts\activate  # Windows
-
-# 4. Install dependencies
-pip install -r requirements.txt
-
-# 5. Generate placeholder assets
-python scripts/create_placeholders.py
-
-# 6. Run the game!
-python main.py
-
-# Optional: start directly in fullscreen (persists for the whole session)
-python main.py --fullscreen
-
-# 7. Update pygame-ce
-pip install --upgrade pygame-ce
-
-Set `STARGWENT_FULLSCREEN=1` before running `python main.py` if you prefer forcing fullscreen without passing the CLI flag each time.
-
-### First Launch
-1. **Main Menu** - Select "NEW GAME"
-2. **Select Faction** - Choose Tau'ri, Goa'uld, Jaffa, Lucian, or Asgard
-3. **Select Leader** - Pick leader with unique ability
-4. **Play!** - Start your first match
-
-### Rule Menu & Docs
-- **In-game reference:** From the Main Menu choose **RULE MENU** to browse the animated handbook (Basic Rules, Card Glossary, Lore, etc.) without leaving the game.
-- **Regenerate the guide:** After editing cards, leaders, or abilities run `python scripts/generate_rules_spec.py` to rebuild `docs/rules_menu_spec.md`, which the viewer loads at runtime.
-
----
-
-## 🎨 Animation & Visual Polish (v1.1)
-
-### Fluid Card Interactions ✨
-**Cards feel weighted and responsive!**
-
-- **Smooth Dragging** - Cards follow mouse with easing (25% lerp factor), creating natural momentum instead of instant snap
-- **Hover Scaling** - Cards in hand gently enlarge 8% when hovered with smooth interpolation (15% speed)
-- **Dynamic Shadows** - Depth shadows intensify on hover (4px) and selection (6px) for physical card feel
-- **Weighted Release** - Cards settle naturally when released, not teleported
-- **Frame-Rate Independent** - All animations use delta time (dt) for consistent speed at any FPS (30-144Hz)
-
-### AI Turn Animations 🤖
-**No more instant AI skips! Every action is visually clear and cinematic:**
-
-#### Phase 1: Thinking (1.0 second)
-- **Text**: "AI is thinking..."
-- **Effect**: 30 pulsing blue particles drift and bounce near top of screen
-- **Formula**: `alpha = life * (128 + 127 * sin(pulse))`
-- **Particles**: Continuously respawn for organic, living feel
-
-#### Phase 2: Selecting (0.6 seconds)
-- **Text**: "AI selects card..."
-- **Effect**: Chosen card in opponent's hand gets pulsing glow highlight
-- **Glow**: Expands/contracts with sine wave (80-160 alpha oscillation)
-- **Visual**: Player can see which card AI chose before it's played
-
-#### Phase 3: Playing (0.8 seconds)
-- **Text**: "AI plays card..."
-- **Effect**: Card travels from hand to board with ease-out cubic motion
-- **Trigger**: Stargate activation effect at target row
-- **Progress**: Smooth interpolation over 800ms
-
-#### Phase 4: Resolving (0.4 seconds)
-- **Text**: "Resolving..."
-- **Effect**: Pulsing text shows card abilities activating
-- **Scores**: Update with animated pop effects showing deltas
-- **Turn End**: Smooth transition to player's turn
-
-**Total AI turn duration: ~2.8 seconds** (readable, never rushed, maintains 60 FPS)
-
-### Technical Improvements
-- **No Blocking Waits** - Removed `pygame.time.wait()` calls that froze the screen
-- **Async Animation Flow** - State machine drives AI actions frame-by-frame
-- **Easing Functions** - `ease_out_cubic` for natural motion curves
-- **Particle Systems** - Efficient spawning/despawning with life tracking
-- **Z-Order Rendering** - Animations layer correctly (hand → board → AI overlay)
-
-### Performance Metrics
-- **CPU Impact**: ~1-2% increase for particle systems
-- **GPU Impact**: Negligible (smoothscale cached)
-- **Frame Rate**: Locked 60 FPS maintained throughout
-- **Memory**: ~2KB for 50 active particles
-
----
 
 ## 🎮 How to Play
 
@@ -562,24 +408,6 @@ Set `STARGWENT_FULLSCREEN=1` before running `python main.py` if you prefer forci
 - **Win any game** → Unlock 1 of 3 cards (faction-specific + Neutral)
 - **Win 3 in a row** → Unlock alternate leader for that faction
 - All progress saved automatically!
-
-### Card Types
-
-#### Unit Cards
-- **Close Combat** (Red) - Front-line melee fighters
-- **Ranged** (Blue) - Archers and ranged attackers
-- **Siege** (Green) - Heavy artillery and starships
-- **Agile** (Purple) - Can be placed in Close or Ranged
-
-#### Special Cards
-- One-time effects that don't stay on board
-- Includes Command Network, Naquadah Overload, Ring Transport
-
-#### Weather Cards
-- Target a specific opponent row (Close/Ranged/Siege) and leave your side untouched
-- Reduces non-Legendary Commander units in that lane to 1 power (Survival Instinct units gain +2)
-- **Ice Planet**, **Nebula**, **Asteroid Storm**, **Electromagnetic Pulse** (glowing green plasma)
-- Clear any hazard with **Wormhole Stabilization** (cinematic black hole collapse)
 
 ---
 
@@ -659,66 +487,6 @@ Set `STARGWENT_FULLSCREEN=1` before running `python main.py` if you prefer forci
 
 ---
 
-## 🎬 Cinematic Leader Matchups
-
-**NEW in v0.9!** Every game begins with an epic 5-second confrontation between leaders!
-
-### Animation Sequence
-
-**Phase 1 (0-1.5s): The Approach**
-- Leader cards fly in from opposite sides of screen
-- Smooth easing motion builds anticipation
-- Stargate event horizon activates in background
-
-**Phase 2 (1.5-2.5s): The Collision**
-- Cards meet at center in explosive impact
-- 8 lightning bolts radiate outward in all directions
-- Energy burst with faction-colored effects
-- Chevrons lock around the Stargate ring
-- Screen shake effect
-- Massive "VS" text appears
-
-**Phase 3 (2.5-5.0s): The Declaration**
-- Cards float to their battle positions
-  - Player leader: Bottom left
-  - Opponent leader: Top left
-- Lore-based confrontation quote appears
-- Historical context subtitle fades in
-- Background continues animated event horizon
-
-### Stargate Event Horizon Background
-
-- **Animated Stargate Ring** with 9 chevrons
-- **Rippling Water Effect** like the actual show
-- **Vertical Distortion** mimicking energy flow
-- **Floating Energy Particles** circling the gate
-- **Chevron Lock Animation** during collision phase
-- **Shimmering Blue/Cyan** authentic watery portal
-
-### Lore-Based Quotes (40+ Specific Matchups)
-
-Every leader combination has a unique quote based on Stargate SG-1 history:
-
-**Examples:**
-- **O'Neill vs Apophis:** "In the middle of my backswing?!"
-- **Teal'c vs Apophis:** "I have pledged my life to destroy you."
-- **Daniel vs Apophis:** "Your reign of terror ends today." (Sha're reference)
-- **Vala vs Daniel:** "Oh, come on Daniel! Where's your sense of adventure?"
-- **Thor vs Anubis:** "The Asgard will not allow your ascension."
-- **Ba'al vs Yu:** "Age does not grant wisdom."
-- **Bra'tac vs Apophis:** "This day of reckoning is long overdue, false god!"
-
-**Dynamic System:**
-- 40+ pre-defined specific matchups
-- Auto-generates appropriate quotes for any combination
-- Based on faction relationships (Tau'ri vs Goa'uld, Jaffa rebellion, etc.)
-- Includes ALL 35 leaders (base + unlockable)
-
-### Controls
-- **SPACE or ESC:** Skip animation (if impatient)
-- Otherwise: Enjoy the full 5-second cinematic!
-
----
 
 ## 🃏 Card Abilities
 
@@ -909,37 +677,6 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 
 ---
 
-## 🎨 Visual Features
-
-### DHD Pass Button 🎮
-**Authentic Stargate Dial Home Device!**
-- Bronze metallic outer ring
-- 7 symbol markers (chevrons) around edge
-- Red glowing center button
-- Pulsing animation when active
-- Stargate activation burst on click
-- Dark gray when inactive
-
-### Background Effects (Always Active)
-- Moving starfield with subtle twinkle
-- Chevron glows on screen edges
-- Blue energy waves across board
-- Layers over static background
-
-### In-Game Effects (Action-Based)
-- **Score Animations** - Pop effects with deltas
-- **Stargate Activation** - Blue portal when playing cards
-- **Naquadah Overload** - Blue energy explosions with expanding shockwave rings (only on affected rows)
-- **Weather Effects** - Animated hazards with row highlighting
-- **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
-- **Nebula Clouds** - Layered pink fog drifting through affected lanes
-- **Black Hole** - Wormhole Stabilization animation
-- **Particle Systems** - Fire, energy bursts
-- **Glow Animations** - Pulsing highlights
-- **Hero Animations** - 25+ unique entry effects
-- **Ability Animations** - Visual feedback for special abilities
-
----
 
 ## ⌨️ Controls
 
@@ -992,92 +729,6 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 
 ---
 
-## 📊 Implementation Status
-
-### ✅ Fully Implemented (100%)
-
-#### **NEW v1.0: UI & Leader Ability Fixes**
-- **Right-Click Card Preview** - Preview any card (hand, board, opponent) with right-click
-- **Streamlined Controls** - Removed manual ability hotkeys (V, B, T) - abilities auto-trigger
-- **Leader Ability Fixes**:
-  - **Vulkar** - Correctly draws 3 cards for Deep Cover Agents (verified working)
-  - **Lord Yu** - Now reveals opponent's hand when you pass
-  - **Rak'nor** - Can play 2 cards on first turn of each round
-  - **Freyr** - Complete immunity to ALL weather effects (not just first)
-- **Faction Powers Renamed** - IrisPower → FactionPower throughout codebase
-- **Tau'ri Iris Defense** - Kept separate and working (click Iris button)
-- **Unstable Naquadah Fixed** - Lucian faction power now properly damages units
-- **Universal Leader Matchups** - Cinematic intro now renders from a single `universal_leader_matchup_bg.png` with faction-colored neon typography and dynamically scaled portraits.
-- **Placeholder Generation** - Run `create_placeholders.py` to (re)create the universal template plus all cards/portraits (including Bra'tac alias cleanup).
-- **Simplified Keyboard** - Only essential keys: D (discard), Space (preview/power), ESC (close/pause)
-
-### 📊 Stats & Analytics
-- **⚡ NEW v2.9.1: SCROLLABLE STATS PANEL** - Mouse wheel support for navigating extensive statistics, leader metadata display, and reorganized sections for better readability!
-- **Comprehensive Stats Screen** - Main menu "Stats" shows games/wins/losses, winrate, streaks, AI vs LAN records, most-played faction/leader, matchups, form (last 10), game length (avg/fastest/longest), mulligan averages, ability usage (Medic/Decoy/Faction Power/Iris blocks), top cards, AI difficulty split, and LAN reliability.
-- **Rich Tracking** - Per-leader records, faction-vs-faction matrix, turn counts, mulligans, ability triggers, top-card plays/wins, streak history, and mode-aware stats persisted across sessions.
-
-### 🤖 Advanced AI Opponent
-- **⚡ NEW v2.9.1: SMART MULLIGAN LOGIC** - AI now intelligently evaluates starting hands, keeping synergies (Tactical Formation combos, Gate Reinforcement), prioritizing spies for card advantage, and mulliganing based on hand composition (too many heroes, weak cards, no units)!
-- **⚡ NEW v2.9.1: STRATEGIC PASS TIMING** - Round-aware passing strategy (conservative Round 1 to save cards, aggressive Round 2 if must-win, tactical Round 3 bluffing), hand quality evaluation, and card advantage preservation!
-- **⚡ NEW v2.9.1: INTELLIGENT POWER USAGE** - Evaluates faction power value before activation based on power type (resurrect values discard pile, scorch values opponent strength, boost values board state), round importance, and alternative plays!
-- **⚡ NEW v2.9.1: ENHANCED IRIS DEFENSE** - Dynamic probability based on score differential, round criticality (80% protection in close Round 3), opponent cards remaining, and card advantage scenarios!
-- **⚡ NEW v2.9.1: ADVANCED TARGET SELECTION** - Hathor ability now prioritizes breaking opponent synergies and stealing high-value abilities; Medic revival evaluates synergy bonuses, horn effects, and weather penalties for optimal card resurrection!
-- **Hard Difficulty Only** - Single-player AI always runs at maximum challenge level with strategic decision-making across all abilities!
-
-#### **NEW v0.9: Cinematic & Polish Updates**
-- **Leader Matchup Animation** - 5-second cinematic confrontation with Stargate event horizon, lightning collision, and 40+ lore-based quotes for every leader combination
-- **Pause Menu System** - ESC anytime to pause with Resume/Main Menu/Quit options
-- **Round 3 Asteroids** - Animated asteroid field appears in background during final round
-- **Enhanced Jaffa Animation** - "JAFFA REINFORCEMENTS" title with improved Tel'tak delivery effect
-- **Minimum Deck Size** - Players must have at least 20 cards to start a game
-- **Card Back System** - Opponent's hand displays card backs until revealed by abilities
-- **Leader Selection Backgrounds** - Each of 35 leaders has unique background art during selection
-- **Improved Jaffa Power** - Draw 3, discard 3 (prevents hand overflow issues)
-- **Deck Builder Improvements** - Direct deck view access from deck building menu, auto-save functionality
-- **F11 Fullscreen** - Works from main menu
-- **Animation Polish** - Better visibility for faction powers, enhanced particle effects
-
-#### **v0.8.1: Code Cleanup & Verification**
-- **Dead Code Removed** - Eliminated 100+ lines of unused ZPM resource and mission systems
-- **Ability Verification Complete** - All 20 unlockable card abilities confirmed working (100%)
-- **Description Accuracy** - Updated card descriptions to match actual implementations
-- **Streamlined Codebase** - Removed unused classes: ZPMResource, MissionObjective
-- **Cleaner Game Logic** - Simplified Player initialization and round management
-
-#### **v0.8: Deck Persistence & Progression**
-- **Automatic Deck Saving** - Your deck is saved after every customization
-- **Per-Faction Decks** - Each faction remembers your leader and card choices
-- **Win/Loss Tracking** - Full statistics system with win streaks
-- **Leader Unlocks** - Earn new leaders every 3 consecutive wins
-- **Cross-Session Saves** - JSON-based persistence (`player_decks.json`, `player_unlocks.json`)
-- **Seamless Integration** - Loads previous choices automatically on game start
-
-#### **Visual & Animation System (v0.6-2.8)**
-- **4K Native Support** - 3840×2160 resolution with perfect asset scaling
-- **Stargate Opening** - Epic KAWOOSH vortex with outward particle burst
-- **Hyperspace Transitions** - Star streak animations for rounds 2 & 3
-- **Planet Emergence** - Round 3 planet appearance effect
-- **Improved AI Pacing** - 1.2s think time + 0.8s pause after moves
-- **Discard Pile Viewer** - Press D to view all discarded cards
-- **Left-Click Drag & Right-Click Zoom** - Intuitive card interaction everywhere
-
-#### **Game Flow & Balance (v0.7)**
-- **Random First Player** - Fair coin flip at game start
-- **Mulligan System** - 2-5 card redraw with enforced limits
-- **AI Strategic Power Usage** - AI uses faction powers in rounds 1-2 based on board state
-- **Faction Power Balance** - All powers are once-per-game (not per-round)
-
-#### **Faction Power System**
-- 5 unique faction powers with cinematic effects
-- Full UI with availability indicators
-- Once-per-game activation system
-- Keyboard (SPACEBAR) and mouse activation
-- Unique visual effects for each faction:
-  - Tau'ri: Fire explosions with smoke debris
-  - Goa'uld: Golden sarcophagus revival beam
-  - Lucian: Green naquadah shockwave
-  - Jaffa: Stealth Tel'tak delivery
-  - Asgard: Blue holographic lattice swap
 
 #### **35/35 Leader Abilities Working** (100% Complete!)
 - ✅ Gen. Landry - "Homeworld Command": +1 to most populated row
@@ -1115,57 +766,15 @@ Every leader combination has a unique quote based on Stargate SG-1 history:
 - Right-click card inspection
 - Discard pile viewer with scrolling
 
-### ⏳ Polish & Enhancement (1%)
+
 
 #### **Future Enhancements**
-- Sound effects & music (Sonic Pi integration ready)
+- Sound effects & music
 - Advanced AI difficulty settings
 - More faction-specific animations
 - Tournament mode
 - LAN reconnection support
 
-**All core gameplay 100% complete! Ready for extensive playtesting and content expansion!**
-
----
-
-## 🏗️ Project Structure
-
-### Python Files (21 total)
-
-#### **Core Game Files**
-- `main.py` (2215 lines) - Main game loop, UI, event handling, Power system integration
-- `game.py` (849 lines) - Game logic, rules, Player class
-- `cards.py` (322 lines) - Card database and definitions
-- `ai_opponent.py` (374 lines) - AI controller and strategy
-
-#### **UI & Menu Files**
-- `main_menu.py` (830 lines) - Main menu, faction selection, Stargate opening animation
-- `leader_matchup.py` (450+ lines) - Cinematic leader confrontation system with 40+ lore quotes
-- `deck_builder.py` (1025 lines) - Deck customization interface with drag-and-drop
-- `unlocks.py` (791 lines) - Progression system
-- `rules_menu.py` (1400+ lines) - **NEW v1.7!** Interactive rule compendium with search
-
-#### **Persistence & Data Files**
-- `deck_persistence.py` (260 lines) - Automatic deck/progress saving system
-- `game_settings.py` (110 lines) - **NEW v2.5!** Sound settings with volume control
-- `content_registry.py` (220 lines) - **NEW v2.2!** Centralized leader/card registry
-
-#### **Visual & Effects Files**
-- `animations.py` (1974 lines) - All animation and particle systems
-- `power.py` (600 lines) - Faction Power system with cinematic effects
-
-#### **LAN Multiplayer Files** - **NEW v2.2-2.5!**
-- `lan_session.py` (84 lines) - TCP socket wrapper with JSON framing
-- `lan_protocol.py` (82 lines) - Message types and protocol definitions
-- `lan_game.py` (156 lines) - LAN setup flow and game initialization
-- `lan_opponent.py` (296 lines) - NetworkController and NetworkPlayerProxy
-- `lan_menu.py` (170 lines) - Host/Join connection interface
-- `lan_lobby.py` (195 lines) - **NEW v2.5!** Waiting room with ready system
-- `lan_chat.py` (66 lines) - "Subspace Communications" overlay, chat hint, and typing indicator for LAN matches
-- `lan_context.py` (25 lines) - Data structures for LAN state
-
-#### **Utility Files**
-- `create_placeholders.py` (530 lines) - Asset generation script (4K support)
 
 ### Asset Structure
 ```
@@ -1398,250 +1007,6 @@ player_unlocks.json       # Unlocked leaders/cards + win stats
 - **Calculation**: 4 × 3 (formation) × 2 (horn) = 24 each
 - **Total**: 72 power from 3 cards!
 
-### Code Architecture
-
-#### **Player Class Attributes**
-```python
-self.faction               # Faction name
-self.leader                # Leader dict with ability
-self.deck                  # List of Card objects
-self.hand                  # Cards in hand
-self.board                 # {row: [cards]}
-self.discard_pile          # Discarded cards
-self.current_round_number  # For round-based abilities
-self.units_played_this_round  # For counters
-self.hand_revealed         # For intel effects
-```
-
-#### **Card Class**
-```python
-self.name                  # Display name
-self.faction               # Faction or "Neutral"
-self.row                   # close/ranged/siege/agile/special/weather
-self.power                 # Base power
-self.ability               # Ability string (can have multiple)
-self.displayed_power       # Calculated power (changes in game)
-```
-
-#### **Ability Hooks**
-- `calculate_score()` - Power bonuses every turn
-- `play_card()` - Per-card abilities trigger
-- `end_round()` - Round start abilities
-- `pass_turn()` - Pass-based abilities (McKay)
-- `apply_special_effect()` - Special card logic
-
-### Sound System Architecture
-
-#### **Settings Persistence** (`game_settings.py`)
-```python
-# Global settings instance
-from game_settings import get_settings
-
-settings = get_settings()
-
-# Volume ranges: 0.0 to 1.0 (0% to 100%)
-master_volume = settings.get_master_volume()
-music_volume = settings.get_music_volume()
-sfx_volume = settings.get_sfx_volume()
-
-# Effective volumes (master × specific)
-effective_music = settings.get_effective_music_volume()
-effective_sfx = settings.get_effective_sfx_volume()
-
-# Set and auto-save
-settings.set_master_volume(0.8)  # Saves to game_settings.json
-settings.apply_volume()          # Apply to pygame.mixer
-```
-
-#### **Settings File** (`game_settings.json`)
-```json
-{
-  "master_volume": 0.7,
-  "music_volume": 0.7,
-  "sfx_volume": 0.7
-}
-```
-
-#### **Volume Application**
-- **Menu Music**: `master × music` (default: 0.7 × 0.7 = 0.49)
-- **Battle Music**: `master × music` (per faction theme)
-- **SFX**: `master × sfx` (Stargate sequence, abilities)
-
-#### **Sound Loading**
-```python
-# Music (streaming)
-pygame.mixer.music.load(path)
-pygame.mixer.music.set_volume(settings.get_effective_music_volume())
-pygame.mixer.music.play()
-
-# Sound effects (preloaded)
-sound = pygame.mixer.Sound(path)
-sound.set_volume(settings.get_effective_sfx_volume())
-sound.play()
-```
-
-#### **Options Menu Slider**
-- **Interactive Drag**: Smooth volume adjustment
-- **Real-time Preview**: Hear changes immediately
-- **Visual Feedback**: Blue gradient fill, percentage display
-- **Persistent**: Auto-saves on change
-
-### Code Quality & Verification
-
-#### **Dead Code Removed (v0.8.1)**
-The following unused systems were removed to streamline the codebase:
-
-**Removed Classes:**
-- `ZPMResource` - Unused resource spending system (~20 lines)
-- `MissionObjective` - Unimplemented mission system (~60 lines)
-- `create_random_objective()` - Mission generation function
-
-**Removed Code:**
-- ZPM configuration constants
-- Mission reward logic
-- Mission checking at round end
-- Player attributes: `zpm_resource`, `current_mission`, `mission_bonus_cards`
-
-**Result:** ~100+ lines of dead code removed, cleaner game logic
-
-#### **Ability Implementation Verification (v0.8.1)**
-All 20 unlockable card abilities verified and confirmed working:
-
-✅ **17/20 Originally Implemented:**
-- Draw abilities (Prometheus, Mothership)
-- Combat abilities (Naquadah Overload, Tactical Formation)
-- Defense abilities (Legendary Commander, Survival Instinct)
-- Utility abilities (Ring Transport, Deep Cover Agent, Deploy Clones)
-- Special abilities (Thor's Hammer, ZPM, Merlin's Weapon, Dakara)
-
-✅ **3/20 Descriptions Updated to Match Implementation:**
-- **Wraith Hive:** Changed from "Life Force Drain" → "Gate Reinforcement"
-- **Replicator Carter:** Changed from "Copy opponent ability" → "Survival Instinct"
-- **Communication Device:** Clarified as "Reveal opponent's hand" (was ambiguous)
-
-**Status:** 100% of unlockable card abilities now verified and working correctly!
-
-#### **Finite State Machine (FSM) Implementation (v0.9.0)**
-Resolved the "Boolean Flag Hell" issue by implementing a robust Finite State Machine for UI management.
-
-**Problem (Before):**
-- 20+ independent boolean flags (`medic_selection_mode`, `viewing_discard`, `paused`, etc.)
-- Fragile state management prone to conflicts (e.g., two flags True simultaneously)
-- Undefined behavior when states overlapped
-- Difficult to debug and maintain
-
-**Solution (After):**
-```python
-class UIState(Enum):
-    # Core Game Phases
-    MULLIGAN = auto()
-    PLAYING = auto()
-    GAME_OVER = auto()
-
-    # Overlays & Special Modes
-    LEADER_MATCHUP = auto()
-    PAUSED = auto()
-    DISCARD_VIEW = auto()
-    LAN_CHAT = auto()
-
-    # Selection Modes
-    MEDIC_SELECT = auto()
-    DECOY_SELECT = auto()
-    RING_TRANSPORT_SELECT = auto()
-    JONAS_PEEK = auto()
-    BAAL_CLONE_SELECT = auto()
-    VALA_SELECT = auto()
-    CATHERINE_SELECT = auto()
-    LEADER_CHOICE_SELECT = auto()
-    THOR_MOVE_SELECT = auto()
-```
-
-**Key Improvements:**
-- ✅ **Single Source of Truth:** One `ui_state` variable replaces 20+ booleans
-- ✅ **No Conflicting States:** Only one state active at any time
-- ✅ **Clear State Transitions:** All state changes are explicit and traceable
-- ✅ **Integrated Input Handling:** ESC/SPACE keys intelligently close overlays based on current state
-- ✅ **Overlay Stack Management:** Proper hierarchy (Inspection → Discard/Chat → Pause)
-
-**Result:** Significantly cleaner code, eliminates state-related bugs, easier to maintain and extend
-
----
-
-## 🔄 Recommended Code Consolidations
-
-### Files That Could Be Merged
-
-#### **Option 1: Merge stargate_mechanics.py into game.py**
-**Why:** Both handle game mechanics
-**Benefit:** Single source of truth for all game rules
-**Consideration:** game.py would become ~1300 lines (manageable)
-
-#### **Option 2: Merge ability_rename.py into tools/ folder**
-**Why:** It's a one-time utility, not part of game
-**Benefit:** Cleaner root directory
-**Action:** Move to `tools/ability_rename.py` or delete if no longer needed
-
-#### **Option 3: Merge stargate_opening.py into main_menu.py**
-**Why:** Both are pre-game UI sequences
-**Benefit:** Consolidates all menu/intro UI
-**Result:** ~800 lines total (reasonable)
-
-### Suggested Structure (After Consolidation)
-```
-stargwent/
-├── main.py                    # Main game loop & UI
-├── game.py                    # All game logic & mechanics (merged with stargate_mechanics)
-├── cards.py                   # Card database
-├── ai_opponent.py             # AI controller
-├── menu.py                    # All menus (merged main_menu + stargate_opening)
-├── deck_builder.py            # Deck customization
-├── card_unlock_system.py      # Progression
-├── animations.py              # Visual effects
-├── create_placeholders.py     # Asset generator
-└── tools/
-    └── ability_rename.py      # Utility scripts
-```
-
-**This would reduce from 12 files to 9 core files + tools folder.**
-
----
-
-## 🛠 Build & Packaging
-
-### Debian Package (Linux)
-We ship a helper script that assembles a `.deb` for Debian/Ubuntu style systems.
-
-**Prerequisites**
-- `python3` and `python3-pygame` runtime packages
-- `dpkg-deb` (usually provided by the `dpkg` package)
-
-**How to Build & Release a New Version**
-
-1. **Edit the version badge** (line 7 of this README):
-   ```markdown
-   ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
-   ```
-   Replace `X.Y.Z` with your new version (e.g., `2.14.0`)
-
-2. **Build the package** (automatically reads version from README badge):
-   ```bash
-   ./build_deb.sh
-   ```
-   The `.deb` will be created at `builds/releases/stargwent_X.Y.Z.deb`
-
-3. **Commit and push**:
-   ```bash
-   git add -A
-   git commit -m "Update to version X.Y.Z - [description]"
-   git push origin main
-   ```
-
-**Note:** The version badge in this README is the **single source of truth**. The build script automatically reads it, so you only need to update one place.
-
-**Advanced:** You can override the version by passing it directly: `./build_deb.sh 2.14.0`
-
-The generated package installs to `/usr/share/stargwent` with a `stargwent` launcher in `/usr/bin`, desktop shortcut (`/usr/share/applications/stargwent.desktop`), and icon (`/usr/share/pixmaps/stargwent.png`).
-
 ## 📝 License & Credits
 
 ### Game Design
@@ -1800,182 +1165,9 @@ Suggestions and feedback welcome!
 
 ---
 
-## 🌐 LAN Multiplayer Architecture
-
-### Overview
-
-Stargwent features **peer-to-peer TCP-based LAN multiplayer** where two players can battle against each other in real-time. The system uses a deterministic game engine synchronized by exchanging only player actions, ensuring both clients see the same game state.
-
-### Connection Flow
-
-```
-1. Main Menu → Select "LAN Multiplayer"
-2. LAN Menu → Host (opens port 4765) OR Join (enter host IP)
-3. Waiting Lobby ✨ → Chat while waiting, press READY when ready
-4. Deck Selection → Both players choose faction/leader/deck independently
-5. Seed Sync → Host generates seed, client receives it
-6. Leader Matchup → Cinematic reveal animation
-7. Game Start → Battle begins!
-```
-
-### Player Perspective
-
-**Each player sees:**
-- **YOU (Player 1)**: Hand face-up, full control
-- **OPPONENT (Player 2)**: Hand as card backs (hidden), replays network actions
-- **Board**: Shared view, all cards visible
-- **Chat Overlay**: Toggle with `T` (or `ESC` to close) to open the modal "Subspace Communications" window; "Press T to Chat" hint appears when inactive; overlay consumes keyboard input while typing.
-- **History Panel**: Left side shows game events and stays visible even during LAN chat
-
-### Key Components
-
-#### LanSession (`lan_session.py`)
-- TCP socket wrapper with JSON message framing
-- Thread-safe inbox queue
-- Newline-delimited JSON packets
-
-#### Network Protocol (`lan_protocol.py`)
-```python
-Message Types:
-  CHAT           # Live chat messages
-  DECK_SELECTION # Faction, leader, 30 card IDs
-  SEED           # Random seed for synchronization
-  GAME_ACTION    # play_card, pass, faction_power
-  MULLIGAN       # Card indices to redraw
-  READY_CHECK    # Player ready status
-```
-
-#### NetworkController (`lan_opponent.py`)
-Replaces AIController in LAN mode:
-- Waits for network messages instead of computing moves
-- Processes opponent actions and replays them locally
-- Maintains turn synchronization
-
-#### LanLobby (`lan_lobby.py`)
-- Waiting room with live chat
-- Ready/Not Ready toggle buttons
-- "START MATCH" appears when both ready
-- Shows connection status (Host/Client)
-
-### Synchronization Strategy
-
-**Deterministic Engine**: Both clients run the full game engine locally. Only player **actions** are sent over the network, not the entire game state.
-
-**What Gets Synchronized:**
-- ✅ Player actions (card plays, pass, faction power)
-- ✅ Mulligan choices
-- ✅ Random seed (ensures identical RNG)
-
-**What Does NOT Get Synchronized:**
-- ❌ Game state (calculated locally)
-- ❌ Card positions (calculated locally)
-- ❌ Scores (calculated locally)
-- ❌ Animations (run locally)
-
-### Message Flow Example
-
-**Card Play:**
-```
-Player 1 (Local):
-  1. Drags card to board
-  2. NetworkPlayerProxy sends GAME_ACTION: play_card
-
-Player 2 (Remote):
-  1. NetworkController receives GAME_ACTION
-  2. Finds card in hand by ID
-  3. Replays card play on local board
-
-Result: Both see identical board state
-```
-
-### Animations & Effects (v2.9)
-
-All animations run **locally** on each client and are **fully synchronized**:
-- ✅ Card play animations (Stargate activation, Naquadah Overload explosions)
-- ✅ Faction power effects (Gate Shutdown with Iris closing, Sarcophagus Revival, etc.)
-- ✅ Weather effects (Ice Planet, Nebula, Asteroid Storm, EMP)
-- ✅ Special ability effects (Vampire, Inspiring Leadership, Deploy Clones, etc.)
-- ✅ Legendary Commander entry effects with lightning
-- ✅ Leader ability effects
-
-**Both players see the same animations** when either player performs an action. The game synchronizes by:
-1. Sending only player actions over the network
-2. Each client runs the same game engine locally
-3. Animation triggers fire based on game events
-
-### Technical Details
-
-- **Architecture**: Peer-to-peer TCP
-- **Port**: 4765 (must be open on host)
-- **Protocol**: JSON newline-delimited
-- **Perspective**: Each player is Player 1 locally
-- **Chat**: Available in lobby and during game
-- **Disconnect**: Auto-detected, returns to menu
-
-### Testing Checklist
-
-#### Connection:
-- Host can open port 4765
-- Client can connect to host IP
-- Both see "Connected" status
-- Chat works in lobby
-
-#### Gameplay:
-- Both see same board state
-- Card plays appear on both screens
-- Pass turn syncs correctly
-- Faction powers work
-- Weather effects sync
-- Leader abilities trigger
-- Round end/start syncs
-
-### Connection Robustness (v2.9)
-
-The LAN system includes multiple reliability features:
-
-| Feature | Description |
-|---------|-------------|
-| **Join Timeout** | 10 seconds to connect or fail |
-| **Recv Timeout** | 1 second prevents blocking |
-| **Keepalive** | 5-second heartbeat packets |
-| **Connection Timeout** | 30 seconds without data = disconnect |
-| **TCP Keepalive** | OS-level connection monitoring |
-| **Disconnect Detection** | Visual overlay with "CONNECTION LOST" |
-
-### IP Detection for Tailscale (v2.9)
-
-The Host screen automatically detects all available IP addresses:
-
-```
-★ RECOMMENDED:  100.64.1.5      ← Tailscale VPN
-  Alternative 1: 192.168.1.100   ← Local network
-```
-
-**Which IP to use:**
-- **Tailscale (100.x.x.x)**: Both players on same Tailscale network
-- **Local (192.168.x.x)**: Both players on same WiFi/LAN
-- **Port forwarding**: Required for internet play without VPN
-
-### Known Limitations
-
-1. **LAN/VPN Only**: No internet matchmaking (use Tailscale for remote play)
-2. **No Spectator Mode**: Only 2 players
-3. **No Reconnect**: Disconnect = game over (detected within 30s)
-4. **No Save/Resume**: Match must finish in one session
-5. **Firewall**: Port 4765 must be open on host
-
----
-
 **⚡ Chevron Seven Locked! ⚡**
 
 Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
 
-Special thanks to the Sonic Pi team and community for providing the live-coding instrument that powers every custom soundtrack in Stargwent.
-
 > Stargwent is intentionally modular: every card, leader, soundtrack, and UI element lives in plain Python and editable assets so anyone can reskin the experience into their own fantasy Gwent variant—Lord of the Rings, Dragon Ball, or whatever universe you want to explore. Dive into the codebase, swap art/audio JSON entries, and the engine adapts.
 
-*v1.7 - Witcher 3 Gwent Layout: Authentic board design with clear separation, proper lane spacing, weather separator, and fixed hand positioning!*
-*v1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*
-*v1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
-*v1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul!*
-*Legendary commanders now crackle with lightning as they land — embrace the spectacle!*
