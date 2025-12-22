@@ -1029,6 +1029,7 @@ def main():
     create_rule_menu_background()
     create_deck_building_background()
     create_stats_menu_background()
+    create_options_menu_background()
     create_draft_mode_background()
     create_custom_font()
     create_card_back_image()
@@ -1041,7 +1042,7 @@ def main():
     num_leaders = sum(len(l) for l in leaders.values())
     num_ships = len(factions_for_ships)  # One ship per faction
     num_faction_bgs = len(FACTION_BACKGROUND_IDS)
-    num_other = 9  # board, menu, rule menu, deck bg, stats bg, draft bg, card back, universal matchup bg, lobby bg
+    num_other = 10  # board, menu, rule menu, deck bg, stats bg, options bg, draft bg, card back, universal matchup bg, lobby bg
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
     
@@ -1055,7 +1056,7 @@ def main():
     print(f"  Universal Matchup Backgrounds: 1 (dynamic overlay handles text/names)")
     print(f"  Ships: {num_ships} (1 per faction)")
     print(f"  Faction Backgrounds: {num_faction_bgs}")
-    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, stats bg, draft bg, card back, universal matchup bg, lobby bg) + 1 font config")
+    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, stats bg, options bg, draft bg, card back, universal matchup bg, lobby bg) + 1 font config")
     print(f"  Total Images: {total_images}")
 
 
@@ -1145,6 +1146,134 @@ def create_stats_menu_background():
     title_rect = title_text.get_rect(center=(BOARD_WIDTH // 2, BOARD_HEIGHT // 2))
     title_surf.blit(title_text, title_rect)
     surface.blit(title_surf, (0, 0))
+
+    pygame.image.save(surface, path)
+    print(f"  ✓ {path}")
+    return path
+
+
+def create_options_menu_background():
+    """Create background for Options menu with Stargate control room aesthetic."""
+    path = os.path.join(ASSETS_DIR, "options_menu_bg.png")
+    if not should_create_file(path):
+        print(f"  ⊗ Skipped: options_menu_bg.png (already exists)")
+        return None
+
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+
+    # Dark blue-grey gradient (control room lighting)
+    for y in range(BOARD_HEIGHT):
+        progress = y / BOARD_HEIGHT
+        r = int(10 + progress * 15)
+        g = int(15 + progress * 25)
+        b = int(30 + progress * 40)
+        pygame.draw.line(surface, (r, g, b), (0, y), (BOARD_WIDTH, y))
+
+    # Subtle starfield through windows
+    for _ in range(400):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.randint(1, 2)
+        brightness = random.randint(60, 140)
+        pygame.draw.circle(surface, (brightness, brightness, brightness + 20), (x, y), size)
+
+    # Central Stargate (large, prominent)
+    gate_center = (BOARD_WIDTH // 2, BOARD_HEIGHT // 2)
+    gate_radius = 450
+    
+    # Outer ring (dark metal)
+    pygame.draw.circle(surface, (50, 55, 65), gate_center, gate_radius, 40)
+    pygame.draw.circle(surface, (70, 80, 95), gate_center, gate_radius - 5, 3)
+    pygame.draw.circle(surface, (40, 45, 55), gate_center, gate_radius - 35, 3)
+    
+    # Chevrons (9 chevrons around the gate)
+    for i in range(9):
+        angle = (i / 9) * 2 * math.pi - math.pi / 2  # Start from top
+        chev_x = gate_center[0] + int(math.cos(angle) * (gate_radius - 20))
+        chev_y = gate_center[1] + int(math.sin(angle) * (gate_radius - 20))
+        
+        # Orange lit chevron
+        pygame.draw.circle(surface, (200, 100, 30), (chev_x, chev_y), 25)
+        pygame.draw.circle(surface, (255, 150, 50), (chev_x, chev_y), 18)
+        pygame.draw.circle(surface, (255, 200, 100), (chev_x, chev_y), 10)
+    
+    # Event horizon (blue watery effect)
+    horizon_radius = gate_radius - 50
+    horizon_surf = pygame.Surface((horizon_radius * 2, horizon_radius * 2), pygame.SRCALPHA)
+    
+    # Layered circles for depth
+    for r in range(horizon_radius, 0, -30):
+        alpha = int(60 + (horizon_radius - r) * 0.3)
+        blue_val = min(255, 150 + (horizon_radius - r) // 3)
+        pygame.draw.circle(horizon_surf, (30, 80, blue_val, alpha), 
+                          (horizon_radius, horizon_radius), r)
+    
+    # Ripple rings
+    for r in range(50, horizon_radius, 60):
+        pygame.draw.circle(horizon_surf, (100, 180, 255, 40), 
+                          (horizon_radius, horizon_radius), r, 3)
+    
+    surface.blit(horizon_surf, (gate_center[0] - horizon_radius, gate_center[1] - horizon_radius))
+    
+    # Control panels on sides (left and right)
+    panel_width = 300
+    panel_height = 600
+    panel_color = (30, 40, 55, 180)
+    
+    # Left control panel
+    left_panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+    pygame.draw.rect(left_panel, panel_color, (0, 0, panel_width, panel_height), border_radius=15)
+    pygame.draw.rect(left_panel, (60, 100, 150, 150), (0, 0, panel_width, panel_height), width=3, border_radius=15)
+    
+    # Add indicator lights
+    for i in range(5):
+        light_y = 80 + i * 100
+        light_color = random.choice([(80, 200, 100), (200, 150, 50), (100, 150, 220)])
+        pygame.draw.circle(left_panel, light_color, (panel_width - 40, light_y), 12)
+        pygame.draw.circle(left_panel, (255, 255, 255), (panel_width - 40, light_y), 6)
+        # Label bar
+        pygame.draw.rect(left_panel, (40, 60, 80), (30, light_y - 8, 180, 16), border_radius=4)
+    
+    surface.blit(left_panel, (80, BOARD_HEIGHT // 2 - panel_height // 2))
+    
+    # Right control panel
+    right_panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+    pygame.draw.rect(right_panel, panel_color, (0, 0, panel_width, panel_height), border_radius=15)
+    pygame.draw.rect(right_panel, (60, 100, 150, 150), (0, 0, panel_width, panel_height), width=3, border_radius=15)
+    
+    # Add slider tracks (representing settings)
+    for i in range(4):
+        slider_y = 100 + i * 120
+        # Track
+        pygame.draw.rect(right_panel, (50, 70, 90), (40, slider_y, 220, 12), border_radius=6)
+        # Filled portion
+        fill_width = random.randint(80, 200)
+        pygame.draw.rect(right_panel, (80, 160, 220), (40, slider_y, fill_width, 12), border_radius=6)
+        # Handle
+        pygame.draw.circle(right_panel, (200, 220, 255), (40 + fill_width, slider_y + 6), 14)
+        pygame.draw.circle(right_panel, (100, 180, 255), (40 + fill_width, slider_y + 6), 10)
+    
+    surface.blit(right_panel, (BOARD_WIDTH - panel_width - 80, BOARD_HEIGHT // 2 - panel_height // 2))
+    
+    # "OPTIONS" title watermark (very faint)
+    title_font = pygame.font.SysFont("Arial", 200, bold=True)
+    title_surf = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    title_text = title_font.render("OPTIONS", True, (60, 100, 160, 25))
+    title_rect = title_text.get_rect(center=(BOARD_WIDTH // 2, BOARD_HEIGHT - 200))
+    title_surf.blit(title_text, title_rect)
+    surface.blit(title_surf, (0, 0))
+    
+    # Top decorative bar (like SGC control room)
+    top_bar = pygame.Surface((BOARD_WIDTH, 80), pygame.SRCALPHA)
+    pygame.draw.rect(top_bar, (25, 35, 50, 200), (0, 0, BOARD_WIDTH, 80))
+    pygame.draw.line(top_bar, (80, 140, 200, 150), (0, 79), (BOARD_WIDTH, 79), 2)
+    surface.blit(top_bar, (0, 0))
+    
+    # Bottom decorative bar
+    bottom_bar = pygame.Surface((BOARD_WIDTH, 60), pygame.SRCALPHA)
+    pygame.draw.rect(bottom_bar, (25, 35, 50, 200), (0, 0, BOARD_WIDTH, 60))
+    pygame.draw.line(bottom_bar, (80, 140, 200, 150), (0, 0), (BOARD_WIDTH, 0), 2)
+    surface.blit(bottom_bar, (0, BOARD_HEIGHT - 60))
 
     pygame.image.save(surface, path)
     print(f"  ✓ {path}")

@@ -772,107 +772,148 @@ class MainMenu:
 
     def run_options_menu(self, surface):
         from game_settings import get_settings
+        import os
+
+        # Try to load options menu background
+        options_bg = None
+        options_bg_path = os.path.join("assets", "options_menu_bg.png")
+        if os.path.exists(options_bg_path):
+            try:
+                options_bg = pygame.image.load(options_bg_path).convert()
+                options_bg = pygame.transform.scale(options_bg, (self.screen_width, self.screen_height))
+            except Exception as e:
+                print(f"Warning: Could not load options background: {e}")
+                options_bg = None
 
         overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
+        overlay.fill((0, 0, 0, 120))
         clock = pygame.time.Clock()
         running = True
         center_x = self.screen_width // 2
         center_y = self.screen_height // 2
-        back_rect = pygame.Rect(40, 30, 160, 50)
+        
+        # Scale factor for responsive layout
+        scale = min(self.screen_height / 1080.0, self.screen_width / 1920.0)
 
         settings = get_settings()
 
         # Slider state
         dragging_slider = False
 
-        # Panel geometry to keep spacing consistent
-        panel_width = 720
-        panel_height = 680
-        panel_top = center_y - 260
+        # Panel geometry - responsive sizing
+        panel_width = int(800 * scale)
+        panel_height = int(750 * scale)
+        panel_top = center_y - panel_height // 2
 
-        # Volume slider (below title with added spacing)
-        slider_y = panel_top + 90
-        slider_width = 520
-        slider_height = 40
+        # Fonts - scaled
+        title_font = pygame.font.SysFont("Arial", max(36, int(52 * scale)), bold=True)
+        label_font = pygame.font.SysFont("Arial", max(22, int(30 * scale)), bold=True)
+        status_font = pygame.font.SysFont("Arial", max(18, int(24 * scale)), bold=True)
+        instruction_font = pygame.font.SysFont("Arial", max(16, int(22 * scale)))
+
+        # Back button - top left of panel
+        back_rect = pygame.Rect(
+            center_x - panel_width // 2 + int(20 * scale),
+            panel_top + int(15 * scale),
+            int(140 * scale),
+            int(45 * scale)
+        )
+
+        # Volume slider
+        slider_y = panel_top + int(140 * scale)
+        slider_width = int(500 * scale)
+        slider_height = int(50 * scale)
         slider_rect = pygame.Rect(center_x - slider_width // 2, slider_y, slider_width, slider_height)
-        slider_track_height = 8
-        slider_handle_radius = 16
+        slider_track_height = int(10 * scale)
+        slider_handle_radius = int(18 * scale)
 
-        # Status font (used for both unlock and fullscreen status)
-        status_font = pygame.font.SysFont("Arial", 26, bold=True)
-
-        # Shared toggle geometry using Stargate icon (fullscreen + unlock)
-        gate_radius = 55
+        # Stargate toggle geometry
+        gate_radius = int(60 * scale)
         gate_rect = pygame.Rect(0, 0, gate_radius * 2, gate_radius * 2)
 
-        # Fullscreen toggle placed between volume and unlock (lowered for spacing)
-        fullscreen_y = slider_y + 240
-        fs_label_surface = self.button_font.render("Fullscreen Mode", True, (220, 220, 220))
-        fs_label_rect = fs_label_surface.get_rect(center=(center_x, fullscreen_y - gate_radius - 42))
-        gate_rect.center = (center_x, fullscreen_y)  # Also centered
+        # Fullscreen toggle
+        fullscreen_y = slider_y + int(200 * scale)
+        gate_rect.center = (center_x, fullscreen_y)
 
-        # Unlock toggle (last, using Stargate icon)
-        unlock_gate_radius = 55
+        # Unlock toggle
+        unlock_gate_radius = int(60 * scale)
         unlock_gate_rect = pygame.Rect(0, 0, unlock_gate_radius * 2, unlock_gate_radius * 2)
-        unlock_y = fullscreen_y + 230
+        unlock_y = fullscreen_y + int(220 * scale)
         unlock_gate_rect.center = (center_x, unlock_y)
-        label_surface = self.button_font.render("Unlock All Cards & Leaders", True, (220, 220, 220))
-        label_rect = label_surface.get_rect(center=(center_x, unlock_y - unlock_gate_radius - 42))
 
-        # Title above everything
-        title_font = pygame.font.SysFont("Arial", 48, bold=True)
-        title_surface = title_font.render("OPTIONS", True, (100, 200, 255))
-        title_rect = title_surface.get_rect(center=(center_x, panel_top - 40))
-
-        # Instruction text at bottom
-        instruction_font = pygame.font.SysFont("Arial", 24)
-        instruction_surface = instruction_font.render("Press ESC or ENTER to return", True, (180, 180, 180))
-        instruction_rect = instruction_surface.get_rect(center=(center_x, self.screen_height - 80))
-
-        def draw_stargate_toggle(active, rect):
+        def draw_stargate_toggle(active, rect, pulse_phase=0):
+            """Draw a Stargate-style toggle with animation."""
             gate_surf = pygame.Surface(rect.size, pygame.SRCALPHA)
             radius = rect.width // 2
             center = (radius, radius)
             
-            # Outer ring
-            pygame.draw.circle(gate_surf, (80, 80, 100), center, radius)
-            pygame.draw.circle(gate_surf, (40, 40, 50), center, radius - 5)
+            # Outer ring with gradient effect
+            pygame.draw.circle(gate_surf, (70, 75, 90), center, radius)
+            pygame.draw.circle(gate_surf, (50, 55, 65), center, radius - 4)
+            pygame.draw.circle(gate_surf, (90, 100, 120), center, radius, 3)
             
-            # Chevrons (9)
+            # Chevrons (9) with glow when active
             for i in range(9):
-                angle = (i / 9) * 2 * math.pi
-                cx = radius + int(math.cos(angle) * (radius - 5))
-                cy = radius + int(math.sin(angle) * (radius - 5))
-                color = (255, 100, 0) if active else (100, 60, 60)
-                pygame.draw.circle(gate_surf, color, (cx, cy), 4)
+                angle = (i / 9) * 2 * math.pi - math.pi / 2
+                cx = radius + int(math.cos(angle) * (radius - 8))
+                cy = radius + int(math.sin(angle) * (radius - 8))
+                
+                if active:
+                    # Glowing orange chevron
+                    glow_intensity = 0.7 + 0.3 * math.sin(pulse_phase + i * 0.5)
+                    glow_color = (int(255 * glow_intensity), int(120 * glow_intensity), 0)
+                    pygame.draw.circle(gate_surf, glow_color, (cx, cy), 7)
+                    pygame.draw.circle(gate_surf, (255, 180, 50), (cx, cy), 4)
+                else:
+                    # Dim chevron
+                    pygame.draw.circle(gate_surf, (80, 50, 50), (cx, cy), 6)
+                    pygame.draw.circle(gate_surf, (50, 35, 35), (cx, cy), 4)
             
             # Event horizon
             if active:
-                # Watery blue effect
-                pygame.draw.circle(gate_surf, (0, 100, 200), center, radius - 10)
-                pygame.draw.circle(gate_surf, (100, 200, 255, 100), center, radius - 15)
+                # Animated watery blue effect
+                pulse = 0.8 + 0.2 * math.sin(pulse_phase * 2)
+                pygame.draw.circle(gate_surf, (0, int(80 * pulse), int(180 * pulse)), center, radius - 14)
+                pygame.draw.circle(gate_surf, (int(80 * pulse), int(180 * pulse), 255), center, radius - 22)
+                # Ripple rings
+                for r_offset in range(3):
+                    ring_r = radius - 30 - r_offset * 12
+                    if ring_r > 5:
+                        alpha = int(100 - r_offset * 30)
+                        ring_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                        pygame.draw.circle(ring_surf, (150, 220, 255, alpha), center, ring_r, 2)
+                        gate_surf.blit(ring_surf, (0, 0))
             else:
-                # Closed iris / dark
-                pygame.draw.circle(gate_surf, (10, 10, 20), center, radius - 10)
-                # Iris lines
-                pygame.draw.line(gate_surf, (40, 40, 50), (radius-10, radius-10), (radius+10, radius+10), 2)
-                pygame.draw.line(gate_surf, (40, 40, 50), (radius+10, radius-10), (radius-10, radius+10), 2)
+                # Closed iris
+                pygame.draw.circle(gate_surf, (20, 25, 35), center, radius - 14)
+                # Iris pattern (X)
+                iris_size = radius - 20
+                pygame.draw.line(gate_surf, (50, 55, 70), 
+                               (center[0] - iris_size // 2, center[1] - iris_size // 2),
+                               (center[0] + iris_size // 2, center[1] + iris_size // 2), 3)
+                pygame.draw.line(gate_surf, (50, 55, 70), 
+                               (center[0] + iris_size // 2, center[1] - iris_size // 2),
+                               (center[0] - iris_size // 2, center[1] + iris_size // 2), 3)
+                # Iris border
+                pygame.draw.circle(gate_surf, (60, 65, 80), center, radius - 14, 2)
                 
             return gate_surf
 
         def get_slider_handle_pos():
-            """Get slider handle X position based on volume"""
             volume = settings.get_master_volume()
             return slider_rect.x + int(volume * slider_width)
 
         def set_volume_from_pos(x):
-            """Set volume based on mouse X position"""
             rel_x = x - slider_rect.x
             volume = max(0.0, min(1.0, rel_x / slider_width))
             settings.set_master_volume(volume)
 
+        pulse_phase = 0
+        
         while running:
+            dt = clock.tick(60)
+            pulse_phase += dt * 0.005  # Animate toggles
+            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return 'quit'
@@ -880,12 +921,10 @@ class MainMenu:
                     if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                         running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    # Back button click
                     if back_rect.collidepoint(event.pos):
                         running = False
                         continue
 
-                    # Check slider first
                     handle_x = get_slider_handle_pos()
                     handle_rect = pygame.Rect(
                         handle_x - slider_handle_radius,
@@ -900,9 +939,6 @@ class MainMenu:
                         self.toggle_unlock_override()
                     elif gate_rect.collidepoint(event.pos):
                         pygame.display.toggle_fullscreen()
-                        # Update layout in case resolution changed? 
-                        # toggle_fullscreen keeps surface size usually, but just in case
-                        pass
                         
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     dragging_slider = False
@@ -910,38 +946,64 @@ class MainMenu:
                     if dragging_slider:
                         set_volume_from_pos(event.pos[0])
 
-            # Draw overlay
+            # Draw background
+            if options_bg:
+                surface.blit(options_bg, (0, 0))
+            else:
+                surface.fill((15, 20, 35))
+            
+            # Semi-transparent overlay for readability
             surface.blit(overlay, (0, 0))
 
-            # Draw panel background (for options) with brighter outline
+            # Draw main panel with nice styling
             panel_rect = pygame.Rect(
                 center_x - panel_width // 2,
                 panel_top,
                 panel_width,
-                panel_height  # Taller for all controls and added spacing
+                panel_height
             )
+            
+            # Panel background with gradient effect
             panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-            panel_surf.fill((30, 40, 60, 200))
+            for y in range(panel_rect.height):
+                progress = y / panel_rect.height
+                alpha = int(200 - progress * 30)
+                r = int(25 + progress * 10)
+                g = int(35 + progress * 15)
+                b = int(55 + progress * 20)
+                pygame.draw.line(panel_surf, (r, g, b, alpha), (0, y), (panel_rect.width, y))
+            
             surface.blit(panel_surf, panel_rect.topleft)
-            pygame.draw.rect(surface, (80, 180, 255), panel_rect, width=4, border_radius=12)
+            
+            # Panel border with glow
+            pygame.draw.rect(surface, (60, 140, 220), panel_rect, width=3, border_radius=16)
+            # Inner glow line
+            inner_rect = panel_rect.inflate(-6, -6)
+            pygame.draw.rect(surface, (40, 100, 180, 100), inner_rect, width=1, border_radius=14)
 
-            # Draw back button (top-left)
-            # Draw back button (top-left) with softer styling
-            back_surf = pygame.Surface(back_rect.size, pygame.SRCALPHA)
-            back_surf.fill((20, 30, 50, 200))
-            pygame.draw.rect(back_surf, (90, 170, 240), back_surf.get_rect(), width=2, border_radius=10)
-            back_text = self.button_font.render("← Back", True, (210, 230, 255))
-            back_text_rect = back_text.get_rect(center=back_rect.center)
-            surface.blit(back_surf, back_rect.topleft)
-            surface.blit(back_text, back_text_rect)
-
-            # Draw title
+            # Title
+            title_surface = title_font.render("OPTIONS", True, (100, 200, 255))
+            title_rect = title_surface.get_rect(center=(center_x, panel_top + int(60 * scale)))
+            # Title glow
+            glow_surf = title_font.render("OPTIONS", True, (50, 150, 255))
+            surface.blit(glow_surf, (title_rect.x + 2, title_rect.y + 2))
             surface.blit(title_surface, title_rect)
 
-            # Draw volume slider section
-            # Volume label
-            volume_label = self.button_font.render("Master Volume", True, (220, 220, 220))
-            volume_label_rect = volume_label.get_rect(center=(center_x, slider_y - 40))
+            # Back button
+            mouse_pos = pygame.mouse.get_pos()
+            back_hovered = back_rect.collidepoint(mouse_pos)
+            back_color = (40, 60, 90) if back_hovered else (30, 45, 70)
+            border_color = (100, 180, 255) if back_hovered else (70, 130, 200)
+            
+            pygame.draw.rect(surface, back_color, back_rect, border_radius=10)
+            pygame.draw.rect(surface, border_color, back_rect, width=2, border_radius=10)
+            back_text = label_font.render("<< Back", True, (210, 230, 255))
+            back_text_rect = back_text.get_rect(center=back_rect.center)
+            surface.blit(back_text, back_text_rect)
+
+            # === VOLUME SECTION ===
+            volume_label = label_font.render("Master Volume", True, (220, 230, 255))
+            volume_label_rect = volume_label.get_rect(center=(center_x, slider_y - int(35 * scale)))
             surface.blit(volume_label, volume_label_rect)
 
             # Slider track background
@@ -951,9 +1013,9 @@ class MainMenu:
                 slider_width,
                 slider_track_height
             )
-            pygame.draw.rect(surface, (60, 70, 90), track_rect, border_radius=4)
+            pygame.draw.rect(surface, (50, 60, 80), track_rect, border_radius=5)
 
-            # Slider filled portion
+            # Slider filled portion with gradient
             volume = settings.get_master_volume()
             filled_width = int(volume * slider_width)
             if filled_width > 0:
@@ -963,60 +1025,72 @@ class MainMenu:
                     filled_width,
                     slider_track_height
                 )
-                pygame.draw.rect(surface, (100, 200, 255), filled_rect, border_radius=4)
+                # Gradient fill
+                for x in range(filled_width):
+                    progress = x / max(1, slider_width)
+                    color = (int(60 + progress * 40), int(140 + progress * 60), int(200 + progress * 55))
+                    pygame.draw.line(surface, color, 
+                                   (slider_rect.x + x, filled_rect.y),
+                                   (slider_rect.x + x, filled_rect.y + slider_track_height))
 
             # Slider handle
             handle_x = get_slider_handle_pos()
             handle_center = (handle_x, slider_rect.centery)
             pygame.draw.circle(surface, (255, 255, 255), handle_center, slider_handle_radius)
-            pygame.draw.circle(surface, (100, 200, 255), handle_center, slider_handle_radius - 3)
+            pygame.draw.circle(surface, (80, 180, 255), handle_center, slider_handle_radius - 4)
+            pygame.draw.circle(surface, (150, 220, 255), handle_center, slider_handle_radius - 8)
 
-            # Volume percentage text
+            # Volume percentage
             volume_pct = int(volume * 100)
-            volume_text = status_font.render(f"{volume_pct}%", True, (180, 180, 180))
-            volume_text_rect = volume_text.get_rect(center=(center_x, slider_y + 60))
+            volume_text = status_font.render(f"{volume_pct}%", True, (180, 200, 220))
+            volume_text_rect = volume_text.get_rect(center=(center_x, slider_y + int(45 * scale)))
             surface.blit(volume_text, volume_text_rect)
 
-            # Draw Fullscreen label
-            surface.blit(fs_label_surface, fs_label_rect)
+            # === FULLSCREEN SECTION ===
+            fs_label = label_font.render("Fullscreen Mode", True, (220, 230, 255))
+            fs_label_rect = fs_label.get_rect(center=(center_x, fullscreen_y - gate_radius - int(30 * scale)))
+            surface.blit(fs_label, fs_label_rect)
 
-            # Draw Fullscreen Stargate Toggle
+            # Fullscreen Stargate Toggle
             is_fullscreen = (surface.get_flags() & pygame.FULLSCREEN) != 0
-            gate_surface = draw_stargate_toggle(is_fullscreen, gate_rect)
+            gate_surface = draw_stargate_toggle(is_fullscreen, gate_rect, pulse_phase)
             surface.blit(gate_surface, gate_rect.topleft)
 
-            # Draw Fullscreen status text next to the toggle
+            # Fullscreen status
             fs_state_text = "ACTIVE" if is_fullscreen else "WINDOWED"
-            fs_state_color = (100, 255, 100) if is_fullscreen else (180, 180, 180)
-            fs_status_surface = status_font.render(fs_state_text, True, fs_state_color)
-            fs_status_rect = fs_status_surface.get_rect(midleft=(gate_rect.right + 18, gate_rect.centery))
-            surface.blit(fs_status_surface, fs_status_rect)
+            fs_state_color = (100, 255, 120) if is_fullscreen else (180, 180, 190)
+            fs_status = status_font.render(fs_state_text, True, fs_state_color)
+            fs_status_rect = fs_status.get_rect(center=(center_x, fullscreen_y + gate_radius + int(25 * scale)))
+            surface.blit(fs_status, fs_status_rect)
 
-            # Draw Unlock label (last option)
-            surface.blit(label_surface, label_rect)
+            # === UNLOCK SECTION ===
+            unlock_label = label_font.render("Unlock All Content", True, (220, 230, 255))
+            unlock_label_rect = unlock_label.get_rect(center=(center_x, unlock_y - unlock_gate_radius - int(30 * scale)))
+            surface.blit(unlock_label, unlock_label_rect)
 
-            # Draw Unlock Stargate toggle
-            unlock_surface = draw_stargate_toggle(self._unlock_override_state(), unlock_gate_rect)
+            # Unlock Stargate toggle
+            unlock_surface = draw_stargate_toggle(self._unlock_override_state(), unlock_gate_rect, pulse_phase)
             surface.blit(unlock_surface, unlock_gate_rect.topleft)
 
-            # Draw Unlock status text next to the toggle
-            state_text = "ACTIVE" if self._unlock_override_state() else "LOCKED"
-            state_color = (100, 255, 100) if self._unlock_override_state() else (180, 180, 180)
+            # Unlock status
+            state_text = "UNLOCKED" if self._unlock_override_state() else "PROGRESSION"
+            state_color = (100, 255, 120) if self._unlock_override_state() else (180, 180, 190)
             status_surface = status_font.render(state_text, True, state_color)
-            status_rect = status_surface.get_rect(midleft=(unlock_gate_rect.right + 18, unlock_gate_rect.centery))
+            status_rect = status_surface.get_rect(center=(center_x, unlock_y + unlock_gate_radius + int(25 * scale)))
             surface.blit(status_surface, status_rect)
 
-            # Draw instruction
-            surface.blit(instruction_surface, instruction_rect)
-
-            # Draw hint text - clearer and better positioned
-            hint_text = "Click the toggles to enable/disable options"
-            hint_surface = instruction_font.render(hint_text, True, (180, 180, 200))
-            hint_rect = hint_surface.get_rect(center=(center_x, self.screen_height - 120))
+            # Instructions at bottom
+            hint_text = "Click Stargates to toggle  |  Drag slider to adjust volume"
+            hint_surface = instruction_font.render(hint_text, True, (140, 160, 180))
+            hint_rect = hint_surface.get_rect(center=(center_x, panel_top + panel_height - int(50 * scale)))
             surface.blit(hint_surface, hint_rect)
+            
+            esc_text = "Press ESC or ENTER to return"
+            esc_surface = instruction_font.render(esc_text, True, (120, 140, 160))
+            esc_rect = esc_surface.get_rect(center=(center_x, panel_top + panel_height - int(25 * scale)))
+            surface.blit(esc_surface, esc_rect)
 
             pygame.display.flip()
-            clock.tick(60)
         return None
     def load_background(self):
         """Load menu background image."""
