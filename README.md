@@ -126,6 +126,13 @@ All abilities renamed and themed around Stargate lore:
 
 ### 🎨 Stunning Visual Effects
 - **4K Resolution** - Native 3840×2160 support with perfect scaling
+- **Persistent Row Weather Effects** - Each weather type has unique animations that remain on affected rows:
+  - **Ice Planet Hazard**: Falling ice crystals with sparkle effects
+  - **Nebula Interference**: Drifting purple/pink cosmic clouds
+  - **Asteroid Storm**: Fiery orange meteors with trail effects
+  - **Electromagnetic Pulse**: Cyan particles with electric arcs
+  - **Wormhole Stabilization**: Blue spiral vortex (black hole clearing)
+- **Animated Weather Borders** - Pulsing faction-colored borders on weathered rows
 - **Naquadah Overload Animation** - Blue energy explosions with shockwave rings appear on rows where highest power units are destroyed
 - **Smooth Card Interactions** - NEW v1.1: Cards follow mouse with easing (not snappy), gentle hover enlargement (8%), dynamic shadows
 - **Juicy Drag FX** - Inspired by John Scolaro's [pygame card experiments](https://johnscolaro.xyz/blog/pygame-cards) and [pygame-examples repo](https://github.com/JohnScolaro/pygame-examples): cards tilt with momentum, glow near drop zones, and leave energy trails while you drag them
@@ -138,10 +145,14 @@ All abilities renamed and themed around Stargate lore:
 - **Stargate Activation** - Portal effect when playing cards
 - **Retro Neon Leader HUD** - Universal matchup template overlays glowing faction-colored typography and scanlines across the Stargate event horizon for every confrontation.
 - **Score Animations** - Dramatic pop effects with deltas
-- **Weather Effects** - Row-specific highlights plus custom particle fields
+- **Weather Effects** - Row-specific highlights plus custom particle fields:
+  - **Ice Planet Hazard** - Blue ice crystals with sparkles
+  - **Nebula Interference** - Purple/pink drifting clouds
+  - **Asteroid Storm** - Orange fiery meteors with trails
+  - **Electromagnetic Pulse** - Cyan glowing particles with lightning arcs
 - **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
 - **Nebula Clouds** - Layered pink fog drifting through affected lanes
-- **Black Hole Animation** - When clearing weather effects
+- **Black Hole Animation** - When clearing weather effects (Wormhole Stabilization)
 - **Particle Systems** - Fire, energy bursts, faction-specific effects
 - **DHD Button** - Glowing red center button with chevron ring
 - **Faction Power Effects** - Unique cinematic animations for each faction:
