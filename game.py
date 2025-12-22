@@ -236,12 +236,43 @@ class Artifact:
 
 class GameHistoryEntry:
     """Data container describing a single log entry for the HUD history feed."""
+    
+    # Default icons for event types (ASCII-safe for pygame-ce compatibility)
+    EVENT_ICONS = {
+        "card_play": ">",
+        "pass": "||",
+        "round_start": "=",
+        "round_end": "#",
+        "game_over": "*",
+        "scorch": "X",
+        "destroy": "X",
+        "weather": "~",
+        "clear_weather": "O",
+        "horn": "!",
+        "medic": "+",
+        "spy": "?",
+        "ability": "*",
+        "hero": "*",
+        "faction_power": "@",
+        "muster": ">>",
+        "bond": "&",
+        "decoy": "<>",
+        "steal": "->",
+        "draw": "v",
+        "discard": "^",
+        "chat": "\"",
+        "special": "*",
+        "iris": "[#]",
+        "transport": "o",
+    }
+    
     def __init__(self, event_type, description, owner, card_ref=None, icon=None, row=None, delta=0, targets=None):
         self.event_type = event_type
         self.description = description
         self.owner = owner  # 'player' or 'ai'
         self.card_ref = card_ref
-        self.icon = icon
+        # Auto-assign icon if not provided
+        self.icon = icon if icon else self.EVENT_ICONS.get(event_type, ">")
         self.row = row
         self.delta = delta      # How much the score changed (e.g., +5 or -10)
         self.targets = targets  # List of cards/rows affected
@@ -734,13 +765,33 @@ class Game:
         return entry
 
     def _log_card_play(self, player, card, row_name=None, note=None):
-        """Helper to log standard card plays."""
-        desc = f"{player.name} played {card.name}"
+        """Helper to log standard card plays with power info."""
+        # Include power for unit cards
+        if card.row in ["close", "ranged", "siege", "agile"]:
+            power_str = f" [{card.power}]"
+        else:
+            power_str = ""
+        
+        desc = f"{player.name} deployed {card.name}{power_str}"
         if row_name:
-            desc += f" → {row_name.title()}"
+            row_display = {"close": "Close", "ranged": "Ranged", "siege": "Siege"}.get(row_name, row_name.title())
+            desc += f" → {row_display}"
         if note:
             desc += f" ({note})"
-        self.add_history_event("card_play", desc, self._owner_label(player), card_ref=card, row=row_name)
+        
+        # Select appropriate icon based on card type
+        if "Legendary Commander" in (card.ability or ""):
+            icon = "*"
+        elif "Deep Cover Agent" in (card.ability or ""):
+            icon = "?"
+        elif card.row == "weather":
+            icon = "~"
+        elif card.row == "special":
+            icon = "*"
+        else:
+            icon = ">"
+        
+        self.add_history_event("card_play", desc, self._owner_label(player), card_ref=card, row=row_name, icon=icon)
 
     def _apply_leader_round_start_effects(self, player):
         """Handle leader-specific triggers that occur at round start."""
@@ -753,7 +804,7 @@ class Game:
                 "ability",
                 f"{player.name} (O'Neill) summoned a 6-power clone",
                 self._owner_label(player),
-                icon="👥"
+                icon="++"
             )
 
     def discard_active_weather_cards(self):
@@ -891,7 +942,7 @@ class Game:
                 f"Iris blocked {card.name}!",
                 blocker_label,
                 card_ref=card,
-                icon="🛡️"
+                icon="[#]"
             )
 
             self.switch_turn()
@@ -1046,7 +1097,7 @@ class Game:
                             "ability",
                             f"{player.name} (Kiva) Brutal Tactics: {card.name} gets +4 power!",
                             self._owner_label(player),
-                            icon="💥"
+                            icon="X"
                         )
 
             # Aegir: Draw 1 card when playing Siege unit
@@ -1057,7 +1108,7 @@ class Game:
                         "ability",
                         f"{player.name} (Aegir) Asgard Archives: Drew 1 card from siege deployment",
                         self._owner_label(player),
-                        icon="📚"
+                        icon="+2"
                     )
             
             # Loki ability: Steal 1 power from opponent's strongest unit
@@ -1121,7 +1172,7 @@ class Game:
                         "ability",
                         f"{passing_player.name} (McKay) drew 2 cards when passing",
                         self._owner_label(passing_player),
-                        icon="📚"
+                        icon="+2"
                     )
                 # Lord Yu: Reveal opponent's hand when you pass
                 elif "Yu" in leader_name:
@@ -1130,7 +1181,7 @@ class Game:
                         "ability",
                         f"{passing_player.name} (Lord Yu) will see {opponent.name}'s hand next round",
                         self._owner_label(passing_player),
-                        icon="👁️"
+                        icon="?"
                     )
                     opponent.reveal_next_round = True
             self.last_turn_actor = passing_player
@@ -1159,7 +1210,7 @@ class Game:
                 "ability",
                 f"{player.name} mustered {total_mustered-1} reinforcements!",
                 self._owner_label(player),
-                icon="🚪"
+                icon=">>"
             )
 
         # Life Force Drain siphons enemy strength and boosts the muster group
@@ -1391,7 +1442,7 @@ class Game:
                 "weather",
                 f"{acting_player.name} cleared all weather effects!",
                 self._owner_label(acting_player),
-                icon="☀️"
+                icon="O"
             )
             try:
                 get_sound_manager().play_weather_sound("clear")
@@ -1478,7 +1529,7 @@ class Game:
                 "weather",
                 f"{acting_player.name} played {weather_name} on {rows_text}",
                 self._owner_label(acting_player),
-                icon="🌩️"
+                icon="~"
             )
             if not weather_sound_played:
                 try:
@@ -1879,7 +1930,7 @@ class Game:
                     "ability",
                     f"{self.current_player.name} activated ZPM - doubled {siege_count} siege units",
                     self._owner_label(self.current_player),
-                    icon="⚡"
+                    icon="*"
                 )
 
         elif "Communication Device" in card.name or "Reveal opponent's hand" in ability:
@@ -2065,7 +2116,7 @@ class Game:
                 "scorch",
                 f"Naquadah Overload destroyed: {cards_text}",
                 "neutral",
-                icon="💥"
+                icon="X"
             )
 
         return destroyed_positions
@@ -2136,7 +2187,7 @@ class Game:
                     "scorch",
                     f"Scorch vaporized {len(destroyed_cards)} units!",
                     target_label,
-                    icon="💥",
+                    icon="X",
                     delta=delta,
                     targets=[c.name for c in destroyed_cards]
                 )
@@ -2147,7 +2198,7 @@ class Game:
                     f"Scorch destroyed {card.name}",
                     target_label,
                     card_ref=card,
-                    icon="🔥",
+                    icon="X",
                     delta=delta,
                     targets=[card.name]
                 )
@@ -2178,7 +2229,7 @@ class Game:
                 f"Destroyed {victim.name}",
                 target_label,
                 card_ref=victim,
-                icon="🔥"
+                icon="X"
             )
 
             return [victim_row]
@@ -2186,24 +2237,39 @@ class Game:
 
     def end_round(self):
         """Ends the round, determines winner, and resets for the next."""
+        # Generate thematic round descriptions
+        score_diff = abs(self.player1.score - self.player2.score)
+        
+        # Determine narrative flavor based on score difference
+        if score_diff == 0:
+            battle_desc = "An intense stalemate"
+        elif score_diff <= 5:
+            battle_desc = "A narrow victory"
+        elif score_diff <= 15:
+            battle_desc = "A decisive battle"
+        elif score_diff <= 30:
+            battle_desc = "A crushing defeat"
+        else:
+            battle_desc = "Total annihilation"
+        
         # Determine winner
         if self.player1.score > self.player2.score:
             self.player1.rounds_won += 1
             self.round_winner = self.player1
             self.add_history_event(
                 "round_end",
-                f"Round {self.round_number} Winner: {self.player1.name} ({self.player1.score} vs {self.player2.score})",
+                f"═ {battle_desc}! {self.player1.name} claims Round {self.round_number} ({self.player1.score}-{self.player2.score}) ═",
                 "player",
-                icon="🏆"
+                icon="#"
             )
         elif self.player2.score > self.player1.score:
             self.player2.rounds_won += 1
             self.round_winner = self.player2
             self.add_history_event(
                 "round_end",
-                f"Round {self.round_number} Winner: {self.player2.name} ({self.player2.score} vs {self.player1.score})",
+                f"═ {battle_desc}! {self.player2.name} claims Round {self.round_number} ({self.player2.score}-{self.player1.score}) ═",
                 "ai",
-                icon="🏆"
+                icon="#"
             )
         else: # Draw - both players get a point
             self.player1.rounds_won += 1
@@ -2211,9 +2277,9 @@ class Game:
             self.round_winner = None
             self.add_history_event(
                 "round_end",
-                f"Round {self.round_number} Draw ({self.player1.score} - {self.player2.score})",
+                f"═ Deadlock! Round {self.round_number} ends in a draw ({self.player1.score}-{self.player2.score}) ═",
                 "neutral",
-                icon="⚖️"
+                icon="=="
             )
         
         # Anubis leader ability: Auto-scorch in rounds 2 & 3
@@ -2226,7 +2292,7 @@ class Game:
                             "ability",
                             f"{player.name} (Anubis) triggered Ascended Power: Naquadah Overload!",
                             self._owner_label(player),
-                            icon="💥"
+                            icon="X"
                         )
 
         self.round_number = min(self.round_number + 1, 3)
@@ -2308,7 +2374,7 @@ class Game:
                         "ability",
                         f"{p.name} (Teal'c) draws +1 card for winning last round",
                         self._owner_label(p),
-                        icon="🏆"
+                        icon="#"
                     )
                 # NEW: Dr. McKay: Draw 2 cards when you pass
                 # (Handled in pass_turn method)
@@ -2373,7 +2439,7 @@ class Game:
                             "ability",
                             f"{p.name} (Anateo) used free Medical Evac on {revived.name}",
                             self._owner_label(p),
-                            icon="🏥"
+                            icon="+"
                         )
             
             # Draw base cards for the round
@@ -2420,13 +2486,18 @@ class Game:
         self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
         self.current_weather_types = {"close": None, "ranged": None, "siege": None}
 
-        # Add round start history event
+        # Add round start history event with thematic flavor
         if self.round_number <= 3:
+            round_themes = {
+                1: "═══ Round 1: Opening Gambit ═══",
+                2: "═══ Round 2: The Tide Turns ═══",
+                3: "═══ Round 3: Final Confrontation ═══",
+            }
             self.add_history_event(
                 "round_start",
-                f"═══ Round {self.round_number} Start ═══",
+                round_themes.get(self.round_number, f"═══ Round {self.round_number} Start ═══"),
                 "neutral",
-                icon="🎯"
+                icon="=="
             )
 
         # Reset turn to player 1

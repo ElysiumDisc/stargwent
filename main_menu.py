@@ -202,21 +202,28 @@ class MainMenu:
         self.background = None
         self.load_background()
         
-        # Fonts - Make title HUGE and impressive
-        try:
-            self.title_font = pygame.font.Font(None, 180)  # Much larger!
-        except:
-            self.title_font = pygame.font.SysFont("Impact, Arial Black, Arial", 160, bold=True)
+        # Calculate scaling factor based on screen size (baseline: 1080p)
+        self.scale_factor = min(screen_height / 1080.0, screen_width / 1920.0)
+        
+        # Fonts - Scale based on screen size
+        title_size = max(60, int(140 * self.scale_factor))
+        subtitle_size = max(20, int(32 * self.scale_factor))
+        button_size = max(18, int(36 * self.scale_factor))
         
         try:
-            self.subtitle_font = pygame.font.SysFont("Courier New, Consolas, Monospace", 38)
+            self.title_font = pygame.font.Font(None, title_size)
         except:
-            self.subtitle_font = pygame.font.SysFont("Arial", 36)
+            self.title_font = pygame.font.SysFont("Impact, Arial Black, Arial", title_size, bold=True)
         
         try:
-            self.button_font = pygame.font.SysFont("Impact, Arial Black, Arial", 46, bold=True)
+            self.subtitle_font = pygame.font.SysFont("Courier New, Consolas, Monospace", subtitle_size)
         except:
-            self.button_font = pygame.font.SysFont("Arial", 42, bold=True)
+            self.subtitle_font = pygame.font.SysFont("Arial", subtitle_size)
+        
+        try:
+            self.button_font = pygame.font.SysFont("Impact, Arial Black, Arial", button_size, bold=True)
+        except:
+            self.button_font = pygame.font.SysFont("Arial", button_size, bold=True)
         
         # Colors
         self.bg_color = (10, 15, 30)
@@ -1022,12 +1029,38 @@ class MainMenu:
             self.background = None
     
     def setup_buttons(self):
-        """Setup menu button positions."""
-        button_width = 400
-        button_height = 80
-        spacing = 30
+        """Setup menu button positions with proper scaling for all resolutions."""
+        num_options = len(self.options)
+        
+        # Scale button dimensions based on screen size (use height as reference)
+        # Design baseline: 1080p (1920x1080)
+        scale_factor = min(self.screen_height / 1080.0, self.screen_width / 1920.0)
+        
+        button_width = int(400 * scale_factor)
+        button_height = int(70 * scale_factor)
+        spacing = int(15 * scale_factor)
+        
+        # Calculate total menu height
+        total_menu_height = num_options * button_height + (num_options - 1) * spacing
+        
+        # Ensure buttons fit in available space (leave room for title and bottom margin)
+        title_space = int(self.screen_height * 0.25)  # Reserve 25% for title area
+        bottom_margin = int(self.screen_height * 0.05)  # 5% bottom margin
+        available_height = self.screen_height - title_space - bottom_margin
+        
+        # If buttons don't fit, shrink them
+        if total_menu_height > available_height:
+            # Calculate maximum button height that fits
+            max_button_height = (available_height - (num_options - 1) * spacing) // num_options
+            button_height = max(30, min(button_height, max_button_height))
+            spacing = max(5, int(spacing * 0.6))  # Reduce spacing proportionally
+            total_menu_height = num_options * button_height + (num_options - 1) * spacing
+        
+        # Center buttons horizontally
         start_x = (self.screen_width - button_width) // 2
-        start_y = self.screen_height // 2 - 50
+        
+        # Start buttons below title area, centered in remaining space
+        start_y = title_space + (available_height - total_menu_height) // 2
         
         for i, option in enumerate(self.options):
             y = start_y + i * (button_height + spacing)
@@ -1081,26 +1114,28 @@ class MainMenu:
         else:
             surface.fill(self.bg_color)
         
-        # IMPRESSIVE TITLE with multiple effects
-        title_y = 180  # Move down a bit for larger title
+        # IMPRESSIVE TITLE with multiple effects - scale position based on screen
+        title_y = int(self.screen_height * 0.12)  # 12% from top
         
         # Create gradient effect - draw multiple layers
         title_text = "STARGWENT"
         
-        # Shadow layers (black, offset)
-        for offset in range(8, 0, -2):
+        # Shadow layers (black, offset) - scale shadow offset
+        shadow_scale = max(1, int(4 * self.scale_factor))
+        for offset in range(shadow_scale * 2, 0, -shadow_scale // 2 or 1):
             shadow = self.title_font.render(title_text, True, (0, 0, 0))
             shadow_rect = shadow.get_rect(center=(self.screen_width // 2 + offset, title_y + offset))
             surface.blit(shadow, shadow_rect)
         
         # Outer glow (blue/cyan)
-        glow_surf = pygame.Surface((self.screen_width, 300), pygame.SRCALPHA)
+        glow_height = int(200 * self.scale_factor)
+        glow_surf = pygame.Surface((self.screen_width, glow_height), pygame.SRCALPHA)
         for i in range(6, 0, -1):
             glow_color = (*self.highlight_color, 30)
             glow_text = self.title_font.render(title_text, True, glow_color)
-            glow_rect = glow_text.get_rect(center=(self.screen_width // 2 + i, title_y + i))
-            glow_surf.blit(glow_text, (glow_rect.x, glow_rect.y - title_y + 50))
-        surface.blit(glow_surf, (0, title_y - 50))
+            glow_rect = glow_text.get_rect(center=(self.screen_width // 2 + i, glow_height // 2 + i))
+            glow_surf.blit(glow_text, glow_rect)
+        surface.blit(glow_surf, (0, title_y - glow_height // 2))
         
         # Inner glow (brighter)
         inner_glow_color = (255, 255, 200, 80)

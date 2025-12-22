@@ -3283,7 +3283,7 @@ def main(lan_game_data=None):
             # Only add to history if it's actual chat (avoid duplicates if we re-enabled system loop)
             # But since we removed the system->chat loop, this is safe.
             owner = "player" if prefix == "You" else "ai"
-            game.add_history_event("chat", f"{prefix}: {text}", owner, icon="💬")
+            game.add_history_event("chat", f"{prefix}: {text}", owner, icon='"')
 
         lan_chat_panel = LanChatPanel(
             LAN_CONTEXT.session, 
@@ -4696,7 +4696,7 @@ def main(lan_game_data=None):
                         "special",
                         f"{game.player2.name} activated Iris Defense!",
                         "ai",
-                        icon="🛡️"
+                        icon="[#]"
                     )
 
                 # Finish turn
@@ -5313,7 +5313,7 @@ def main(lan_game_data=None):
                     "ability",
                     f"{game.player1.name}'s medic had no targets to revive",
                     "player",
-                    icon="🏥"
+                    icon="+"
                 )
                 game.player1.calculate_score()
                 game.player2.calculate_score()

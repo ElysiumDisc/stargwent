@@ -45,7 +45,21 @@ class AIStrategy:
             return ('pass', None, None)
     
     def analyze_round_state(self) -> dict:
-        """Analyze the current game state."""
+        """Analyze the current game state with comprehensive metrics."""
+        # Calculate total board power for both players
+        ai_board_power = sum(
+            sum(c.displayed_power for c in row_cards)
+            for row_cards in self.ai_player.board.values()
+        )
+        opp_board_power = sum(
+            sum(c.displayed_power for c in row_cards)
+            for row_cards in self.opponent.board.values()
+        )
+        
+        # Calculate potential remaining hand power (estimate)
+        ai_hand_power = sum(c.power for c in self.ai_player.hand)
+        opp_hand_estimate = len(self.opponent.hand) * 5  # Estimate 5 avg power per card
+        
         return {
             'round_number': self.game.round_number,
             'score_diff': self.ai_player.score - self.opponent.score,
@@ -56,6 +70,14 @@ class AIStrategy:
             'opponent_rounds_won': self.opponent.rounds_won,
             'cards_on_board': sum(len(row) for row in self.ai_player.board.values()),
             'opponent_cards_on_board': sum(len(row) for row in self.opponent.board.values()),
+            'ai_board_power': ai_board_power,
+            'opp_board_power': opp_board_power,
+            'ai_hand_power': ai_hand_power,
+            'opp_hand_estimate': opp_hand_estimate,
+            'card_advantage': len(self.ai_player.hand) - len(self.opponent.hand),
+            'is_last_round': self.game.round_number == 3,
+            'must_win_round': (self.game.round_number == 2 and self.ai_player.rounds_won == 0) or 
+                              (self.game.round_number == 3 and self.ai_player.rounds_won < self.opponent.rounds_won),
         }
 
     def evaluate_hand_quality(self) -> float:
@@ -748,22 +770,57 @@ class AIStrategy:
         # Base power value (raw points)
         score += card.power
         
+        # --- AGILE CARD ROW OPTIMIZATION ---
+        if card.row == "agile":
+            # Smart row selection for agile cards
+            close_weather = self.ai_player.weather_effects.get("close", False)
+            ranged_weather = self.ai_player.weather_effects.get("ranged", False)
+            close_horn = self.ai_player.horn_effects.get("close", False)
+            ranged_horn = self.ai_player.horn_effects.get("ranged", False)
+            
+            # Prefer rows without weather
+            if row == "close" and close_weather and not ranged_weather:
+                score -= card.power * 0.7  # Significant penalty for weather row
+            elif row == "ranged" and ranged_weather and not close_weather:
+                score -= card.power * 0.7
+            
+            # Prefer rows with horn
+            if row == "close" and close_horn and not ranged_horn:
+                score += card.power * 0.5
+            elif row == "ranged" and ranged_horn and not close_horn:
+                score += card.power * 0.5
+            
+            # Consider synergy with existing cards (Tactical Formation)
+            if "Tactical Formation" in (card.ability or ""):
+                close_copies = sum(1 for c in self.ai_player.board.get("close", []) if c.name == card.name)
+                ranged_copies = sum(1 for c in self.ai_player.board.get("ranged", []) if c.name == card.name)
+                if row == "close" and close_copies > ranged_copies:
+                    score += close_copies * card.power
+                elif row == "ranged" and ranged_copies > close_copies:
+                    score += ranged_copies * card.power
+        
         # --- HERO LOGIC ---
         if "Legendary Commander" in (card.ability or ""):
             # Heroes are high value, save them!
             score += 10 # Intrinsic value
             
-            # Penalize playing heroes early
+            # Penalize playing heroes early based on game state
             if context['round_number'] == 1:
-                score -= 20
-            elif context['round_number'] == 2 and context['ai_rounds_won'] == 1:
-                score -= 15 # Save for R3
+                if context.get('must_win_round', False):
+                    score -= 5  # Less penalty if we need this round
+                else:
+                    score -= 20  # Save for later
+            elif context['round_number'] == 2:
+                if context['ai_rounds_won'] == 1:
+                    score -= 15 # Save for R3
+                elif context['ai_rounds_won'] == 0:
+                    score -= 5  # Must win, consider playing
             elif context['round_number'] == 3:
-                score += 10 # Play them now!
+                score += 15 # Play them now!
             
-            # Save heroes if weather is active
+            # Heroes immune to weather - HUGE value when weather is active
             if self.ai_player.weather_effects.get(row, False):
-                score += 25  # Heroes immune to weather - HUGE value in weather
+                score += 25
         
         # --- SPY LOGIC ---
         if "Deep Cover Agent" in (card.ability or ""):
@@ -870,55 +927,168 @@ class AIStrategy:
         ability = card.ability or ""
         
         if "Wormhole Stabilization" in ability:
-            # Good if weather hurts us more than opponent
+            # Good if weather hurts us more than opponent, or to reset the board
             our_weather_damage = self.calculate_weather_damage(self.ai_player)
             opp_weather_damage = self.calculate_weather_damage(self.opponent)
-            if our_weather_damage > opp_weather_damage:
-                score = (our_weather_damage - opp_weather_damage) * 2
+            net_benefit = our_weather_damage - opp_weather_damage
+            
+            if net_benefit > 5:
+                # Weather is hurting us significantly more
+                score = net_benefit * 2.5
+            elif our_weather_damage > 10:
+                # We're taking significant weather damage
+                score = our_weather_damage * 1.5
+            elif any(self.game.weather_active.values()):
+                # Weather is active but not hurting us much - low priority
+                score = max(0, net_benefit)
             else:
-                score = -2  # Mild penalty if not needed
+                # No weather active - don't waste clear weather
+                score = -15
             results.append(("close", score))
         else:
             # Offensive weather
             target_rows = self.get_weather_target_rows(ability)
             if not target_rows and "Electromagnetic Pulse" in ability:
                 target_rows = ["close", "ranged", "siege"]
+            
             for target_row in target_rows:
+                # Calculate damage to opponent
                 opp_power = self.count_non_hero_power(self.opponent, target_row)
+                opp_card_count = sum(
+                    1 for c in self.opponent.board.get(target_row, [])
+                    if "Legendary Commander" not in (c.ability or "")
+                )
                 
-                damage_diff = opp_power
-                if damage_diff > 5:  # Only if it hurts opponent meaningfully
-                    score = damage_diff * 1.5
+                # Calculate self-damage (we also get affected)
+                our_power = self.count_non_hero_power(self.ai_player, target_row)
+                our_card_count = sum(
+                    1 for c in self.ai_player.board.get(target_row, [])
+                    if "Legendary Commander" not in (c.ability or "")
+                )
+                
+                # Net damage = enemy damage - our damage
+                enemy_damage = opp_power - opp_card_count  # Each card reduced to 1
+                our_damage = our_power - our_card_count
+                net_damage = enemy_damage - our_damage
+                
+                if net_damage > 8:
+                    # Strong net advantage
+                    score = net_damage * 2
+                elif net_damage > 3:
+                    # Moderate advantage
+                    score = net_damage * 1.5
+                elif net_damage > 0:
+                    # Slight advantage - be cautious
+                    score = net_damage - 2
                 else:
-                    score = damage_diff - 5  # Slight penalty to discourage poor plays
+                    # We'd hurt ourselves more - avoid
+                    score = net_damage * 2  # Strong penalty
+                
+                # Weather already active on this row? Lower priority
+                if self.game.weather_active.get(target_row, False):
+                    score -= 10
+                
                 results.append((target_row, score))
         
-        return results if results else [("close", -5.0)]
+        return results if results else [("close", -15.0)]
     
     def evaluate_special_play(self, card, context: dict) -> float:
-        """Evaluate playing a special card."""
+        """Evaluate playing a special card with strategic timing."""
         score = 0.0
         ability = card.ability or ""
         
         if "Naquadah Overload" in ability:
-            # Good if opponent has high power units
+            # Scorch: Destroy highest power non-hero cards
             opp_max = self.get_highest_non_hero_power(self.opponent)
             our_max = self.get_highest_non_hero_power(self.ai_player)
             
-            if opp_max > our_max:
-                score += (opp_max - our_max) * 2
-            elif opp_max > 8:  # High value target
-                score += opp_max
+            # Count how many cards would be destroyed on each side
+            opp_destroyed = sum(
+                1 for row in self.opponent.board.values() for c in row
+                if c.displayed_power == opp_max and "Legendary Commander" not in (c.ability or "")
+            ) if opp_max > 0 else 0
+            
+            our_destroyed = sum(
+                1 for row in self.ai_player.board.values() for c in row
+                if c.displayed_power == opp_max and "Legendary Commander" not in (c.ability or "")
+            ) if opp_max > 0 else 0
+            
+            # Calculate net value (enemy loss - our loss)
+            net_destruction = (opp_destroyed * opp_max) - (our_destroyed * opp_max)
+            
+            if net_destruction > 15:
+                # Massive swing - definitely play
+                score = net_destruction * 1.5
+            elif net_destruction > 8:
+                # Good value
+                score = net_destruction
+            elif net_destruction > 0:
+                # Slight advantage - consider timing
+                if context['opponent_passed']:
+                    score = net_destruction * 0.5  # Less urgent if they passed
+                else:
+                    score = net_destruction
+            else:
+                # We'd lose more or equal - avoid
+                score = net_destruction * 2  # Strong penalty
+            
+            # Wait for higher targets if opponent hasn't passed
+            if opp_max < 8 and not context['opponent_passed']:
+                score -= 5  # Wait for bigger targets
         
         elif "Command Network" in ability:
-            # Evaluate best row to apply horn
+            # Horn: Double non-hero power in a row
             best_row_score = 0
+            best_row_potential = 0
+            
             for row_name in ["close", "ranged", "siege"]:
                 if not self.ai_player.horn_effects.get(row_name, False):
                     row_power = self.count_non_hero_power(self.ai_player, row_name)
+                    card_count = sum(
+                        1 for c in self.ai_player.board.get(row_name, [])
+                        if "Legendary Commander" not in (c.ability or "")
+                    )
+                    
+                    # Consider weather effects (if weather active, horn is less valuable)
+                    if self.ai_player.weather_effects.get(row_name, False):
+                        row_power = card_count  # All cards are 1 power
+                    
                     if row_power > best_row_score:
                         best_row_score = row_power
-            score += best_row_score  # Will double this row
+                        best_row_potential = card_count
+            
+            score = best_row_score  # Will double this amount
+            
+            # Bonus if we have more cards coming to that row
+            hand_cards_for_row = sum(
+                1 for c in self.ai_player.hand 
+                if c.row in ["close", "ranged", "siege", "agile"]
+            )
+            if hand_cards_for_row > 2:
+                score += 3  # Room to grow
+            
+            # Timing: Wait if we don't have many cards on board yet
+            if context['cards_on_board'] < 3 and context['ai_cards_left'] > 3:
+                score -= 5  # Wait to build board first
+        
+        elif "Ring Transport" in ability:
+            # Decoy: Return a unit to hand - good for reusing abilities
+            best_target_value = 0
+            for row_cards in self.ai_player.board.values():
+                for c in row_cards:
+                    if "Legendary Commander" not in (c.ability or ""):
+                        target_value = c.power
+                        # Bonus for cards with abilities
+                        if "Medical Evac" in (c.ability or ""):
+                            target_value += 8  # Reuse medic
+                        if "Deep Cover Agent" in (c.ability or ""):
+                            target_value += 10  # Reuse spy
+                        if "Gate Reinforcement" in (c.ability or ""):
+                            target_value += 6
+                        if best_target_value < target_value:
+                            best_target_value = target_value
+            
+            score = best_target_value * 0.8  # Slightly discount since we replay cost
         
         return score
     
