@@ -118,6 +118,7 @@ class DraftRun:
         self.drafted_cards: List[Card] = []
         self.current_pick = 0
         self.phase = "leader_select"  # leader_select, draft, review, battle
+        self.pick_history: List[Tuple[Card, List[Card]]] = []  # For undo feature
 
         # Rarity weights for balanced drafting
         # Lower weight = rarer appearance
@@ -153,15 +154,20 @@ class DraftRun:
             rarity_weights=self.rarity_weights
         )
 
-    def pick_card(self, card: Card):
+    def pick_card(self, card: Card, all_choices: List[Card] = None):
         """
         Pick a card and advance to next pick.
 
         Args:
             card: Selected card
+            all_choices: All choices shown (for undo history)
         """
         if self.phase != "draft":
             return
+
+        # Store history for undo
+        if all_choices:
+            self.pick_history.append((copy.deepcopy(card), [copy.deepcopy(c) for c in all_choices]))
 
         self.drafted_cards.append(copy.deepcopy(card))
         self.current_pick += 1
@@ -169,9 +175,113 @@ class DraftRun:
         if self.current_pick >= self.CARDS_TO_DRAFT:
             self.phase = "review"
 
+    def undo_last_pick(self) -> Optional[List[Card]]:
+        """
+        Undo the last pick and return to previous state.
+        
+        Returns:
+            The previous choices if undo successful, None otherwise
+        """
+        if not self.pick_history or self.phase != "draft":
+            return None
+        
+        # Pop last pick from history
+        _, previous_choices = self.pick_history.pop()
+        
+        # Remove last drafted card
+        if self.drafted_cards:
+            self.drafted_cards.pop()
+            self.current_pick -= 1
+        
+        return previous_choices
+
     def is_draft_complete(self) -> bool:
         """Check if drafting is complete."""
         return len(self.drafted_cards) >= self.CARDS_TO_DRAFT
+
+    def get_synergy_score(self, card: Card) -> Dict:
+        """
+        Calculate synergy score for a card based on current deck.
+        
+        Args:
+            card: Card to evaluate
+            
+        Returns:
+            Dict with synergy info
+        """
+        synergy = {
+            'score': 0,
+            'reasons': [],
+            'row_balance': 0,
+            'has_copies': 0
+        }
+        
+        # Check for Tactical Formation (tight bond) synergy
+        if "Tactical Formation" in (card.ability or ""):
+            copies_in_deck = sum(1 for c in self.drafted_cards if c.name == card.name)
+            if copies_in_deck > 0:
+                synergy['score'] += copies_in_deck * 3
+                synergy['reasons'].append(f"+{copies_in_deck * 3} Tight Bond ({copies_in_deck} copies)")
+                synergy['has_copies'] = copies_in_deck
+        
+        # Check for Gate Reinforcement (muster) synergy
+        if "Gate Reinforcement" in (card.ability or ""):
+            copies_in_deck = sum(1 for c in self.drafted_cards if c.name == card.name)
+            if copies_in_deck > 0:
+                synergy['score'] += copies_in_deck * 4
+                synergy['reasons'].append(f"+{copies_in_deck * 4} Muster ({copies_in_deck} copies)")
+                synergy['has_copies'] = copies_in_deck
+        
+        # Row balance scoring
+        row_counts = {'close': 0, 'ranged': 0, 'siege': 0}
+        for c in self.drafted_cards:
+            if c.row in row_counts:
+                row_counts[c.row] += 1
+            elif c.row == 'agile':
+                row_counts['close'] += 0.5
+                row_counts['ranged'] += 0.5
+        
+        # Bonus for balancing rows
+        if card.row in row_counts:
+            min_row_count = min(row_counts.values())
+            if row_counts[card.row] == min_row_count:
+                synergy['score'] += 1
+                synergy['row_balance'] = 1
+                synergy['reasons'].append("+1 Row Balance")
+        
+        # Medic value increases with deck size
+        if "Medical Evac" in (card.ability or ""):
+            if len(self.drafted_cards) > 10:
+                synergy['score'] += 2
+                synergy['reasons'].append("+2 Medic Value")
+        
+        # Spy value early in draft (card advantage)
+        if "Deep Cover Agent" in (card.ability or ""):
+            if len(self.drafted_cards) < 15:
+                synergy['score'] += 2
+                synergy['reasons'].append("+2 Spy (Early Pick)")
+        
+        # Hero value
+        if "Legendary Commander" in (card.ability or ""):
+            hero_count = sum(1 for c in self.drafted_cards if "Legendary Commander" in (c.ability or ""))
+            if hero_count < 2:
+                synergy['score'] += 3
+                synergy['reasons'].append("+3 Hero Value")
+            elif hero_count >= 3:
+                synergy['score'] -= 2
+                synergy['reasons'].append("-2 Too Many Heroes")
+        
+        # Weather value
+        if card.row == "weather":
+            weather_count = sum(1 for c in self.drafted_cards if c.row == "weather")
+            if weather_count == 0:
+                synergy['score'] += 2
+                synergy['reasons'].append("+2 First Weather")
+            elif weather_count >= 2:
+                synergy['score'] -= 2
+                synergy['reasons'].append("-2 Too Much Weather")
+        
+        return synergy
 
     def get_deck_dict(self) -> Dict:
         """
@@ -198,7 +308,10 @@ class DraftRun:
             'avg_power': sum(card.power for card in self.drafted_cards) / max(1, len(self.drafted_cards)),
             'faction_breakdown': {},
             'row_breakdown': {'close': 0, 'ranged': 0, 'siege': 0, 'agile': 0, 'weather': 0, 'special': 0},
-            'ability_count': 0
+            'ability_count': 0,
+            'hero_count': 0,
+            'spy_count': 0,
+            'medic_count': 0
         }
 
         for card in self.drafted_cards:
@@ -214,6 +327,12 @@ class DraftRun:
             # Ability count
             if card.ability:
                 stats['ability_count'] += 1
+                if "Legendary Commander" in card.ability:
+                    stats['hero_count'] += 1
+                if "Deep Cover Agent" in card.ability:
+                    stats['spy_count'] += 1
+                if "Medical Evac" in card.ability:
+                    stats['medic_count'] += 1
 
         return stats
 

@@ -1034,28 +1034,19 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     column_right = area_rect.right - padding
     column_width = max(1, column_right - column_left)
     column_center_x = column_left + column_width // 2
-    spacing = max(10, min(15, int(12 * SCALE_FACTOR)))
+    spacing = max(8, min(12, int(10 * SCALE_FACTOR)))
 
     # Keep leader portrait locked to the same dimensions as battlefield cards.
     leader_width = CARD_WIDTH
     leader_height = CARD_HEIGHT
 
-    # Ability strip shares space with counters on the right.
-    ability_height = max(int(CARD_HEIGHT * 0.22), 56)
-    min_ability_width = max(int(CARD_WIDTH * 0.9), 140)
-    counter_gap = spacing
-    base_counter_width = int(column_width * 0.32)
-    max_counter_width = max(0, column_width - min_ability_width - counter_gap)
-    counter_width = min(base_counter_width, max_counter_width)
-    if counter_width <= 0:
-        counter_width = 0
-        counter_gap = 0
-    ability_area_width = column_width - counter_width - counter_gap
-    ability_width = min(ability_area_width, max(min_ability_width, ability_area_width))
-    ability_x = column_left + max(0, (ability_area_width - ability_width) // 2)
-
-    faction_size = max(int(CARD_WIDTH * 0.65), 72)
-    special_size = max(int(CARD_WIDTH * 0.5), 60)
+    # Button dimensions - wider for better text display
+    button_width = min(column_width - 4, max(int(CARD_WIDTH * 1.2), 120))
+    button_height = max(int(CARD_HEIGHT * 0.28), 50)
+    
+    # Faction power button is square
+    faction_size = max(int(CARD_WIDTH * 0.6), 65)
+    special_size = max(int(CARD_WIDTH * 0.45), 55)
 
     # Determine if this player has a special faction button (Iris, Rings, etc.).
     special_info = None
@@ -1063,16 +1054,19 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
         special_info = {
             "kind": "iris",
             "ready": player.iris_defense.is_available(),
-            "active": player.iris_defense.is_active()
+            "active": player.iris_defense.is_active(),
+            "label": "IRIS"
         }
     elif getattr(player, "ring_transportation", None):
         special_info = {
             "kind": "rings",
             "ready": player.ring_transportation.can_use(),
-            "active": player.ring_transportation.animation_in_progress
+            "active": player.ring_transportation.animation_in_progress,
+            "label": "RINGS"
         }
 
-    element_heights = [ability_height, faction_size]
+    # Calculate stack
+    element_heights = [button_height, faction_size]
     if special_info:
         element_heights.append(special_size)
     element_heights.append(leader_height)
@@ -1083,360 +1077,221 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     y_cursor = area_rect.centery - stack_height // 2
     y_cursor = max(available_top, min(y_cursor, max_top))
 
-    ability_rect = pygame.Rect(ability_x, y_cursor, ability_width, ability_height)
-    counter_rect = None
-    if counter_width > 0:
-        counter_rect = pygame.Rect(column_right - counter_width, ability_rect.y, counter_width, ability_height)
-
-    # Ability button with Stargate ring design
+    # ═══ LEADER ABILITY BUTTON ═══
+    ability_rect = pygame.Rect(column_center_x - button_width // 2, y_cursor, button_width, button_height)
     ability_surface = pygame.Surface((ability_rect.width, ability_rect.height), pygame.SRCALPHA)
-    ability_surface.fill((15, 20, 35, 240))
-
-    # Colors based on ability state
+    
+    # Get leader ability name
+    leader_ability_name = "ABILITY"
+    if player.leader:
+        leader_ability_name = player.leader.get('ability_name', player.leader.get('name', 'ABILITY'))
+        # Truncate if too long
+        if len(leader_ability_name) > 12:
+            leader_ability_name = leader_ability_name[:10] + ".."
+    
+    # Determine button state colors
+    is_hovered = hover_pos and ability_rect.collidepoint(hover_pos)
+    
     if ability_ready:
-        ring_color = faction_color
-        chevron_color = tuple(min(255, c + 40) for c in faction_color)
-        dot_color = faction_color
-        glow_color = tuple(min(255, c + 60) for c in faction_color)
+        bg_color = (25, 45, 70, 240)
+        border_color = faction_color
+        text_color = WHITE
+        status_text = "READY"
+        status_color = (100, 255, 100)
     else:
-        ring_color = (80, 80, 90)
-        chevron_color = (100, 100, 110)
-        dot_color = (70, 70, 80)
-        glow_color = (90, 90, 100)
-
-    # Hover effect
-    if hover_pos and ability_rect.collidepoint(hover_pos):
-        ring_color = tuple(min(255, c + 50) for c in ring_color)
-        chevron_color = tuple(min(255, c + 50) for c in chevron_color)
-        glow_color = tuple(min(255, c + 70) for c in glow_color)
-
-    icon_rect = ability_surface.get_rect()
-    cx, cy = icon_rect.center
-
-    # Calculate sizes based on button dimensions
-    outer_radius = min(icon_rect.width, icon_rect.height) // 2 - 6
-    inner_radius = int(outer_radius * 0.65)
-    chevron_radius = int(outer_radius * 0.85)
-
-    # Draw outer glow ring
-    for i in range(3):
-        r = outer_radius + 3 - i
-        alpha = 60 - i * 20
-        glow = (*glow_color[:3], alpha) if len(glow_color) == 3 else glow_color
-        pygame.draw.circle(ability_surface, glow, (cx, cy), r, 2)
-
-    # Draw main outer ring
-    pygame.draw.circle(ability_surface, ring_color, (cx, cy), outer_radius, 4)
-
-    # Draw inner ring
-    pygame.draw.circle(ability_surface, ring_color, (cx, cy), inner_radius, 3)
-
-    # Draw 9 chevrons around the ring (like a Stargate)
-    num_chevrons = 9
-    chevron_size = max(6, outer_radius // 5)
-    for i in range(num_chevrons):
-        angle = (i * 2 * 3.14159 / num_chevrons) - 3.14159 / 2
-
-        # Chevron position on the ring
-        chev_x = cx + int(chevron_radius * math.cos(angle))
-        chev_y = cy + int(chevron_radius * math.sin(angle))
-
-        # Draw chevron as triangle pointing outward
-        # Calculate direction vector
-        dx = math.cos(angle)
-        dy = math.sin(angle)
-
-        # Perpendicular vector for chevron width
-        px = -dy
-        py = dx
-
-        # Chevron points
-        tip_x = chev_x + int(dx * chevron_size * 0.8)
-        tip_y = chev_y + int(dy * chevron_size * 0.8)
-
-        base1_x = chev_x + int(px * chevron_size * 0.5) - int(dx * chevron_size * 0.3)
-        base1_y = chev_y + int(py * chevron_size * 0.5) - int(dy * chevron_size * 0.3)
-
-        base2_x = chev_x - int(px * chevron_size * 0.5) - int(dx * chevron_size * 0.3)
-        base2_y = chev_y - int(py * chevron_size * 0.5) - int(dy * chevron_size * 0.3)
-
-        pygame.draw.polygon(ability_surface, chevron_color, [
-            (tip_x, tip_y),
-            (base1_x, base1_y),
-            (base2_x, base2_y)
-        ])
-
-    # Draw center dot pattern (like the event horizon)
-    dot_radius = max(2, inner_radius // 8)
-    dot_spacing = max(6, inner_radius // 3)
-
-    # Draw grid of dots in center
-    for row in range(-2, 3):
-        for col in range(-2, 3):
-            # Skip corners to make circular pattern
-            if abs(row) == 2 and abs(col) == 2:
-                continue
-
-            dot_x = cx + col * dot_spacing
-            dot_y = cy + row * dot_spacing
-
-            # Check if dot is within inner circle
-            dist = math.sqrt((dot_x - cx) ** 2 + (dot_y - cy) ** 2)
-            if dist < inner_radius - dot_radius - 2:
-                pygame.draw.circle(ability_surface, dot_color, (dot_x, dot_y), dot_radius)
-
-    # Draw rounded border
-    pygame.draw.rect(ability_surface, ring_color, ability_surface.get_rect(), width=3, border_radius=12)
-
+        bg_color = (30, 30, 35, 200)
+        border_color = (80, 80, 90)
+        text_color = (150, 150, 150)
+        status_text = "USED"
+        status_color = (150, 80, 80)
+    
+    if is_hovered and ability_ready:
+        bg_color = (35, 60, 95, 250)
+        border_color = tuple(min(255, c + 40) for c in faction_color)
+    
+    # Draw button background
+    ability_surface.fill(bg_color)
+    pygame.draw.rect(ability_surface, border_color, ability_surface.get_rect(), width=3, border_radius=8)
+    
+    # Draw ability name
+    name_font = pygame.font.SysFont("Arial", max(12, int(14 * SCALE_FACTOR)), bold=True)
+    name_text = name_font.render(leader_ability_name.upper(), True, text_color)
+    name_rect = name_text.get_rect(centerx=ability_rect.width // 2, top=6)
+    ability_surface.blit(name_text, name_rect)
+    
+    # Draw status indicator
+    status_font = pygame.font.SysFont("Arial", max(10, int(11 * SCALE_FACTOR)), bold=True)
+    status_surf = status_font.render(status_text, True, status_color)
+    status_rect = status_surf.get_rect(centerx=ability_rect.width // 2, bottom=ability_rect.height - 5)
+    ability_surface.blit(status_surf, status_rect)
+    
+    # Draw small stargate icon in center
+    icon_y = ability_rect.height // 2
+    icon_radius = min(12, (ability_rect.height - 24) // 2)
+    if icon_radius > 4:
+        pygame.draw.circle(ability_surface, border_color, (ability_rect.width // 2, icon_y), icon_radius, 2)
+        pygame.draw.circle(ability_surface, border_color, (ability_rect.width // 2, icon_y), icon_radius - 4, 1)
+    
     surface.blit(ability_surface, ability_rect.topleft)
 
-    # Card/Deck counters stay compact on the right.
-    discard_hit_rect = None
-    if counter_rect:
-        counter_items = [
-            ("HAND", len(player.hand)),
-            ("DRAW", len(player.deck)),
-            ("DISC", len(player.discard_pile)),
-        ]
-        counter_font = pygame.font.SysFont("Arial", max(12, int(14 * SCALE_FACTOR)), bold=True)
-        slot_height = counter_rect.height // len(counter_items)
-        for idx, (label, value) in enumerate(counter_items):
-            slot = pygame.Rect(counter_rect.x,
-                               counter_rect.y + idx * slot_height,
-                               counter_rect.width,
-                               slot_height - max(2, spacing // 3))
-            slot_surface = pygame.Surface((slot.width, slot.height), pygame.SRCALPHA)
-            slot_surface.fill((16, 24, 40, 210))
-            pygame.draw.rect(slot_surface, (70, 110, 180), slot_surface.get_rect(), width=2, border_radius=6)
-            text = counter_font.render(f"{label}: {value}", True, WHITE)
-            slot_surface.blit(text, text.get_rect(center=slot_surface.get_rect().center))
-            surface.blit(slot_surface, slot.topleft)
-            if label == "DISC":
-                discard_hit_rect = slot.copy()
+    # Card/Deck counters - compact display below ability button
+    counter_rect = pygame.Rect(ability_rect.x, ability_rect.bottom + 2, ability_rect.width, max(18, int(20 * SCALE_FACTOR)))
+    counter_font = pygame.font.SysFont("Arial", max(9, int(10 * SCALE_FACTOR)), bold=True)
+    counter_surface = pygame.Surface((counter_rect.width, counter_rect.height), pygame.SRCALPHA)
+    counter_surface.fill((15, 20, 30, 180))
+    
+    # Single line: H:X  D:X  G:X
+    counter_text = f"H:{len(player.hand)}  D:{len(player.deck)}  G:{len(player.discard_pile)}"
+    counter_surf = counter_font.render(counter_text, True, (180, 180, 200))
+    counter_surface.blit(counter_surf, counter_surf.get_rect(center=counter_surface.get_rect().center))
+    surface.blit(counter_surface, counter_rect.topleft)
+    
+    discard_hit_rect = counter_rect.copy()
+    y_cursor = counter_rect.bottom + spacing
 
-    y_cursor = ability_rect.bottom + spacing
-
-    # Faction power button - Stargate design with faction-specific event horizon
+    # ═══ FACTION POWER BUTTON ═══
     faction_rect = pygame.Rect(0, y_cursor, faction_size, faction_size)
     faction_rect.centerx = column_center_x
     faction_surface = pygame.Surface((faction_rect.width, faction_rect.height), pygame.SRCALPHA)
 
     cx, cy = faction_surface.get_rect().center
     outer_radius = faction_rect.width // 2 - 2
-    inner_radius = int(outer_radius * 0.7)
-    chevron_radius = int(outer_radius * 0.88)
+    inner_radius = int(outer_radius * 0.65)
 
-    # Faction-specific color schemes for Stargate
+    # Faction-specific color schemes
     faction_name = player.faction if hasattr(player, 'faction') else "Tau'ri"
-
-    # Define faction-specific colors (ring, event horizon primary, event horizon secondary, chevron)
     faction_gate_colors = {
-        "Tau'ri": {
-            "ring": (120, 130, 140),      # Silver/gray ring
-            "horizon1": (30, 100, 200),    # Blue event horizon
-            "horizon2": (80, 160, 255),    # Light blue swirl
-            "horizon3": (200, 230, 255),   # White center glow
-            "chevron": (255, 180, 50),     # Gold chevrons
-        },
-        "Goa'uld": {
-            "ring": (180, 150, 80),        # Gold ring
-            "horizon1": (180, 50, 30),     # Red/orange event horizon
-            "horizon2": (255, 120, 60),    # Orange swirl
-            "horizon3": (255, 200, 150),   # Bright center
-            "chevron": (255, 80, 40),      # Red chevrons
-        },
-        "Jaffa": {
-            "ring": (160, 140, 100),       # Bronze ring
-            "horizon1": (180, 140, 40),    # Golden event horizon
-            "horizon2": (220, 180, 80),    # Light gold swirl
-            "horizon3": (255, 240, 180),   # Bright gold center
-            "chevron": (255, 200, 100),    # Gold chevrons
-        },
-        "Lucian Alliance": {
-            "ring": (100, 80, 120),        # Dark purple ring
-            "horizon1": (120, 50, 150),    # Purple event horizon
-            "horizon2": (180, 100, 200),   # Pink swirl
-            "horizon3": (240, 180, 255),   # Bright purple center
-            "chevron": (255, 100, 200),    # Pink chevrons
-        },
-        "Asgard": {
-            "ring": (180, 200, 220),       # White/silver ring
-            "horizon1": (40, 150, 180),    # Cyan event horizon
-            "horizon2": (100, 200, 220),   # Light cyan swirl
-            "horizon3": (220, 255, 255),   # White center
-            "chevron": (150, 255, 255),    # Cyan chevrons
-        },
+        "Tau'ri": {"ring": (120, 130, 140), "horizon": (30, 100, 200), "chevron": (255, 180, 50)},
+        "Goa'uld": {"ring": (180, 150, 80), "horizon": (180, 50, 30), "chevron": (255, 80, 40)},
+        "Jaffa": {"ring": (160, 140, 100), "horizon": (180, 140, 40), "chevron": (255, 200, 100)},
+        "Lucian Alliance": {"ring": (100, 80, 120), "horizon": (120, 50, 150), "chevron": (255, 100, 200)},
+        "Asgard": {"ring": (180, 200, 220), "horizon": (40, 150, 180), "chevron": (150, 255, 255)},
     }
-
     colors = faction_gate_colors.get(faction_name, faction_gate_colors["Tau'ri"])
 
-    # Adjust brightness based on ready state and hover
-    brightness_mult = 1.0 if faction_power_ready else 0.5
-    if hover_pos and faction_rect.collidepoint(hover_pos):
-        brightness_mult = min(1.3, brightness_mult + 0.3)
+    # Brightness based on state
+    brightness = 1.0 if faction_power_ready else 0.4
+    is_faction_hovered = hover_pos and faction_rect.collidepoint(hover_pos)
+    if is_faction_hovered and faction_power_ready:
+        brightness = 1.3
 
-    def adjust_color(color, mult):
-        return tuple(min(255, int(c * mult)) for c in color)
+    def adj(c, m):
+        return tuple(min(255, int(x * m)) for x in c)
 
-    ring_color = adjust_color(colors["ring"], brightness_mult)
-    horizon1 = adjust_color(colors["horizon1"], brightness_mult)
-    horizon2 = adjust_color(colors["horizon2"], brightness_mult)
-    horizon3 = adjust_color(colors["horizon3"], brightness_mult)
-    chevron_color = adjust_color(colors["chevron"], brightness_mult)
+    ring_c = adj(colors["ring"], brightness)
+    horizon_c = adj(colors["horizon"], brightness)
+    chevron_c = adj(colors["chevron"], brightness)
 
-    # Draw dark background circle
+    # Draw gate
     pygame.draw.circle(faction_surface, (20, 25, 35), (cx, cy), outer_radius)
-
-    # Draw event horizon (swirling effect with concentric circles)
-    # Outer horizon ring
-    pygame.draw.circle(faction_surface, horizon1, (cx, cy), inner_radius)
-
-    # Swirl effect - multiple offset circles
-    swirl_radius = int(inner_radius * 0.85)
-    for i in range(6):
-        angle = i * 60 * 3.14159 / 180
-        offset_x = int(math.cos(angle) * inner_radius * 0.15)
-        offset_y = int(math.sin(angle) * inner_radius * 0.15)
-        pygame.draw.circle(faction_surface, horizon2, (cx + offset_x, cy + offset_y), swirl_radius, 3)
-
-    # Inner swirl layers
-    for radius_mult in [0.7, 0.5, 0.3]:
-        r = int(inner_radius * radius_mult)
-        pygame.draw.circle(faction_surface, horizon2, (cx, cy), r, 2)
-
+    pygame.draw.circle(faction_surface, horizon_c, (cx, cy), inner_radius)
+    
+    # Swirl effect
+    for i in range(4):
+        r = int(inner_radius * (0.8 - i * 0.15))
+        pygame.draw.circle(faction_surface, adj(colors["horizon"], brightness * 1.2), (cx, cy), r, 2)
+    
     # Center glow
-    center_radius = int(inner_radius * 0.25)
-    pygame.draw.circle(faction_surface, horizon3, (cx, cy), center_radius)
-    pygame.draw.circle(faction_surface, (255, 255, 255), (cx, cy), center_radius // 2)
-
-    # Draw outer ring (the Stargate frame)
-    ring_width = max(4, int(outer_radius * 0.12))
-    pygame.draw.circle(faction_surface, ring_color, (cx, cy), outer_radius, ring_width)
-
-    # Draw chevrons around the ring
-    num_chevrons = 9
-    chevron_size = max(4, int(outer_radius * 0.15))
-
-    for i in range(num_chevrons):
-        angle = (i * 2 * 3.14159 / num_chevrons) - 3.14159 / 2
-
+    pygame.draw.circle(faction_surface, adj((255, 255, 255), brightness * 0.8), (cx, cy), inner_radius // 4)
+    
+    # Outer ring
+    pygame.draw.circle(faction_surface, ring_c, (cx, cy), outer_radius, max(3, outer_radius // 8))
+    
+    # Chevrons
+    chevron_radius = int(outer_radius * 0.85)
+    chevron_size = max(3, outer_radius // 6)
+    for i in range(9):
+        angle = (i * 2 * 3.14159 / 9) - 3.14159 / 2
         chev_x = cx + int(chevron_radius * math.cos(angle))
         chev_y = cy + int(chevron_radius * math.sin(angle))
+        pygame.draw.circle(faction_surface, chevron_c, (chev_x, chev_y), chevron_size)
 
-        # Direction vectors
-        dx = math.cos(angle)
-        dy = math.sin(angle)
-        px = -dy
-        py = dx
-
-        # Chevron triangle points (pointing outward)
-        tip_x = chev_x + int(dx * chevron_size)
-        tip_y = chev_y + int(dy * chevron_size)
-
-        base1_x = chev_x + int(px * chevron_size * 0.6) - int(dx * chevron_size * 0.3)
-        base1_y = chev_y + int(py * chevron_size * 0.6) - int(dy * chevron_size * 0.3)
-
-        base2_x = chev_x - int(px * chevron_size * 0.6) - int(dx * chevron_size * 0.3)
-        base2_y = chev_y - int(py * chevron_size * 0.6) - int(dy * chevron_size * 0.3)
-
-        pygame.draw.polygon(faction_surface, chevron_color, [
-            (tip_x, tip_y),
-            (base1_x, base1_y),
-            (base2_x, base2_y)
-        ])
-
-        # Inner chevron detail
-        inner_tip_x = chev_x + int(dx * chevron_size * 0.5)
-        inner_tip_y = chev_y + int(dy * chevron_size * 0.5)
-        pygame.draw.circle(faction_surface, ring_color, (int(inner_tip_x), int(inner_tip_y)), max(2, chevron_size // 4))
-
-    # Add glow effect around the gate when ready
+    # Ready glow
     if faction_power_ready:
-        for i in range(3):
-            glow_r = outer_radius + 2 + i
-            glow_alpha = 80 - i * 25
-            pygame.draw.circle(faction_surface, (*chevron_color, glow_alpha), (cx, cy), glow_r, 2)
+        for i in range(2):
+            pygame.draw.circle(faction_surface, (*chevron_c, 60 - i * 30), (cx, cy), outer_radius + 2 + i, 2)
 
     surface.blit(faction_surface, faction_rect.topleft)
 
-    # Total score box lives to the right of the faction power circle.
+    # Faction power label below the gate
+    power_label_rect = pygame.Rect(faction_rect.x - 10, faction_rect.bottom + 2, faction_rect.width + 20, 16)
+    power_label_font = pygame.font.SysFont("Arial", max(9, int(10 * SCALE_FACTOR)), bold=True)
+    
+    power_name = "FACTION"
+    if player.faction_power:
+        power_name = getattr(player.faction_power, 'name', 'POWER')
+        if len(power_name) > 10:
+            power_name = power_name[:8] + ".."
+    
+    power_status = "READY" if faction_power_ready else "USED"
+    power_color = (100, 255, 100) if faction_power_ready else (150, 80, 80)
+    
+    label_surf = power_label_font.render(f"{power_name}", True, (200, 200, 220) if faction_power_ready else (120, 120, 130))
+    label_rect = label_surf.get_rect(centerx=faction_rect.centerx, top=faction_rect.bottom + 1)
+    surface.blit(label_surf, label_rect)
+
+    # Total score box to the right
     score_rect_width = max(0, column_right - (faction_rect.right + spacing))
-    score_rect = pygame.Rect(faction_rect.right + spacing,
-                             faction_rect.y,
-                             score_rect_width,
-                             faction_rect.height)
-    if score_rect.width > 0:
+    score_rect = pygame.Rect(faction_rect.right + spacing, faction_rect.y, score_rect_width, faction_rect.height)
+    if score_rect.width > 20:
         score_surface = pygame.Surface((score_rect.width, score_rect.height), pygame.SRCALPHA)
         score_surface.fill((20, 30, 50, 210))
-        pygame.draw.rect(score_surface, faction_color, score_surface.get_rect(), width=4, border_radius=12)
-        score_font = pygame.font.SysFont("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
+        pygame.draw.rect(score_surface, faction_color, score_surface.get_rect(), width=3, border_radius=10)
+        score_font = pygame.font.SysFont("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
         score_text = score_font.render(str(player.score), True, WHITE)
         score_surface.blit(score_text, score_text.get_rect(center=score_surface.get_rect().center))
         surface.blit(score_surface, score_rect.topleft)
     else:
         score_rect = None
 
-    y_cursor = faction_rect.bottom + spacing
+    y_cursor = max(faction_rect.bottom, label_rect.bottom) + spacing
 
-    # Special faction button (Iris, Rings, etc.) appears above the leader portrait.
+    # ═══ SPECIAL BUTTON (Iris/Rings) ═══
     special_rect = None
     special_kind = None
     if special_info:
         special_rect = pygame.Rect(0, y_cursor, special_size, special_size)
         special_rect.centerx = column_center_x
         special_surface = pygame.Surface((special_rect.width, special_rect.height), pygame.SRCALPHA)
+        
         base_color = (28, 36, 50)
-        ready_color = faction_color if special_info["ready"] else (90, 90, 100)
         if special_info["active"]:
             ready_color = (255, 120, 100)
-        pygame.draw.circle(special_surface, base_color,
-                           special_surface.get_rect().center, special_rect.width // 2)
-        pygame.draw.circle(
-            special_surface,
-            ready_color,
-            special_surface.get_rect().center,
-            special_rect.width // 2,
-            width=4
-        )
-
-        # Iconography per special kind.
+        elif special_info["ready"]:
+            ready_color = faction_color
+        else:
+            ready_color = (70, 70, 80)
+        
+        is_special_hovered = hover_pos and special_rect.collidepoint(hover_pos)
+        if is_special_hovered and special_info["ready"]:
+            ready_color = tuple(min(255, c + 40) for c in ready_color[:3])
+        
         center = special_surface.get_rect().center
+        pygame.draw.circle(special_surface, base_color, center, special_rect.width // 2)
+        pygame.draw.circle(special_surface, ready_color, center, special_rect.width // 2, width=3)
+
+        # Icon
         if special_info["kind"] == "iris":
-            blade_radius = int(special_rect.width * 0.35)
+            blade_radius = int(special_rect.width * 0.32)
             for angle in range(0, 360, 45):
                 radians = math.radians(angle)
                 dx = int(math.cos(radians) * blade_radius)
                 dy = int(math.sin(radians) * blade_radius)
-                pygame.draw.line(
-                    special_surface,
-                    ready_color,
-                    (center[0], center[1]),
-                    (center[0] + dx, center[1] + dy),
-                    width=3
-                )
+                pygame.draw.line(special_surface, ready_color, center, (center[0] + dx, center[1] + dy), width=2)
         else:
-            inner_radius = int(special_rect.width * 0.18)
             for i in range(3):
-                pygame.draw.circle(
-                    special_surface,
-                    ready_color,
-                    center,
-                    inner_radius + i * 6,
-                    width=2
-                )
+                pygame.draw.circle(special_surface, ready_color, center, int(special_rect.width * 0.15) + i * 5, width=2)
 
-        if hover_pos and special_rect.collidepoint(hover_pos):
-            hover_color = tuple(min(255, c + 40) for c in ready_color[:3])
-            pygame.draw.circle(
-                special_surface,
-                hover_color,
-                special_surface.get_rect().center,
-                special_rect.width // 2,
-                width=2
-            )
         surface.blit(special_surface, special_rect.topleft)
+        
+        # Label below special button
+        special_label = special_info.get("label", "SPECIAL")
+        special_font = pygame.font.SysFont("Arial", max(8, int(9 * SCALE_FACTOR)), bold=True)
+        special_surf = special_font.render(special_label, True, ready_color)
+        surface.blit(special_surf, special_surf.get_rect(centerx=special_rect.centerx, top=special_rect.bottom + 1))
+        
         special_kind = special_info["kind"]
-        y_cursor = special_rect.bottom + spacing
+        y_cursor = special_rect.bottom + 14 + spacing
 
     # Leader portrait occupies full card dimensions (no forced squishing).
     portrait_rect = pygame.Rect(
@@ -2557,64 +2412,91 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
 
 def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
     """Draw full-screen card inspection overlay when spacebar/right-click is pressed."""
-    # Keep gameplay view visible while inspecting a card
+    # Semi-transparent dark overlay for focus
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 0))
+    overlay.fill((0, 0, 0, 180))
     surface.blit(overlay, (0, 0))
     
-    # Large card display
-    card_display_width = 480
-    card_display_height = 720
+    # Large card display - 2x scale for crisp preview
+    # Base card is typically ~240x360, so 2x = 480x720
+    card_display_width = min(560, int(screen_width * 0.35))  # Larger but responsive
+    card_display_height = int(card_display_width * 1.5)  # Maintain aspect ratio
     card_x = (screen_width - card_display_width) // 2
-    card_y = (screen_height - card_display_height) // 2 - 80  # Moved up to make room for description
+    card_y = max(40, (screen_height - card_display_height - 180) // 2)  # Room for description
     
-    # Draw card image (scaled up)
+    # Draw card image (scaled up with smooth scaling for quality)
     try:
-        large_card_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
+        # Use smoothscale for better quality at larger sizes
+        large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
         surface.blit(large_card_image, (card_x, card_y))
     except:
         pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
     
-    # Golden border around card
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=6)
+    # Faction-colored glow effect
+    faction_colors = {
+        "Tau'ri": (100, 150, 255),
+        "Goa'uld": (255, 180, 50),
+        "Jaffa": (200, 150, 100),
+        "Lucian Alliance": (200, 80, 200),
+        "Asgard": (100, 255, 255),
+        "Neutral": (180, 180, 180),
+    }
+    glow_color = faction_colors.get(card.faction, (255, 215, 0))
+    
+    # Draw multiple borders for glow effect
+    for i in range(4):
+        border_rect = pygame.Rect(card_x - i * 2, card_y - i * 2, 
+                                  card_display_width + i * 4, card_display_height + i * 4)
+        alpha = 200 - i * 50
+        border_color = (*glow_color, alpha)
+        border_surf = pygame.Surface((border_rect.width, border_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(border_surf, border_color, border_surf.get_rect(), width=3, border_radius=8)
+        surface.blit(border_surf, border_rect.topleft)
+    
+    # Main golden border
+    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=4, border_radius=6)
     
     # Description box UNDER the card art
-    desc_box_y = card_y + card_display_height + 20
-    desc_box_height = 150
-    desc_box_padding = 20
+    desc_box_y = card_y + card_display_height + 15
+    desc_box_height = min(160, screen_height - desc_box_y - 50)
+    desc_box_padding = 15
+    desc_box_width = card_display_width + 100  # Wider for more text
+    desc_box_x = (screen_width - desc_box_width) // 2
     
     # Create semi-transparent description box
-    desc_surface = pygame.Surface((card_display_width, desc_box_height), pygame.SRCALPHA)
-    desc_surface.fill((20, 30, 50, 230))  # Dark blue-gray with transparency
+    desc_surface = pygame.Surface((desc_box_width, desc_box_height), pygame.SRCALPHA)
+    desc_surface.fill((15, 25, 45, 240))
     
     # Border for description box
-    pygame.draw.rect(desc_surface, (100, 150, 200, 200), desc_surface.get_rect(), width=3, border_radius=10)
+    pygame.draw.rect(desc_surface, glow_color, desc_surface.get_rect(), width=3, border_radius=12)
     
     # Draw description text
-    desc_font = pygame.font.SysFont("Arial", 24)
-    small_font = pygame.font.SysFont("Arial", 20)
+    desc_font = pygame.font.SysFont("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
+    small_font = pygame.font.SysFont("Arial", max(16, int(18 * SCALE_FACTOR)))
     
     # Card name at top
     name_text = desc_font.render(card.name, True, (255, 215, 0))
-    name_rect = name_text.get_rect(center=(card_display_width // 2, 25))
+    name_rect = name_text.get_rect(center=(desc_box_width // 2, 22))
     desc_surface.blit(name_text, name_rect)
     
-    # Stats line
-    stats_line = f"Power: {card.power}  •  Row: {card.row.capitalize()}  •  Faction: {card.faction}"
-    stats_text = small_font.render(stats_line, True, (200, 200, 200))
-    stats_rect = stats_text.get_rect(center=(card_display_width // 2, 55))
+    # Stats line with icons
+    power_str = f"Power: {card.power}"
+    row_str = f"Row: {card.row.capitalize()}"
+    faction_str = f"Faction: {card.faction}"
+    stats_text = small_font.render(f"{power_str}  |  {row_str}  |  {faction_str}", True, (200, 200, 220))
+    stats_rect = stats_text.get_rect(center=(desc_box_width // 2, 50))
     desc_surface.blit(stats_text, stats_rect)
     
     # Ability/Description
     if card.ability:
         ability_title = small_font.render("Ability:", True, (150, 255, 150))
-        desc_surface.blit(ability_title, (desc_box_padding, 80))
+        desc_surface.blit(ability_title, (desc_box_padding, 75))
         
         # Word wrap the ability text
         ability_words = card.ability.split()
         line = ""
-        line_y = 105
-        max_line_width = card_display_width - (desc_box_padding * 2)
+        line_y = 98
+        max_line_width = desc_box_width - (desc_box_padding * 2)
         
         for word in ability_words:
             test_line = line + word + " "
@@ -2624,7 +2506,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
                 if line:
                     ability_text = small_font.render(line.strip(), True, (220, 255, 220))
                     desc_surface.blit(ability_text, (desc_box_padding, line_y))
-                    line_y += 25
+                    line_y += 22
                 line = word + " "
         
         # Draw remaining text
@@ -2633,16 +2515,17 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
             desc_surface.blit(ability_text, (desc_box_padding, line_y))
     else:
         # No ability - show unit type
-        no_ability_text = small_font.render("Standard unit card", True, (180, 180, 180))
-        no_ability_rect = no_ability_text.get_rect(center=(card_display_width // 2, 105))
+        no_ability_text = small_font.render("Standard unit - no special ability", True, (180, 180, 180))
+        no_ability_rect = no_ability_text.get_rect(center=(desc_box_width // 2, 100))
         desc_surface.blit(no_ability_text, no_ability_rect)
     
     # Blit description box to screen
-    surface.blit(desc_surface, (card_x, desc_box_y))
+    surface.blit(desc_surface, (desc_box_x, desc_box_y))
     
     # Close instruction at bottom
-    close_text = UI_FONT.render("Press SPACE or Click to close", True, (200, 200, 200))
-    close_rect = close_text.get_rect(center=(screen_width // 2, screen_height - 30))
+    close_font = pygame.font.SysFont("Arial", max(14, int(16 * SCALE_FACTOR)))
+    close_text = close_font.render("Click anywhere or press SPACE to close", True, (180, 180, 180))
+    close_rect = close_text.get_rect(center=(screen_width // 2, screen_height - 25))
     surface.blit(close_text, close_rect)
 
 def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scroll_offset):

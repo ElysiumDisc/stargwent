@@ -797,22 +797,44 @@ class RowWeatherEffect:
         self.duration = -1  # -1 = infinite (until cleared)
         self.active = True
         self.highlight_color = self.get_highlight_color()
+        self.border_pulse = 0  # For pulsing border effect
         self.initialize_particles()
     
     def get_highlight_color(self):
         """Get the highlight color based on weather type."""
-        if 'Ice' in self.weather_type or 'Frost' in self.weather_type.lower():
-            return (150, 200, 255, 80)  # Light blue for ice/frost - INCREASED ALPHA
-        elif 'Micrometeorite' in self.weather_type or 'Rain' in self.weather_type.lower() or 'Asteroid' in self.weather_type:
-            return (100, 100, 150, 75)  # Dark blue-grey for rain/asteroids - INCREASED ALPHA
-        elif 'Nebula' in self.weather_type or 'Fog' in self.weather_type.lower():
-            return (180, 130, 200, 85)  # Purple for nebula/fog - INCREASED ALPHA
-        elif 'Solar' in self.weather_type:
-            return (255, 200, 100, 90)  # Orange/yellow for solar - INCREASED ALPHA
-        elif 'Asgard' in self.weather_type or 'Storm' in self.weather_type.lower() or 'Pulse' in self.weather_type or 'Electromagnetic' in self.weather_type:
-            return (100, 255, 200, 80)  # Cyan for EMP/Asgard tech - INCREASED ALPHA
+        wt = self.weather_type.lower()
+        if 'ice' in wt or 'frost' in wt or 'hazard' in wt:
+            return (100, 180, 255, 60)  # Light blue for ice/frost
+        elif 'asteroid' in wt or 'meteor' in wt or 'storm' in wt:
+            return (255, 150, 80, 55)  # Orange for asteroid/meteor
+        elif 'nebula' in wt or 'fog' in wt or 'interference' in wt:
+            return (200, 100, 220, 65)  # Purple for nebula
+        elif 'solar' in wt:
+            return (255, 200, 100, 70)  # Orange/yellow for solar
+        elif 'electromagnetic' in wt or 'pulse' in wt or 'emp' in wt or 'asgard' in wt:
+            return (80, 255, 200, 55)  # Cyan for EMP
+        elif 'wormhole' in wt or 'stabilization' in wt or 'clear' in wt:
+            return (50, 100, 200, 70)  # Deep blue for wormhole
         else:
-            return (150, 150, 150, 70)  # Default grey - INCREASED ALPHA
+            return (150, 150, 150, 50)  # Default grey
+    
+    def get_border_color(self):
+        """Get animated border color for weather type."""
+        wt = self.weather_type.lower()
+        pulse = 0.5 + 0.5 * math.sin(self.border_pulse)
+        
+        if 'ice' in wt or 'frost' in wt or 'hazard' in wt:
+            return (int(150 + 105 * pulse), int(200 + 55 * pulse), 255)
+        elif 'asteroid' in wt or 'meteor' in wt or 'storm' in wt:
+            return (255, int(120 + 80 * pulse), int(50 + 50 * pulse))
+        elif 'nebula' in wt or 'fog' in wt or 'interference' in wt:
+            return (int(180 + 75 * pulse), int(80 + 80 * pulse), 255)
+        elif 'electromagnetic' in wt or 'pulse' in wt or 'emp' in wt:
+            return (int(80 + 80 * pulse), 255, int(180 + 75 * pulse))
+        elif 'wormhole' in wt or 'stabilization' in wt:
+            return (int(100 + 100 * pulse), int(150 + 100 * pulse), 255)
+        else:
+            return (180, 180, 200)
     
     def initialize_particles(self):
         """Create weather particles constrained to row area."""
@@ -820,94 +842,94 @@ class RowWeatherEffect:
         row_y = self.row_rect.y
         row_width = self.row_rect.width
         row_height = self.row_rect.height
+        wt = self.weather_type.lower()
         
-        if 'Ice' in self.weather_type or 'Frost' in self.weather_type.lower():
-            # Ice/Frost - Snowflakes falling
-            for _ in range(40):
+        if 'ice' in wt or 'frost' in wt or 'hazard' in wt:
+            # Ice Planet Hazard - Snowflakes/ice crystals falling
+            for i in range(50):
                 self.particles.append({
                     'pos': pygame.math.Vector2(
-                        row_x + (_ * (row_width / 40)),
-                        row_y + (_ * 7) % row_height
+                        row_x + (i * (row_width / 50)),
+                        row_y + (i * 7) % row_height
                     ),
-                    'vel': pygame.math.Vector2(random.uniform(-0.3, 0.3), random.uniform(1.0, 2.0)),
-                    'size': random.randint(2, 4),
-                    'color': (200, 230, 255),
-                    'alpha': random.randint(150, 255)
+                    'vel': pygame.math.Vector2(random.uniform(-0.5, 0.5), random.uniform(0.8, 1.8)),
+                    'size': random.randint(2, 5),
+                    'color': (180, 220, 255),
+                    'alpha': random.randint(150, 230),
+                    'rotation': random.uniform(0, 360),
+                    'rot_speed': random.uniform(-2, 2)
                 })
         
-        elif 'Micrometeorite' in self.weather_type or 'Rain' in self.weather_type.lower():
-            # Micrometeorite/Rain - Fast streaks
-            for _ in range(60):
+        elif 'asteroid' in wt or 'meteor' in wt or 'storm' in wt:
+            # Asteroid Storm - Fiery meteors streaking down
+            for i in range(45):
                 self.particles.append({
                     'pos': pygame.math.Vector2(
                         row_x + random.randint(0, row_width),
-                        row_y + random.randint(0, row_height)
+                        row_y + random.randint(-20, row_height)
                     ),
-                    'vel': pygame.math.Vector2(random.uniform(0.5, 1.5), random.uniform(6, 10)),
-                    'size': 2,
-                    'color': (180, 180, 200),
-                    'alpha': 200
+                    'vel': pygame.math.Vector2(random.uniform(-2, -0.5), random.uniform(5, 9)),
+                    'size': random.randint(2, 4),
+                    'color': (255, random.randint(150, 200), random.randint(50, 100)),
+                    'alpha': random.randint(180, 255),
+                    'trail_length': random.randint(10, 25)
                 })
         
-        elif 'Nebula' in self.weather_type or 'Fog' in self.weather_type.lower():
-            # Nebula/Fog - Smoky pink clouds drifting across the lane
-            cloud_count = max(30, row_width // 50)
-            for _ in range(cloud_count):
+        elif 'nebula' in wt or 'fog' in wt or 'interference' in wt:
+            # Nebula Interference - Purple/pink cosmic clouds
+            cloud_count = max(35, row_width // 45)
+            for i in range(cloud_count):
                 self.particles.append({
                     'pos': pygame.math.Vector2(
                         row_x + random.uniform(0, row_width),
                         row_y + random.uniform(0, row_height)
                     ),
-                    'vel': pygame.math.Vector2(random.uniform(-0.2, 0.4), random.uniform(-0.05, 0.05)),
-                    'size': random.randint(18, 40),
-                    'color': (220, 130 + random.randint(-10, 10), 200 + random.randint(-20, 15)),  # Pinkish hue
-                    'alpha': random.randint(35, 70),
+                    'vel': pygame.math.Vector2(random.uniform(-0.3, 0.5), random.uniform(-0.1, 0.1)),
+                    'size': random.randint(20, 45),
+                    'color': (220, random.randint(100, 160), 230),
+                    'alpha': random.randint(30, 60),
                     'wobble': random.uniform(0, math.pi * 2),
-                    'wobble_speed': random.uniform(0.01, 0.04),
+                    'wobble_speed': random.uniform(0.015, 0.04),
                     'layer': random.uniform(0.4, 1.0)
                 })
         
-        elif 'Solar' in self.weather_type:
-            # Solar Storm - Energy particles
-            for _ in range(50):
-                self.particles.append({
-                    'pos': pygame.math.Vector2(
-                        row_x + random.randint(0, row_width),
-                        row_y + random.randint(0, row_height)
-                    ),
-                    'vel': pygame.math.Vector2(random.uniform(-1, 1), random.uniform(-1, 1)),
-                    'size': random.randint(3, 6),
-                    'color': (255, 200, 100),  # Orange/yellow
-                    'alpha': random.randint(150, 255),
-                    'pulse': random.uniform(0, 6.28)
-                })
-        
-        elif 'Pulse' in self.weather_type or 'Electromagnetic' in self.weather_type:
-            # Electromagnetic Pulse - floating charged particles
-            particle_count = max(40, row_width // 60)
-            for _ in range(particle_count):
+        elif 'electromagnetic' in wt or 'pulse' in wt or 'emp' in wt or 'asgard' in wt:
+            # Electromagnetic Pulse - Electric arcs and charged particles
+            particle_count = max(50, row_width // 50)
+            for i in range(particle_count):
                 self.particles.append({
                     'pos': pygame.math.Vector2(
                         row_x + random.uniform(0, row_width),
                         row_y + random.uniform(0, row_height)
                     ),
-                    'vel': pygame.math.Vector2(random.uniform(-0.4, 0.4), random.uniform(-0.2, 0.2)),
-                    'size': random.randint(2, 4),
-                    'color': (120, 255, 210),
-                    'base_alpha': random.randint(90, 150),
-                    'pulse_speed': random.uniform(0.06, 0.12),
+                    'vel': pygame.math.Vector2(random.uniform(-0.5, 0.5), random.uniform(-0.3, 0.3)),
+                    'size': random.randint(2, 5),
+                    'color': (100, 255, 200),
+                    'base_alpha': random.randint(100, 180),
+                    'pulse_speed': random.uniform(0.08, 0.15),
                     'pulse_phase': random.uniform(0, math.pi * 2)
                 })
-        elif 'Asgard' in self.weather_type or 'Clear' in self.weather_type.lower() or 'Wormhole' in self.weather_type or 'Stabilization' in self.weather_type:
-            # Wormhole Stabilization - Black hole vortex effect FROM CENTER OF BOARD
-            # Use screen center instead of row center for dramatic effect
+            # Add some arc/lightning elements
+            for i in range(8):
+                self.particles.append({
+                    'pos': pygame.math.Vector2(
+                        row_x + random.uniform(0, row_width),
+                        row_y + row_height // 2
+                    ),
+                    'is_arc': True,
+                    'arc_length': random.randint(30, 80),
+                    'arc_phase': random.uniform(0, math.pi * 2),
+                    'alpha': random.randint(150, 255)
+                })
+        
+        elif 'wormhole' in wt or 'stabilization' in wt or 'clear' in wt:
+            # Wormhole Stabilization - Vortex/black hole clearing effect
             center_x = self.screen_width // 2
-            center_y = row_y + row_height // 2  # Keep vertical position in row
+            center_y = row_y + row_height // 2
             
-            # Create expanding spiral from center
-            for i in range(60):
-                angle = i * 6  # Degrees (tighter spiral with more particles)
-                distance = i * 5  # Start closer together
+            for i in range(70):
+                angle = i * 5.15
+                distance = i * 6
                 rad = math.radians(angle)
                 
                 self.particles.append({
@@ -917,22 +939,39 @@ class RowWeatherEffect:
                     ),
                     'vel': pygame.math.Vector2(0, 0),
                     'size': random.randint(3, 7),
-                    'color': (50, 150, 255),  # Bright blue particles
+                    'color': (80, 150, 255),
                     'alpha': 255,
-                    'fade_rate': random.uniform(2, 5),  # Fades quickly
-                    'spiral_speed': random.uniform(0.08, 0.2),
+                    'fade_rate': random.uniform(2, 4),
+                    'spiral_speed': random.uniform(0.1, 0.25),
                     'spiral_angle': angle,
                     'spiral_distance': distance,
                     'center': (center_x, center_y),
-                    'max_distance': distance + 150  # Expand outward first
+                    'max_distance': distance + 180
                 })
-            self.duration = 2500  # 2.5 seconds for clear effect
+            self.duration = 2500
             self.lifetime = 0
+        
+        else:
+            # Default generic weather particles
+            for i in range(30):
+                self.particles.append({
+                    'pos': pygame.math.Vector2(
+                        row_x + random.uniform(0, row_width),
+                        row_y + random.uniform(0, row_height)
+                    ),
+                    'vel': pygame.math.Vector2(random.uniform(-0.3, 0.3), random.uniform(0.5, 1.5)),
+                    'size': random.randint(2, 4),
+                    'color': (180, 180, 200),
+                    'alpha': random.randint(120, 200)
+                })
     
     def update(self, dt):
         """Update particles within row bounds."""
         if not self.active:
             return False
+        
+        # Update border pulse animation
+        self.border_pulse += 0.08 * (dt / 16.0)
         
         # Track lifetime for timed effects
         if self.duration > 0:
@@ -945,11 +984,21 @@ class RowWeatherEffect:
         row_y = self.row_rect.y
         row_width = self.row_rect.width
         row_height = self.row_rect.height
+        wt = self.weather_type.lower()
         
         for particle in self.particles:
+            # Skip arc particles (handled separately in draw)
+            if particle.get('is_arc'):
+                particle['arc_phase'] = particle.get('arc_phase', 0) + 0.15 * (dt / 16.0)
+                continue
+            
             particle['pos'] += particle['vel'] * (dt / 16.0)
             
-            # Handle special effects
+            # Handle rotation for ice crystals
+            if 'rotation' in particle:
+                particle['rotation'] += particle.get('rot_speed', 0) * (dt / 16.0)
+            
+            # Handle pulse effects
             if 'pulse' in particle:
                 particle['pulse'] += 0.1 * (dt / 16.0)
             
@@ -969,37 +1018,32 @@ class RowWeatherEffect:
 
             # Handle spiral/vortex for clear weather
             if 'spiral_speed' in particle:
-                # Calculate progress (0 to 1)
                 progress = self.lifetime / self.duration if self.duration > 0 else 0
                 
-                # First half: expand outward, second half: spiral inward (black hole effect)
                 if progress < 0.3:
-                    # Expand phase
                     expand_factor = progress / 0.3
                     particle['spiral_distance'] = particle.get('initial_distance', particle['spiral_distance']) + \
                                                  (particle.get('max_distance', 200) - particle.get('initial_distance', 100)) * expand_factor
                 else:
-                    # Spiral inward phase (black hole)
                     particle['spiral_distance'] = max(0, particle['spiral_distance'] - 1.5 * (dt / 16.0))
                 
-                # Store initial distance if not set
                 if 'initial_distance' not in particle:
                     particle['initial_distance'] = particle['spiral_distance']
                 
-                # Rotate the spiral
                 particle['spiral_angle'] += particle['spiral_speed'] * (dt / 16.0) * 15
                 
-                # Recalculate position in spiral
                 rad = math.radians(particle['spiral_angle'])
                 center = particle['center']
                 particle['pos'].x = center[0] + math.cos(rad) * particle['spiral_distance']
                 particle['pos'].y = center[1] + math.sin(rad) * particle['spiral_distance']
-                continue  # Don't apply normal wrapping to spiral particles
+                continue
             
             # Wrap particles within row bounds
             if particle['pos'].y > row_y + row_height:
-                particle['pos'].y = row_y
-            elif particle['pos'].y < row_y:
+                particle['pos'].y = row_y - 10
+                if 'asteroid' in wt or 'meteor' in wt:
+                    particle['pos'].x = row_x + random.randint(0, row_width)
+            elif particle['pos'].y < row_y - 20:
                 particle['pos'].y = row_y + row_height
             
             if particle['pos'].x > row_x + row_width:
@@ -1014,21 +1058,45 @@ class RowWeatherEffect:
         if not self.active:
             return
         
+        wt = self.weather_type.lower()
+        
         # Draw highlighted row background first
         highlight_surf = pygame.Surface((self.row_rect.width, self.row_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(highlight_surf, self.highlight_color, highlight_surf.get_rect(), border_radius=10)
+        pygame.draw.rect(highlight_surf, self.highlight_color, highlight_surf.get_rect(), border_radius=8)
         surface.blit(highlight_surf, (self.row_rect.x, self.row_rect.y))
         
+        # Draw animated pulsing border
+        border_color = self.get_border_color()
+        pygame.draw.rect(surface, border_color, self.row_rect, width=3, border_radius=8)
+        
         for particle in self.particles:
-            pos = (int(particle['pos'].x), int(particle['pos'].y))
+            # Handle arc/lightning particles
+            if particle.get('is_arc'):
+                arc_x = int(particle['pos'].x)
+                arc_y = int(particle['pos'].y)
+                arc_len = particle['arc_length']
+                phase = particle['arc_phase']
+                
+                # Draw zigzag lightning
+                points = [(arc_x, arc_y)]
+                for i in range(5):
+                    offset_x = math.sin(phase + i * 1.5) * 15
+                    offset_y = (i + 1) * (self.row_rect.height // 6)
+                    points.append((arc_x + int(offset_x), arc_y + offset_y))
+                
+                if len(points) >= 2:
+                    pygame.draw.lines(surface, (100, 255, 220, particle['alpha']), False, points, 2)
+                continue
             
-            # Apply alpha
+            pos = (int(particle['pos'].x), int(particle['pos'].y))
             alpha = particle.get('alpha', 255)
+            
+            # Handle pulse effects for solar
             if 'pulse' in particle:
-                # Pulsing effect for solar storms
                 pulse_alpha = int(alpha * (0.7 + 0.3 * math.sin(particle['pulse'])))
                 alpha = pulse_alpha
             
+            # EMP particles with glow
             if 'pulse_speed' in particle:
                 glow_radius = particle['size'] + 4
                 glow_surf = pygame.Surface((glow_radius*2, glow_radius*2), pygame.SRCALPHA)
@@ -1039,8 +1107,8 @@ class RowWeatherEffect:
                 surface.blit(glow_surf, (pos[0]-glow_radius, pos[1]-glow_radius))
                 continue
             
-            if 'Nebula' in self.weather_type or 'Fog' in self.weather_type.lower() or self.particles[0]['size'] > 10:
-                # Draw as semi-transparent circles for fog/nebula
+            # Nebula/fog particles
+            if 'nebula' in wt or 'fog' in wt or 'interference' in wt or particle['size'] > 10:
                 fog_surf = pygame.Surface((particle['size']*2, particle['size']*2), pygame.SRCALPHA)
                 color = (*particle['color'], alpha)
                 pygame.draw.circle(fog_surf, color, (particle['size'], particle['size']), particle['size'])
@@ -1054,21 +1122,50 @@ class RowWeatherEffect:
                     )
                     pygame.draw.circle(fog_surf, inner_color, (particle['size'], particle['size']), inner_radius)
                 surface.blit(fog_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
-            else:
-                # Draw as small circles or lines
-                if 'Micrometeorite' in self.weather_type or 'Rain' in self.weather_type.lower():
-                    # Draw as streak
-                    end_pos = (int(pos[0] + particle['vel'].x * 3), int(pos[1] + particle['vel'].y * 3))
-                    pygame.draw.line(surface, particle['color'], pos, end_pos, particle['size'])
+            
+            # Asteroid/meteor particles - draw as fiery streaks
+            elif 'asteroid' in wt or 'meteor' in wt or 'storm' in wt:
+                trail_len = particle.get('trail_length', 15)
+                end_pos = (int(pos[0] - particle['vel'].x * trail_len / 5), 
+                          int(pos[1] - particle['vel'].y * trail_len / 5))
+                
+                # Draw trail (gradient effect)
+                for i in range(3):
+                    trail_alpha = max(50, alpha - i * 60)
+                    trail_color = (*particle['color'][:3], trail_alpha) if len(particle['color']) == 3 else particle['color']
+                    intermediate = (
+                        int(pos[0] - particle['vel'].x * trail_len / 5 * (i / 3)),
+                        int(pos[1] - particle['vel'].y * trail_len / 5 * (i / 3))
+                    )
+                    pygame.draw.line(surface, particle['color'], pos, intermediate, max(1, particle['size'] - i))
+                
+                # Draw bright head
+                pygame.draw.circle(surface, (255, 255, 200), pos, particle['size'])
+            
+            # Ice particles - draw as small crystals
+            elif 'ice' in wt or 'hazard' in wt or 'frost' in wt:
+                if alpha < 255:
+                    crystal_surf = pygame.Surface((particle['size']*2+2, particle['size']*2+2), pygame.SRCALPHA)
+                    color = (*particle['color'], alpha)
+                    center = (particle['size']+1, particle['size']+1)
+                    # Draw simple crystal shape
+                    pygame.draw.circle(crystal_surf, color, center, particle['size'])
+                    # Add a sparkle
+                    sparkle_color = (255, 255, 255, alpha // 2)
+                    pygame.draw.circle(crystal_surf, sparkle_color, (center[0]-1, center[1]-1), max(1, particle['size']//2))
+                    surface.blit(crystal_surf, (pos[0]-particle['size']-1, pos[1]-particle['size']-1))
                 else:
-                    # Draw as circle
-                    if alpha < 255:
-                        circle_surf = pygame.Surface((particle['size']*2, particle['size']*2), pygame.SRCALPHA)
-                        color = (*particle['color'], alpha)
-                        pygame.draw.circle(circle_surf, color, (particle['size'], particle['size']), particle['size'])
-                        surface.blit(circle_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
-                    else:
-                        pygame.draw.circle(surface, particle['color'], pos, particle['size'])
+                    pygame.draw.circle(surface, particle['color'], pos, particle['size'])
+            
+            # Default particles
+            else:
+                if alpha < 255:
+                    circle_surf = pygame.Surface((particle['size']*2, particle['size']*2), pygame.SRCALPHA)
+                    color = (*particle['color'], alpha)
+                    pygame.draw.circle(circle_surf, color, (particle['size'], particle['size']), particle['size'])
+                    surface.blit(circle_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
+                else:
+                    pygame.draw.circle(surface, particle['color'], pos, particle['size'])
 
 
 class MeteorShowerImpactEffect:

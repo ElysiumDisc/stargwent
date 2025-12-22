@@ -88,12 +88,17 @@ class DraftModeController:
             if not self.current_choices:
                 self.current_choices = self.current_run.get_current_choices()
 
+            # Calculate synergy scores for each choice
+            synergy_scores = [self.current_run.get_synergy_score(card) for card in self.current_choices]
+
             self.clickable_rects = self.ui.draw_draft_phase(
                 surface,
                 self.current_choices,
                 self.current_run.current_pick,
                 DraftRun.CARDS_TO_DRAFT,
-                self.current_run.drafted_cards
+                self.current_run.drafted_cards,
+                synergy_scores=synergy_scores,
+                can_undo=self.current_run.current_pick > 0
             )
 
         elif self.current_run.phase == "review":
@@ -170,7 +175,7 @@ class DraftModeController:
                 elif self.current_run.phase == "draft":
                     # Card selected
                     selected_card = self.current_choices[clicked_index]
-                    self.current_run.pick_card(selected_card)
+                    self.current_run.pick_card(selected_card, self.current_choices)
                     self.current_choices = []  # Get new choices next render
                     self.ui.selected_index = None
 
@@ -185,6 +190,14 @@ class DraftModeController:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return "exit"
+            
+            # Undo last pick with Z or Backspace
+            if event.key in (pygame.K_z, pygame.K_BACKSPACE):
+                if self.current_run.phase == "draft" and self.current_run.current_pick > 0:
+                    previous_choices = self.current_run.undo_last_pick()
+                    if previous_choices:
+                        self.current_choices = previous_choices
+                        self.ui.selected_index = None
 
         return None
 

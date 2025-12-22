@@ -182,7 +182,8 @@ class DraftModeUI:
         return leader_rects
 
     def draw_draft_phase(self, surface: pygame.Surface, choices: List[Card],
-                        current_pick: int, total_picks: int, drafted_cards: List[Card]) -> List[pygame.Rect]:
+                        current_pick: int, total_picks: int, drafted_cards: List[Card],
+                        synergy_scores: List[Dict] = None, can_undo: bool = False) -> List[pygame.Rect]:
         """
         Draw card drafting screen.
 
@@ -192,6 +193,8 @@ class DraftModeUI:
             current_pick: Current pick number (0-indexed)
             total_picks: Total number of picks needed
             drafted_cards: Cards already drafted
+            synergy_scores: Optional list of synergy score dicts for each choice
+            can_undo: Whether undo is available
 
         Returns:
             List of clickable rects for each choice
@@ -221,16 +224,25 @@ class DraftModeUI:
         progress_rect = progress.get_rect(center=(self.screen_width // 2, bar_y - 30))
         surface.blit(progress, progress_rect)
 
+        # Undo hint
+        if can_undo:
+            undo_text = self.font_small.render("Press Z to undo last pick", True, COLOR_TEXT_SECONDARY)
+            surface.blit(undo_text, (bar_x, bar_y + bar_height + 5))
+
         # Draw card choices
         choice_rects = []
         start_x = (self.screen_width - (self.card_width * 3 + self.card_spacing * 2)) // 2
-        start_y = int(160 * self.scale)
+        start_y = int(100 * self.scale)
 
         for i, card in enumerate(choices):
             x = start_x + i * (self.card_width + self.card_spacing)
             y = start_y
 
-            rect = pygame.Rect(x, y, self.card_width, self.card_height * 1.2)
+            rect = pygame.Rect(x, y, self.card_width, int(self.card_height * 1.2))
+            
+            # Get synergy info
+            synergy = synergy_scores[i] if synergy_scores and i < len(synergy_scores) else None
+            synergy_score = synergy['score'] if synergy else 0
 
             # Display actual card image from assets
             if card.image:
@@ -238,29 +250,57 @@ class DraftModeUI:
                 card_image = pygame.transform.smoothscale(card.image, (self.card_width, int(self.card_height * 1.2)))
                 surface.blit(card_image, (x, y))
 
-                # Add border based on state
-                border_color = COLOR_ACCENT_GOLD if i == self.selected_index else \
-                              self._get_faction_color(card.faction) if i == self.hovered_index else \
-                              COLOR_TEXT_SECONDARY
-                border_width = 5 if i == self.selected_index else 3
+                # Add border based on state - highlight synergy cards
+                if i == self.selected_index:
+                    border_color = COLOR_ACCENT_GOLD
+                    border_width = 5
+                elif synergy_score >= 3:
+                    border_color = (100, 255, 100)  # Green for good synergy
+                    border_width = 4
+                elif i == self.hovered_index:
+                    border_color = self._get_faction_color(card.faction)
+                    border_width = 3
+                else:
+                    border_color = COLOR_TEXT_SECONDARY
+                    border_width = 2
                 pygame.draw.rect(surface, border_color, rect, width=border_width, border_radius=10)
 
                 # Add semi-transparent info overlay at bottom
-                info_height = 80
+                info_height = 95
                 info_bg = pygame.Surface((self.card_width, info_height), pygame.SRCALPHA)
-                info_bg.fill((0, 0, 0, 200))
+                info_bg.fill((0, 0, 0, 220))
                 surface.blit(info_bg, (x, y + int(self.card_height * 1.2) - info_height))
 
                 # Card name
                 name = self.font_small.render(card.name[:18], True, COLOR_TEXT_PRIMARY)
-                name_rect = name.get_rect(center=(x + self.card_width // 2, y + int(self.card_height * 1.2) - 60))
+                name_rect = name.get_rect(center=(x + self.card_width // 2, y + int(self.card_height * 1.2) - info_height + 15))
                 surface.blit(name, name_rect)
 
-                # Power and row
-                info_text = f"⚡{card.power}  {card.row.upper()}"
+                # Power and row (no emoji)
+                info_text = f"[{card.power}] {card.row.upper()}"
                 info = self.font_small.render(info_text, True, COLOR_ACCENT_GOLD)
-                info_rect = info.get_rect(center=(x + self.card_width // 2, y + int(self.card_height * 1.2) - 35))
+                info_rect = info.get_rect(center=(x + self.card_width // 2, y + int(self.card_height * 1.2) - info_height + 38))
                 surface.blit(info, info_rect)
+                
+                # Synergy indicator
+                if synergy and synergy_score != 0:
+                    if synergy_score > 0:
+                        syn_color = (100, 255, 100)
+                        syn_text = f"+{synergy_score} Synergy"
+                    else:
+                        syn_color = (255, 100, 100)
+                        syn_text = f"{synergy_score} Synergy"
+                    
+                    syn_surf = self.font_small.render(syn_text, True, syn_color)
+                    syn_rect = syn_surf.get_rect(center=(x + self.card_width // 2, y + int(self.card_height * 1.2) - info_height + 62))
+                    surface.blit(syn_surf, syn_rect)
+                    
+                    # Show reason on hover
+                    if i == self.hovered_index and synergy.get('reasons'):
+                        reason = synergy['reasons'][0][:28]
+                        reason_surf = self.font_small.render(reason, True, (180, 180, 200))
+                        reason_rect = reason_surf.get_rect(center=(x + self.card_width // 2, y + int(self.card_height * 1.2) - 12))
+                        surface.blit(reason_surf, reason_rect)
 
             else:
                 # Fallback to colored rectangle with text (old behavior)

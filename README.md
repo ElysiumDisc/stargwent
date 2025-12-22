@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.6.0-blue)
+![Version](https://img.shields.io/badge/version-3.7.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.7.0: PERSISTENT ROW WEATHER ANIMATIONS** - Each weather card now has distinct visual effects that persist on affected rows until cleared! Ice crystals for Ice Planet Hazard, fiery meteors for Asteroid Storm, purple nebula clouds, cyan EMP arcs, and more!
+- **⚡ NEW v3.7.0: ENHANCED CARD PREVIEW** - Right-click preview now shows cards at 2x scale with smooth scaling, faction-colored glow borders, and improved description layout!
+- **⚡ NEW v3.7.0: DRAFT MODE SYNERGY SYSTEM** - Draft mode now shows synergy scores for each card choice, highlighting cards that combo with your current deck! Press Z to undo picks!
 - **⚡ NEW v3.6.0: ELITE AI OVERHAUL** - AI logic rebuilt for strategic depth: Hero preservation, Round 2 bleeding, and tactical Faction Power usage. Single "Hard" difficulty now plays like a veteran!
 - **⚡ NEW v3.5.0: NARRATOR & INTEGRATED CHAT** - Game history now acts as a narrator, explaining score changes (e.g., "Scorch vaporized 3 units! (-15)") and card effects. Chat is fully integrated into the history panel—press 'T' to type without leaving the action!
 - **⚡ NEW v3.5.0: PRECISE CARD PLACEMENT** - You can now drop cards *between* existing units on the board, allowing for precise tactical positioning!
@@ -151,6 +154,30 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 3.7.0 (December 2025)
+**Weather Animations, Card Preview & Draft Synergies**
+
+- ✅ **Persistent Row Weather Animations** – Each weather card now has unique visual effects that remain on affected rows until cleared:
+  - **Ice Planet Hazard** (Close): Blue ice crystals/snowflakes falling with sparkle effects and pulsing blue border
+  - **Nebula Interference** (Ranged): Purple/pink cosmic clouds drifting with layered fog particles
+  - **Asteroid Storm** (Siege): Orange fiery meteors streaking down with trail effects and bright heads
+  - **Electromagnetic Pulse** (Any): Cyan glowing particles with electric arc/lightning effects
+  - **Wormhole Stabilization** (Clear): Blue spiral vortex that expands then collapses like a black hole
+- ✅ **Animated Weather Borders** – Affected rows now have pulsing faction-colored borders that animate continuously
+- ✅ **Enhanced Card Preview (Right-Click)** – Cards now display at 2x scale with:
+  - Smooth scaling for crisp images at larger sizes
+  - Faction-colored glow effect around card border
+  - Semi-transparent dark overlay for better focus
+  - Wider description box with better typography
+  - Responsive sizing that adapts to screen
+- ✅ **Draft Mode Synergy System** – Card choices now show synergy scores:
+  - Green border highlights high-synergy cards (+3 or more)
+  - Synergy reasons shown on hover (e.g., "+3 Tight Bond (2 copies)")
+  - Evaluates: Tactical Formation, Gate Reinforcement, row balance, hero/spy/medic value
+  - **Undo Feature**: Press Z or Backspace to undo last pick
+- ✅ **Draft Stats Enhancement** – Review phase now shows hero/spy/medic counts
+- ✅ **Ability Button Labels** – Faction power and leader ability buttons now show ability names and READY/USED status
 
 ### Version 3.6.0 (December 2025)
 **Grand AI Overhaul & Tactical Precision**
