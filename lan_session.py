@@ -13,7 +13,7 @@ class LanSession:
         self.thread = None
         self.keepalive_thread = None
         self.inbox = queue.Queue()
-        self.running = False
+        self.stop_event = threading.Event()
         self.last_received = 0
         self.connection_timeout = 30  # seconds without message = disconnect
         self.keepalive_interval = 5   # send keepalive every 5 seconds
@@ -72,7 +72,7 @@ class LanSession:
         # Set socket timeout for recv
         self.sock.settimeout(1.0)  # 1 second timeout for recv
 
-        self.running = True
+        self.stop_event.clear()
         self.last_received = time.time()
 
         self.thread = threading.Thread(target=self._reader, daemon=True)
@@ -83,7 +83,7 @@ class LanSession:
 
     def _reader(self):
         buffer = b""
-        while self.running:
+        while not self.stop_event.is_set():
             try:
                 data = self.sock.recv(4096)
                 if not data:
@@ -111,32 +111,34 @@ class LanSession:
                     if payload.get("type") != "keepalive":
                         self.inbox.put(payload)
                 except json.JSONDecodeError:
-                    continue
+                    print("[LanSession] Error: Received malformed JSON. Closing connection to prevent state corruption.")
+                    self.stop_event.set()
+                    break
 
-        self.running = False
+        self.stop_event.set()
         self.inbox.put({"type": "disconnect"})
 
     def _keepalive_sender(self):
         """Send periodic keepalive messages to detect dead connections."""
-        while self.running:
+        while not self.stop_event.is_set():
             time.sleep(self.keepalive_interval)
-            if self.running:
+            if not self.stop_event.is_set():
                 try:
                     # Send minimal keepalive packet
                     packet = json.dumps({"type": "keepalive"}).encode("utf-8") + b"\n"
                     self.sock.sendall(packet)
                 except OSError:
                     # Connection lost
-                    self.running = False
+                    self.stop_event.set()
                     self.inbox.put({"type": "disconnect"})
                     break
 
     def is_connected(self):
         """Check if the session is still connected."""
-        return self.running and self.sock is not None
+        return not self.stop_event.is_set() and self.sock is not None
 
     def send(self, message_type, payload=None):
-        if not self.running or not self.sock:
+        if self.stop_event.is_set() or not self.sock:
             return False
         packet = json.dumps({"type": message_type, "payload": payload}).encode("utf-8") + b"\n"
         try:
@@ -145,14 +147,8 @@ class LanSession:
         except OSError:
             return False
 
-    def receive(self):
-        try:
-            return self.inbox.get_nowait()
-        except queue.Empty:
-            return None
-
     def close(self):
-        self.running = False
+        self.stop_event.set()
         if self.sock:
             try:
                 self.sock.shutdown(socket.SHUT_RDWR)

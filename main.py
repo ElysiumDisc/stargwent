@@ -3149,7 +3149,7 @@ def main(lan_game_data=None):
         # LAN multiplayer mode - use NetworkController
         from lan_opponent import NetworkController, NetworkPlayerProxy
         ai_controller = NetworkController(game, game.player2, LAN_CONTEXT.session, LAN_CONTEXT.role)
-        network_proxy = NetworkPlayerProxy(LAN_CONTEXT.session, LAN_CONTEXT.role)
+        network_proxy = NetworkPlayerProxy(LAN_CONTEXT.session, LAN_CONTEXT.role, game)
         print(f"[LAN] Running in {LAN_CONTEXT.role} mode with NetworkController")
     else:
         # Single player mode - use AIController (always hardest)
@@ -3551,6 +3551,11 @@ def main(lan_game_data=None):
         # Update Iris Power UI hover states
         mouse_pos = pygame.mouse.get_pos()
         
+        # Check if waiting for opponent (LAN mode)
+        waiting_for_opponent = False
+        if LAN_MODE and game.current_player != game.player1 and not game.game_over:
+            waiting_for_opponent = True
+
         # Event handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -3681,6 +3686,11 @@ def main(lan_game_data=None):
                     history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
                     history_manual_scroll = True
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                # LAN: Block game interactions if waiting for opponent
+                # Allow Right Click (3) for inspection and UI clicks if paused/chatting
+                if waiting_for_opponent and ui_state not in (UIState.PAUSED, UIState.LAN_CHAT) and event.button != 3:
+                    continue
+
                 if event.button in (4, 5):
                     if history_panel_rect and history_panel_rect.collidepoint(event.pos):
                         delta = HISTORY_ENTRY_HEIGHT if event.button == 4 else -HISTORY_ENTRY_HEIGHT
@@ -4595,7 +4605,12 @@ def main(lan_game_data=None):
                                           game.player2.faction_power.is_available())
 
             # Poll for network message from opponent
+            was_passed = game.player2.has_passed
             card_to_play, row_to_play = ai_controller.choose_move()
+            
+            if not was_passed and game.player2.has_passed:
+                game.switch_turn()
+                continue
 
             # Check if opponent used faction power
             lan_power_available_after = (game.player2.faction_power and
@@ -4616,6 +4631,10 @@ def main(lan_game_data=None):
                     from animations import IrisClosingEffect
                     iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                     anim_manager.add_effect(iris_anim)
+                
+                game.last_turn_actor = game.player2
+                game.switch_turn()
+                continue
 
             if card_to_play and row_to_play:
                 # Opponent played a card - process it with animations
@@ -5475,6 +5494,22 @@ def main(lan_game_data=None):
                     stop_battle_music()
                     pygame.quit()
                     sys.exit()
+
+        # LAN: Waiting for Opponent Overlay
+        if LAN_MODE and game.current_player != game.player1 and not game.game_over and ui_state == UIState.PLAYING:
+            # Draw transparent overlay
+            wait_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            wait_overlay.fill((0, 0, 0, 100)) # Darken slightly
+            screen.blit(wait_overlay, (0, 0))
+            
+            # Draw Text
+            wait_font = pygame.font.SysFont("Arial", 48, bold=True)
+            wait_text = wait_font.render("WAITING FOR OPPONENT...", True, (255, 255, 255))
+            wait_rect = wait_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            
+            # Draw text background
+            pygame.draw.rect(screen, (0, 0, 0, 150), wait_rect.inflate(40, 20), border_radius=10)
+            screen.blit(wait_text, wait_rect)
 
         pygame.display.flip()
 

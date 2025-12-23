@@ -20,7 +20,7 @@ class NetworkOpponent:
     Network-based opponent that replaces AIOpponent for LAN games.
 
     This class mirrors the AIOpponent interface but instead of computing moves,
-    it waits for network messages from the remote player.
+    it waits for the remote player to send their action.
     """
 
     def __init__(self, session: LanSession, role: str):
@@ -158,6 +158,8 @@ class NetworkController:
         self.session = session
         self.role = role
         self.turn_token_counter = 0
+        self.pending_verification = None  # Stores (p1_score, p2_score) from last action to verify
+        self.desync_detected = False
 
     def _find_card_in_discard(self, player, card_id):
         if not card_id:
@@ -187,7 +189,21 @@ class NetworkController:
         if self.network_player.has_passed:
             return (None, None)
 
-        # Poll for network message
+        # 1. State Verification (Post-Move Check)
+        if self.pending_verification:
+            expected_p1, expected_p2 = self.pending_verification
+            current_p1 = self.game.player1.score
+            current_p2 = self.game.player2.score
+            
+            # Allow for small timing differences, but scores should match after move is fully processed
+            if current_p1 != expected_p1 or current_p2 != expected_p2:
+                print(f"[Network] DESYNC DETECTED! Expected ({expected_p1}-{expected_p2}), Got ({current_p1}-{current_p2})")
+                self.desync_detected = True
+                # In a full implementation, we might request a state resync here
+            
+            self.pending_verification = None
+
+        # 2. Poll for network message
         msg = self.session.receive()
         if not msg:
             # No message yet - return None to indicate waiting
@@ -200,6 +216,12 @@ class NetworkController:
 
         msg_type = parsed.get("type")
         payload = parsed.get("payload", {})
+
+        # Extract scores for verification on NEXT tick (after action is applied)
+        p1_score = payload.get("p1_score")
+        p2_score = payload.get("p2_score")
+        if p1_score is not None and p2_score is not None:
+            self.pending_verification = (p1_score, p2_score)
 
         if msg_type == LanMessageType.GAME_ACTION.value:
             action_type = payload.get("action")
@@ -217,6 +239,7 @@ class NetworkController:
                         return (card, row)
 
                 # Card not found in hand
+                print(f"[Network] Error: Card {card_id} not found in hand!")
                 return (None, None)
 
             elif action_type == "pass":
@@ -273,16 +296,18 @@ class NetworkPlayerProxy:
     the remote opponent for replay.
     """
 
-    def __init__(self, session: LanSession, role: str):
+    def __init__(self, session: LanSession, role: str, game=None):
         """
         Initialize proxy.
 
         Args:
             session: LAN session for sending actions
             role: "host" or "client"
+            game: Game instance (for score validation)
         """
         self.session = session
         self.role = role
+        self.game = game
         self.turn_token_counter = 0
 
     def next_turn_token(self) -> str:
@@ -292,7 +317,22 @@ class NetworkPlayerProxy:
 
     def _send_action(self, action_type: str, data: Dict[str, Any], target_id: Optional[str] = None):
         turn_token = self.next_turn_token()
-        msg = build_action_message(action_type, data, turn_token=turn_token, target_id=target_id)
+        
+        # Capture scores for validation
+        p1_score = None
+        p2_score = None
+        if self.game:
+            p1_score = self.game.player1.score
+            p2_score = self.game.player2.score
+
+        msg = build_action_message(
+            action_type, 
+            data, 
+            turn_token=turn_token, 
+            target_id=target_id,
+            p1_score=p1_score,
+            p2_score=p2_score
+        )
         self.session.send(msg["type"], msg["payload"])
 
     def send_play_card(self, card_id: str, row: str):
