@@ -950,6 +950,25 @@ class RowWeatherEffect:
                 })
             self.duration = 2500
             self.lifetime = 0
+            
+        elif 'replicator' in wt or 'swarm' in wt:
+            # Replicator Swarm - Small grey blocks jittering
+            for i in range(80):
+                self.particles.append({
+                    'pos': pygame.math.Vector2(
+                        row_x + random.uniform(0, row_width),
+                        row_y + random.uniform(0, row_height)
+                    ),
+                    'vel': pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2)),
+                    'size': random.randint(3, 6),
+                    'color': (180, 180, 190),  # Grey metallic
+                    'target_pos': pygame.math.Vector2(
+                        row_x + random.uniform(0, row_width),
+                        row_y + random.uniform(0, row_height)
+                    ),
+                    'jitter_timer': 0,
+                    'block_type': True  # Mark as block for draw
+                })
         
         else:
             # Default generic weather particles
@@ -990,6 +1009,29 @@ class RowWeatherEffect:
             # Skip arc particles (handled separately in draw)
             if particle.get('is_arc'):
                 particle['arc_phase'] = particle.get('arc_phase', 0) + 0.15 * (dt / 16.0)
+                continue
+
+            # Handle Replicator Swarm
+            if particle.get('block_type'):
+                # Jitter movement toward target
+                particle['jitter_timer'] += dt
+                if particle['jitter_timer'] > 100:  # New target every 0.1s
+                    particle['jitter_timer'] = 0
+                    particle['target_pos'] = pygame.math.Vector2(
+                        particle['pos'].x + random.uniform(-20, 20),
+                        particle['pos'].y + random.uniform(-20, 20)
+                    )
+                
+                # Move towards target rapidly
+                diff = particle['target_pos'] - particle['pos']
+                if diff.length() > 1:
+                    particle['pos'] += diff.normalize() * 3 * (dt / 16.0)
+                
+                # Wrap
+                if particle['pos'].x < row_x: particle['pos'].x = row_x + row_width
+                if particle['pos'].x > row_x + row_width: particle['pos'].x = row_x
+                if particle['pos'].y < row_y: particle['pos'].y = row_y + row_height
+                if particle['pos'].y > row_y + row_height: particle['pos'].y = row_y
                 continue
             
             particle['pos'] += particle['vel'] * (dt / 16.0)
@@ -1086,6 +1128,15 @@ class RowWeatherEffect:
                 
                 if len(points) >= 2:
                     pygame.draw.lines(surface, (100, 255, 220, particle['alpha']), False, points, 2)
+                continue
+
+            # Handle Replicator Blocks
+            if particle.get('block_type'):
+                pos = (int(particle['pos'].x), int(particle['pos'].y))
+                size = particle['size']
+                # Draw geometric block (rectangle)
+                pygame.draw.rect(surface, particle['color'], (pos[0], pos[1], size*2, size))
+                pygame.draw.rect(surface, (100, 100, 110), (pos[0], pos[1], size*2, size), width=1)
                 continue
             
             pos = (int(particle['pos'].x), int(particle['pos'].y))
@@ -1312,8 +1363,8 @@ class WeatherEffect:
 
 
 class ScorePopAnimation(Animation):
-    """Dramatic score change animation with pop effect."""
-    def __init__(self, old_value, new_value, x, y, duration=600, lead_burst=False):
+    """Dramatic score change animation with pop effect and optional combat text."""
+    def __init__(self, old_value, new_value, x, y, duration=600, lead_burst=False, label_text=None, label_color=(255, 255, 255)):
         super().__init__(duration)
         self.old_value = old_value
         self.new_value = new_value
@@ -1327,6 +1378,8 @@ class ScorePopAnimation(Animation):
         self.shake_strength = 0.0
         self.shake_freq = random.uniform(4.0, 6.5)
         self.lead_burst = lead_burst
+        self.label_text = label_text
+        self.label_color = label_color
         self.burst_particles = []
         if lead_burst:
             for _ in range(24):
@@ -1435,6 +1488,22 @@ class ScorePopAnimation(Animation):
             delta_text.set_alpha(int(self.alpha * (1.0 - progress / 0.8)))
             delta_y = final_y - 40 - progress * 30
             surface.blit(delta_text, (self.x - 100, int(delta_y)))
+
+        # Show combat text label (e.g. "BUFFED!")
+        if self.label_text:
+            # Use smaller font for label
+            label_font = pygame.font.SysFont("Arial", 16, bold=True)
+            label_surf = label_font.render(self.label_text, True, self.label_color)
+            
+            # Fade in/out
+            label_alpha = self.alpha
+            if progress > 0.7:
+                label_alpha = int(255 * (1.0 - (progress - 0.7) / 0.3))
+            label_surf.set_alpha(label_alpha)
+            
+            # Position above score
+            label_rect = label_surf.get_rect(bottom=text_rect.top - 5, centerx=text_rect.centerx)
+            surface.blit(label_surf, label_rect)
 
 
 class AmbientStarfield:

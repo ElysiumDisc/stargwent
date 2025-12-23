@@ -582,32 +582,74 @@ class FactionPowerEffect:
             surface.blit(text_surf, text_rect)
     
     def draw_sarcophagus_revival(self, surface, progress):
-        """Goa'uld - Golden energy stream from leader to discard pile."""
-        # Golden beam
-        beam_alpha = int(200 * math.sin(progress * math.pi))
-        if beam_alpha > 0:
-            # Draw beam from top center (leader area) to multiple points on board
-            start_x = self.center_x
-            start_y = 100
-
-            for i in range(2):
-                end_x = self.center_x - 200 + (i * 400)
-                end_y = self.center_y
-
-                # Multiple beam layers for glow effect
-                for width in range(10, 0, -2):
-                    alpha = beam_alpha * (width / 10)
-                    beam_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-                    pygame.draw.line(beam_surface, (255, 215, 0, int(alpha)),
-                                   (start_x, start_y), (end_x, end_y), width)
-                    surface.blit(beam_surface, (0, 0))
-
-                # Energy particle at end
-                particle_radius = int(20 + 10 * math.sin(progress * math.pi * 4))
-                particle_surface = pygame.Surface((particle_radius * 2, particle_radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(particle_surface, (255, 215, 0, beam_alpha),
-                                 (particle_radius, particle_radius), particle_radius)
-                surface.blit(particle_surface, (end_x - particle_radius, end_y - particle_radius))
+        """Goa'uld - Sarcophagus opens and golden energy stream flows."""
+        # Draw Sarcophagus
+        sarc_width = 160
+        sarc_height = 240
+        sarc_x = self.center_x - sarc_width // 2
+        sarc_y = self.center_y - 100
+        
+        # Calculate lid opening state
+        # 0.0-0.3: Closed
+        # 0.3-0.5: Opens
+        # 0.5-0.8: Open (Energy flows)
+        # 0.8-1.0: Closes
+        
+        lid_offset = 0
+        if 0.3 <= progress < 0.5:
+            lid_offset = (progress - 0.3) / 0.2 * 60  # Move 60px to side
+        elif 0.5 <= progress < 0.8:
+            lid_offset = 60
+        elif 0.8 <= progress:
+            lid_offset = 60 - (progress - 0.8) / 0.2 * 60
+            
+        # Draw Sarcophagus Base (Dark gold/bronze)
+        pygame.draw.rect(surface, (100, 80, 20), (sarc_x, sarc_y, sarc_width, sarc_height), border_radius=20)
+        pygame.draw.rect(surface, (160, 140, 40), (sarc_x, sarc_y, sarc_width, sarc_height), width=5, border_radius=20)
+        
+        # Draw Inner Glow (when open)
+        if lid_offset > 5:
+            inner_rect = pygame.Rect(sarc_x + 10, sarc_y + 10, sarc_width - 20, sarc_height - 20)
+            glow_intensity = min(255, int(abs(math.sin(progress * 10)) * 255))
+            pygame.draw.rect(surface, (255, 255, 200), inner_rect, border_radius=15)
+            
+            # White hot center
+            center_rect = inner_rect.inflate(-40, -40)
+            pygame.draw.rect(surface, (255, 255, 255), center_rect, border_radius=10)
+        
+        # Draw Lid (Split in two or slide off - let's do slide right)
+        lid_rect = pygame.Rect(sarc_x + lid_offset, sarc_y, sarc_width, sarc_height)
+        # Detailed Lid
+        pygame.draw.rect(surface, (180, 150, 50), lid_rect, border_radius=20)
+        # Ornaments
+        pygame.draw.rect(surface, (120, 100, 30), lid_rect.inflate(-20, -20), width=3, border_radius=10)
+        # Pharaoh face shape (abstract)
+        pygame.draw.circle(surface, (200, 180, 60), (lid_rect.centerx, lid_rect.y + 60), 30) # Head
+        pygame.draw.rect(surface, (50, 100, 200), (lid_rect.centerx - 25, lid_rect.y + 60, 50, 40)) # Headdress stripes
+        
+        # Golden beam (only when open)
+        if lid_offset > 30:
+            beam_alpha = int(200 * math.sin(progress * math.pi))
+            if beam_alpha > 0:
+                # Draw beam from sarcophagus to discard pile area (or just up)
+                start_x = sarc_x + sarc_width // 2
+                start_y = sarc_y + 40
+                
+                # Beam flowing out
+                for i in range(2):
+                    end_x = self.center_x - 200 + (i * 400)
+                    end_y = self.screen_height - 100
+                    
+                    # Energy curve
+                    points = []
+                    for t in range(11):
+                        ft = t / 10.0
+                        px = start_x + (end_x - start_x) * ft
+                        py = start_y + (end_y - start_y) * ft + math.sin(ft * math.pi) * -100
+                        points.append((px, py))
+                    
+                    if len(points) > 1:
+                        pygame.draw.lines(surface, (255, 215, 0, beam_alpha), False, points, 5)
 
         # Text overlay
         if 0.3 < progress < 0.9:
@@ -622,7 +664,7 @@ class FactionPowerEffect:
             surface.blit(text_surf, text_rect)
     
     def draw_naquadah_explosion(self, surface, progress):
-        """Lucian Alliance - Green energy wave expanding from center."""
+        """Lucian Alliance - Green energy wave expanding from center with EM interference."""
         # Expanding shockwave
         wave_radius = int(50 + progress * 600)
         wave_alpha = int(200 * (1 - progress))
@@ -638,13 +680,22 @@ class FactionPowerEffect:
                                      (radius, radius), radius, width=5)
                     surface.blit(wave_surface, (self.center_x - radius, self.center_y - radius))
 
-            # Distortion effect (visual glitch)
-            if progress < 0.5:
-                glitch_alpha = int(100 * (0.5 - progress) * 2)
-                glitch_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-                glitch_surface.fill((50, 255, 50, glitch_alpha))
-                surface.blit(glitch_surface, (0, 0))
-
+            # Scanline / Glitch effect simulating EM interference
+            num_scanlines = 20
+            for i in range(num_scanlines):
+                # Random horizontal lines
+                line_y = random.randint(0, self.screen_height)
+                line_h = random.randint(2, 10)
+                # Random horizontal offset
+                x_offset = random.randint(-20, 20)
+                
+                # Draw a semi-transparent colored strip
+                line_surf = pygame.Surface((self.screen_width, line_h), pygame.SRCALPHA)
+                line_color = random.choice([(50, 255, 50), (100, 255, 100), (200, 255, 200)])
+                line_surf.fill((*line_color, random.randint(50, 150)))
+                
+                surface.blit(line_surf, (x_offset, line_y))
+                
         # Text overlay
         if 0.2 < progress < 0.9:
             text_alpha = int(255 * min(1.0, (progress - 0.2) * 5) * (1 - max(0, (progress - 0.7) * 5)))
@@ -654,7 +705,10 @@ class FactionPowerEffect:
             text_surf.fill((0, 0, 0, 0))
             text_surf.blit(text, (0, 0))
             text_surf.set_alpha(text_alpha)
-            text_rect = text.get_rect(center=(self.center_x, self.center_y))
+            # Jitter text position
+            jitter_x = random.randint(-5, 5)
+            jitter_y = random.randint(-5, 5)
+            text_rect = text.get_rect(center=(self.center_x + jitter_x, self.center_y + jitter_y))
             surface.blit(text_surf, text_rect)
     
     def draw_teltak_delivery(self, surface, progress):
@@ -750,60 +804,80 @@ class FactionPowerEffect:
             surface.blit(subtitle_text, subtitle_rect)
     
     def draw_hologram_swap(self, surface, progress):
-        """Asgard - Blue transference lattice effect."""
-        # Two target locations (enemy units being swapped)
-        target1_x = self.screen_width // 3
-        target1_y = self.center_y
-        target2_x = 2 * self.screen_width // 3
-        target2_y = self.center_y
+        """Asgard - De-materialize and re-materialize cards with white light."""
+        # Two target locations (center of rows essentially)
+        target1_x = self.screen_width // 2
+        target1_y = self.center_y - 100 # Ranged row approx
+        target2_x = self.screen_width // 2
+        target2_y = self.center_y + 100 # Close row approx
         
-        lattice_alpha = int(200 * math.sin(progress * math.pi))
+        # Phase 1: Beam Up (0.0 to 0.4)
+        # Phase 2: Transfer/Swap (0.4 to 0.6)
+        # Phase 3: Beam Down (0.6 to 1.0)
         
-        if lattice_alpha > 0:
-            # Blue lattice boxes around targets
-            for tx, ty in [(target1_x, target1_y), (target2_x, target2_y)]:
-                lattice_size = 120
-                lattice_surface = pygame.Surface((lattice_size, lattice_size), pygame.SRCALPHA)
-                
-                # Draw grid pattern
-                grid_spacing = 15
-                for i in range(0, lattice_size, grid_spacing):
-                    pygame.draw.line(lattice_surface, (100, 200, 255, lattice_alpha), 
-                                   (i, 0), (i, lattice_size), 1)
-                    pygame.draw.line(lattice_surface, (100, 200, 255, lattice_alpha), 
-                                   (0, i), (lattice_size, i), 1)
-                
-                # Border
-                pygame.draw.rect(lattice_surface, (150, 220, 255, lattice_alpha), 
-                               lattice_surface.get_rect(), width=3)
-                
-                surface.blit(lattice_surface, (tx - lattice_size // 2, ty - lattice_size // 2))
+        if progress < 0.4:
+            # Beam intensity ramps up
+            beam_alpha = int((progress / 0.4) * 255)
+            beam_width = int(100 + progress * 50)
+        elif progress < 0.6:
+            # Full whiteout transition
+            beam_alpha = 255
+            beam_width = 120
+        else:
+            # Beam intensity ramps down
+            beam_alpha = int(((1.0 - progress) / 0.4) * 255)
+            beam_width = int(120 - (progress - 0.6) * 50)
             
-            # Beam connecting the two targets (swap visualization)
-            if progress > 0.3:
-                beam_alpha = int(lattice_alpha * (progress - 0.3) / 0.7)
-                beam_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-                pygame.draw.line(beam_surface, (150, 220, 255, beam_alpha), 
-                               (target1_x, target1_y), (target2_x, target2_y), 8)
-                surface.blit(beam_surface, (0, 0))
+        if beam_alpha > 0:
+            # Draw intense white beams at both locations
+            for tx, ty in [(target1_x, target1_y), (target2_x, target2_y)]:
+                # Main beam column
+                beam_rect = pygame.Rect(tx - beam_width // 2, 0, beam_width, self.screen_height)
                 
-                # Particles moving along beam
-                for i in range(5):
-                    particle_progress = (progress + i * 0.2) % 1.0
-                    px = int(target1_x + (target2_x - target1_x) * particle_progress)
-                    py = int(target1_y + (target2_y - target1_y) * particle_progress)
-                    pygame.draw.circle(surface, (200, 230, 255, beam_alpha), (px, py), 5)
+                # Create beam surface with gradient alpha for soft edges
+                beam_surf = pygame.Surface((beam_width, self.screen_height), pygame.SRCALPHA)
+                
+                # Core white beam
+                pygame.draw.rect(beam_surf, (255, 255, 255, min(255, beam_alpha)), 
+                               beam_surf.get_rect())
+                
+                # Add outer glow
+                glow_rect = beam_surf.get_rect().inflate(40, 0)
+                # (Simple rect fill for core is fast, glow handled by alpha blend)
+                
+                surface.blit(beam_surf, (tx - beam_width // 2, 0))
+                
+                # Sparkles/Data particles floating up
+                if progress < 0.5:
+                    # Dematerializing
+                    for _ in range(10):
+                        px = tx + random.randint(-beam_width//2, beam_width//2)
+                        py = ty + random.randint(-100, 100) - (progress * 500)
+                        pygame.draw.circle(surface, (200, 230, 255, beam_alpha), (px, int(py)), random.randint(2, 5))
+                else:
+                    # Rematerializing
+                    for _ in range(10):
+                        px = tx + random.randint(-beam_width//2, beam_width//2)
+                        py = ty - 400 + ((progress - 0.5) * 800) + random.randint(-100, 100)
+                        pygame.draw.circle(surface, (200, 230, 255, beam_alpha), (px, int(py)), random.randint(2, 5))
+
+        # Flash screen white at swap moment (0.5)
+        if 0.45 < progress < 0.55:
+            flash_alpha = int(200 * (1.0 - abs(progress - 0.5) * 20)) # Peak at 0.5
+            flash_surf = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            flash_surf.fill((255, 255, 255, flash_alpha))
+            surface.blit(flash_surf, (0, 0))
 
         # Text overlay
         if 0.2 < progress < 0.9:
             text_alpha = int(255 * min(1.0, (progress - 0.2) * 5) * (1 - max(0, (progress - 0.7) * 5)))
             font = pygame.font.SysFont("Arial", 60, bold=True)
-            text = font.render("HOLOGRAM MANIPULATION", True, (150, 220, 255))
+            text = font.render("ASGARD TRANSPORTER", True, (200, 230, 255))
             text_surf = pygame.Surface(text.get_size(), pygame.SRCALPHA)
             text_surf.fill((0, 0, 0, 0))
             text_surf.blit(text, (0, 0))
             text_surf.set_alpha(text_alpha)
-            text_rect = text.get_rect(center=(self.center_x, self.center_y + 150))
+            text_rect = text.get_rect(center=(self.center_x, self.center_y))
             surface.blit(text_surf, text_rect)
 
 

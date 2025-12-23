@@ -1,42 +1,8 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 0,
-  "total_wins": 0,
-  "total_games": 0,
-  "unlock_override_enabled": true,
-  "ai_games": 0,
-  "leader_stats": {},
-  "matchups": {},
-  "last_results": [],
-  "turn_stats": {},
-  "mulligans": {},
-  "ability_usage": {},
-  "top_cards": {},
-  "ai_difficulty": {
-    "hard": {
-      "games": 1,
-      "wins": 0
-    }
-  },
-  "ai_wins": 0,
-  "faction_wins": {},
-  "max_streak": 0,
-  "draft_stats": {
-    "runs_started": 11,
-    "runs_completed": 0,
-    "battles_won": 0,
-    "battles_lost": 0,
-    "best_run_wins": 0,
-    "total_cards_drafted": 0,
-    "drafted_leaders": {},
-    "drafted_factions": {},
-    "avg_deck_power": 0.0,
-    "highest_deck_power": 0,
-    "most_drafted_card": null,
-    "card_draft_counts": {}
-  },
-  "lan_games": 0,
-  "lan_wins": 0,
-  "lan_reliability": {}
+  "consecutive_wins": 1,
+  "total_wins": 1,
+  "total_games": 1,
+  "unlock_override_enabled": true
 }

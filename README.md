@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.8.0-blue)
+![Version](https://img.shields.io/badge/version-3.9.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.9.0: FACTION POWER CINEMATICS** - Faction powers now feature high-fidelity animations: Asgard de-materialization beams, Lucian EM interference glitches, and functional Goa'uld Sarcophagus lid animations!
+- **⚡ NEW v3.9.0: REPLICATOR SWARM WEATHER** - A new weather hazard featuring swarms of grey metallic blocks that jitter and consume row space!
+- **⚡ NEW v3.9.0: COMBAT TEXT POP-UPS** - Scores now feature "BUFFED!", "INSPIRED!", or "WIPED!" tags that float alongside the numbers for better readability!
 - **⚡ NEW v3.7.0: PERSISTENT ROW WEATHER ANIMATIONS** - Each weather card now has distinct visual effects that persist on affected rows until cleared! Ice crystals for Ice Planet Hazard, fiery meteors for Asteroid Storm, purple nebula clouds, cyan EMP arcs, and more!
 - **⚡ NEW v3.7.0: ENHANCED CARD PREVIEW** - Right-click preview now shows cards at 2x scale with smooth scaling, faction-colored glow borders, and improved description layout!
 - **⚡ NEW v3.7.0: DRAFT MODE SYNERGY SYSTEM** - Draft mode now shows synergy scores for each card choice, highlighting cards that combo with your current deck! Press Z to undo picks!
@@ -144,12 +147,13 @@ All abilities renamed and themed around Stargate lore:
 - **Animated Background** - Moving starfield, chevron glows, energy waves
 - **Stargate Activation** - Portal effect when playing cards
 - **Retro Neon Leader HUD** - Universal matchup template overlays glowing faction-colored typography and scanlines across the Stargate event horizon for every confrontation.
-- **Score Animations** - Dramatic pop effects with deltas
+- **Score Animations** - Dramatic pop effects with deltas and **Combat Text labels** ("BUFFED!", "INSPIRED!", etc.)
 - **Weather Effects** - Row-specific highlights plus custom particle fields:
   - **Ice Planet Hazard** - Blue ice crystals with sparkles
   - **Nebula Interference** - Purple/pink drifting clouds
   - **Asteroid Storm** - Orange fiery meteors with trails
   - **Electromagnetic Pulse** - Cyan glowing particles with lightning arcs
+  - **Replicator Swarm** - Jittering grey metallic blocks consuming the row
 - **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
 - **Nebula Clouds** - Layered pink fog drifting through affected lanes
 - **Black Hole Animation** - When clearing weather effects (Wormhole Stabilization)
@@ -157,14 +161,23 @@ All abilities renamed and themed around Stargate lore:
 - **DHD Button** - Glowing red center button with chevron ring
 - **Faction Power Effects** - Unique cinematic animations for each faction:
   - **Tau'ri**: Fiery explosions destroying units
-  - **Goa'uld**: Golden sarcophagus revival beams
-  - **Lucian Alliance**: Green naquadah shockwave
+  - **Goa'uld**: Sarcophagus lid animation with golden revival beams
+  - **Lucian Alliance**: Green naquadah shockwave with scanline/EM glitch effect
   - **Jaffa**: Stealth Tel'tak ship delivery
-  - **Asgard**: Blue holographic lattice swaps
+  - **Asgard**: White light de-materialization/re-materialization transporter beams
 
 ---
 
 ## 📝 Changelog
+
+### Version 3.9.0 (December 2025)
+**Faction Power Overhaul & Replicator Swarm**
+
+- ✅ **Asgard Transporter FX** – Replaced Holographic Decoy's lattice with a lore-accurate Asgard beaming effect. Units now de-materialize into white light and re-materialize in their new rows.
+- ✅ **Lucian Alliance EM Glitch** – The Naquadah Assault now features a screen-wide scanline/glitch effect, simulating the electromagnetic pulse of a massive naquadah explosion.
+- ✅ **Goa'uld Sarcophagus Animation** – Sarcophagus Revival now features a physical sarcophagus with a lid that slides open to release golden energy before sealing shut again.
+- ✅ **Combat Text Labels** – Score pop-ups now support "Combat Text" tags. See "BUFFED!", "INSPIRED!", or "WIPED!" float alongside score changes in different colors.
+- ✅ **Replicator Swarm Weather** – Added a new weather type. Small, grey, geometric blocks jitter erratically across affected rows, simulating a swarm of Replicators consuming the battlefield.
 
 ### Version 3.7.0 (December 2025)
 **Weather Animations, Card Preview & Draft Synergies**
