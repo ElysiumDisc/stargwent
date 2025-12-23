@@ -123,7 +123,9 @@ class DeckBuilderUI:
         self.pool_scroll_offset = 0  # Separate scroll for card pool
         self.inspected_card_id = None  # Card being inspected with spacebar
         self.card_pool_ids = []  # Available cards for the faction
-        self.current_tab = "all"  # Current card type tab: close, ranged, siege, agile, special, weather, neutral, all
+        self.current_tab = "all"  # Current card type tab
+        self.keyword_filter = None  # Filter by keyword (Spy, Medic, Hero)
+        self.filter_rects = {}  # Clickable areas for filter buttons
         self.tab_rects = {}
         self.return_to_menu = False  # Flag for when user clicks MAIN MENU button
         self.leader_scroll_offset = 0
@@ -1049,17 +1051,30 @@ class DeckBuilderUI:
                 divider_x = self.screen_width // 2
                 left_panel_x = panel_padding
                 left_panel_width = divider_x - panel_padding * 2
-                left_panel_y = 120  # Match draw code
-                left_panel_height = self.screen_height - 180
+                left_panel_y = 160  # Moved down for filters (was 120)
+                left_panel_height = self.screen_height - 220
                 right_panel_x = divider_x + panel_padding
                 right_panel_width = self.screen_width - right_panel_x - panel_padding
-                right_panel_y = 120  # Match draw code
-                right_panel_height = self.screen_height - 180
+                right_panel_y = 160  # Moved down
+                right_panel_height = self.screen_height - 220
                 left_panel_rect = pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height)
                 right_panel_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
                 deck_filter_type = None if self.current_tab == "all" else self.current_tab
-                visible_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type) if self.deck_preview_ids else []
+                visible_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type, self.keyword_filter) if self.deck_preview_ids else []
                 
+                # Check filter button clicks
+                if event.button == 1 and self.filter_rects:
+                    for kw, rect in self.filter_rects.items():
+                        if rect.collidepoint(mouse_pos):
+                            if kw == "CLEAR":
+                                self.keyword_filter = None
+                            elif self.keyword_filter == kw:
+                                self.keyword_filter = None  # Toggle off
+                            else:
+                                self.keyword_filter = kw
+                            self.pool_scroll_offset = 0
+                            return
+
                 # Check if clicking on tabs (LEFT CLICK)
                 if event.button == 1 and self.tab_rects:
                     for tab_type, tab_rect in self.tab_rects.items():
@@ -1367,6 +1382,44 @@ class DeckBuilderUI:
             continue_text = self.button_font.render("START GAME", True, self.text_color)
             surface.blit(continue_text, continue_text.get_rect(center=continue_rect.center))
     
+    def draw_filter_buttons(self, surface, x, y):
+        """Draw keyword filter buttons."""
+        filters = ["Spy", "Medic", "Hero"]
+        button_width = 80
+        button_height = 30
+        spacing = 10
+        self.filter_rects = {}
+        
+        # Label
+        label = self.small_font.render("Filter:", True, (180, 180, 180))
+        surface.blit(label, (x, y + 5))
+        current_x = x + 60
+        
+        for kw in filters:
+            rect = pygame.Rect(current_x, y, button_width, button_height)
+            is_active = (self.keyword_filter == kw)
+            
+            # Draw button
+            color = (100, 200, 100) if is_active else (60, 60, 70)
+            pygame.draw.rect(surface, color, rect, border_radius=15)
+            pygame.draw.rect(surface, (200, 200, 200), rect, width=1, border_radius=15)
+            
+            # Text
+            text = self.small_font.render(kw, True, (255, 255, 255))
+            text_rect = text.get_rect(center=rect.center)
+            surface.blit(text, text_rect)
+            
+            self.filter_rects[kw] = rect
+            current_x += button_width + spacing
+            
+        # Clear button if filter active
+        if self.keyword_filter:
+            clear_rect = pygame.Rect(current_x, y, 25, 25)
+            pygame.draw.circle(surface, (200, 50, 50), clear_rect.center, 12)
+            x_text = self.small_font.render("X", True, (255, 255, 255))
+            surface.blit(x_text, x_text.get_rect(center=clear_rect.center))
+            self.filter_rects["CLEAR"] = clear_rect
+
     def draw_deck_review(self, surface):
         """Draw deck review screen with two-panel layout and card type tabs."""
         # Clear remove button positions from previous frame
@@ -1396,9 +1449,44 @@ class DeckBuilderUI:
         # LEFT PANEL: Available cards (card pool)
         left_panel_x = panel_padding
         left_panel_width = divider_x - panel_padding * 2
-        left_panel_y = 120  # Adjusted for tabs (was 80)
-        left_panel_height = self.screen_height - 180  # Adjusted for tabs
+        left_panel_y = 160  # Moved down for filters
+        left_panel_height = self.screen_height - 220
         
+        # Draw Filter Buttons above Left Panel
+        self.draw_filter_buttons(surface, left_panel_x, 120)
+        
+        # RIGHT PANEL: Current deck
+        right_panel_x = divider_x + panel_padding
+        right_panel_width = self.screen_width - right_panel_x - panel_padding
+        right_panel_y = 160  # Moved down
+        right_panel_height = self.screen_height - 220
+        
+        # DECK STATUS PANEL (Above Right Panel)
+        deck_obj = [ALL_CARDS[id] for id in (self.deck_preview_ids or [])]
+        is_valid, status_msg = validate_deck(deck_obj)
+        
+        status_x = right_panel_x
+        status_y = 120
+        status_w = right_panel_width
+        status_h = 35
+        
+        # Draw status background
+        status_color = (50, 100, 50) if is_valid else (100, 50, 50)
+        status_rect = pygame.Rect(status_x, status_y, status_w, status_h)
+        pygame.draw.rect(surface, (*status_color, 180), status_rect, border_radius=5)
+        pygame.draw.rect(surface, (200, 200, 200), status_rect, width=1, border_radius=5)
+        
+        # Draw status icon and text
+        icon_color = (100, 255, 100) if is_valid else (255, 100, 100)
+        icon_text = "✓" if is_valid else "!"
+        icon_font = pygame.font.SysFont("Arial", 24, bold=True)
+        icon_surf = icon_font.render(icon_text, True, icon_color)
+        surface.blit(icon_surf, (status_x + 10, status_y + 2))
+        
+        msg_font = pygame.font.SysFont("Arial", 18, bold=True)
+        msg_surf = msg_font.render(f"Deck Status: {status_msg}", True, (255, 255, 255))
+        surface.blit(msg_surf, (status_x + 40, status_y + 7))
+
         # LEFT PANEL HEADER
         left_header = self.desc_font.render("Available Cards (Card Pool)", True, self.highlight_color)
         surface.blit(left_header, (left_panel_x, left_panel_y - 30))
@@ -1411,8 +1499,8 @@ class DeckBuilderUI:
         
         # Draw card pool in LEFT panel
         if self.card_pool_ids:
-            # Filter and sort cards by current tab
-            sorted_pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
+            # Filter and sort cards by current tab AND keyword
+            sorted_pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
             
             # Cards in 3 columns with better sizing
             cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
@@ -1462,12 +1550,6 @@ class DeckBuilderUI:
                 True, (200, 200, 200)
             )
             surface.blit(pool_stats_text, (left_panel_x, left_panel_y - 55))
-        
-        # RIGHT PANEL: Current deck
-        right_panel_x = divider_x + panel_padding
-        right_panel_width = self.screen_width - right_panel_x - panel_padding
-        right_panel_y = 120  # Adjusted for tabs (was 80)
-        right_panel_height = self.screen_height - 180  # Adjusted for tabs
         
         # RIGHT PANEL HEADER with deck count (top left)
         if self.deck_preview_ids:
@@ -2045,18 +2127,44 @@ def get_faction_card_pool(faction, unlock_system=None, unlock_override=False):
     return card_pool_ids
 
 
-def get_cards_by_type_and_strength(card_id_list, card_type=None):
+def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     """
-    Filter cards by type and sort by strength (power).
+    Filter cards by type/keyword and sort by strength (power).
     card_type can be: 'close', 'ranged', 'siege', 'agile', 'special', 'weather', 'neutral', or None for all.
+    keyword can be: 'Spy', 'Medic', 'Hero' (Legendary Commander), or None.
     Returns sorted list of card IDs.
     """
     filtered_ids = card_id_list
+    
+    # 1. Filter by Type
     if card_type and card_type != "all":
         if card_type == "neutral":
-            filtered_ids = [id for id in card_id_list if ALL_CARDS[id].faction == FACTION_NEUTRAL]
+            filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].faction == FACTION_NEUTRAL]
         else:
-            filtered_ids = [id for id in card_id_list if ALL_CARDS[id].row == card_type]
+            filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].row == card_type]
+    
+    # 2. Filter by Keyword
+    if keyword:
+        keyword_lower = keyword.lower()
+        new_filtered = []
+        for id in filtered_ids:
+            card = ALL_CARDS[id]
+            ability = (card.ability or "").lower()
+            
+            match = False
+            if keyword_lower == "hero":
+                if "legendary commander" in ability or (card.power >= 10 and card.row not in ["special", "weather"]):
+                    match = True
+            elif keyword_lower == "spy":
+                if "deep cover agent" in ability:
+                    match = True
+            elif keyword_lower == "medic":
+                if "medical evac" in ability:
+                    match = True
+            
+            if match:
+                new_filtered.append(id)
+        filtered_ids = new_filtered
     
     # Sort by type first, then by power (descending)
     def sort_key(card_id):

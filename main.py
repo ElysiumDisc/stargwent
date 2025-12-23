@@ -517,7 +517,15 @@ def get_weather_target_rows(card, hovered_row=None):
 def _draw_card_details(target_surface, card, rect):
     """Render card overlays (power pips and row icon)."""
     if card.row not in ["special", "weather"]:
-        power_text = POWER_FONT.render(str(card.displayed_power), True, WHITE)
+        # Determine color based on buffs/debuffs
+        if card.displayed_power > card.power:
+            text_color = (100, 255, 100) # Green for buff
+        elif card.displayed_power < card.power:
+            text_color = (255, 100, 100) # Red for curse/damage
+        else:
+            text_color = WHITE # Default
+
+        power_text = POWER_FONT.render(str(card.displayed_power), True, text_color)
         power_rect = power_text.get_rect(
             center=(rect.x + rect.width / 2, rect.y + rect.height - 20)
         )

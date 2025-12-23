@@ -285,6 +285,28 @@ ALL_CARDS = {
     "neutral_skellige_storm_2": Card("neutral_skellige_storm_2", "Asgard Anti-Goa'uld Pulse", FACTION_NEUTRAL, 0, "weather", "Electromagnetic Pulse"),
     "neutral_skellige_storm_3": Card("neutral_skellige_storm_3", "Asgard Anti-Goa'uld Pulse", FACTION_NEUTRAL, 0, "weather", "Electromagnetic Pulse"),
     "decoy": Card("decoy", "Decoy", FACTION_NEUTRAL, 0, "close", None),
+
+    # --- Unlockable Cards (from unlocks.py) ---
+    "asgard_mothership": Card("asgard_mothership", "Asgard Mothership", FACTION_ASGARD, 10, "siege", "Draw 2 cards when played"),
+    "ancient_drone": Card("ancient_drone", "Ancient Drone Weapon", FACTION_NEUTRAL, 8, "ranged", "Naquadah Overload: Destroy lowest enemy unit"),
+    "replicator_swarm": Card("replicator_swarm", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
+    "wraith_hive": Card("wraith_hive", "Wraith Hive Ship", FACTION_NEUTRAL, 9, "siege", "Gate Reinforcement"),
+    "ori_warship": Card("ori_warship", "Ori Warship", FACTION_NEUTRAL, 11, "siege", "Legendary Commander"),
+    "atlantis_city": Card("atlantis_city", "City of Atlantis", FACTION_NEUTRAL, 10, "siege", "Legendary Commander, Inspiring Leadership"),
+    "super_soldier": Card("super_soldier", "Anubis Super Soldier", FACTION_GOAULD, 7, "close", "Survival Instinct"),
+    "prometheus_x303": Card("prometheus_x303", "Prometheus BC-303", FACTION_TAURI, 8, "siege", "Draw 1 card when played"),
+    "kull_warrior": Card("kull_warrior", "Kull Warrior Elite", FACTION_GOAULD, 8, "close", "Legendary Commander, Survival Instinct"),
+    "puddle_jumper": Card("puddle_jumper", "Puddle Jumper", FACTION_NEUTRAL, 5, "agile", "Ring Transport: Return to hand to replay"),
+    "sodan_warrior": Card("sodan_warrior", "Sodan Cloaked Warrior", FACTION_LUCIAN, 6, "close", "When played: Look at opponent's hand"),
+    "tok_ra_operative": Card("tok_ra_operative", "Tok'ra Deep Cover Operative", FACTION_TAURI, 4, "ranged", "Deep Cover Agent"),
+    "asgard_hammer": Card("asgard_hammer", "Thor's Hammer Device", FACTION_ASGARD, 0, "special", "Remove all Goa'uld units from both boards"),
+    "zpm_power": Card("zpm_power", "Zero Point Module", FACTION_NEUTRAL, 0, "special", "Double all your siege units this round"),
+    "merlin_device": Card("merlin_device", "Merlin's Anti-Ori Weapon", FACTION_NEUTRAL, 0, "special", "Naquadah Overload"),
+    "dakara_superweapon": Card("dakara_superweapon", "Dakara Superweapon", FACTION_JAFFA, 12, "siege", "Legendary Commander"),
+    "replicator_carter": Card("replicator_carter", "Replicator Carter", FACTION_NEUTRAL, 7, "close", "Survival Instinct"),
+    "ancient_communication_stones": Card("ancient_communication_stones", "Ancient Communication Device", FACTION_NEUTRAL, 0, "special", "Reveal opponent's hand for this round"),
+    "asuran_warship": Card("asuran_warship", "Asuran Aurora-class", FACTION_ASGARD, 10, "siege", "Deploy Clones, Tactical Formation"),
+    "destiny_ship": Card("destiny_ship", "Ancient Ship Destiny", FACTION_NEUTRAL, 15, "siege", "Legendary Commander"),
 }
 
 def reload_card_images():

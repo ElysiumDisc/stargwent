@@ -2300,8 +2300,19 @@ class Game:
         # Reset turn counters for new round
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
 
-        # Check for game over (first to 2 round wins)
-        if self.player1.rounds_won >= 2:
+        # Check for game over
+        # If both players have 2+ wins, it's a draw (e.g. 1 win each + 1 draw, or 2 draws)
+        if self.player1.rounds_won >= 2 and self.player2.rounds_won >= 2:
+            self.game_state = "game_over"
+            self.winner = None # Draw
+            self.add_history_event(
+                "game_over",
+                "⚠️ The Stargate shuts down! Mutual destruction.",
+                "neutral",
+                icon="X"
+            )
+            return
+        elif self.player1.rounds_won >= 2:
             self.game_state = "game_over"
             self.winner = self.player1
             return
