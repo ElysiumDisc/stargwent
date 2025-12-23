@@ -213,8 +213,8 @@ class DeckPersistence:
             "consecutive_wins": self.unlock_data.get("consecutive_wins", 0),
             "max_streak": self.unlock_data.get("max_streak", 0),
             "faction_wins": self.unlock_data.get("faction_wins", {}),
-            "unlocked_leaders": len(self.unlock_data.get("unlocked_leaders", [])),
-            "unlocked_cards": len(self.unlock_data.get("unlocked_cards", [])),
+            "unlocked_leaders": self.unlock_data.get("unlocked_leaders", []),
+            "unlocked_cards": self.unlock_data.get("unlocked_cards", []),
             "leader_stats": self.unlock_data.get("leader_stats", {}),
             "matchups": self.unlock_data.get("matchups", {}),
             "last_results": self.unlock_data.get("last_results", []),
@@ -224,6 +224,7 @@ class DeckPersistence:
             "top_cards": self.unlock_data.get("top_cards", {}),
             "lan_reliability": self.unlock_data.get("lan_reliability", {}),
             "draft_stats": self.unlock_data.get("draft_stats", {}),
+            "round_stats": self.unlock_data.get("round_stats", {}),
         }
 
     def reset_stats(self):
@@ -245,6 +246,15 @@ class DeckPersistence:
         self.unlock_data["ability_usage"] = {}
         self.unlock_data["top_cards"] = {}
         self.unlock_data["lan_reliability"] = {}
+        self.unlock_data["round_stats"] = {
+            "sweeps_for": 0,
+            "sweeps_against": 0,
+            "close_wins": 0,
+            "close_losses": 0,
+            "comebacks": 0,
+            "first_turn_games": 0,
+            "first_turn_wins": 0,
+        }
         self.unlock_data["draft_stats"] = {
             "runs_started": 0,
             "runs_completed": 0,
@@ -327,6 +337,42 @@ class DeckPersistence:
                 lan_reliability["completed"] += 1
             if summary.get("lan_disconnect"):
                 lan_reliability["disconnects"] += 1
+
+        # Round breakdown stats (2-0 sweeps vs 2-1 close games, comebacks)
+        round_stats = self.unlock_data.setdefault("round_stats", {
+            "sweeps_for": 0,      # 2-0 wins
+            "sweeps_against": 0,  # 0-2 losses
+            "close_wins": 0,      # 2-1 wins
+            "close_losses": 0,    # 1-2 losses
+            "comebacks": 0,       # Won after losing round 1
+            "first_turn_games": 0,
+            "first_turn_wins": 0,
+        })
+        
+        player_rounds = summary.get("player_rounds_won", 0)
+        opponent_rounds = summary.get("opponent_rounds_won", 0)
+        won = summary.get("won", False)
+        lost_round_1 = summary.get("lost_round_1", False)
+        went_first = summary.get("went_first", False)
+        
+        if won:
+            if opponent_rounds == 0:
+                round_stats["sweeps_for"] += 1
+            else:
+                round_stats["close_wins"] += 1
+            if lost_round_1:
+                round_stats["comebacks"] += 1
+        else:
+            if player_rounds == 0:
+                round_stats["sweeps_against"] += 1
+            else:
+                round_stats["close_losses"] += 1
+        
+        # First turn tracking
+        if went_first is not None:
+            round_stats["first_turn_games"] += 1
+            if went_first and won:
+                round_stats["first_turn_wins"] += 1
 
         # AI difficulty split
         self.save_unlocks()

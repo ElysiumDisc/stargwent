@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.9.0-blue)
+![Version](https://img.shields.io/badge/version-3.9.1-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.9.1: STATS MENU OVERHAUL** - Comprehensive player statistics with faction win rates, round breakdown (2-0 vs 2-1), comeback tracking, unlock progress, and red DHD-styled reset button!
 - **⚡ NEW v3.9.0: FACTION POWER CINEMATICS** - Faction powers now feature high-fidelity animations: Asgard de-materialization beams, Lucian EM interference glitches, and functional Goa'uld Sarcophagus lid animations!
 - **⚡ NEW v3.9.0: REPLICATOR SWARM WEATHER** - A new weather hazard featuring swarms of grey metallic blocks that jitter and consume row space!
 - **⚡ NEW v3.9.0: COMBAT TEXT POP-UPS** - Scores now feature "BUFFED!", "INSPIRED!", or "WIPED!" tags that float alongside the numbers for better readability!
@@ -104,6 +105,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Automatic Deck Saving** - Your deck is saved every time you finish customizing
 - **Per-Faction Customization** - Each faction remembers your leader and deck choices
 - **Win Tracking** - Track your wins, losses, and win streaks
+- **Stats Menu** - View comprehensive statistics: overall record, AI vs LAN breakdown, leader usage, matchups, turn counts, and draft mode history
 - **Leader Unlocks** - Earn new leaders every 3 consecutive wins
 - **Cross-Session Saves** - All progress saved in `player_decks.json` and `player_unlocks.json`
 
@@ -169,6 +171,28 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 3.9.1 (December 2025)
+**Stats Menu Overhaul & Bug Fixes**
+
+- ✅ **Comprehensive Stats Menu** – Full player statistics tracking:
+  - **Overall**: Games played, win rate, current/best streaks
+  - **Unlock Progress**: Leaders and cards unlocked (X/20)
+  - **Faction Win Rates**: Per-faction win/loss records with percentages
+  - **By Mode**: Separate AI and LAN game tracking (fixed!)
+  - **Round Breakdown**: Perfect games (2-0), close wins (2-1), comebacks, sweeps
+  - **Leaders**: Most played leader with win rate percentage
+  - **Matchups**: Best AND worst faction matchups
+  - **Recent Form**: Last 10 games W/L history
+  - **Game Length**: Average, fastest, and longest games
+  - **Mulligans**: Average cards mulliganed per game
+  - **Abilities Used**: Medical Evac, Ring Transport, Faction Power, Iris usage counts
+  - **Top Cards**: Most played cards with win rates
+  - **LAN Reliability**: Completed games and disconnects
+  - **Draft Mode**: Full arena stats (existing)
+- ✅ **Red DHD Reset Button** – Stargate-themed circular button with glowing red center, 9 chevrons, and pulsing animation
+- ✅ **LAN Mode Tracking Fix** – Fixed critical bug where AI games were incorrectly counted as LAN games after playing a LAN match
+- ✅ **Card/Leader Hover Preview** – Hover over top cards or leaders to see 4x scale preview with faction glow
 
 ### Version 3.9.0 (December 2025)
 **Faction Power Overhaul & Replicator Swarm**

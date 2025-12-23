@@ -238,16 +238,28 @@ class CardUnlockSystem:
             self.unlock_override_enabled = False
     
     def save_unlocks(self):
-        """Save unlocked cards and stats to file."""
+        """Save unlocked cards and stats to file, preserving existing data."""
+        # Load existing data to preserve stats from deck_persistence
+        existing_data = {}
+        if os.path.exists(UNLOCK_DATA_FILE):
+            try:
+                with open(UNLOCK_DATA_FILE, 'r') as f:
+                    existing_data = json.load(f)
+            except:
+                existing_data = {}
+        
+        # Update with our data (preserving other keys like top_cards, matchups, etc.)
+        existing_data.update({
+            'unlocked': list(self.unlocked_cards),
+            'unlocked_leaders': self.unlocked_leaders,
+            'consecutive_wins': self.consecutive_wins,
+            'total_wins': self.total_wins,
+            'total_games': self.total_games,
+            'unlock_override_enabled': self.unlock_override_enabled,
+        })
+        
         with open(UNLOCK_DATA_FILE, 'w') as f:
-            json.dump({
-                'unlocked': list(self.unlocked_cards),
-                'unlocked_leaders': self.unlocked_leaders,
-                'consecutive_wins': self.consecutive_wins,
-                'total_wins': self.total_wins,
-                'total_games': self.total_games,
-                'unlock_override_enabled': self.unlock_override_enabled,
-            }, f, indent=2)
+            json.dump(existing_data, f, indent=2)
     
     def record_game_result(self, won):
         """Record game result and update consecutive wins."""

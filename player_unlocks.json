@@ -1,8 +1,17 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 0,
+  "consecutive_wins": 2,
   "total_wins": 2,
-  "total_games": 3,
-  "unlock_override_enabled": true
+  "total_games": 2,
+  "unlock_override_enabled": true,
+  "top_cards": {
+    "test_card": {
+      "plays": 5,
+      "wins": 3
+    }
+  },
+  "faction_wins": {
+    "Tau'ri": 3
+  }
 }

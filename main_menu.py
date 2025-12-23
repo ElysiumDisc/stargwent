@@ -308,13 +308,22 @@ class MainMenu:
             ai_difficulties = stats.get("ai_difficulty", {})
             top_leader = max(leader_stats.items(), key=lambda kv: kv[1].get("games", 0))[0] if leader_stats else None
             best_matchup = None
+            worst_matchup = None
             if matchups:
                 flat = []
                 for pf, opps in matchups.items():
                     for of, rec in opps.items():
-                        flat.append((pf, of, rec.get("wins", 0), rec.get("games", 0)))
+                        games = rec.get("games", 0)
+                        wins = rec.get("wins", 0)
+                        if games >= 2:  # Only count matchups with 2+ games
+                            flat.append((pf, of, wins, games, wins / games if games > 0 else 0))
                 if flat:
-                    best_matchup = max(flat, key=lambda x: x[2])
+                    # Best matchup = highest win rate
+                    best = max(flat, key=lambda x: (x[4], x[2]))  # Sort by win rate, then total wins
+                    best_matchup = (best[0], best[1], best[2], best[3])
+                    # Worst matchup = lowest win rate
+                    worst = min(flat, key=lambda x: (x[4], -x[3]))  # Sort by win rate, then most games (for significance)
+                    worst_matchup = (worst[0], worst[1], worst[2], worst[3])
             turn_avg = 0
             turn_min = turn_stats.get("min")
             turn_max = turn_stats.get("max")
@@ -339,6 +348,7 @@ class MainMenu:
                 "top_leader": top_leader,
                 "matchups": matchups,
                 "best_matchup": best_matchup,
+                "worst_matchup": worst_matchup,
                 "last_results": last_results,
                 "turn_avg": turn_avg,
                 "turn_min": turn_min,
@@ -370,7 +380,8 @@ class MainMenu:
 
         # Buttons
         back_rect = pygame.Rect(panel_rect.x + 28, panel_rect.y + 22, 140, 48)
-        reset_rect = pygame.Rect(panel_rect.right - 168, panel_rect.bottom - 70, 140, 42)
+        # Reset button is circular DHD style - make it square for proper circle
+        reset_rect = pygame.Rect(panel_rect.right - 90, panel_rect.bottom - 90, 70, 70)
 
         clock = pygame.time.Clock()
         bg_phase = 0
@@ -447,11 +458,43 @@ class MainMenu:
             back_text_rect = back_text.get_rect(center=back_rect.move(-panel_rect.x, -panel_rect.y).center)
             panel_surf.blit(back_text, back_text_rect)
 
-            # Reset button
-            pygame.draw.rect(panel_surf, (50, 70, 100), reset_rect.move(-panel_rect.x, -panel_rect.y), border_radius=8)
-            pygame.draw.rect(panel_surf, (200, 90, 90), reset_rect.move(-panel_rect.x, -panel_rect.y), width=2, border_radius=8)
-            reset_text = value_font.render("Reset Stats", True, (240, 200, 200))
-            reset_text_rect = reset_text.get_rect(center=reset_rect.move(-panel_rect.x, -panel_rect.y).center)
+            # Reset button - Red DHD Stargate style
+            reset_local = reset_rect.move(-panel_rect.x, -panel_rect.y)
+            reset_center = reset_local.center
+            reset_radius = min(reset_local.width, reset_local.height) // 2 - 2
+            
+            # DHD outer ring (dark metallic)
+            pygame.draw.circle(panel_surf, (50, 45, 45), reset_center, reset_radius + 8)
+            pygame.draw.circle(panel_surf, (70, 60, 60), reset_center, reset_radius + 6)
+            pygame.draw.circle(panel_surf, (40, 35, 35), reset_center, reset_radius + 4)
+            
+            # Draw 9 mini chevrons around the ring
+            for i in range(9):
+                chev_angle = i * (2 * math.pi / 9) - math.pi / 2
+                chev_x = reset_center[0] + math.cos(chev_angle) * (reset_radius + 2)
+                chev_y = reset_center[1] + math.sin(chev_angle) * (reset_radius + 2)
+                # Dim orange chevron dots
+                pygame.draw.circle(panel_surf, (120, 60, 20), (int(chev_x), int(chev_y)), 3)
+            
+            # Red glowing center (pulsing effect)
+            pulse = 0.7 + 0.3 * math.sin(bg_phase * 3)
+            red_glow = int(180 * pulse)
+            pygame.draw.circle(panel_surf, (red_glow, 30, 30), reset_center, reset_radius)
+            pygame.draw.circle(panel_surf, (min(255, red_glow + 40), 50, 40), reset_center, reset_radius - 4)
+            pygame.draw.circle(panel_surf, (min(255, red_glow + 80), 70, 50), reset_center, reset_radius - 8)
+            
+            # Inner highlight (top-left light reflection)
+            highlight_offset = (-reset_radius // 4, -reset_radius // 4)
+            pygame.draw.circle(panel_surf, (255, 150, 120, 100), 
+                             (reset_center[0] + highlight_offset[0], reset_center[1] + highlight_offset[1]), 
+                             reset_radius // 3)
+            
+            # Border ring
+            pygame.draw.circle(panel_surf, (100, 40, 40), reset_center, reset_radius, 2)
+            
+            # Reset text
+            reset_text = value_font.render("RESET", True, (255, 220, 200))
+            reset_text_rect = reset_text.get_rect(center=reset_center)
             panel_surf.blit(reset_text, reset_text_rect)
 
             # Title
@@ -471,25 +514,63 @@ class MainMenu:
             add_section("Overall")
             winrate = (computed["total_wins"] / computed["total_games"] * 100) if computed["total_games"] > 0 else 0
             add_row("Games Played", str(computed["total_games"]))
-            add_row("Wins", str(computed["total_wins"]))
-            add_row("Losses", str(computed["total_losses"]))
+            add_row("Wins / Losses", f"{computed['total_wins']} / {computed['total_losses']}")
             add_row("Win Rate", f"{winrate:.1f}%")
             add_row("Current Streak", f"{computed['streak']} wins")
-            add_row("Max Streak", f"{computed['max_streak']} wins")
-            top_faction_text = computed["top_faction"] if computed["top_faction"] else "No games yet"
-            add_row("Most Played Faction", top_faction_text)
+            add_row("Best Streak", f"{computed['max_streak']} wins")
+
+            # Unlock Progress
+            add_section("Unlock Progress")
+            unlocked_leaders = stats.get("unlocked_leaders", [])
+            unlocked_cards = stats.get("unlocked_cards", [])
+            add_row("Leaders Unlocked", f"{len(unlocked_leaders)} / 20")
+            add_row("Cards Unlocked", f"{len(unlocked_cards)} / 20")
+
+            # Faction Win Rates
+            add_section("Faction Win Rates")
+            faction_wins = stats.get("faction_wins", {})
+            for faction_name in ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard"]:
+                wins = faction_wins.get(faction_name, 0)
+                # Calculate games played with this faction from matchups
+                matchups = stats.get("matchups", {})
+                games = 0
+                if faction_name in matchups:
+                    for opp, rec in matchups[faction_name].items():
+                        games += rec.get("games", 0)
+                if games > 0:
+                    faction_wr = (wins / games) * 100
+                    add_row(faction_name, f"{wins}W / {games - wins}L ({faction_wr:.0f}%)")
+                elif wins > 0:
+                    add_row(faction_name, f"{wins} wins")
 
             # By Mode
             add_section("By Mode")
             ai_losses = max(0, computed["ai_games"] - computed["ai_wins"])
             lan_losses = max(0, computed["lan_games"] - computed["lan_wins"])
-            add_row("AI Record", f"{computed['ai_wins']}W / {ai_losses}L")
-            add_row("LAN Record", f"{computed['lan_wins']}W / {lan_losses}L")
+            ai_wr = (computed["ai_wins"] / computed["ai_games"] * 100) if computed["ai_games"] > 0 else 0
+            lan_wr = (computed["lan_wins"] / computed["lan_games"] * 100) if computed["lan_games"] > 0 else 0
+            add_row("AI Games", f"{computed['ai_wins']}W / {ai_losses}L ({ai_wr:.0f}%)" if computed["ai_games"] > 0 else "No games")
+            add_row("LAN Games", f"{computed['lan_wins']}W / {lan_losses}L ({lan_wr:.0f}%)" if computed["lan_games"] > 0 else "No games")
+
+            # Round Breakdown
+            add_section("Round Breakdown")
+            round_stats = stats.get("round_stats", {})
+            sweeps = round_stats.get("sweeps_for", 0)
+            close_wins = round_stats.get("close_wins", 0)
+            comebacks = round_stats.get("comebacks", 0)
+            sweeps_against = round_stats.get("sweeps_against", 0)
+            close_losses = round_stats.get("close_losses", 0)
+            add_row("Perfect Games (2-0)", str(sweeps))
+            add_row("Close Wins (2-1)", str(close_wins))
+            add_row("Comeback Wins", str(comebacks))
+            add_row("Swept (0-2)", str(sweeps_against))
+            add_row("Close Losses (1-2)", str(close_losses))
 
             # Leaders
             add_section("Leaders")
             top_leader = computed.get("top_leader") or "No data"
             leader_meta = None
+            leader_wr_text = ""
             if computed.get("top_leader"):
                 # FACTION_LEADERS values are lists of leader dicts
                 for faction_id, leader_list in FACTION_LEADERS.items():
@@ -499,7 +580,15 @@ class MainMenu:
                             break
                     if leader_meta:
                         break
-            add_row("Most Played Leader", top_leader, meta=leader_meta)
+                # Get leader win rate
+                leader_stats = computed.get("leader_stats", {})
+                if computed["top_leader"] in leader_stats:
+                    ls = leader_stats[computed["top_leader"]]
+                    lg = ls.get("games", 0)
+                    lw = ls.get("wins", 0)
+                    if lg > 0:
+                        leader_wr_text = f" ({lw}/{lg} = {lw/lg*100:.0f}%)"
+            add_row("Most Played Leader", top_leader + leader_wr_text, meta=leader_meta)
 
             # Matchups
             add_section("Matchups")
@@ -508,11 +597,19 @@ class MainMenu:
                 add_row("Best Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L")
             else:
                 add_row("Best Matchup", "No data")
+            # Add worst matchup
+            if computed.get("worst_matchup"):
+                pf, of, wins, games = computed["worst_matchup"]
+                add_row("Worst Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L")
 
-            # Form
-            add_section("Form")
-            last10 = "".join(computed.get("last_results", [])) or "No games"
-            add_row("Last 10", last10)
+            # Form - Visual W/L display
+            add_section("Recent Form")
+            last10 = computed.get("last_results", [])
+            if last10:
+                # Will be rendered specially below
+                add_row("Last 10 Games", "".join(last10))  # placeholder, we'll color it
+            else:
+                add_row("Last 10 Games", "No games yet")
 
             # Game length
             add_section("Game Length")
@@ -521,14 +618,14 @@ class MainMenu:
 
             # Mulligans
             add_section("Mulligans")
-            add_row("Mulligans (avg)", f"{computed['mull_avg']:.1f}" if computed.get("mull_avg") else "N/A")
+            add_row("Avg Mulligans", f"{computed['mull_avg']:.1f}" if computed.get("mull_avg") else "N/A")
 
             # Abilities
-            add_section("Abilities")
+            add_section("Abilities Used")
             ab = computed.get("abilities", {})
-            add_row("Medic Uses", str(ab.get("medic", 0)))
-            add_row("Decoy Uses", str(ab.get("decoy", 0)))
-            add_row("Faction Power", str(ab.get("faction_power", 0)))
+            add_row("Medical Evac", str(ab.get("medic", 0)))
+            add_row("Ring Transport", str(ab.get("decoy", 0)))
+            add_row("Faction Powers", str(ab.get("faction_power", 0)))
             add_row("Iris Blocks", str(ab.get("iris_blocks", 0)))
 
             # Top cards
@@ -536,7 +633,10 @@ class MainMenu:
             if computed.get("top_cards"):
                 for cid, rec in computed["top_cards"]:
                     card_name = ALL_CARDS[cid].name if cid in ALL_CARDS else cid
-                    add_row(card_name, f"{rec.get('plays',0)} plays / {rec.get('wins',0)} wins", meta={"card_id": cid})
+                    plays = rec.get('plays', 0)
+                    wins = rec.get('wins', 0)
+                    card_wr = (wins / plays * 100) if plays > 0 else 0
+                    add_row(card_name, f"{plays} plays ({card_wr:.0f}% WR)", meta={"card_id": cid})
             else:
                 add_row("Top Cards", "No data")
 

@@ -1384,10 +1384,10 @@ class DeckBuilderUI:
     
     def draw_filter_buttons(self, surface, x, y):
         """Draw keyword filter buttons."""
-        filters = ["Spy", "Medic", "Hero"]
-        button_width = 80
+        filters = ["Spy", "Medic", "Hero", "Bond", "Muster", "Scorch"]
+        button_width = 70
         button_height = 30
-        spacing = 10
+        spacing = 8
         self.filter_rects = {}
         
         # Label
@@ -2160,6 +2160,15 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
                     match = True
             elif keyword_lower == "medic":
                 if "medical evac" in ability:
+                    match = True
+            elif keyword_lower == "bond":
+                if "tactical formation" in ability:
+                    match = True
+            elif keyword_lower == "muster":
+                if "gate reinforcement" in ability:
+                    match = True
+            elif keyword_lower == "scorch":
+                if "naquadah overload" in ability:
                     match = True
             
             if match:

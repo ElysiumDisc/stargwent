@@ -594,6 +594,9 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
     if "dakara" in name_lower:
         anim_manager.add_effect(DakaraShockwaveEffect(effect_x, effect_y, screen_width, screen_height))
         return True
+    if "naquadah" in name_lower or "overload" in ability_lower:
+        anim_manager.add_effect(NaquadahExplosionEffect(effect_x, effect_y, duration=1500))
+        return True
     return False
 
 
@@ -738,7 +741,7 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         
         if is_selected and card.row in ["special", "weather"]:
             hint_font = pygame.font.SysFont("Arial", 16, bold=True)
-            hint_text = hint_font.render("CLICK AGAIN TO PLAY", True, (255, 255, 0))
+            hint_text = hint_font.render("DRAG TO PLAY", True, (255, 255, 0))
             hint_rect = hint_text.get_rect(center=(card.rect.centerx, card.rect.top - 15))
             bg_rect = hint_rect.inflate(10, 4)
             pygame.draw.rect(surface, (0, 0, 0), bg_rect)
@@ -3095,6 +3098,10 @@ def main(lan_game_data=None):
 
     # Create game with player's selections (skip if LAN - game already created)
     if not lan_game_data:
+        # Reset LAN mode when starting a non-LAN game
+        global LAN_MODE
+        LAN_MODE = False
+        
         game = Game(
             player1_faction=player_faction,
             player1_deck=player_deck,
@@ -4115,28 +4122,21 @@ def main(lan_game_data=None):
                                     selected_card = card
                                     
                                     if card.row == "special":
-                                        # Special cards - Ring Transport and Command Network can be dragged
-                                        if "Ring Transport" in (card.ability or "") or "Command Network" in (card.ability or ""):
-                                            # Allow dragging these special cards
-                                            dragging_card = card
-                                            drag_offset = (card.rect.x - event.pos[0], card.rect.y - event.pos[1])
-                                            drag_velocity = Vector2()
-                                            drag_trail.clear()
-                                            drag_trail_emit_ms = 0
-                                            drag_pickup_flash = 1.0
-                                            drag_pulse = 0.0
-                                            # Get valid decoy targets for Ring Transport
-                                            if "Ring Transport" in (card.ability or ""):
-                                                decoy_valid_targets = []
-                                                valid_cards = game.get_decoy_valid_cards()
-                                                for valid_card in valid_cards:
-                                                    if hasattr(valid_card, 'rect'):
-                                                        decoy_valid_targets.append((valid_card, valid_card.rect.copy()))
-                                        else:
-                                            # Other special cards: click AGAIN to play, or press SPACE to inspect
-                                            dragging_card = None
-                                            drag_velocity = Vector2()
-                                            drag_pickup_flash = 0.0
+                                        # All Special cards can now be dragged
+                                        dragging_card = card
+                                        drag_offset = (card.rect.x - event.pos[0], card.rect.y - event.pos[1])
+                                        drag_velocity = Vector2()
+                                        drag_trail.clear()
+                                        drag_trail_emit_ms = 0
+                                        drag_pickup_flash = 1.0
+                                        drag_pulse = 0.0
+                                        # Get valid decoy targets for Ring Transport
+                                        if "Ring Transport" in (card.ability or ""):
+                                            decoy_valid_targets = []
+                                            valid_cards = game.get_decoy_valid_cards()
+                                            for valid_card in valid_cards:
+                                                if hasattr(valid_card, 'rect'):
+                                                    decoy_valid_targets.append((valid_card, valid_card.rect.copy()))
                                     else:
                                         # Start dragging unit cards
                                         dragging_card = card
@@ -4234,8 +4234,29 @@ def main(lan_game_data=None):
                                             
                                             effect_x = rect.centerx
                                             effect_y = rect.centery
-                                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
-                                            anim_manager.add_effect(stargate_effect)
+                                            
+                                            # Check for Naquadah Overload explosions
+                                            if "Naquadah Overload" in ability_text:
+                                                # Create blue explosions ONLY on rows where cards were destroyed
+                                                for player, destroyed_row in game.last_scorch_positions:
+                                                    # Determine which row rect to use
+                                                    if player == game.player1:
+                                                        row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                                                    else:
+                                                        row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                                                    
+                                                    if row_rect:
+                                                        anim_manager.add_effect(NaquadahExplosionEffect(
+                                                            SCREEN_WIDTH // 2,
+                                                            row_rect.centery,
+                                                            duration=1500
+                                                        ))
+                                                game.last_scorch_positions = []
+                                            
+                                            # Trigger other special visuals
+                                            if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT):
+                                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
+                                                anim_manager.add_effect(stargate_effect)
                                             break
                                     if played:
                                         break
@@ -4923,6 +4944,11 @@ def main(lan_game_data=None):
                     try:
                         leader_name = (game.player1.leader or {}).get('name', 'Unknown') if isinstance(game.player1.leader, dict) else str(game.player1.leader)
                         opponent_leader = (game.player2.leader or {}).get('name', 'Unknown') if isinstance(game.player2.leader, dict) else str(game.player2.leader)
+                        # Check if player lost round 1 (for comeback tracking)
+                        round_history = getattr(game, "round_history", [])
+                        lost_round_1 = len(round_history) > 0 and round_history[0].get("winner") == "player2"
+                        # Check who went first
+                        went_first = getattr(game, "player_went_first", None)
                         summary = {
                             "won": player_won,
                             "player_faction": player_faction,
@@ -4937,6 +4963,10 @@ def main(lan_game_data=None):
                             "lan_completed": LAN_MODE,
                             "lan_disconnect": False,
                             "ai_difficulty": "hard" if not LAN_MODE else None,
+                            "player_rounds_won": game.player1.rounds_won,
+                            "opponent_rounds_won": game.player2.rounds_won,
+                            "lost_round_1": lost_round_1,
+                            "went_first": went_first,
                         }
                         get_persistence().record_game_summary(summary)
                     except Exception as exc:
