@@ -162,9 +162,9 @@ ALL_CARDS = {
     "jaffa_free_jaffa_1": Card("jaffa_free_jaffa_1", "Free Jaffa Foot Soldier", FACTION_JAFFA, 5, "close", "Gate Reinforcement"),
     "jaffa_free_jaffa_2": Card("jaffa_free_jaffa_2", "Free Jaffa Foot Soldier", FACTION_JAFFA, 5, "close", "Gate Reinforcement"),
     "jaffa_free_jaffa_3": Card("jaffa_free_jaffa_3", "Free Jaffa Foot Soldier", FACTION_JAFFA, 5, "close", "Gate Reinforcement"),
-    "jaffa_staff_team_1": Card("jaffa_staff_team_1", "Staff Weapon Team", FACTION_JAFFA, 4, "agile", None),
-    "jaffa_staff_team_2": Card("jaffa_staff_team_2", "Staff Weapon Team", FACTION_JAFFA, 4, "agile", None),
-    "jaffa_staff_team_3": Card("jaffa_staff_team_3", "Staff Weapon Team", FACTION_JAFFA, 4, "agile", None),
+    "jaffa_staff_team_1": Card("jaffa_staff_team_1", "Staff Weapon Team", FACTION_JAFFA, 4, "agile", "Tactical Formation"),
+    "jaffa_staff_team_2": Card("jaffa_staff_team_2", "Staff Weapon Team", FACTION_JAFFA, 4, "agile", "Tactical Formation"),
+    "jaffa_staff_team_3": Card("jaffa_staff_team_3", "Staff Weapon Team", FACTION_JAFFA, 4, "agile", "Tactical Formation"),
     "jaffa_rebel_tech_1": Card("jaffa_rebel_tech_1", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
     "jaffa_rebel_tech_2": Card("jaffa_rebel_tech_2", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
     "jaffa_rebel_tech_3": Card("jaffa_rebel_tech_3", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
@@ -180,7 +180,7 @@ ALL_CARDS = {
     "jaffa_chakhal": Card("jaffa_chakhal", "Cha'khal Warrior", FACTION_JAFFA, 5, "agile", None),
     "jaffa_ktau_ally": Card("jaffa_ktau_ally", "K'tau Ally", FACTION_JAFFA, 6, "ranged", None),
     "jaffa_shalchek_leader": Card("jaffa_shalchek_leader", "Shal'chek Leader", FACTION_JAFFA, 6, "ranged", "Inspiring Leadership"),
-    "jaffa_trinium_cannon": Card("jaffa_trinium_cannon", "Trinium Siege Cannon", FACTION_JAFFA, 8, "siege", "Tactical Formation"),
+    "jaffa_trinium_cannon": Card("jaffa_trinium_cannon", "Siege Cannon", FACTION_JAFFA, 8, "siege", None),
 
     # --- Lucian Alliance ---
     "lucian_vulkar": Card("lucian_vulkar", "Vulkar", FACTION_LUCIAN, 10, "close", "Legendary Commander"),
