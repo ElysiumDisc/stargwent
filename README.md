@@ -805,44 +805,6 @@ All abilities renamed and themed around Stargate lore:
 - Hand reveal (Communication Device, Sodan)
 - All core mechanics (Gate Reinforcement, Tactical Formation, etc.)
 
-
-
-### Asset Structure
-```
-assets/
-├── audio/                           # Music and sound effects
-│   ├── main_menu_music.ogg          # Main menu theme
-│   ├── battle_round1.ogg            # Round 1 battle music
-│   ├── battle_round2.ogg            # Round 2 music (more intense)
-│   ├── battle_round3.ogg            # Round 3 music (most intense)
-│   ├── tauri_theme.ogg              # Tau'ri faction preview (hover in menu)
-│   ├── goauld_theme.ogg             # Goa'uld faction preview
-│   ├── jaffa_theme.ogg              # Jaffa faction preview
-│   ├── lucian_theme.ogg             # Lucian Alliance faction preview
-│   ├── asgard_theme.ogg             # Asgard faction preview
-│   ├── close.ogg                    # Close combat unit play sound
-│   ├── ranged.ogg                   # Ranged unit play sound
-│   ├── siege.ogg                    # Siege unit play sound
-│   ├── ring.ogg                     # Ring Transport activation
-│   ├── stargate_sequence.ogg        # Stargate opening SFX
-│   └── commander_snippets/          # Voice clips for legendary commanders
-│       ├── tauri_oneill.ogg         # "In the middle of my backswing!"
-│       ├── tauri_hammond.ogg        # "SG-1, you have a go."
-│       ├── jaffa_tealc.ogg          # "Indeed."
-│       └── ... (27 total)           # One per legendary commander
-├── board_background.png             # 4K main game board
-├── menu_background.png              # 4K menu background
-├── deck_building_background.png     # 4K deck builder background
-├── card_back.png                    # Card back design (200x280)
-├── [card_id].png                    # 218 card images (200x280)
-├── [card_id]_leader.png             # 35 leader portraits
-└── leader_bg_[faction]_[leader].png # 35 leader selection backgrounds
-
-Save Files (auto-generated):
-├── player_decks.json                # Custom deck configurations
-├── player_unlocks.json              # Unlock progress and stats
-└── game_settings.json               # Sound and game settings - NEW v2.5!
-```
 ### To change a card name (and its internal ID) you need to update the reference in four specific locations
 
   1. Update the Code Definition (cards.py)
@@ -874,7 +836,7 @@ Save Files (auto-generated):
 
   
   
-### 1. Adding a New Unlockable Card (Unit/Special)
+### Adding a New Unlockable Card (Unit/Special)
 
    1. Define the Card (`cards.py`):
        * Add a new entry to the ALL_CARDS dictionary.
@@ -951,6 +913,14 @@ Save Files (auto-generated):
 
    7. Update Documentation:
        * Add new sections to docs/card_catalog.json and docs/leader_catalog.json.
+
+       create_placeholders.py:
+
+### New Factions
+  The script has hardcoded visual settings for factions that won't automatically update. If you add a brand new faction (e.g., "Replicators"), you will need to edit scripts/create_placeholders.py to add:
+   * `FACTION_COLORS`: You need to define what color the placeholder cards should be (e.g., silver/purple).
+   * `FACTION_BACKGROUND_IDS`: You need to tell it what filename to use for the faction selection screen.
+   * Imports: You will need to add the new FACTION_NAME constant to the import line at the top of the script.
 
 
   
@@ -1221,7 +1191,7 @@ player_unlocks.json       # Unlocked leaders/cards + win stats
 - All trademarks, characters, and intellectual property belong to their respective owners
 - This is fan service from fans who love both universes and wanted to combine them
 
-*"You know, you blow up one sun and suddenly everyone expects you to walk on water."* - Col. Jack O'Neill
+*"You know, you blow up one sun and suddenly everyone expects you to walk on water."* - Col. Samantha Carter
 
 ### Special Thanks
 - CD Projekt Red for Gwent game design
