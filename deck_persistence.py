@@ -398,8 +398,12 @@ class DeckPersistence:
         """
         draft_stats = self.unlock_data.setdefault("draft_stats", {})
 
+        # Capture old state for average calculation
+        old_runs = draft_stats.get("runs_completed", 0)
+        old_avg = draft_stats.get("avg_deck_power", 0.0)
+
         # Completion count
-        draft_stats["runs_completed"] = draft_stats.get("runs_completed", 0) + 1
+        draft_stats["runs_completed"] = old_runs + 1
 
         # Win/loss
         if won:
@@ -422,8 +426,8 @@ class DeckPersistence:
         drafted_factions[faction] = drafted_factions.get(faction, 0) + 1
 
         # Deck power tracking
-        total_power_sum = draft_stats.get("avg_deck_power", 0.0) * draft_stats.get("runs_completed", 1) - deck_power
-        draft_stats["avg_deck_power"] = (total_power_sum + deck_power) / draft_stats["runs_completed"]
+        new_total_power = (old_avg * old_runs) + deck_power
+        draft_stats["avg_deck_power"] = new_total_power / draft_stats["runs_completed"]
 
         if deck_power > draft_stats.get("highest_deck_power", 0):
             draft_stats["highest_deck_power"] = deck_power

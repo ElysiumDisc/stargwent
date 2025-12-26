@@ -637,17 +637,23 @@ class DeckBuilderUI:
                                 new_idx = (current_idx + 1) % len(all_card_ids)
                                 self.inspected_card_id = all_card_ids[new_idx]
                     else:
-                        divider_x = self.screen_width // 2
-                        if mouse_pos[0] < divider_x:
+                        # Use proper rect-based collision detection (same as modern handler)
+                        # Bottom Accordion - HORIZONTAL scroll
+                        if self.accordion_area_rect.collidepoint(mouse_pos):
+                            pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+                            card_w = 160
+                            spacing = 15
+                            max_scroll = max(0, len(pool_ids) * (card_w + spacing) - self.screen_width + 80)
                             if event.button == 4:
-                                self.pool_scroll_offset = max(0, self.pool_scroll_offset - 50)
+                                self.pool_scroll_offset = max(0, self.pool_scroll_offset - 80)
                             elif event.button == 5:
-                                self.pool_scroll_offset += 50
-                        else:
+                                self.pool_scroll_offset = min(max_scroll, self.pool_scroll_offset + 80)
+                        # Deck List (right side) - VERTICAL scroll
+                        elif self.deck_list_rect.collidepoint(mouse_pos):
                             if event.button == 4:
-                                self.deck_scroll_offset = max(0, self.deck_scroll_offset - 50)
+                                self.deck_scroll_offset = max(0, self.deck_scroll_offset - 40)
                             elif event.button == 5:
-                                self.deck_scroll_offset += 50
+                                self.deck_scroll_offset += 40
                 return
 
             # For faction and leader select, only handle left clicks

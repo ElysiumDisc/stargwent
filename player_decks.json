@@ -1,10 +1,33 @@
 {
   "Tau'ri": {
-    "leader": "tauri_carter",
+    "leader": "tauri_oneill",
     "cards": [
       "neutral_ascended_daniel",
       "neutral_oma_desala",
-      "tauri_jackson"
+      "tauri_jackson",
+      "tauri_oneill",
+      "tauri_hammond",
+      "tauri_quinn",
+      "tauri_fraiser",
+      "tauri_mitchell",
+      "tauri_barrett",
+      "neutral_ancient_drone",
+      "tauri_carter",
+      "tauri_caldwell",
+      "neutral_mckay",
+      "tok_ra_operative",
+      "tauri_bc304_1",
+      "tauri_bc304_2",
+      "ori_warship",
+      "atlantis_city",
+      "destiny_ship",
+      "neutral_biting_frost_1",
+      "neutral_impenetrable_fog_2",
+      "neutral_impenetrable_fog_1",
+      "neutral_torrential_rain_1",
+      "neutral_skellige_storm_1",
+      "neutral_skellige_storm_2",
+      "tauri_vala"
     ]
   },
   "Goa'uld": {
