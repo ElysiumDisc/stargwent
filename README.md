@@ -785,59 +785,6 @@ All abilities renamed and themed around Stargate lore:
 - Loki - Steal 1 power from opponent's strongest
 - Aegir - Legendary Commanders get +2 power
 
----
-
-
-## ⌨️ Controls
-
-### Deck Builder
-- **LEFT CLICK + DRAG** - Drag cards between panels to add/remove from deck
-- **RIGHT CLICK** - Inspect/zoom any card (full details)
-- **Mouse Wheel** - Scroll through card collections
-- **Arrow Keys / WASD** - Navigate menus
-- **ENTER** - Confirm selections
-- **ESC** - Back/Cancel
-
-### In-Game Mouse Controls
-- **LEFT CLICK cards** - Select cards in hand
-- **LEFT CLICK + DRAG** - Drag card from hand to board row
-- **RIGHT CLICK any card** - Preview/Zoom (hand, board, opponent, leaders)
-- **LEFT CLICK row** - Place dragged card on board
-- **LEFT CLICK DHD** - Pass turn (red glowing button!)
-- **LEFT CLICK Faction Power** - Activate once-per-game faction ability
-- **LEFT CLICK Iris Button** - Activate Iris Defense (Tau'ri only)
-- **LEFT CLICK "Confirm Mulligan"** - Confirm 2-5 card redraw
-- **Mouse Wheel** - Scroll discard pile viewer
-
-### Deck Builder Controls
-- **LEFT CLICK + DRAG** - Move cards between pool and deck
-- **RIGHT CLICK** - Zoom/inspect any card
-- **Mouse Wheel** - Scroll card pools
-- **Card Type Tabs** - Filter by Units, Special, Weather, All
-
-### In-Game Keyboard Hotkeys
-- **F3** - Toggle debug overlay (shows all zone boundaries and alignments)
-- **SPACEBAR** - Activate Faction Power OR preview selected card
-- **D** - View discard pile (scroll with mouse wheel, ESC to close)
-- **ESC** - Close overlays / Pause menu
-- **T** - Toggle LAN chat overlay ("Subspace Communications"); consumes keyboard input while active
-- **F11 / Alt+Enter** - Toggle fullscreen (mode persists across menus/matchups; also selectable via `--fullscreen` or `STARGWENT_FULLSCREEN=1`)
-- **R** - Restart (game over)
-- **Arrow Keys / WASD** - Navigate menus
-- **1/2/3** - Quick select rewards
-
-### Pause Menu (ESC During Game)
-- **Resume** - Continue playing
-- **Main Menu** - Return to main menu (forfeit current game)
-- **Quit** - Exit game entirely
-
-### Card Inspection
-- RIGHT CLICK any card (yours, opponent's, leaders, board) to zoom
-- See full art, power, abilities, description
-- Browse multiple cards with arrows/wheel
-- RIGHT CLICK again or press TAB/ESC to close
-
----
 
 
 #### **35/35 Leader Abilities Working** (100% Complete!)
@@ -858,32 +805,6 @@ All abilities renamed and themed around Stargate lore:
 - Hand reveal (Communication Device, Sodan)
 - All core mechanics (Gate Reinforcement, Tactical Formation, etc.)
 
-#### **Complete Systems**
-- Deck persistence and auto-save
-- Win streak tracking and leader unlocks
-- Faction-specific unlock filtering
-- Leader & card progression (JSON)
-- DHD pass button with animations
-- Round tracking & counters
-- Hand reveal system
-- Medical Evac selection UI
-- Ring Transport selection UI
-- Deck builder with drag-and-drop customization
-- Win streak tracking
-- Score animations
-- Weather effects with highlighting
-- Black hole animation
-- Right-click card inspection
-- Discard pile viewer with scrolling
-
-
-
-#### **Future Enhancements**
-- Sound effects & music
-- Advanced AI difficulty settings
-- More faction-specific animations
-- Tournament mode
-- LAN reconnection support
 
 
 ### Asset Structure
@@ -951,6 +872,89 @@ Save Files (auto-generated):
   Summary:
   If you rename jaffa_scout to jaffa_monk in the code, you must also rename the image file to jaffa_monk.png and replace text in player_decks.json.
 
+  
+  
+### 1. Adding a New Unlockable Card (Unit/Special)
+
+   1. Define the Card (`cards.py`):
+       * Add a new entry to the ALL_CARDS dictionary.
+       * Ensure the card_id is unique.
+   1     "new_card_id": Card("new_card_id", "Card Name", FACTION_CONSTANT, power, "row", "Ability"),
+
+   2. Add the Asset (`assets/`):
+       * Place the card image as assets/new_card_id.png.
+
+   3. Register as Unlockable (`unlocks.py`):
+       * Add the card to the UNLOCKABLE_CARDS list.
+       * Define its unlock condition logic in CardUnlockSystem.check_unlocks if it's not a standard random unlock.
+
+   4. Update Documentation (`docs/card_catalog.json`):
+       * Add the card entry to the relevant faction list so it appears in the Rule Compendium (Tab 9).
+       * Note: You may need to run `scripts/generate_rules_spec.py` if you use it, or edit the JSON manually.
+
+  ---
+
+  2. Adding a New Leader
+
+   1. Define the Leader (`content_registry.py`):
+       * Add the leader entry to UNLOCKABLE_LEADERS (or BASE_FACTION_LEADERS if it's a starter).
+       * Crucial: Ensure card_id matches the filename prefix you intend to use.
+   1     {"name": "New Leader", "ability": "...", "ability_desc": "...", "card_id": "faction_leadername"},
+
+   2. Define the Card Object (`cards.py`):
+       * Even though it's a leader, it needs a Card object for internal logic.
+       * Use card_id from step 1.
+
+   1     "faction_leadername": Card("faction_leadername", "New Leader", FACTION_CONSTANT, 10, "close", "Leader Ability"),
+
+   3. Add the Asset (`assets/`):
+       * Filename: assets/faction_leadername_leader.png (Recommended convention).
+       * Note: The system now prioritizes `_leader.png` for leader portraits in the Rules Menu.
+
+   4. Register Logic (`leader_matchup.py` / `game.py`):
+       * Implement the actual ability logic.
+       * In game.py or leader_matchup.py, look for where leader abilities are triggered (e.g., apply_leader_ability) and add a case for your new leader's name or ID.
+
+   5. Update Documentation (`docs/leader_catalog.json`):
+       * Add the leader to the relevant section so it appears in the Rule Compendium (Tab 5).
+
+  ---
+
+  3. Adding a New Faction
+
+  This is a major change involving many files.
+
+   1. Define Constants (`cards.py`):
+       * Add FACTION_NEW = "New Faction" to the constants.
+       * Import and use this constant everywhere.
+
+   2. Add Assets (`assets/`):
+       * faction_bg_new.png (Background for stats/rules).
+       * card_back_new.png (Optional, if specific backs exist).
+       * deck_shield_new.png (For deck builder).
+
+   3. Register Faction (`content_registry.py`):
+       * Add a new key to BASE_FACTION_LEADERS and UNLOCKABLE_LEADERS.
+       * Add it to LEADER_COLOR_OVERRIDES.
+
+   4. Update Deck Persistence (`deck_persistence.py`):
+       * Update _get_default_deck_data() to include the new faction key.
+       * Update _get_default_unlock_data() to track wins for the new faction.
+
+   5. Update UI Menus:
+       * `deck_builder.py`: Ensure it iterates over the new faction constant.
+       * `stats_menu.py`: Add the new faction to the list of factions for win rate display and ensure faction_colors includes it.
+       * `rules_menu.py`: Add it to FACTION_DISPLAY and _pretty_faction_name.
+
+   6. Update Game Logic (`game.py`):
+       * If the faction has a passive ability (e.g., "Always goes first"), implement it in Game class methods.
+
+   7. Update Documentation:
+       * Add new sections to docs/card_catalog.json and docs/leader_catalog.json.
+
+
+  
+  
 ### 🎵 Complete Audio File Guide
 
 All audio files are `.ogg` format (OGG Vorbis). Place them in `assets/audio/`.
@@ -1145,6 +1149,49 @@ player_unlocks.json       # Unlocked leaders/cards + win stats
 - **Calculation**: 4 × 3 (formation) × 2 (horn) = 24 each
 - **Total**: 72 power from 3 cards!
 
+
+---
+
+## 💡 Quick Reference
+
+| Action | Control |
+|--------|---------|
+| Select Card | Left click in hand |
+| Play Card | Left drag to row |
+| **Preview Card** | **Right click any card** |
+| Pass Turn | Click DHD button (glowing red center) |
+| **Activate Faction Power** | **Press SPACEBAR or click ACTIVATE** |
+| **Debug Overlay** | **F3 (toggle zone boundaries)** |
+| Open LAN Chat | Press T (ESC to close; LAN matches only) |
+| View Discard | Press D |
+| Inspect Leader | Right click leader portrait |
+| Drag Card (Deck Builder) | LEFT CLICK + DRAG |
+| Zoom Card (Deck Builder) | RIGHT CLICK |
+| Fullscreen | F11 |
+| Restart | R (game over) |
+| Quit | ESC |
+| Mulligan | Click cards (2-5) + "Confirm" |
+| Browse Cards | Arrow keys / Mouse wheel |
+| Quick Select | 1/2/3 keys (rewards) |
+
+---
+
+### 🚧 Polish & Enhancement
+- Sound effects & music
+- Advanced AI difficulty levels
+- Per-card custom animations (expand beyond current set)
+- More hyperspace/wormhole effects
+- LAN reconnection and state recovery
+
+### 📋 Planned
+- Tournament mode (best-of-3)
+- Achievement system
+- More factions (Wraith, Ori, Atlantis)
+- Statistics tracking
+- Custom card creation tools
+- Internet matchmaking (beyond LAN/VPN)
+
+
 ## 📝 License & Credits
 
 ### Game Design
@@ -1196,116 +1243,7 @@ Suggestions and feedback welcome!
 - **Documentation** - Improve guides
 - **Bug Reports** - Report issues
 
----
 
-## 💡 Quick Reference
-
-| Action | Control |
-|--------|---------|
-| Select Card | Left click in hand |
-| Play Card | Left drag to row |
-| **Preview Card** | **Right click any card** |
-| Pass Turn | Click DHD button (glowing red center) |
-| **Activate Faction Power** | **Press SPACEBAR or click ACTIVATE** |
-| **Debug Overlay** | **F3 (toggle zone boundaries)** |
-| Open LAN Chat | Press T (ESC to close; LAN matches only) |
-| View Discard | Press D |
-| Inspect Leader | Right click leader portrait |
-| Drag Card (Deck Builder) | LEFT CLICK + DRAG |
-| Zoom Card (Deck Builder) | RIGHT CLICK |
-| Fullscreen | F11 |
-| Restart | R (game over) |
-| Quit | ESC |
-| Mulligan | Click cards (2-5) + "Confirm" |
-| Browse Cards | Arrow keys / Mouse wheel |
-| Quick Select | 1/2/3 keys (rewards) |
-
----
-
-## 🎯 Tips & Strategy
-
-1. **Card Advantage** - Deep Cover Agents draw cards
-2. **Weather Control** - Cripple opponent's strongest row
-3. **Hero Timing** - Save Legendary Commanders for weathered rounds
-4. **Passing Strategy** - Sometimes losing a round cheaply is smart
-5. **Combos** - Build decks around Tactical Formation multipliers
-6. **Round Management** - You only need 2 of 3 rounds to win
-
----
-
-## 🐛 Known Issues
-
-- **AI**: Basic-medium difficulty (improvements planned)
-- **Sound**: Menu + Goa'uld + Asgard themes implemented; other factions' battle music & SFX still pending
-- **LAN**: No automatic reconnect after disconnect; no state recovery from desync
-
----
-
-## 🚀 Roadmap
-
-### ✅ Completed
-- Core Gwent gameplay
-- All card abilities (20/20 fully working - 100% verified!)
-- All leader abilities (35/35 fully working!)
-- All unlockable card abilities (20/20 verified and working!)
-- **⚡ v1.2: Goa'uld Ring Transportation - Return close combat unit to hand ONCE PER ROUND**
-- **⚡ v1.2: 3-phase golden ring animation (descend → activate → ascend)**
-- **⚡ v1.2: Visual selection with pulsing gold glow on close combat units only**
-- **⚡ v1.1.1: Enhanced weather/special card dragging - drag to ANY row with visual feedback**
-- **⚡ v1.1.1: Blue highlight shows all valid drop zones for weather/special cards**
-- **⚡ v1.1: Fluid card interactions with smooth dragging, hover scaling, and dynamic shadows**
-- **⚡ v1.1: AI turn animation system with 4 cinematic phases (thinking → selecting → playing → resolving)**
-- **⚡ v1.1: Delta-time based animations for frame-rate independence (30-144 FPS)**
-- **⚡ v1.1: Enhanced visual feedback - cards feel weighted and every AI action is readable**
-- **⚡ v1.0: UI overhaul with right-click preview and streamlined controls**
-- **⚡ v1.0: All leader abilities verified and fixed (Vulkar, Yu, Rak'nor, Freyr)**
-- **⚡ v1.0: FactionPower system (renamed from IrisPower)**
-- **⚡ v1.0: Leader matchup PNG background support**
-- **⚡ v1.0: Unlock system verified (card every win, leader every 3 wins)**
-- **⚡ v0.9: Finite State Machine (FSM) - Eliminated "Boolean Flag Hell" for cleaner UI management**
-- **⚡ v0.9: Cinematic leader matchups with 40+ lore-based quotes**
-- **⚡ v0.9: ESC pause menu system**
-- **⚡ v0.9: Round 3 asteroid field animation**
-- **⚡ v0.9: Card back system for hidden hands**
-- **⚡ v0.9: Leader selection backgrounds (35 total)**
-- **⚡ v0.9: Minimum deck size enforcement (20 cards)**
-- **⚡ v0.9: Enhanced faction power animations**
-- **⚡ v0.8.1: Code cleanup - Removed 100+ lines of dead code**
-- **⚡ v0.8.1: Ability verification - All abilities confirmed working**
-- **⚡ v0.8: Deck persistence and progression system**
-- **⚡ Faction Power system with unique cinematic effects**
-- **🎨 4K resolution support (3840×2160)**
-- **🌌 Enhanced animations (Stargate KAWOOSH, hyperspace, explosions)**
-- **🖱️ Intuitive controls (left-click drag, right-click zoom)**
-- Stargate theme integration
-- Deck builder with drag-and-drop
-- Progression system
-- Visual effects & particle systems
-- DHD pass button
-- Faction-specific unlocks
-- Discard pile viewer
-- Improved AI pacing
-
-### 🚧 Polish & Enhancement
-- Sound effects & music
-- Advanced AI difficulty levels
-- Per-card custom animations (expand beyond current set)
-- More hyperspace/wormhole effects
-- LAN reconnection and state recovery
-
-### 📋 Planned
-- Tournament mode (best-of-3)
-- Achievement system
-- More factions (Wraith, Ori, Atlantis)
-- Statistics tracking
-- Custom card creation tools
-- Internet matchmaking (beyond LAN/VPN)
-
----
-
-**⚡ Chevron Seven Locked! ⚡**
-
-Enjoy commanding the forces of the Stargate universe in this strategic card battle game!
 
 > Stargwent is intentionally modular: every card, leader, soundtrack, and UI element lives in plain Python and editable assets so anyone can reskin the experience into their own fantasy Gwent variant—Lord of the Rings, Dragon Ball, or whatever universe you want to explore. Dive into the codebase, swap art/audio JSON entries, and the engine adapts.
 
