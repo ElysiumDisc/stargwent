@@ -887,6 +887,34 @@ Save Files (auto-generated):
 ├── player_unlocks.json              # Unlock progress and stats
 └── game_settings.json               # Sound and game settings - NEW v2.5!
 ```
+### To change a card name (and its internal ID) you need to update the reference in four specific locations
+
+  1. Update the Code Definition (cards.py)
+  This is the "source of truth". You likely already did this.
+   * Action: Change the dictionary key and the Card object parameters.
+   * Example:
+   1     # Change this:
+   2     "old_id": Card("old_id", "Old Name", ...)
+   3     # To this:
+   4     "new_id": Card("new_id", "New Name", ...)
+
+  2. Rename the Image Asset (assets/)
+  The game automatically looks for an image with the exact same name as the card ID.
+   * Action: Rename assets/old_id.png to assets/new_id.png.
+   * Why: If you don't do this, the card will appear invisible or default to a missing texture.
+
+  3. Update Save Data (player_decks.json & player_unlocks.json)
+  This is what caused your crash. The save files still "remember" the old ID.
+   * Action: Open these JSON files and do a Find & Replace.
+   * Find: "old_id"
+   * Replace with: "new_id"
+
+  4. Update Documentation (Optional)
+  To keep your project clean.
+   * Action: Update docs/card_catalog.json and any Markdown specs (like docs/rules_menu_spec.md).
+
+  Summary:
+  If you rename jaffa_scout to jaffa_monk in the code, you must also rename the image file to jaffa_monk.png and replace text in player_decks.json.
 
 ### 🎵 Complete Audio File Guide
 

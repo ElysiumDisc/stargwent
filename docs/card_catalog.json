@@ -773,9 +773,8 @@
       "ability": null
     },
     {
-      "card_id": "jaffa_scout",
-      "name": "Jaffa Scout",
-      "faction": "Jaffa Rebellion",
+          "card_id": "jaffa_monk",
+          "name": "Jaffa Monk",      "faction": "Jaffa Rebellion",
       "power": 2,
       "row": "agile",
       "ability": null
