@@ -696,7 +696,14 @@ class RulesMenuScreen:
                     card_id = leader.get("card_id")
                     if not card_id or card_id in portraits:
                         continue
-                    img = self._try_load_asset(card_id, portrait_size)
+                    
+                    # Prioritize specific leader portrait if it exists
+                    leader_variant = f"{card_id}_leader"
+                    if (Path("assets") / f"{leader_variant}.png").exists():
+                        img = self._try_load_asset(leader_variant, portrait_size)
+                    else:
+                        img = self._try_load_asset(card_id, portrait_size)
+                        
                     portraits[card_id] = img
         return portraits
 
@@ -1216,12 +1223,7 @@ class RulesMenuScreen:
             stroke_color = self.chevron_color if active else (120, 40, 40)
             pygame.draw.polygon(layer, (*stroke_color, fill_alpha), polygon)
             pygame.draw.polygon(layer, (*stroke_color, 200), polygon, 2)
-            if slot["tabs"]:
-                label = "/".join(str(t + 1) for t in slot["tabs"])
-                cx = sum(pt[0] for pt in polygon) / len(polygon)
-                cy = sum(pt[1] for pt in polygon) / len(polygon)
-                text = self.small_font.render(label, True, self.text_color)
-                layer.blit(text, text.get_rect(center=(cx, cy)))
+            # Text rendering removed as requested
             self.hit_regions.append({"type": "chevron", "slot": idx, "polygon": polygon})
         surface.blit(layer, (0, 0))
 
