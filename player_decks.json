@@ -1,6 +1,6 @@
 {
   "Tau'ri": {
-    "leader": "tauri_oneill",
+    "leader": "tauri_carter",
     "cards": [
       "tauri_turret_1",
       "tauri_hammond",
@@ -88,7 +88,7 @@
     ]
   },
   "Jaffa Rebellion": {
-    "leader": "jaffa_ryac",
+    "leader": "jaffa_bratac",
     "cards": [
       "neutral_clear_weather_1",
       "jaffa_resistance_recruit",

@@ -14,6 +14,7 @@ from deck_builder import FACTION_LEADERS, MIN_DECK_SIZE, MAX_DECK_SIZE, validate
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
 from rules_menu import run_rules_menu
 from lan_menu import run_lan_menu
+from dhd_button import DHDButtonManager
 
 # Save file for custom decks
 CUSTOM_DECKS_FILE = "player_decks.json"
@@ -245,6 +246,9 @@ class MainMenu:
             {'text': 'QUIT', 'action': 'quit'}
         ]
         self.unlock_option_index = -1
+        
+        # Initialize DHD button system
+        self.dhd_manager = DHDButtonManager()
         
         self.setup_buttons()
 
@@ -1236,10 +1240,16 @@ class MainMenu:
         # Start buttons below title area, centered in remaining space
         start_y = title_space + (available_height - total_menu_height) // 2
         
+        # Clear existing DHD buttons
+        self.dhd_manager.buttons.clear()
+        
         for i, option in enumerate(self.options):
             y = start_y + i * (button_height + spacing)
             option['rect'] = pygame.Rect(start_x, y, button_width, button_height)
             option['hovered'] = False
+            
+            # Add DHD button
+            self.dhd_manager.add_button(i, option['rect'], option['text'], self.button_font)
     
     def handle_event(self, event):
         """Handle input events."""
@@ -1252,8 +1262,11 @@ class MainMenu:
         
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouse_pos = event.pos
-            for option in self.options:
+            for i, option in enumerate(self.options):
                 if option['rect'].collidepoint(mouse_pos):
+                    # Trigger DHD activation effect
+                    self.dhd_manager.activate_button(i)
+                    
                     if option['action'] == 'options_menu':
                         screen_surface = pygame.display.get_surface()
                         result = self.run_options_menu(screen_surface)
@@ -1268,6 +1281,9 @@ class MainMenu:
             elif event.key in [pygame.K_DOWN, pygame.K_s]:
                 self.selected_option = (self.selected_option + 1) % len(self.options)
             elif event.key == pygame.K_RETURN:
+                # Trigger DHD activation effect
+                self.dhd_manager.activate_button(self.selected_option)
+                
                 action = self.options[self.selected_option]['action']
                 if action == 'options_menu':
                     result = self.run_options_menu(surface)
@@ -1282,11 +1298,21 @@ class MainMenu:
     
     def draw(self, surface):
         """Draw the main menu."""
+        # Apply screen shake offset if active
+        shake_offset = self.dhd_manager.get_shake_offset()
+        
+        # Create a temporary surface if shake is active
+        if shake_offset != (0, 0):
+            temp_surface = pygame.Surface((self.screen_width, self.screen_height))
+            draw_target = temp_surface
+        else:
+            draw_target = surface
+        
         # Draw background
         if self.background:
-            surface.blit(self.background, (0, 0))
+            draw_target.blit(self.background, (0, 0))
         else:
-            surface.fill(self.bg_color)
+            draw_target.fill(self.bg_color)
         
         # IMPRESSIVE TITLE with multiple effects - scale position based on screen
         title_y = int(self.screen_height * 0.12)  # 12% from top
@@ -1299,7 +1325,7 @@ class MainMenu:
         for offset in range(shadow_scale * 2, 0, -shadow_scale // 2 or 1):
             shadow = self.title_font.render(title_text, True, (0, 0, 0))
             shadow_rect = shadow.get_rect(center=(self.screen_width // 2 + offset, title_y + offset))
-            surface.blit(shadow, shadow_rect)
+            draw_target.blit(shadow, shadow_rect)
         
         # Outer glow (blue/cyan)
         glow_height = int(200 * self.scale_factor)
@@ -1309,47 +1335,31 @@ class MainMenu:
             glow_text = self.title_font.render(title_text, True, glow_color)
             glow_rect = glow_text.get_rect(center=(self.screen_width // 2 + i, glow_height // 2 + i))
             glow_surf.blit(glow_text, glow_rect)
-        surface.blit(glow_surf, (0, title_y - glow_height // 2))
+        draw_target.blit(glow_surf, (0, title_y - glow_height // 2))
         
         # Inner glow (brighter)
         inner_glow_color = (255, 255, 200, 80)
         inner_glow = self.title_font.render(title_text, True, inner_glow_color)
         inner_rect = inner_glow.get_rect(center=(self.screen_width // 2, title_y))
-        surface.blit(inner_glow, inner_rect)
+        draw_target.blit(inner_glow, inner_rect)
         
         # Main title (gold/yellow)
         main_title = self.title_font.render(title_text, True, self.highlight_color)
         main_rect = main_title.get_rect(center=(self.screen_width // 2, title_y))
-        surface.blit(main_title, main_rect)
+        draw_target.blit(main_title, main_rect)
         
         # Highlight edge (white)
         highlight = self.title_font.render(title_text, True, (255, 255, 255))
         highlight_rect = highlight.get_rect(center=(self.screen_width // 2 - 2, title_y - 2))
         highlight.set_alpha(150)
-        surface.blit(highlight, highlight_rect)
+        draw_target.blit(highlight, highlight_rect)
         
-        # Menu buttons
-        for i, option in enumerate(self.options):
-            is_selected = (i == self.selected_option)
-            
-            if is_selected:
-                color = self.button_selected_color
-            elif option['hovered']:
-                color = self.button_hover_color
-            else:
-                color = self.button_color
-            
-            # Draw button
-            pygame.draw.rect(surface, color, option['rect'], border_radius=10)
-            if is_selected:
-                pygame.draw.rect(surface, self.highlight_color, option['rect'], width=4, border_radius=10)
-            else:
-                pygame.draw.rect(surface, (100, 100, 120), option['rect'], width=2, border_radius=10)
-            
-            # Draw text
-            text = self.button_font.render(option['text'], True, self.text_color)
-            text_rect = text.get_rect(center=option['rect'].center)
-            surface.blit(text, text_rect)
+        # Draw DHD buttons with enhanced effects
+        self.dhd_manager.draw(draw_target, self.selected_option)
+        
+        # Blit temp surface with shake offset if active
+        if shake_offset != (0, 0):
+            surface.blit(temp_surface, shake_offset)
 
 
 class DeckCustomizationUI:
@@ -1714,6 +1724,12 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     
     running = True
     while running:
+        dt = clock.tick(60)
+        
+        # Update DHD button animations
+        mouse_pos = pygame.mouse.get_pos()
+        main_menu.dhd_manager.update(dt, mouse_pos, main_menu.selected_option)
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 stop_menu_music()
@@ -1767,7 +1783,6 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
         update_menu_music()
         main_menu.draw(screen)
         pygame.display.flip()
-        clock.tick(60)
     
     stop_menu_music()
     return None
@@ -2058,11 +2073,6 @@ class StargateOpeningAnimation:
             pygame.draw.circle(flare, (80, 180, 255, 70), (self.gate_radius, self.gate_radius), self.gate_radius)
             surface.blit(flare, (self.center_x - self.gate_radius, self.center_y - self.gate_radius), special_flags=pygame.BLEND_ADD)
         
-        # Subtle gate shadow for depth
-        shadow = pygame.Surface((self.gate_radius * 2 + 120, 80), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow, (0, 0, 0, 120), shadow.get_rect())
-        surface.blit(shadow, (self.center_x - shadow.get_width() // 2, self.center_y + self.gate_radius - 20))
-        
         # Title text (fades in at end)
         if self.progress > 0.7:
             title_alpha = int(min(255, (self.progress - 0.7) * 850))
@@ -2079,23 +2089,18 @@ class StargateOpeningAnimation:
             
             title_text.set_alpha(title_alpha)
             surface.blit(title_text, title_rect)
+        
+        # White fade to next screen (98.75-100%) - starts at 15.8s
+        if self.progress > 0.9875:
+            # Smooth fade out to white
+            fade_progress = (self.progress - 0.9875) / 0.0125  # 0 to 1 over last 1.25% (0.2s)
+            fade_alpha = int(fade_progress * 255)
             
-            # Metallic edge + light sweep
-            highlight = pygame.Surface((title_rect.width, 6), pygame.SRCALPHA)
-            for i in range(title_rect.width):
-                fade = 1.0 - abs(i - title_rect.width / 2) / (title_rect.width / 2)
-                alpha = int(title_alpha * 0.25 * max(0, fade))
-                highlight.fill((200, 220, 255, alpha), rect=pygame.Rect(i, 0, 1, 6))
-            surface.blit(highlight, (title_rect.x, title_rect.y - 3), special_flags=pygame.BLEND_ADD)
-            
-            # Subtitle
-            if self.progress > 0.85:
-                sub_alpha = int(min(255, (self.progress - 0.85) * 1700))
-                sub_font = pygame.font.SysFont("Arial", 32)
-                sub_text = sub_font.render("Prepare for Battle", True, (100, 200, 255))
-                sub_text.set_alpha(sub_alpha)
-                sub_rect = sub_text.get_rect(center=(self.center_x, self.screen_height - 100))
-                surface.blit(sub_text, sub_rect)
+            fade_surface = pygame.Surface((self.screen_width, self.screen_height))
+            fade_surface.fill((255, 255, 255))
+            fade_surface.set_alpha(fade_alpha)
+            surface.blit(fade_surface, (0, 0))
+
 
 
 def show_stargate_opening(screen):

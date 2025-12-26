@@ -2688,6 +2688,292 @@ class MardroemeEffect(HeroEntryAnimation):
             surface.blit(surf, (int(px - p['size']), int(py - p['size'])))
 
 
+class StargateOpeningEffect:
+    """
+    High-fidelity Stargate Kawoosh opening sequence.
+    Duration: Fixed to 16,000ms to match audio.
+    
+    Layered rendering order:
+    1. Deep space void + starfield (depth)
+    2. Gate structure (metallic rings + symbols)
+    3. Event horizon (puddle inside inner ring)
+    4. Kawoosh surge (additive particles expanding outward)
+    """
+    def __init__(self, screen_width, screen_height):
+        self.duration = 16000  # STRICTLY MAINTAINED FOR AUDIO SYNC
+        self.elapsed = 0
+        self.finished = False
+        self.show_stabilized_text = False  # Narrator trigger at 13.5s
+        
+        self.center_x = screen_width // 2
+        self.center_y = screen_height // 2
+        # Scale gate based on screen height (responsive)
+        self.radius = min(350, int(screen_height * 0.35))
+        
+        # --- Animation State ---
+        self.inner_ring_angle = 0
+        self.inner_ring_radius = int(self.radius * 0.85)
+        
+        # --- Color Palette (Synced with UI) ---
+        # Asgard Blue for UI matching
+        self.ASGARD_BLUE = (50, 150, 255)
+        # Ancient Amber for chevrons
+        self.ANCIENT_AMBER = (255, 191, 0)
+        # Active chevron color (White-Yellow)
+        self.CHEVRON_ACTIVE = (255, 255, 220)
+        
+        # --- Chevrons (The "Buttons") ---
+        # We simulate 9 chevrons with position, active state, and glow intensity
+        self.chevrons = []
+        for i in range(9):
+            angle = (i * (360 / 9)) - 90  # Start at top
+            rad = math.radians(angle)
+            cx = self.center_x + math.cos(rad) * self.radius
+            cy = self.center_y + math.sin(rad) * self.radius
+            self.chevrons.append({
+                'pos': (cx, cy),
+                'angle': angle,
+                'active': False,
+                'glow': 0.0,  # Used for the "pop" effect when locking
+            })
+            
+        # Timing for chevron locking (milliseconds) - approximated for dramatic effect
+        # Matches typical SG-1 opening tempo
+        self.lock_times = [
+            2000, 3800, 5600, 7200, 8800, 10500, 12000, 13500, 14500
+        ]
+        
+        # --- Particle System for Kawoosh ---
+        self.particles = [] 
+        
+        # --- Background Starfield (Layer 1: The Void) ---
+        self.stars = []
+        for _ in range(200):
+            x = random.randint(0, screen_width)
+            y = random.randint(0, screen_height)
+            size = random.uniform(0.5, 2)
+            brightness = random.randint(100, 255)
+            self.stars.append({'x': x, 'y': y, 'size': size, 'b': brightness})
+            
+    def update(self, dt):
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            self.elapsed = self.duration
+            return
+
+        progress = self.elapsed / self.duration
+        
+        # 1. Rotate Inner Ring
+        # Spin fast during dialing, slows down as it locks
+        spin_speed = 3.0 if self.elapsed < 12000 else 0.5
+        self.inner_ring_angle += spin_speed
+        
+        # 2. Activate Chevrons (The "Button" Logic)
+        for i, time in enumerate(self.lock_times):
+            if self.elapsed >= time and not self.chevrons[i]['active']:
+                self.chevrons[i]['active'] = True
+                self.chevrons[i]['glow'] = 1.0 # Max glow pop on activation
+        
+        # Decay chevron glow slowly
+        for chev in self.chevrons:
+            if chev['active']:
+                chev['glow'] *= 0.94
+        
+        # Narrator trigger: "Wormhole Established" at 13.5s
+        if self.elapsed >= 13500 and not self.show_stabilized_text:
+            self.show_stabilized_text = True
+                
+        # 3. Handle Horizon & Kawoosh Logic
+        
+        # Stage A: The Puddle Forms (11s - 12s)
+        if 11000 <= self.elapsed <= 12500:
+            # Spawn slow drifting blue mist
+            for _ in range(3):
+                angle = random.uniform(0, 6.28)
+                r = random.uniform(0, self.radius * 0.8)
+                self.particles.append({
+                    'type': 'horizon_mist',
+                    'x': self.center_x + math.cos(angle) * r,
+                    'y': self.center_y + math.sin(angle) * r,
+                    'vx': random.uniform(-0.5, 0.5),
+                    'vy': random.uniform(-0.5, 0.5),
+                    'life': 1.0,
+                    'size': random.randint(5, 10)
+                })
+
+        # Stage B: THE KAWOOSH (12.5s - 13.5s) - The massive energy burst
+        if 12500 <= self.elapsed <= 13500:
+            # Spawn particles representing the 3D wave coming out
+            for _ in range(15): # Heavy density per frame
+                angle = random.uniform(0, 6.28)
+                # Z-simulation: faster particles are "larger/brighter"
+                z = random.uniform(0.2, 1.0) 
+                speed = (25 * z) * (self.center_x / 960) # Responsive speed
+                
+                vx = math.cos(angle) * speed
+                vy = math.sin(angle) * speed
+                
+                self.particles.append({
+                    'type': 'kawoosh',
+                    'x': self.center_x,
+                    'y': self.center_y,
+                    'vx': vx,
+                    'vy': vy,
+                    'life': 1.0,
+                    'decay': random.uniform(0.08, 0.20),
+                    'size': random.randint(8, 30) * z,
+                })
+
+        # Stage C: Stabilization (After 13.5s)
+        # Gentle ripples handled in draw
+
+        # Update Particles
+        for p in self.particles[:]:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= p.get('decay', 0.02)
+            
+            # Remove dead or off-screen
+            if p['life'] <= 0 or \
+               p['x'] < 0 or p['x'] > self.center_x * 2 or \
+               p['y'] < 0 or p['y'] > self.center_y * 2:
+                self.particles.remove(p)
+
+    def draw(self, surface):
+        """
+        Layered rendering order:
+        LAYER 1: Deep space void + starfield (background depth)
+        LAYER 2: Gate structure (metallic rings + symbols)
+        LAYER 3: Event horizon (puddle inside inner ring)
+        LAYER 4: Kawoosh surge (additive particles expanding outward)
+        """
+        
+        # === LAYER 1: The Void + Starfield ===
+        surface.fill((0, 0, 5))  # Deep space black
+        for star in self.stars:
+            color = (star['b'], star['b'], star['b'])
+            pygame.draw.circle(surface, color, (star['x'], star['y']), int(star['size']))
+
+        # Create effect surface for layered composition
+        effect_surf = pygame.Surface((self.center_x * 2, self.center_y * 2), pygame.SRCALPHA)
+        
+        # === LAYER 2: Gate Structure (Static/Rotating) ===
+        
+        # Outer Ring (Metallic with depth shading)
+        ring_color = (40, 50, 65)
+        pygame.draw.circle(effect_surf, ring_color, (self.center_x, self.center_y), self.radius, width=12)
+        pygame.draw.circle(effect_surf, (30, 40, 55), (self.center_x, self.center_y), self.radius + 6, width=2)
+        
+        # Inner Rotating Ring (Symbol-etched)
+        num_symbols = 39
+        for i in range(num_symbols):
+            theta = math.radians(self.inner_ring_angle + (i * (360/num_symbols)))
+            sx = self.center_x + math.cos(theta) * self.inner_ring_radius
+            sy = self.center_y + math.sin(theta) * self.inner_ring_radius
+            # Ancient glyphs in UI-matching color
+            glyph_color = (80, 90, 100)
+            pygame.draw.circle(effect_surf, glyph_color, (int(sx), int(sy)), 4)
+
+        # Chevrons (UI-synced colors)
+        for chev in self.chevrons:
+            cx, cy = chev['pos']
+            base_color = (160, 80, 30)  # Inactive Dark Orange
+            
+            if chev['active']:
+                # Dynamic Glow Halo (Ancient Amber aura)
+                if chev['glow'] > 0.1:
+                    glow_alpha = int(chev['glow'] * 200)
+                    halo_surf = pygame.Surface((40, 40), pygame.SRCALPHA)
+                    # Radial gradient with Ancient Amber tones
+                    pygame.draw.circle(halo_surf, (*self.ANCIENT_AMBER, glow_alpha), (20, 20), 16)
+                    pygame.draw.circle(halo_surf, (255, 150, 50, glow_alpha), (20, 20), 12)
+                    effect_surf.blit(halo_surf, (int(cx - 20), int(cy - 20)))
+                
+                # Active Chevron Shape (Triangle) - UI-matching White-Yellow
+                pygame.draw.polygon(effect_surf, self.CHEVRON_ACTIVE, [
+                    (int(cx), int(cy) - 10), 
+                    (int(cx) - 8, int(cy) + 6), 
+                    (int(cx) + 8, int(cy) + 6)
+                ])
+                # Center LED (Bright white core)
+                pygame.draw.circle(effect_surf, (255, 255, 255), (int(cx), int(cy)), 3)
+            else:
+                # Inactive Chevron Shape (Embedded in stone)
+                pygame.draw.polygon(effect_surf, base_color, [
+                    (int(cx), int(cy) - 8), 
+                    (int(cx) - 6, int(cy) + 4), 
+                    (int(cx) + 6, int(cy) + 4)
+                ])
+
+        # === LAYER 3: Event Horizon (Inside inner ring) ===
+        if self.elapsed > 11000:
+            # Draw stabilized pool first (behind particles)
+            if self.elapsed > 13500:
+                pool_radius = self.inner_ring_radius * 0.92
+                # Animated Ripple (Sine wave distortion)
+                ripple_offset = math.sin(pygame.time.get_ticks() / 150) * 5
+                
+                # Deep blue pool with Asgard Blue tint
+                pygame.draw.circle(effect_surf, (10, 60, 140), 
+                                 (self.center_x, self.center_y), 
+                                 int(pool_radius + ripple_offset))
+                
+                # Lighter "water" edge (Asgard Blue highlight)
+                pygame.draw.circle(effect_surf, self.ASGARD_BLUE, 
+                                 (self.center_x, self.center_y), 
+                                 int(pool_radius - 12 + ripple_offset))
+        
+        # === LAYER 4: Kawoosh Surge (Additive particles expanding AROUND gate) ===
+        if self.elapsed > 11000:
+            # Create dedicated glow surface for additive blending
+            glow_surf = pygame.Surface((self.center_x * 2, self.center_y * 2), pygame.SRCALPHA)
+            
+            for p in self.particles:
+                alpha = int(p['life'] * 255)
+                
+                # KAWOOSH: Fast, White/Blue core with Asgard Blue halo
+                if p['type'] == 'kawoosh':
+                    # Outer Asgard Blue Halo (expanding around gate)
+                    size = p['size'] * 2.5
+                    color = (*self.ASGARD_BLUE, alpha // 2)
+                    pygame.draw.circle(glow_surf, color, (int(p['x']), int(p['y'])), int(size))
+                    
+                    # Inner White/Blue Core (The energy burst)
+                    size = p['size']
+                    color = (200, 240, 255, alpha)
+                    pygame.draw.circle(glow_surf, color, (int(p['x']), int(p['y'])), int(size))
+                
+                # HORIZON MIST: Slow, Deep Blue fog (inside ring)
+                elif p['type'] == 'horizon_mist':
+                    size = p['size']
+                    color = (*self.ASGARD_BLUE, alpha)
+                    pygame.draw.circle(glow_surf, color, (int(p['x']), int(p['y'])), int(size))
+
+            # Apply Additive Blending for volumetric glow effect
+            effect_surf.blit(glow_surf, (0, 0), special_flags=pygame.BLEND_ADD)
+
+        # Composite all layers onto main screen
+        surface.blit(effect_surf, (0, 0))
+        
+        # Narrator text: "WORMHOLE ESTABLISHED" (appears at 13.5s)
+        if self.show_stabilized_text:
+            # Fade in over 0.5s
+            fade_progress = min(1.0, (self.elapsed - 13500) / 500)
+            text_alpha = int(fade_progress * 255)
+            
+            font = pygame.font.Font(None, 72)
+            text = font.render("WORMHOLE ESTABLISHED", True, self.ASGARD_BLUE)
+            text.set_alpha(text_alpha)
+            text_rect = text.get_rect(center=(self.center_x, self.center_y + self.radius + 80))
+            
+            # Shadow for depth
+            shadow = font.render("WORMHOLE ESTABLISHED", True, (0, 0, 0))
+            shadow.set_alpha(text_alpha // 2)
+            surface.blit(shadow, (text_rect.x + 3, text_rect.y + 3))
+            surface.blit(text, text_rect)
+
+
 class IrisClosingEffect(HeroEntryAnimation):
     """Stargate Iris closing animation - metal segments closing from edges."""
     def __init__(self, x, y):
