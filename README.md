@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.9.1-blue)
+![Version](https://img.shields.io/badge/version-3.9.2-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.9.2: WITCHER-STYLE DECK BUILDER UI** - Complete visual overhaul featuring bottom accordion card preview (2x size), right-side vertical deck list, holographic stats panel, and smooth drag-and-drop interactions!
 - **⚡ NEW v3.9.1: STATS MENU OVERHAUL** - Comprehensive player statistics with faction win rates, round breakdown (2-0 vs 2-1), comeback tracking, unlock progress, and red DHD-styled reset button!
 - **⚡ NEW v3.9.0: FACTION POWER CINEMATICS** - Faction powers now feature high-fidelity animations: Asgard de-materialization beams, Lucian EM interference glitches, and functional Goa'uld Sarcophagus lid animations!
 - **⚡ NEW v3.9.0: REPLICATOR SWARM WEATHER** - A new weather hazard featuring swarms of grey metallic blocks that jitter and consume row space!
@@ -94,6 +95,12 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **⚡ NEWv1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
 - **⚡ NEWv1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul! *Legendary commanders now crackle with lightning as they land — embrace the spectacle!*
 ### 🆕 Recent UI Updates
+- **Witcher-Style Deck Builder** - Complete redesign inspired by The Witcher 3's Gwent interface:
+  - **Bottom Accordion**: Horizontal scrolling card pool with 2x sized cards, hover lift animation, and card name tooltips
+  - **Right Deck List**: Vertical list view showing power, name, quantity, and row-type color indicators
+  - **Holographic Stats Panel**: Translucent top-left panel with deck validity, card counts, and total strength
+  - **Chevron Back Button**: Stylized "« DEPARTURE" button with faction-colored border
+  - **Top-Center Faction Tabs**: Filter cards by type (All, Close, Ranged, Siege, etc.)
 - **Elite AI Strategy** - The AI now uses Gwent-style "bleeding" and hero preservation tactics to challenge even experienced players.
 - **Draft Mode Polish** - "Your Deck" list is now scrollable, groups duplicates (e.g. "3x Alpha Team"), and features a centered "Start Battle" layout.
 - **Integrated Comms** - Chat and Game History are now unified. Press 'T' to open a non-intrusive input box directly below the history panel.
@@ -171,6 +178,34 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 3.9.2 (December 2025)
+**Witcher-Style Deck Builder UI Overhaul**
+
+- ✅ **Bottom Accordion Card Pool** – Cards now displayed in a horizontal scrolling strip at the bottom of the screen:
+  - 2x sized cards (160×240) for better visibility
+  - Smooth lift animation on hover (25px rise with shadow)
+  - Card names appear below on hover
+  - Power badges with faction-colored borders
+  - Scroll indicators (◀ ▶) when content overflows
+  - Pool count indicator showing filtered card total
+- ✅ **Right-Side Vertical Deck List** – Your deck displayed as a sleek list panel:
+  - Row-type color indicators (red=close, blue=ranged, gold=siege, etc.)
+  - Power circles with values for unit cards
+  - Truncated names with quantity badges (x2, x3)
+  - Quick remove button (×) on hover
+  - Scrollable with mouse wheel
+- ✅ **Holographic Stats Panel** – Translucent top-left panel with:
+  - Total cards / max (40)
+  - Unit count with minimum indicator (15 required)
+  - Special and Weather card counts
+  - Total deck strength
+  - Deck validity status with icon
+- ✅ **Chevron Back Button** – Stylized "« BACK" / "« DEPARTURE" button in top-left
+- ✅ **Top-Center Faction Tabs** – Card type filters maintained from previous version
+- ✅ **Improved Drag & Drop** – Drag from accordion to deck list to add, drag out to remove
+- ✅ **Right-Click Preview** – Works on both accordion cards and deck list items
+- ✅ **Horizontal Scroll** – Mouse wheel scrolls accordion horizontally when hovering bottom area
 
 ### Version 3.9.1 (December 2025)
 **Stats Menu Overhaul & Bug Fixes**

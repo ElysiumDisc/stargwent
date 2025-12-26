@@ -62,35 +62,35 @@ Generated on 2025-11-18 18:09 UTC using cards.py, content_registry.py, unlocks.p
 **Layout:** Five accordion cards (one per faction) showing Passive Ability, Faction Power, Unique Mechanics, and an Example Strategy vignette. Icons for once-per-game powers sit beside descriptions to mirror in-game HUD placement.
 
 - **Tau'ri**
-  - Passive: Resourcefulness – draw 1 extra card at the start of rounds 2 and 3.
-  - Faction Power: The Gate Shutdown – destroy the highest-power enemy unit in each row (once per game).
-  - Unique Mechanics: Tau'ri Iris Defense (one-shot shield) and Dial Home Device recursion every round.
-  - Example Strategy: Lean on balanced rows, SG-1 alliances, and reliable medic loops to outlast opponents. Iris Defense and DHD recursion make them resilient.
+  - Passive: Resourcefulness – draw 1 extra card at the start of rounds 2 and 3. This passive ensures you never run out of options, making the Tau'ri excellent at long games.
+  - Faction Power: The Gate Shutdown – destroy the highest-power enemy unit in each row (once per game). Timing is everything—wait until the opponent has committed their best units to multiple lanes before pulling the trigger.
+  - Unique Mechanics: Tau'ri Iris Defense (one-shot shield that destroys the opponent's next played card) and Dial Home Device recursion (retrieve a random unit from discard each round when unused). The Iris punishes aggressive openers while DHD rewards conservative play.
+  - Strategy Tips: Lead with expendable units to bait removal. Save Legendary Commanders for after Scorch effects are played. The SG-1 United combo requires all four members (O'Neill, Carter, Jackson, Teal'c) but grants +5 to each—a 20-power swing that can clinch rounds. Hammond's +3 first-unit buff combos perfectly with high-value Gate Reinforcement plays.
 - **Goa'uld**
-  - Passive: System Lord's Command – non-Hero units gain +1 when you control any Hero.
-  - Faction Power: Sarcophagus Revival – revive two random non-Hero units from your discard pile.
-  - Unique Mechanics: Goa'uld Ring Transportation (return a close unit to hand once per round) and Apophis weather decree.
-  - Example Strategy: Stack Gate Reinforcement cohorts, weaponize Naquadah Overload, and leverage Sarcophagus revival to grind foes down.
+  - Passive: System Lord's Command – non-Hero units gain +1 when you control any Hero. This encourages deploying your Legendary Commanders early to buff your entire board.
+  - Faction Power: Sarcophagus Revival – revive two random non-Hero units from your discard pile. Best used after aggressive trading or a Scorch effect devastates your board. Can bring back powerful Gate Reinforcement anchors.
+  - Unique Mechanics: Goa'uld Ring Transportation (return a close unit to hand once per round for re-deployment) and Apophis weather decree (automatically plays random weather affecting both sides). Ring Transport enables repeated deploy abilities, while weather decree disrupts enemy strategies.
+  - Strategy Tips: Flood the board with Gate Reinforcement swarms—Serpent Guards and Drones are cheap but multiply quickly. Life Force Drain steals power while you build, and System Lord's Curse softens rows for Naquadah Overload. Don't fear trading—your revival mechanics mean death is temporary. Stack siege with Ha'tak Motherships for draw power that keeps your hand full.
 - **Jaffa Rebellion**
-  - Passive: Brotherhood – each unit gains +1 per other unit in its row (max +3).
-  - Faction Power: Rebel Alliance Aid – draw 3 cards, then discard 3 random cards (once per game).
-  - Unique Mechanics: Hak'tyl leadership trackers for Ka'lel/Gerak and strong Agile presence.
-  - Example Strategy: Use Brotherhood buffs, Agile flexibility, and leadership bursts in round 3 to overwhelm larger armies.
+  - Passive: Brotherhood – each unit gains +1 per other unit in its row (max +3). This makes wide boards exponentially powerful—five units in a row means each gets +4 (capped at +3).
+  - Faction Power: Rebel Alliance Aid – draw 3 cards, then discard 3 random cards (once per game). Use this to cycle through your deck hunting for specific combos or to refill after a depleted hand. The random discard can hurt, so plan accordingly.
+  - Unique Mechanics: Hak'tyl leadership trackers (Ka'lel buffs first 3 units, Gerak draws on every second unit) and strong Agile presence allowing row flexibility. Agile units can dodge weather by choosing their deployment row.
+  - Strategy Tips: Prioritize horizontal development over vertical power. A single row with 6 Brotherhood units each at +3 is 18 bonus power. Ka'lel's opener buff makes your first three units each round extremely threatening. Master Bra'tac's round 3 +3 to all units is a finishing move—sandbag earlier rounds if needed. Rak'nor's double-card first turns enable devastating combo openers.
 - **Lucian Alliance**
-  - Passive: Piracy – first spy each round draws 3 cards instead of 2.
-  - Faction Power: Unstable Naquadah – deal 5 damage to every non-Hero unit (both sides).
-  - Unique Mechanics: Black-market Medical Evac (Anateo), smuggling random Neutral cards (Netan), heavy spy economy.
-  - Example Strategy: Spam spies for card advantage, abuse Medical Evac mobility, and hijack neutral tech to surprise opponents.
+  - Passive: Piracy – first spy each round draws 3 cards instead of 2. Combined with Vulkar's +1 spy draw, you can generate massive card advantage from a single spy deployment.
+  - Faction Power: Unstable Naquadah – deal 5 damage to every non-Hero unit (both sides). This chaos ability rewards playing lean with fewer units or building around Heroes who are immune. Time it when you have fewer/weaker units than your opponent.
+  - Unique Mechanics: Black-market Medical Evac (Anateo provides free revive each round), smuggling random Neutral cards (Netan generates tech each round), and heavy spy economy that turns board disadvantage into hand advantage.
+  - Strategy Tips: Information warfare is your game. Flood the opponent's board with spies—each one draws cards while giving them dead weight. Your spies eat their weather and Scorch effects. Build massive hand advantage, then Unstable Naquadah clears the board while your hand remains stocked. Anateo's free medic means you can sacrifice units knowing they'll return. Vala's card selection finds exactly what you need.
 - **Asgard**
-  - Passive: Superior Shielding – immune to the first enemy weather each round.
-  - Faction Power: Holographic Decoy – swap the opponent's close and ranged rows once per game.
-  - Unique Mechanics: Clone vats (Deploy Clones), Genetic Enhancement, beam transports, weather immunity stacks with Freyr/Hermiod.
-  - Example Strategy: Control the board with weather immunity, clone swarms, and precise shield tricks while powering up Legendary commanders.
+  - Passive: Superior Shielding – immune to the first enemy weather each round. This lets you develop freely while opponents waste weather cards, then you deploy your own hazards safely.
+  - Faction Power: Holographic Decoy – swap the opponent's close and ranged rows once per game. Devastating against horned rows or carefully positioned weather. Units built for close combat suddenly find themselves in ranged, breaking synergies and formations.
+  - Unique Mechanics: Clone vats (Deploy Clones spawns 2-power Shield Maidens), Genetic Enhancement (transforms weakest units into 8-power berserkers), beam transports, and weather immunity that stacks with Freyr/Hermiod for near-total hazard dominance.
+  - Strategy Tips: Control the tempo. Your shield absorbs their first weather—let them waste it, then deploy your own hazards. Clone swarms provide expendable bodies that protect your real threats. Genetic Enhancement turns those clones into berserkers. Heimdall and Aegir buff your Legendary Commanders into unstoppable anchors. Save Holographic Decoy for maximum disruption—when they've committed to a horned row, swap their formation and watch their strategy crumble.
 - **Neutral**
-  - Passive: Varies – see card entries.
-  - Faction Power: N/A
-  - Unique Mechanics: Neutral tech is accessible to all factions via unlocks and Langford's ability.
-  - Example Strategy: Slot into any deck to cover weaknesses—be it Scorch insurance, horn bait, or extra Legendary anchors.
+  - Passive: Varies by card – see individual card entries. Neutral cards don't share a unified passive but offer powerful standalone effects.
+  - Faction Power: N/A – Neutral is not a playable faction, only a card pool accessible to all factions.
+  - Unique Mechanics: Neutral tech is accessible to all factions via unlocks and Langford's ability. Cards range from ultimate power (Destiny Ship, Ori Warship) to utility (Ring Transport, Weather) to game-changers (ZPM, Merlin's Weapon).
+  - Strategy Tips: Slot neutral cards to address specific weaknesses. Lacking Legendary anchors? Add Destiny Ship or Atlantis City. Need Scorch protection? Run Ring Transport to bounce your high-power units. Want board wipes? Naquadah Bombs and Merlin's Weapon answer most threats. The Communication Device revealing opponent hands can be more valuable than raw power—use intel to time your plays perfectly.
 
 ## Tab 5 – Leader Cards & Abilities
 **Layout:** Sub-tabs for each faction (Tau'ri → Asgard). Each sub-tab splits leaders into Base and Unlockable columns with portrait thumbnails, ability text, timing clarifications, and synergy callouts. Hovering a leader highlights related cards in the glossary.
@@ -426,20 +426,37 @@ Generated on 2025-11-18 18:09 UTC using cards.py, content_registry.py, unlocks.p
 **Layout:** Storybook presentation with faction splash art followed by expandable leader dossiers. Each dossier includes biography, notable episodes, and a recommended strategy tip derived from ability notes.
 
 ### Tau'ri
-- Lore: Earth's SGC forces blend human ingenuity with reverse-engineered technology, relying on flexible combined-arms tactics and SG-1 heroics.
-- Signature Strategy: Lean on balanced rows, SG-1 alliances, and reliable medic loops to outlast opponents. Iris Defense and DHD recursion make them resilient.
+- Lore: Earth's Stargate Command (SGC) represents humanity's first line of defense against alien threats. Operating from beneath Cheyenne Mountain, the Tau'ri combine raw courage with reverse-engineered alien technology. Despite being millennia behind technologically, they've defeated System Lords, Replicators, and the Ori through sheer determination and ingenuity. Their strength lies in adaptability—turning enemy weapons against them, forging alliances with races like the Tok'ra and Asgard, and never backing down from impossible odds. "We don't leave our people behind" isn't just a motto—it's doctrine.
+- Signature Strategy: The Tau'ri excel at attrition warfare. Lead with expendable units to bait Scorch effects, protect your Legendary Commanders for critical turns, and leverage SG-1 United for massive late-game power spikes. Medical Evac loops allow you to replay key units multiple times, while Iris Defense punishes aggressive opponent openers. Save your Gate Shutdown faction power for when the opponent commits their strongest units to multiple rows—surgical strikes are your specialty.
+- Key Synergies: SG-1 United combo (+5 each when O'Neill, Carter, Jackson, and Teal'c are all deployed), Tok'ra Alliance (+3 to Carter + Tok'ra Operative), Hammond's first-unit buff into Gate Reinforcement waves.
+- Iconic Quote: "In the middle of my backswing?!" — Col. Jack O'Neill
+
 ### Goa'uld
-- Lore: System Lords rule through fear, fielding relentless waves of Jaffa legions, Ha'tak fleets, and sinister weather manipulation.
-- Signature Strategy: Stack Gate Reinforcement cohorts, weaponize Naquadah Overload, and leverage Sarcophagus revival to grind foes down.
+- Lore: The Goa'uld are parasitic serpents who pose as gods, enslaving entire civilizations through fear and false divinity. Their System Lords command vast armadas of Ha'tak motherships and legions of Jaffa warriors. Ancient beyond measure, the Goa'uld have stolen technology from countless races—including the Ancients themselves. Their greatest weakness is their pride; the constant infighting among System Lords like Apophis, Ba'al, and Yu prevents unified conquest. Yet individually, each commands enough firepower to devastate worlds. Their Sarcophagus technology grants effective immortality, and their mastery of ring transporters and death gliders makes them tactically flexible.
+- Signature Strategy: Overwhelm through numbers. Gate Reinforcement is your bread and butter—flood the board with Serpent Guards, Drones, and Death Gliders to maximize Tactical Formation multipliers. Life Force Drain and System Lord's Curse weaken enemy forces before your Naquadah Overload sweeps them away. The Sarcophagus Revival faction power lets you recover from devastating board wipes, so don't be afraid to trade aggressively. Weather manipulation via Apophis's decree can cripple entire lanes while your Legendary Commanders remain immune.
+- Key Synergies: System Lords Summit (+4 when Apophis, Yu, and Sokar are deployed), Ha'tak draw-2 refueling siege lines, Council cards stacking curses on opponent rows.
+- Iconic Quote: "Kneel before your god!" — Apophis
+
 ### Jaffa Rebellion
-- Lore: Former slaves turned freedom fighters who rely on Brotherhood cohesion and tactical discipline.
-- Signature Strategy: Use Brotherhood buffs, Agile flexibility, and leadership bursts in round 3 to overwhelm larger armies.
+- Lore: Once the backbone of Goa'uld armies, the Jaffa have risen against their false gods under the leadership of Teal'c and Bra'tac. Every Jaffa carries a symbiote pouch that marks their former servitude—and their burning desire for freedom. The Free Jaffa Nation now fights not just for liberation, but for the right to determine their own destiny. Their warriors are raised from childhood in combat, making them some of the deadliest fighters in the galaxy. United by the rallying cry "Tek'ma'te!" (friends well met), the Jaffa combine brutal efficiency with unwavering honor.
+- Signature Strategy: The Brotherhood passive makes the Jaffa deadly in wide board states—each unit in a row buffs every other unit. Prioritize building horizontal strength over vertical power. Agile units give you flexibility to dodge weather effects, while leadership abilities from Ka'lel and Gerak accelerate your board development. Master Bra'tac's round 3 burst can turn a losing game into a crushing victory. Use Rebel Alliance Aid to cycle through your deck when hunting for specific combos, but time it carefully—the discard can hurt if you're not prepared.
+- Key Synergies: Brotherhood stacking in wide rows, Ka'lel's +2 to first three units enabling explosive openers, Ishta buffing Gate Reinforcement waves, Rak'nor's double-card first turns.
+- Iconic Quote: "Indeed." — Teal'c
+
 ### Lucian Alliance
-- Lore: Pirates, smugglers, and mercenaries profiting from chaos across the galaxy.
-- Signature Strategy: Spam spies for card advantage, abuse Medical Evac mobility, and hijack neutral tech to surprise opponents.
+- Lore: When the System Lords fell, criminals filled the power vacuum. The Lucian Alliance emerged from the smugglers, pirates, and mercenaries who once served various Goa'uld factions. Now they control the galactic underworld, dealing in naquadah, weapons, and information. Led by ruthless leaders like Netan and Kiva, the Alliance operates on profit and survival—loyalty is bought, not earned. Their network of spies and informants stretches across the galaxy, making them dangerously well-informed. What they lack in honor, they make up for in cunning.
+- Signature Strategy: Information is power. Your spy network is unmatched—Deep Cover Agents draw extra cards thanks to Piracy, and Vulkar pushes that to three cards each. Flood the opponent's board with spies to thin your deck while building massive hand advantage. Anateo's free Medical Evac means you can afford to sacrifice units knowing they'll return. When you've built enough advantage, Unstable Naquadah nukes the entire board—your spies on the enemy's side take the hit while your hand remains stocked for the rebuild. It's not cheating; it's smart business.
+- Key Synergies: Vulkar's +1 spy draw stacking with Piracy passive, Anateo Medical Evac loops recycling high-value units, Tactical Formation smuggler/enforcer stacks.
+- Iconic Quote: "Everyone has a price." — Netan
+
 ### Asgard
-- Lore: Ancient protectors wielding holograms, cloning vats, and superior battleships.
-- Signature Strategy: Control the board with weather immunity, clone swarms, and precise shield tricks while powering up Legendary commanders.
+- Lore: The Asgard were once the protectors of the galaxy, ancient beings whose technology bordered on magic. Their ships could cross the universe in moments, their transporters moved matter through solid rock, and their scientific knowledge rivaled even the Ancients. But their greatest triumph—cloning—became their doom. Millennia of copying themselves degraded their genome until they faced extinction. In their final act, they gifted their legacy to the Tau'ri, trusting humanity to carry on where they could not. Thor, Freyr, Heimdall, and Loki represent the last echoes of a dying race—but what echoes they are.
+- Signature Strategy: The Asgard play a control game built on inevitability. Superior Shielding negates the first weather each round, letting you develop freely while opponents scramble to find Clear Weather cards. Deploy Clones creates endless bodies for Tactical Formation math and Brotherhood denial, while Genetic Enhancement transforms your weakest links into powerhouses. Your Holographic Decoy faction power completely disrupts enemy positioning—save it for when they've committed hard to a horned row, then swap their carefully built formation into weather. Legendary Commander synergy with Heimdall and Aegir makes your heroes truly unstoppable.
+- Key Synergies: Freyr's weather immunity enabling aggressive hazard deployment, Clone Trooper swarms triggering Tactical Formation, Heimdall + Aegir hero buffs stacking multiplicatively.
+- Iconic Quote: "We are dying. We have suffered genetic degradation from years of cloning. This is our legacy." — Thor
+
 ### Neutral
-- Lore: Ancient technology, Ori zealotry, Wraith bio-ships, and other forces any faction can recruit.
-- Signature Strategy: Slot into any deck to cover weaknesses—be it Scorch insurance, horn bait, or extra Legendary anchors.
+- Lore: Some forces transcend faction loyalty. The Ancients left behind technology that changed the galaxy—the Stargates themselves, the city of Atlantis, and weapons like the Dakara Superweapon. The Ori bring crusading zeal and ships powered by religious fervor. The Wraith are nightmare predators who feed on human life force. The Replicators are self-replicating machines that consumed entire civilizations. These cards represent the wild cards of the Stargate universe—powerful, unpredictable, and available to any commander bold enough to field them.
+- Signature Strategy: Neutral cards fill gaps in any faction's arsenal. The Destiny Ship and Ori Warship provide Legendary anchors when your faction lacks raw power. Atlantis City combines Legendary immunity with Inspiring Leadership for massive synergy potential. Replicator Swarm offers Tactical Formation to factions that lack it natively. Weather cards and Scorch effects are universal answers. Slot neutral tech strategically—don't just fill your deck with shiny legendaries, but ask what specific weakness you're addressing. A well-timed Communication Device revealing the opponent's hand can be worth more than a 15-power unit.
+- Key Synergies: Ancient Control Chair boosting neutral units across factions, Puddle Jumper enabling Ring Transport plays in any deck, ZPM doubling siege-heavy builds regardless of faction.
+- Iconic Quote: "The universe is vast, and we are so small." — Dr. Elizabeth Weir

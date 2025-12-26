@@ -538,19 +538,36 @@ class RulesMenuScreen:
                 continue
             if stripped.startswith("- **") and stripped.endswith("**"):
                 name = stripped[4:-2]
-                current = {"name": name, "Passive": "", "Power": "", "Unique": "", "Strategy": ""}
+                current = {"name": name, "Passive": "", "Power": "", "Unique": "", "Strategy": "", "Strategy Tips": ""}
                 factions.append(current)
             elif stripped.startswith("- "):
                 key, val = self._split_bullet(stripped[2:].strip())
-                if current and key in current:
-                    current[key] = val
+                # Map various key formats to our expected fields
+                if current:
+                    if key in current:
+                        current[key] = val
+                    elif key == "Faction Power":
+                        current["Power"] = val
+                    elif key == "Unique Mechanics":
+                        current["Unique"] = val
+                    elif key == "Strategy Tips":
+                        current["Strategy Tips"] = val
+                    elif key == "Example Strategy":
+                        current["Strategy"] = val
             elif stripped.startswith("-"):
                 # nested entries already handled
                 continue
             elif stripped.startswith("  - "):
                 label, val = self._split_bullet(stripped[4:].strip())
-                if current and label in current:
-                    current[label] = val
+                if current:
+                    if label in current:
+                        current[label] = val
+                    elif label == "Faction Power":
+                        current["Power"] = val
+                    elif label == "Unique Mechanics":
+                        current["Unique"] = val
+                    elif label == "Strategy Tips":
+                        current["Strategy Tips"] = val
         return factions
 
     def _parse_abilities(self) -> List[Dict[str, str]]:
@@ -632,6 +649,20 @@ class RulesMenuScreen:
     def _parse_lore_entries(self) -> Dict[str, Dict[str, str]]:
         tab = self._get_tab("Tab 10 – Faction Lore & Leader Bios")
         lore: Dict[str, Dict[str, str]] = {}
+        
+        # The faction entries are children of Tab 10 (### Tau'ri, ### Goa'uld, etc.)
+        for child in tab.children:
+            faction_name = child.title.strip()
+            current = lore.setdefault(faction_name, {})
+            
+            # Parse the content lines for this faction
+            for raw in child.content:
+                stripped = raw.strip()
+                if stripped.startswith("- ") and current is not None:
+                    key, val = self._split_bullet(stripped[2:].strip())
+                    current[key.rstrip(":")] = val
+        
+        # Also check direct content of tab (for backwards compatibility)
         current = None
         for raw in tab.content:
             stripped = raw.strip()
@@ -1250,18 +1281,26 @@ class RulesMenuScreen:
         offset = self.scroll_offsets.get(self.active_tab, 0)
         y = top + 10 - offset
         content_height = 0
-        for label, key in [
+        
+        # Display faction fields - include Strategy Tips if available
+        faction_fields = [
             ("Passive Ability", "Passive"),
             ("Faction Power", "Power"),
             ("Unique Mechanics", "Unique"),
-            ("Strategy", "Strategy"),
-        ]:
+            ("Strategy Tips", "Strategy Tips"),
+        ]
+        
+        for label, key in faction_fields:
+            entry_text = active.get(key, "")
+            if not entry_text:
+                continue
+                
             heading = self.small_font.render(label.upper(), True, self.muted_color)
             view.blit(heading, (column_x, y))
             start_y = y
             y = self._render_wrapped(
                 view,
-                active.get(key, ""),
+                entry_text,
                 (column_x + column_width // 2, y + 26),
                 column_width,
                 self.body_font,
@@ -1417,19 +1456,36 @@ class RulesMenuScreen:
         offset = self.scroll_offsets.get(self.active_tab, 0)
         y = top + 10 - offset
         content_height = 0
-        for label in ["Lore", "Signature Strategy"]:
-            heading = self.small_font.render(label.upper(), True, self.muted_color)
+        
+        # Display all lore fields in order
+        lore_fields = ["Lore", "Signature Strategy", "Key Synergies", "Iconic Quote"]
+        
+        for label in lore_fields:
+            entry_text = info.get(label, "")
+            if not entry_text:
+                continue
+                
+            # Special styling for Iconic Quote
+            if label == "Iconic Quote":
+                heading = self.small_font.render("ICONIC QUOTE", True, self.accent_color)
+            else:
+                heading = self.small_font.render(label.upper(), True, self.muted_color)
+            
             view.blit(heading, (column_x + column_width // 2 - heading.get_width() // 2, y))
             start_y = y
+            
+            # Use italic-style color for quotes
+            text_color = self.accent_color if label == "Iconic Quote" else self.text_color
+            
             y = self._render_wrapped(
                 view,
-                info.get(label, "No entry."),
+                entry_text,
                 (column_x + column_width // 2, y + 24),
                 column_width,
                 self.body_font,
-                self.text_color,
+                text_color,
                 align_center=True,
-            ) + 24
+            ) + 30  # Extra spacing between sections
             content_height += y - start_y
         self._update_scroll_limit(content_height, area_height)
 

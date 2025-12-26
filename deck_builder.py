@@ -105,7 +105,7 @@ FACTION_BACKGROUND_ASSET_IDS = {
 
 
 class DeckBuilderUI:
-    """Deck builder interface for selecting faction and leader."""
+    """Deck builder interface with Accordion Preview and Split Layout."""
     
     def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False, unlock_system=None):
         reload_card_images()
@@ -120,7 +120,7 @@ class DeckBuilderUI:
         self.deck_preview_ids = None
         self.custom_deck_ids = []  # Player's custom deck being built
         self.deck_scroll_offset = 0
-        self.pool_scroll_offset = 0  # Separate scroll for card pool
+        self.pool_scroll_offset = 0  # Horizontal scroll for bottom accordion
         self.inspected_card_id = None  # Card being inspected with spacebar
         self.card_pool_ids = []  # Available cards for the faction
         self.current_tab = "all"  # Current card type tab
@@ -148,6 +148,10 @@ class DeckBuilderUI:
         # HOVER PREVIEW STATE
         self.hovered_card_id = None  # Card ID being hovered over for preview
         self.deck_remove_buttons = {}  # Track remove button positions for click detection
+        
+        # ACCORDION STATE (for bottom panel animation)
+        self.accordion_hover_card_id = None  # Card being hovered in accordion
+        self.accordion_lift_amount = {}  # Per-card lift animation state
 
         # Fonts
         self.title_font = pygame.font.SysFont("Arial", 64, bold=True)
@@ -239,7 +243,7 @@ class DeckBuilderUI:
         return cards_per_row, spacing, card_width, card_height
         
     def setup_layout(self):
-        """Calculate layout positions."""
+        """Calculate layout positions for the new Witcher-style UI."""
         # Faction selection buttons - STACK VERTICALLY to avoid overlap
         self.faction_buttons = []
         button_width = 400
@@ -276,21 +280,42 @@ class DeckBuilderUI:
             60
         )
         
-        # Back button
-        self.back_button = pygame.Rect(
-            50,
-            self.screen_height - 80,
-            150,
-            50
+        # === NEW DECK REVIEW LAYOUT ===
+        # Back button (Top Left - Chevron styled)
+        self.back_button = pygame.Rect(30, 30, 180, 50)
+        
+        # Stats Box (Top Left below back button - Holographic style)
+        self.stats_box_rect = pygame.Rect(30, 100, 320, 180)
+        
+        # Deck List Panel (Right Side - vertical list)
+        deck_list_width = 380
+        deck_list_top = 100
+        self.deck_list_rect = pygame.Rect(
+            self.screen_width - deck_list_width - 20, 
+            deck_list_top, 
+            deck_list_width, 
+            self.screen_height - deck_list_top - 420  # Leave room for accordion
         )
         
-        # Save button (for deck building mode)
+        # Bottom Accordion Area (2x size cards horizontal scroll)
+        accordion_height = 380
+        self.accordion_area_rect = pygame.Rect(
+            0, 
+            self.screen_height - accordion_height, 
+            self.screen_width, 
+            accordion_height
+        )
+        
+        # Save button (for deck building mode) - positioned above accordion
         self.save_button = pygame.Rect(
             self.screen_width // 2 - 100,
-            self.screen_height - 100,
+            self.screen_height - accordion_height - 60,
             200,
             50
         )
+        
+        # Faction tabs positioning (Top Center)
+        self.faction_tab_rects = {}
 
     def save_current_deck(self, reason=""):
         """Persist the current deck configuration and show feedback to the player."""
@@ -510,83 +535,38 @@ class DeckBuilderUI:
                     selected_id = self.selected_leader.get('card_id') if self.selected_leader else None
                     self.set_leader_background(selected_id)
 
-            # Update hover preview for cards in deck review
+            # Update hover preview for cards in deck review (new layout)
             elif self.state == "deck_review":
-                # Reset hovered card
+                # Reset hovered card (will be set by draw methods)
                 self.hovered_card_id = None
+                self.accordion_hover_card_id = None
 
                 # Don't show hover preview while dragging or inspecting
                 if self.dragging_card or self.inspected_card_id:
                     return
-
-                # Calculate panel dimensions (same as in draw_deck_review)
-                panel_padding = 20
-                divider_x = self.screen_width // 2
-                left_panel_x = panel_padding
-                left_panel_width = divider_x - panel_padding * 2
-                left_panel_y = 120
-                left_panel_height = self.screen_height - 180
-                right_panel_x = divider_x + panel_padding
-                right_panel_width = self.screen_width - right_panel_x - panel_padding
-                right_panel_y = 120
-                right_panel_height = self.screen_height - 180
-
-                left_panel_rect = pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height)
-                right_panel_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
-
-                # Check hover in LEFT panel (card pool)
-                if left_panel_rect.collidepoint(mouse_pos) and self.card_pool_ids:
-                    sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
-                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
-                    start_x = left_panel_x + spacing
-                    start_y = left_panel_y + 15 - self.pool_scroll_offset
-
-                    for i, card_id in enumerate(sorted_pool):
-                        row_idx = i // cards_per_row
-                        col_idx = i % cards_per_row
-                        x = start_x + col_idx * (card_width + spacing)
-                        y = start_y + row_idx * (card_height + spacing)
-
-                        card_rect = pygame.Rect(x, y, card_width, card_height)
-                        if card_rect.collidepoint(mouse_pos):
-                            self.hovered_card_id = card_id
-                            break
-
-                # Check hover in RIGHT panel (deck)
-                elif right_panel_rect.collidepoint(mouse_pos) and self.deck_preview_ids:
-                    deck_filter_type = None if self.current_tab == "all" else self.current_tab
-                    visible_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type)
-                    cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
-                    start_x = right_panel_x + spacing
-                    start_y = right_panel_y + 15 - self.deck_scroll_offset
-
-                    for i, card_id in enumerate(visible_deck_ids):
-                        row_idx = i // cards_per_row
-                        col_idx = i % cards_per_row
-                        x = start_x + col_idx * (card_width + spacing)
-                        y = start_y + row_idx * (card_height + spacing)
-
-                        card_rect = pygame.Rect(x, y, card_width, card_height)
-                        if card_rect.collidepoint(mouse_pos):
-                            self.hovered_card_id = card_id
-                            break
         
         elif event.type == pygame.MOUSEBUTTONUP:
-            # Complete drag and drop
+            # Complete drag and drop for new layout
             if self.dragging_card and event.button == 1:
                 mouse_pos = event.pos
-                divider_x = self.screen_width // 2
                 
-                # Dropped on LEFT side (pool) - remove from deck
-                if mouse_pos[0] < divider_x and not self.drag_from_pool:
-                    if self.dragging_card in self.deck_preview_ids:
-                        self.deck_preview_ids.remove(self.dragging_card)
-                
-                # Dropped on RIGHT side (deck) - add to deck
-                elif mouse_pos[0] >= divider_x and self.drag_from_pool:
-                    if len(self.deck_preview_ids) < MAX_DECK_SIZE:
+                # Dropped on Deck List (right side) - add to deck
+                if self.deck_list_rect.collidepoint(mouse_pos) and self.drag_from_pool:
+                    if len(self.deck_preview_ids or []) < MAX_DECK_SIZE:
+                        if self.deck_preview_ids is None:
+                            self.deck_preview_ids = []
                         if self.dragging_card not in self.deck_preview_ids:
                             self.deck_preview_ids.append(self.dragging_card)
+                
+                # Dropped on Accordion (bottom) - remove from deck (if dragging from deck)
+                elif self.accordion_area_rect.collidepoint(mouse_pos) and not self.drag_from_pool:
+                    if self.deck_preview_ids and self.dragging_card in self.deck_preview_ids:
+                        self.deck_preview_ids.remove(self.dragging_card)
+                
+                # Dropped anywhere else outside deck list while dragging from deck = remove
+                elif not self.deck_list_rect.collidepoint(mouse_pos) and not self.drag_from_pool:
+                    if self.deck_preview_ids and self.dragging_card in self.deck_preview_ids:
+                        self.deck_preview_ids.remove(self.dragging_card)
                 
                 # Reset drag state
                 self.dragging_card = None
@@ -606,7 +586,7 @@ class DeckBuilderUI:
                     # Browse through cards with mouse wheel when zoomed
                     all_card_ids = self.deck_preview_ids if self.deck_preview_ids else []
                     if all_card_ids:
-                        current_idx = all_card_ids.index(self.inspected_card_id)
+                        current_idx = all_card_ids.index(self.inspected_card_id) if self.inspected_card_id in all_card_ids else 0
                         if event.y > 0:  # Scroll up = previous card
                             new_idx = (current_idx - 1) % len(all_card_ids)
                             self.inspected_card_id = all_card_ids[new_idx]
@@ -614,16 +594,22 @@ class DeckBuilderUI:
                             new_idx = (current_idx + 1) % len(all_card_ids)
                             self.inspected_card_id = all_card_ids[new_idx]
                 else:
-                    # Determine which panel to scroll based on mouse position
+                    # Determine which area to scroll based on mouse position
                     mouse_pos = pygame.mouse.get_pos()
-                    divider_x = self.screen_width // 2
                     
-                    if mouse_pos[0] < divider_x:
-                        # Left panel (card pool) scroll
-                        self.pool_scroll_offset = max(0, self.pool_scroll_offset - event.y * 50)
-                    else:
-                        # Right panel (deck) scroll
-                        self.deck_scroll_offset = max(0, self.deck_scroll_offset - event.y * 50)
+                    # Bottom Accordion - HORIZONTAL scroll (use event.x if available, or map y to horizontal)
+                    if self.accordion_area_rect.collidepoint(mouse_pos):
+                        # Calculate max scroll based on pool size
+                        pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+                        card_w = 160
+                        spacing = 15
+                        max_scroll = max(0, len(pool_ids) * (card_w + spacing) - self.screen_width + 80)
+                        # Horizontal scroll using vertical wheel
+                        self.pool_scroll_offset = max(0, min(max_scroll, self.pool_scroll_offset - event.y * 80))
+                    
+                    # Deck List (right side) - VERTICAL scroll
+                    elif self.deck_list_rect.collidepoint(mouse_pos):
+                        self.deck_scroll_offset = max(0, self.deck_scroll_offset - event.y * 40)
             return  # Don't process mouse wheel as clicks
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -1045,23 +1031,8 @@ class DeckBuilderUI:
                     self.state = "complete"
                     return
             
-            # Deck review
+            # Deck review - NEW LAYOUT (Bottom Accordion + Right Deck List)
             elif self.state == "deck_review":
-                panel_padding = 20
-                divider_x = self.screen_width // 2
-                left_panel_x = panel_padding
-                left_panel_width = divider_x - panel_padding * 2
-                left_panel_y = 160  # Moved down for filters (was 120)
-                left_panel_height = self.screen_height - 220
-                right_panel_x = divider_x + panel_padding
-                right_panel_width = self.screen_width - right_panel_x - panel_padding
-                right_panel_y = 160  # Moved down
-                right_panel_height = self.screen_height - 220
-                left_panel_rect = pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height)
-                right_panel_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
-                deck_filter_type = None if self.current_tab == "all" else self.current_tab
-                visible_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type, self.keyword_filter) if self.deck_preview_ids else []
-                
                 # Check filter button clicks
                 if event.button == 1 and self.filter_rects:
                     for kw, rect in self.filter_rects.items():
@@ -1104,54 +1075,55 @@ class DeckBuilderUI:
                         self.save_current_deck()
                         return
                 
-                # RIGHT CLICK = ZOOM/INSPECT
+                # RIGHT CLICK = ZOOM/INSPECT (works on accordion and deck list)
                 if event.button == 3:  # Right click
                     # Close inspection if already open
                     if self.inspected_card_id:
                         self.inspected_card_id = None
                         return
                     
-                    # Find card under mouse to inspect
-                    # Check cards in POOL (left panel)
-                    if left_panel_rect.collidepoint(mouse_pos):
-                        sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
-                        cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
-                        start_x = left_panel_x + spacing
-                        start_y = left_panel_y + 15 - self.pool_scroll_offset
+                    # Check cards in Bottom Accordion
+                    if self.accordion_area_rect.collidepoint(mouse_pos):
+                        pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+                        card_w, card_h = 160, 240
+                        spacing = 15
+                        start_x = 40 - self.pool_scroll_offset
+                        card_y = self.accordion_area_rect.y + 60
                         
-                        for i, card_id in enumerate(sorted_pool):
-                            row_idx = i // cards_per_row
-                            col_idx = i % cards_per_row
-                            x = start_x + col_idx * (card_width + spacing)
-                            y = start_y + row_idx * (card_height + spacing)
-                            
-                            card_rect = pygame.Rect(x, y, card_width, card_height)
+                        for i, card_id in enumerate(pool_ids):
+                            card_x = start_x + i * (card_w + spacing)
+                            if card_x + card_w < 0 or card_x > self.screen_width:
+                                continue
+                            card_rect = pygame.Rect(card_x, card_y, card_w, card_h)
                             if card_rect.collidepoint(mouse_pos):
                                 self.inspected_card_id = card_id
                                 return
                     
-                    # Check cards in DECK (right panel)
-                    elif right_panel_rect.collidepoint(mouse_pos):
-                        if visible_deck_ids:
-                            cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
-                            start_x = right_panel_x + spacing
-                            start_y = right_panel_y + 15 - self.deck_scroll_offset
-
-                            for i, card_id in enumerate(visible_deck_ids):
-                                row_idx = i // cards_per_row
-                                col_idx = i % cards_per_row
-                                x = start_x + col_idx * (card_width + spacing)
-                                y = start_y + row_idx * (card_height + spacing)
-
-                                card_rect = pygame.Rect(x, y, card_width, card_height)
-                                if card_rect.collidepoint(mouse_pos):
-                                    self.inspected_card_id = card_id
-                                    return
+                    # Check cards in Deck List (right panel) - right-click on list item
+                    elif self.deck_list_rect.collidepoint(mouse_pos) and self.deck_preview_ids:
+                        from collections import Counter
+                        counts = Counter(self.deck_preview_ids)
+                        unique_ids = sorted(list(counts.keys()), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                        
+                        row_height = 38
+                        y_offset = self.deck_list_rect.y + 15 - self.deck_scroll_offset
+                        
+                        for cid in unique_ids:
+                            row_rect = pygame.Rect(
+                                self.deck_list_rect.x + 8, 
+                                y_offset, 
+                                self.deck_list_rect.width - 16, 
+                                row_height - 4
+                            )
+                            if row_rect.collidepoint(mouse_pos):
+                                self.inspected_card_id = cid
+                                return
+                            y_offset += row_height
                     return
                 
-                # LEFT CLICK = DRAG (only if not inspecting)
+                # LEFT CLICK = DRAG or REMOVE (only if not inspecting)
                 if event.button == 1 and not self.inspected_card_id:
-                    # First check for remove button clicks in deck
+                    # First check for remove button clicks in deck list
                     if hasattr(self, 'deck_remove_buttons') and self.deck_remove_buttons:
                         for card_id, btn_rect in self.deck_remove_buttons.items():
                             if btn_rect.collidepoint(mouse_pos):
@@ -1160,55 +1132,57 @@ class DeckBuilderUI:
                                     self.deck_preview_ids.remove(card_id)
                                 return
 
-                    # Check cards in POOL (left panel)
-                    if left_panel_rect.collidepoint(mouse_pos):
-                        sorted_pool = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab)
-                        cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
-                        start_x = left_panel_x + spacing
-                        start_y = left_panel_y + 15 - self.pool_scroll_offset
-
-                        for i, card_id in enumerate(sorted_pool):
-                            row_idx = i // cards_per_row
-                            col_idx = i % cards_per_row
-                            x = start_x + col_idx * (card_width + spacing)
-                            y = start_y + row_idx * (card_height + spacing)
-
-                            card_rect = pygame.Rect(x, y, card_width, card_height)
+                    # Check cards in Bottom Accordion (drag to add to deck)
+                    if self.accordion_area_rect.collidepoint(mouse_pos):
+                        pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+                        card_w, card_h = 160, 240
+                        spacing = 15
+                        start_x = 40 - self.pool_scroll_offset
+                        card_y = self.accordion_area_rect.y + 60
+                        
+                        for i, card_id in enumerate(pool_ids):
+                            card_x = start_x + i * (card_w + spacing)
+                            if card_x + card_w < 0 or card_x > self.screen_width:
+                                continue
+                            # Account for lift animation
+                            lift = self.accordion_lift_amount.get(card_id, 0)
+                            card_rect = pygame.Rect(card_x, card_y - int(lift), card_w, card_h)
                             if card_rect.collidepoint(mouse_pos):
                                 # Start dragging from pool
                                 self.dragging_card = card_id
                                 self.drag_from_pool = True
-                                # Initialize both current and target to mouse position
                                 self.drag_current_x = mouse_pos[0]
                                 self.drag_current_y = mouse_pos[1]
                                 self.drag_target_x = mouse_pos[0]
                                 self.drag_target_y = mouse_pos[1]
                                 return
 
-                    # Check cards in DECK (right panel)
-                    elif right_panel_rect.collidepoint(mouse_pos):
-                        if visible_deck_ids:
-                            cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
-                            start_x = right_panel_x + spacing
-                            start_y = right_panel_y + 15 - self.deck_scroll_offset
-
-                            for i, card_id in enumerate(visible_deck_ids):
-                                row_idx = i // cards_per_row
-                                col_idx = i % cards_per_row
-                                x = start_x + col_idx * (card_width + spacing)
-                                y = start_y + row_idx * (card_height + spacing)
-
-                                card_rect = pygame.Rect(x, y, card_width, card_height)
-                                if card_rect.collidepoint(mouse_pos):
-                                    # Start dragging from deck
-                                    self.dragging_card = card_id
-                                    self.drag_from_pool = False
-                                    # Initialize both current and target to mouse position
-                                    self.drag_current_x = mouse_pos[0]
-                                    self.drag_current_y = mouse_pos[1]
-                                    self.drag_target_x = mouse_pos[0]
-                                    self.drag_target_y = mouse_pos[1]
-                                    return
+                    # Check Deck List (clicking on a row could start drag to remove)
+                    elif self.deck_list_rect.collidepoint(mouse_pos) and self.deck_preview_ids:
+                        from collections import Counter
+                        counts = Counter(self.deck_preview_ids)
+                        unique_ids = sorted(list(counts.keys()), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                        
+                        row_height = 38
+                        y_offset = self.deck_list_rect.y + 15 - self.deck_scroll_offset
+                        
+                        for cid in unique_ids:
+                            row_rect = pygame.Rect(
+                                self.deck_list_rect.x + 8, 
+                                y_offset, 
+                                self.deck_list_rect.width - 16, 
+                                row_height - 4
+                            )
+                            if row_rect.collidepoint(mouse_pos):
+                                # Start dragging from deck
+                                self.dragging_card = cid
+                                self.drag_from_pool = False
+                                self.drag_current_x = mouse_pos[0]
+                                self.drag_current_y = mouse_pos[1]
+                                self.drag_target_x = mouse_pos[0]
+                                self.drag_target_y = mouse_pos[1]
+                                return
+                            y_offset += row_height
                 
     
     def update(self, delta_time=0.016):
@@ -1421,11 +1395,11 @@ class DeckBuilderUI:
             self.filter_rects["CLEAR"] = clear_rect
 
     def draw_deck_review(self, surface):
-        """Draw deck review screen with two-panel layout and card type tabs."""
+        """Draw the new High-End Witcher-style Deck Builder UI."""
         # Clear remove button positions from previous frame
         self.deck_remove_buttons = {}
 
-        # Full background (use deck_building_bg.png if available)
+        # 1. Background
         if self.deck_building_bg:
             surface.blit(self.deck_building_bg, (0, 0))
         elif self.selected_faction:
@@ -1433,316 +1407,342 @@ class DeckBuilderUI:
         else:
             surface.fill(self.bg_color)
         
-        # Title
         faction_color = self.faction_colors.get(self.selected_faction, self.highlight_color)
-        title = self.subtitle_font.render(f"Deck Builder - {self.selected_faction}", True, faction_color)
-        title_rect = title.get_rect(center=(self.screen_width // 2, 30))
-        surface.blit(title, title_rect)
-        
-        # Draw card type tabs at the top
+
+        # 2. Top Navigation & Tabs
         self.draw_card_type_tabs(surface, faction_color)
-        
-        # Split screen into two panels
-        panel_padding = 20
-        divider_x = self.screen_width // 2
-        
-        # LEFT PANEL: Available cards (card pool)
-        left_panel_x = panel_padding
-        left_panel_width = divider_x - panel_padding * 2
-        left_panel_y = 160  # Moved down for filters
-        left_panel_height = self.screen_height - 220
-        
-        # Draw Filter Buttons above Left Panel
-        self.draw_filter_buttons(surface, left_panel_x, 120)
-        
-        # RIGHT PANEL: Current deck
-        right_panel_x = divider_x + panel_padding
-        right_panel_width = self.screen_width - right_panel_x - panel_padding
-        right_panel_y = 160  # Moved down
-        right_panel_height = self.screen_height - 220
-        
-        # DECK STATUS PANEL (Above Right Panel)
-        deck_obj = [ALL_CARDS[id] for id in (self.deck_preview_ids or [])]
-        is_valid, status_msg = validate_deck(deck_obj)
-        
-        status_x = right_panel_x
-        status_y = 120
-        status_w = right_panel_width
-        status_h = 35
-        
-        # Draw status background
-        status_color = (50, 100, 50) if is_valid else (100, 50, 50)
-        status_rect = pygame.Rect(status_x, status_y, status_w, status_h)
-        pygame.draw.rect(surface, (*status_color, 180), status_rect, border_radius=5)
-        pygame.draw.rect(surface, (200, 200, 200), status_rect, width=1, border_radius=5)
-        
-        # Draw status icon and text
-        icon_color = (100, 255, 100) if is_valid else (255, 100, 100)
-        icon_text = "✓" if is_valid else "!"
-        icon_font = pygame.font.SysFont("Arial", 24, bold=True)
-        icon_surf = icon_font.render(icon_text, True, icon_color)
-        surface.blit(icon_surf, (status_x + 10, status_y + 2))
-        
-        msg_font = pygame.font.SysFont("Arial", 18, bold=True)
-        msg_surf = msg_font.render(f"Deck Status: {status_msg}", True, (255, 255, 255))
-        surface.blit(msg_surf, (status_x + 40, status_y + 7))
+        self.draw_back_button(surface)
 
-        # LEFT PANEL HEADER
-        left_header = self.desc_font.render("Available Cards (Card Pool)", True, self.highlight_color)
-        surface.blit(left_header, (left_panel_x, left_panel_y - 30))
-        
-        # Draw left panel background (semi-transparent)
-        panel_surf = pygame.Surface((left_panel_width, left_panel_height), pygame.SRCALPHA)
-        panel_surf.fill((25, 25, 35, 120))  # Semi-transparent dark background
-        surface.blit(panel_surf, (left_panel_x, left_panel_y))
-        pygame.draw.rect(surface, faction_color, pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height), width=3, border_radius=10)
-        
-        # Draw card pool in LEFT panel
-        if self.card_pool_ids:
-            # Filter and sort cards by current tab AND keyword
-            sorted_pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
-            
-            # Cards in 3 columns with better sizing
-            cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(left_panel_width)
-            start_x = left_panel_x + spacing
-            start_y = left_panel_y + 15 - self.pool_scroll_offset
-            
-            # Create clip rect for scrolling
-            clip_rect = pygame.Rect(left_panel_x, left_panel_y, left_panel_width, left_panel_height)
-            surface.set_clip(clip_rect)
-            
-            for i, card_id in enumerate(sorted_pool_ids):
-                card = ALL_CARDS[card_id]
-                row_idx = i // cards_per_row
-                col_idx = i % cards_per_row
-                x = start_x + col_idx * (card_width + spacing)
-                y = start_y + row_idx * (card_height + spacing)
-                
-                # Only draw if visible
-                if y + card_height >= left_panel_y and y <= left_panel_y + left_panel_height:
-                    # Draw card
-                    try:
-                        scaled_image = pygame.transform.scale(card.image, (card_width, card_height))
-                        surface.blit(scaled_image, (x, y))
-                    except:
-                        pygame.draw.rect(surface, (60, 60, 70), pygame.Rect(x, y, card_width, card_height), border_radius=5)
-                    
-                    pygame.draw.rect(surface, (150, 150, 150), pygame.Rect(x, y, card_width, card_height), width=2, border_radius=5)
-                    
-                    # Power overlay
-                    if card.row not in ["special", "weather"]:
-                        power_font = pygame.font.SysFont("Arial", 18, bold=True)
-                        power_text = power_font.render(str(card.power), True, (255, 255, 255))
-                        power_rect = power_text.get_rect(center=(x + card_width // 2, y + card_height - 15))
-                        pygame.draw.rect(surface, (0, 0, 0), power_rect.inflate(4, 2))
-                        surface.blit(power_text, power_rect)
-            
-            surface.set_clip(None)
-            
-            # Card pool stats below header
-            pool_cards = [ALL_CARDS[id] for id in self.card_pool_ids]
-            pool_unit_cards = [c for c in pool_cards if c.row in ["close", "ranged", "siege", "agile"]]
-            pool_special_cards = [c for c in pool_cards if c.row == "special"]
-            pool_weather_cards = [c for c in pool_cards if c.row == "weather"]
-            
-            pool_stats_text = self.stat_font.render(
-                f"Total: {len(self.card_pool_ids)} | Units: {len(pool_unit_cards)} | Special: {len(pool_special_cards)} | Weather: {len(pool_weather_cards)}",
-                True, (200, 200, 200)
-            )
-            surface.blit(pool_stats_text, (left_panel_x, left_panel_y - 55))
-        
-        # RIGHT PANEL HEADER with deck count (top left)
-        if self.deck_preview_ids:
-            right_header = self.desc_font.render(f"Your Deck ({len(self.deck_preview_ids)} cards)", True, self.highlight_color)
-        else:
-            right_header = self.desc_font.render("Your Deck (0 cards)", True, self.highlight_color)
-        surface.blit(right_header, (right_panel_x, right_panel_y - 30))
+        # 3. Top Left Stats Box ("Holographic UI")
+        self.draw_stats_hologram(surface, faction_color)
 
-        # Deck stats in top right corner (if deck has cards)
-        if self.deck_preview_ids:
-            deck_cards = [ALL_CARDS[id] for id in self.deck_preview_ids]
-            close_cards = [c for c in deck_cards if c.row == "close"]
-            ranged_cards = [c for c in deck_cards if c.row == "ranged"]
-            siege_cards = [c for c in deck_cards if c.row == "siege"]
-            agile_cards = [c for c in deck_cards if c.row == "agile"]
-            special_cards = [c for c in deck_cards if c.row == "special"]
-            weather_cards = [c for c in deck_cards if c.row == "weather"]
+        # 4. Right Side Deck List (Text-based with right-click preview)
+        self.draw_vertical_deck_list(surface, faction_color)
 
-            close_power = sum(c.power for c in close_cards)
-            ranged_power = sum(c.power for c in ranged_cards)
-            siege_power = sum(c.power for c in siege_cards)
-            agile_power = sum(c.power for c in agile_cards)
-            total_power = close_power + ranged_power + siege_power + agile_power
+        # 5. Bottom Accordion Card Pool (2x Sized Cards)
+        self.draw_bottom_accordion(surface, faction_color)
 
-            # Stats box in top right
-            stats_font = pygame.font.SysFont("Arial", 18, bold=True)
-
-            # Line 1: Card counts
-            stats_text1 = stats_font.render(
-                f"C:{len(close_cards)} R:{len(ranged_cards)} S:{len(siege_cards)} A:{len(agile_cards)} Sp:{len(special_cards)} W:{len(weather_cards)}",
-                True, (200, 200, 200)
-            )
-            stats_rect1 = stats_text1.get_rect(topright=(right_panel_x + right_panel_width - 10, right_panel_y - 70))
-
-            # Line 2: Power breakdown
-            stats_text2 = stats_font.render(
-                f"Power: C{close_power} R{ranged_power} S{siege_power} A{agile_power}",
-                True, (255, 215, 100)
-            )
-            stats_rect2 = stats_text2.get_rect(topright=(right_panel_x + right_panel_width - 10, right_panel_y - 50))
-
-            # Line 3: Total power (larger and highlighted)
-            total_font = pygame.font.SysFont("Arial", 22, bold=True)
-            stats_text3 = total_font.render(
-                f"TOTAL: {total_power}",
-                True, (100, 255, 100)
-            )
-            stats_rect3 = stats_text3.get_rect(topright=(right_panel_x + right_panel_width - 10, right_panel_y - 25))
-
-            # Draw semi-transparent background for stats
-            stats_bg_rect = pygame.Rect(
-                stats_rect1.left - 10,
-                stats_rect1.top - 5,
-                max(stats_rect1.width, stats_rect2.width, stats_rect3.width) + 20,
-                stats_rect3.bottom - stats_rect1.top + 10
-            )
-            stats_bg = pygame.Surface((stats_bg_rect.width, stats_bg_rect.height), pygame.SRCALPHA)
-            stats_bg.fill((20, 20, 30, 180))
-            surface.blit(stats_bg, stats_bg_rect.topleft)
-            pygame.draw.rect(surface, (100, 200, 100), stats_bg_rect, width=2, border_radius=5)
-
-            # Draw stats text
-            surface.blit(stats_text1, stats_rect1)
-            surface.blit(stats_text2, stats_rect2)
-            surface.blit(stats_text3, stats_rect3)
-        
-        # Draw right panel background (semi-transparent)
-        deck_panel_surf = pygame.Surface((right_panel_width, right_panel_height), pygame.SRCALPHA)
-        deck_panel_surf.fill((25, 25, 35, 120))  # Semi-transparent dark background
-        surface.blit(deck_panel_surf, (right_panel_x, right_panel_y))
-        pygame.draw.rect(surface, (50, 200, 50), pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height), width=3, border_radius=10)
-        
-        # Draw deck sorted by type in RIGHT panel
-        if self.deck_preview_ids:
-            deck_filter_type = None if self.current_tab == "all" else self.current_tab
-            sorted_deck_ids = get_cards_by_type_and_strength(self.deck_preview_ids, deck_filter_type)
-
-            # Count duplicates for badges
-            from collections import Counter
-            card_counts = Counter(self.deck_preview_ids)
-
-            # Cards in 3 columns with better sizing
-            cards_per_row, spacing, card_width, card_height = self.get_card_layout_params(right_panel_width)
-            start_x = right_panel_x + spacing
-            start_y = right_panel_y + 15 - self.deck_scroll_offset
-
-            # Create clip rect for scrolling
-            clip_rect = pygame.Rect(right_panel_x, right_panel_y, right_panel_width, right_panel_height)
-            surface.set_clip(clip_rect)
-
-            for i, card_id in enumerate(sorted_deck_ids):
-                card = ALL_CARDS[card_id]
-
-                # Calculate card position (no headers - they were causing spacing issues)
-                row_idx = i // cards_per_row
-                col_idx = i % cards_per_row
-                x = start_x + col_idx * (card_width + spacing)
-                y = start_y + row_idx * (card_height + spacing)
-
-                # Only draw if visible
-                if y + card_height >= right_panel_y and y <= right_panel_y + right_panel_height:
-                    # Draw card
-                    try:
-                        scaled_image = pygame.transform.scale(card.image, (card_width, card_height))
-                        surface.blit(scaled_image, (x, y))
-                    except:
-                        pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(x, y, card_width, card_height), border_radius=5)
-
-                    # Highlight if hovered
-                    card_rect = pygame.Rect(x, y, card_width, card_height)
-                    is_hovered = self.hovered_card_id == card_id and not self.dragging_card
-                    border_color = (100, 255, 100) if is_hovered else (255, 255, 255)
-                    border_width = 3 if is_hovered else 2
-                    pygame.draw.rect(surface, border_color, card_rect, width=border_width, border_radius=5)
-
-                    # Power overlay
-                    if card.row not in ["special", "weather"]:
-                        power_font = pygame.font.SysFont("Arial", 18, bold=True)
-                        power_text = power_font.render(str(card.power), True, (255, 255, 255))
-                        power_rect = power_text.get_rect(center=(x + card_width // 2, y + card_height - 15))
-                        pygame.draw.rect(surface, (0, 0, 0), power_rect.inflate(4, 2))
-                        surface.blit(power_text, power_rect)
-
-                    # Duplicate count badge (top-right corner)
-                    count = card_counts[card_id]
-                    if count > 1:
-                        badge_font = pygame.font.SysFont("Arial", 16, bold=True)
-                        badge_text = badge_font.render(f"x{count}", True, (255, 255, 255))
-                        badge_bg = pygame.Rect(x + card_width - 30, y + 5, 25, 20)
-                        pygame.draw.rect(surface, (200, 50, 50), badge_bg, border_radius=3)
-                        pygame.draw.rect(surface, (255, 255, 255), badge_bg, width=1, border_radius=3)
-                        badge_rect = badge_text.get_rect(center=badge_bg.center)
-                        surface.blit(badge_text, badge_rect)
-
-                    # Quick remove button (top-left corner when hovered)
-                    if is_hovered:
-                        remove_btn = pygame.Rect(x + 5, y + 5, 20, 20)
-                        pygame.draw.rect(surface, (200, 50, 50), remove_btn, border_radius=3)
-                        pygame.draw.rect(surface, (255, 255, 255), remove_btn, width=2, border_radius=3)
-                        # Draw X
-                        x_font = pygame.font.SysFont("Arial", 14, bold=True)
-                        x_text = x_font.render("X", True, (255, 255, 255))
-                        x_rect = x_text.get_rect(center=remove_btn.center)
-                        surface.blit(x_text, x_rect)
-
-                        # Store remove button rect for click detection
-                        self.deck_remove_buttons[card_id] = remove_btn
-
-            surface.set_clip(None)
-        
-        # Instructions at top center - clearer and more concise
-        if self.inspected_card_id:
-            instructions = self.small_font.render("Press SPACE or Click to close", True, (255, 255, 100))
-        else:
-            instructions = self.small_font.render("Drag cards to add/remove • Right-click to zoom • Hover for X button", True, (200, 220, 255))
-        inst_rect = instructions.get_rect(center=(self.screen_width // 2, 60))
-        surface.blit(instructions, inst_rect)
-        
-        # Main Menu button (for deck building) or Back button (for new game)
+        # 6. Save/Action Buttons (positioned above accordion)
         if self.for_new_game:
-            # NEW GAME: Show "< Back" to go back to leader selection
-            pygame.draw.rect(surface, self.button_color, self.back_button, border_radius=5)
-            back_text = self.button_font.render("< Back", True, self.text_color)
-            back_rect = back_text.get_rect(center=self.back_button.center)
-            surface.blit(back_text, back_rect)
-            
-            # Show START GAME button
-            pygame.draw.rect(surface, (50, 200, 50), self.continue_button, border_radius=10)
-            continue_text = self.button_font.render("START GAME", True, self.text_color)
-            continue_rect = continue_text.get_rect(center=self.continue_button.center)
-            surface.blit(continue_text, continue_rect)
+            # START GAME button - positioned above accordion on the right
+            start_btn_rect = pygame.Rect(
+                self.screen_width - 220, 
+                self.accordion_area_rect.top - 70, 
+                200, 50
+            )
+            pygame.draw.rect(surface, (50, 200, 50), start_btn_rect, border_radius=8)
+            pygame.draw.rect(surface, (100, 255, 100), start_btn_rect, width=2, border_radius=8)
+            start_text = self.button_font.render("START GAME", True, (255, 255, 255))
+            surface.blit(start_text, start_text.get_rect(center=start_btn_rect.center))
+            self.continue_button = start_btn_rect
         else:
-            # DECK BUILDING: Show "MAIN MENU" to return to menu
-            pygame.draw.rect(surface, (80, 120, 180), self.back_button, border_radius=5)
-            menu_text = self.button_font.render("MAIN MENU", True, self.text_color)
-            menu_rect = menu_text.get_rect(center=self.back_button.center)
-            surface.blit(menu_text, menu_rect)
-            
-            # Show SAVE DECK button
-            pygame.draw.rect(surface, (50, 180, 50), self.save_button, border_radius=5)
-            save_text = self.button_font.render("SAVE DECK", True, self.text_color)
-            save_rect = save_text.get_rect(center=self.save_button.center)
-            surface.blit(save_text, save_rect)
+            # SAVE DECK button
+            pygame.draw.rect(surface, (50, 180, 50), self.save_button, border_radius=8)
+            pygame.draw.rect(surface, (100, 255, 100), self.save_button, width=2, border_radius=8)
+            save_text = self.button_font.render("SAVE DECK", True, (255, 255, 255))
+            surface.blit(save_text, save_text.get_rect(center=self.save_button.center))
             
             # Show temporary confirmation message near the save button
             if self.last_save_message and pygame.time.get_ticks() - self.last_save_time < 3000:
                 confirm_text = self.small_font.render(self.last_save_message, True, (200, 255, 200))
                 confirm_rect = confirm_text.get_rect(midtop=(self.save_button.centerx, self.save_button.bottom + 10))
                 surface.blit(confirm_text, confirm_rect)
+        
+        # Instructions at bottom of deck list area
+        if self.inspected_card_id:
+            instructions = self.small_font.render("Press SPACE or Click to close", True, (255, 255, 100))
+        else:
+            instructions = self.small_font.render("Drag from bottom • Right-click list to preview", True, (180, 200, 220))
+        inst_rect = instructions.get_rect(midbottom=(self.deck_list_rect.centerx, self.deck_list_rect.bottom - 10))
+        surface.blit(instructions, inst_rect)
 
-        # Draw hover preview (if not inspecting or dragging)
-        if self.hovered_card_id and not self.inspected_card_id and not self.dragging_card:
-            self.draw_hover_preview(surface)
+    def draw_back_button(self, surface):
+        """Draws a stylized chevron back button (Top Left)."""
+        pygame.draw.rect(surface, (40, 50, 70), self.back_button, border_radius=10)
+        pygame.draw.rect(surface, (100, 200, 255), self.back_button, width=2, border_radius=10)
+        
+        if self.for_new_game:
+            txt = self.button_font.render("« BACK", True, (255, 255, 255))
+        else:
+            txt = self.button_font.render("« DEPARTURE", True, (255, 255, 255))
+        surface.blit(txt, txt.get_rect(center=self.back_button.center))
+
+    def draw_stats_hologram(self, surface, faction_color):
+        """Draws a cool, translucent stats box in the top left."""
+        # Backdrop with transparency
+        s = pygame.Surface((self.stats_box_rect.width, self.stats_box_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(s, (20, 30, 50, 200), s.get_rect(), border_radius=15)
+        pygame.draw.rect(s, faction_color, s.get_rect(), width=3, border_radius=15)
+        surface.blit(s, self.stats_box_rect.topleft)
+
+        # Title with glow effect
+        title = self.subtitle_font.render("DECK STATS", True, self.highlight_color)
+        surface.blit(title, (self.stats_box_rect.x + 20, self.stats_box_rect.y + 10))
+        
+        # Calculate stats
+        deck_cards = [ALL_CARDS[id] for id in (self.deck_preview_ids or [])]
+        unit_count = len([c for c in deck_cards if c.row in ["close", "ranged", "siege", "agile"]])
+        special_count = len([c for c in deck_cards if c.row == "special"])
+        weather_count = len([c for c in deck_cards if c.row == "weather"])
+        total_power = sum(c.power for c in deck_cards if c.row not in ["special", "weather"])
+        
+        # Deck validity check
+        is_valid, status_msg = validate_deck(deck_cards)
+        
+        stats = [
+            (f"Total Cards: {len(deck_cards)} / {MAX_DECK_SIZE}", (255, 255, 255)),
+            (f"Unit Cards: {unit_count} (Min 15)", (100, 255, 100) if unit_count >= 15 else (255, 100, 100)),
+            (f"Special: {special_count}  |  Weather: {weather_count}", (200, 200, 200)),
+            (f"Total Strength: {total_power}", (255, 215, 0)),
+        ]
+
+        y_offset = self.stats_box_rect.y + 55
+        for text, color in stats:
+            txt_surf = self.stat_font.render(text, True, color)
+            surface.blit(txt_surf, (self.stats_box_rect.x + 20, y_offset))
+            y_offset += 28
+        
+        # Status indicator
+        status_color = (100, 255, 100) if is_valid else (255, 100, 100)
+        status_icon = "✓" if is_valid else "!"
+        status_surf = self.stat_font.render(f"{status_icon} {status_msg}", True, status_color)
+        surface.blit(status_surf, (self.stats_box_rect.x + 20, y_offset + 5))
+
+    def draw_vertical_deck_list(self, surface, faction_color):
+        """Draws a sleek vertical list of card names on the right side."""
+        # Panel Background with transparency
+        panel_surf = pygame.Surface((self.deck_list_rect.width, self.deck_list_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(panel_surf, (15, 18, 25, 220), panel_surf.get_rect(), border_radius=12)
+        surface.blit(panel_surf, self.deck_list_rect.topleft)
+        pygame.draw.rect(surface, faction_color, self.deck_list_rect, width=3, border_radius=12)
+        
+        # Header
+        header = self.subtitle_font.render("YOUR REGIMENT", True, faction_color)
+        surface.blit(header, (self.deck_list_rect.x + 15, self.deck_list_rect.y - 45))
+        
+        # Card count badge
+        if self.deck_preview_ids:
+            count_text = self.button_font.render(f"{len(self.deck_preview_ids)}", True, (255, 255, 255))
+            count_bg = pygame.Rect(self.deck_list_rect.right - 50, self.deck_list_rect.y - 40, 40, 30)
+            pygame.draw.rect(surface, faction_color, count_bg, border_radius=8)
+            surface.blit(count_text, count_text.get_rect(center=count_bg.center))
+
+        if not self.deck_preview_ids:
+            empty_text = self.desc_font.render("Drag cards here...", True, (100, 100, 100))
+            surface.blit(empty_text, empty_text.get_rect(center=self.deck_list_rect.center))
+            return
+
+        # Sort and group cards
+        from collections import Counter
+        counts = Counter(self.deck_preview_ids)
+        unique_ids = sorted(list(counts.keys()), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+
+        # Create clip rect for scrolling
+        clip_rect = pygame.Rect(
+            self.deck_list_rect.x + 5, 
+            self.deck_list_rect.y + 10, 
+            self.deck_list_rect.width - 10, 
+            self.deck_list_rect.height - 20
+        )
+        surface.set_clip(clip_rect)
+
+        row_height = 38
+        y_offset = self.deck_list_rect.y + 15 - self.deck_scroll_offset
+        mouse_pos = pygame.mouse.get_pos()
+        
+        for cid in unique_ids:
+            card = ALL_CARDS[cid]
+            row_rect = pygame.Rect(
+                self.deck_list_rect.x + 8, 
+                y_offset, 
+                self.deck_list_rect.width - 16, 
+                row_height - 4
+            )
+            
+            # Skip if outside visible area
+            if row_rect.bottom < self.deck_list_rect.y or row_rect.top > self.deck_list_rect.bottom:
+                y_offset += row_height
+                continue
+            
+            # Hover effect
+            is_hovered = row_rect.collidepoint(mouse_pos) and self.deck_list_rect.collidepoint(mouse_pos)
+            if is_hovered:
+                hover_color = (*faction_color[:3], 80)
+                hover_surf = pygame.Surface((row_rect.width, row_rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(hover_surf, hover_color, hover_surf.get_rect(), border_radius=6)
+                surface.blit(hover_surf, row_rect.topleft)
+                pygame.draw.rect(surface, faction_color, row_rect, width=1, border_radius=6)
+                self.hovered_card_id = cid
+            
+            # Row type color indicator (left edge)
+            row_colors = {
+                "close": (200, 50, 50),
+                "ranged": (50, 150, 200),
+                "siege": (200, 150, 50),
+                "agile": (100, 200, 100),
+                "special": (180, 100, 200),
+                "weather": (100, 100, 150)
+            }
+            indicator_color = row_colors.get(card.row, (100, 100, 100))
+            indicator_rect = pygame.Rect(row_rect.x, row_rect.y + 4, 4, row_rect.height - 8)
+            pygame.draw.rect(surface, indicator_color, indicator_rect, border_radius=2)
+            
+            # Power Icon (circle)
+            if card.row not in ["special", "weather"]:
+                power_center = (row_rect.x + 25, row_rect.centery)
+                pygame.draw.circle(surface, (0, 0, 0), power_center, 14)
+                pygame.draw.circle(surface, self.highlight_color, power_center, 14, width=2)
+                pwr_txt = self.small_font.render(str(card.power), True, (255, 255, 255))
+                surface.blit(pwr_txt, pwr_txt.get_rect(center=power_center))
+                name_x = row_rect.x + 48
+            else:
+                # Special/Weather icon
+                icon_text = "★" if card.row == "special" else "☁"
+                icon_surf = self.small_font.render(icon_text, True, indicator_color)
+                surface.blit(icon_surf, (row_rect.x + 15, row_rect.centery - 10))
+                name_x = row_rect.x + 40
+            
+            # Card Name (truncated if too long)
+            max_name_width = row_rect.width - 100
+            name_txt = self.small_font.render(card.name, True, (255, 255, 255))
+            if name_txt.get_width() > max_name_width:
+                # Truncate name
+                truncated = card.name
+                while self.small_font.size(truncated + "...")[0] > max_name_width and len(truncated) > 3:
+                    truncated = truncated[:-1]
+                name_txt = self.small_font.render(truncated + "...", True, (255, 255, 255))
+            surface.blit(name_txt, (name_x, row_rect.centery - 10))
+            
+            # Quantity badge (right side)
+            if counts[cid] > 1:
+                qty_txt = self.small_font.render(f"x{counts[cid]}", True, faction_color)
+                surface.blit(qty_txt, (row_rect.right - 35, row_rect.centery - 10))
+            
+            # Quick remove button on hover
+            if is_hovered:
+                remove_btn = pygame.Rect(row_rect.right - 25, row_rect.centery - 10, 20, 20)
+                pygame.draw.rect(surface, (180, 50, 50), remove_btn, border_radius=4)
+                x_txt = self.small_font.render("×", True, (255, 255, 255))
+                surface.blit(x_txt, x_txt.get_rect(center=remove_btn.center))
+                self.deck_remove_buttons[cid] = remove_btn
+            
+            y_offset += row_height
+
+        surface.set_clip(None)
+
+    def draw_bottom_accordion(self, surface, faction_color):
+        """Draws the 2x size cards in a horizontal accordion at the bottom."""
+        # Background strip with gradient effect
+        strip_bg = pygame.Surface((self.screen_width, self.accordion_area_rect.height), pygame.SRCALPHA)
+        
+        # Create gradient from transparent to opaque
+        for i in range(50):
+            alpha = int(i * 5)
+            pygame.draw.line(strip_bg, (0, 0, 0, alpha), 
+                           (0, i), (self.screen_width, i))
+        strip_bg.fill((10, 12, 18, 230), pygame.Rect(0, 50, self.screen_width, self.accordion_area_rect.height - 50))
+        surface.blit(strip_bg, self.accordion_area_rect.topleft)
+        
+        # Top border line (glowing effect)
+        pygame.draw.line(surface, faction_color, 
+                        (0, self.accordion_area_rect.top), 
+                        (self.screen_width, self.accordion_area_rect.top), 3)
+        
+        # Filter and sort pool cards
+        pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+        
+        if not pool_ids:
+            no_cards_txt = self.desc_font.render("No cards match current filter", True, (100, 100, 100))
+            surface.blit(no_cards_txt, no_cards_txt.get_rect(center=self.accordion_area_rect.center))
+            return
+        
+        # 2x Size dimensions
+        card_w, card_h = 160, 240
+        spacing = 15
+        lift_amount = 25  # How much cards lift on hover
+        
+        # Calculate starting position with scroll offset
+        start_x = 40 - self.pool_scroll_offset
+        card_y = self.accordion_area_rect.y + 60
+
+        mouse_pos = pygame.mouse.get_pos()
+        
+        for i, cid in enumerate(pool_ids):
+            card = ALL_CARDS[cid]
+            card_x = start_x + i * (card_w + spacing)
+            
+            # Only process cards that are potentially visible
+            if card_x + card_w < -50 or card_x > self.screen_width + 50:
+                continue
+            
+            target_rect = pygame.Rect(card_x, card_y, card_w, card_h)
+            
+            # Hover detection and lift animation
+            is_hovered = target_rect.collidepoint(mouse_pos) and self.accordion_area_rect.collidepoint(mouse_pos)
+            
+            # Smooth lift animation
+            current_lift = self.accordion_lift_amount.get(cid, 0)
+            target_lift = lift_amount if is_hovered else 0
+            new_lift = current_lift + (target_lift - current_lift) * 0.3
+            self.accordion_lift_amount[cid] = new_lift
+            
+            draw_y = card_y - int(new_lift)
+            
+            # Draw card shadow
+            shadow_offset = 5 + int(new_lift * 0.3)
+            shadow_surf = pygame.Surface((card_w + 10, card_h + 10), pygame.SRCALPHA)
+            pygame.draw.rect(shadow_surf, (0, 0, 0, 100), shadow_surf.get_rect(), border_radius=10)
+            surface.blit(shadow_surf, (card_x - 5 + shadow_offset, draw_y + shadow_offset))
+            
+            # Draw card image (scaled to 2x)
+            try:
+                large_img = pygame.transform.smoothscale(card.image, (card_w, card_h))
+                surface.blit(large_img, (card_x, draw_y))
+            except:
+                pygame.draw.rect(surface, (60, 60, 70), pygame.Rect(card_x, draw_y, card_w, card_h), border_radius=8)
+            
+            # Border (glowing on hover)
+            if is_hovered:
+                # Outer glow
+                glow_rect = pygame.Rect(card_x - 4, draw_y - 4, card_w + 8, card_h + 8)
+                pygame.draw.rect(surface, self.highlight_color, glow_rect, width=4, border_radius=12)
+                self.accordion_hover_card_id = cid
+            else:
+                pygame.draw.rect(surface, (100, 100, 100), pygame.Rect(card_x, draw_y, card_w, card_h), width=2, border_radius=8)
+            
+            # Power badge (top-left corner)
+            if card.row not in ["special", "weather"]:
+                badge_center = (card_x + 25, draw_y + 25)
+                pygame.draw.circle(surface, (0, 0, 0), badge_center, 20)
+                pygame.draw.circle(surface, faction_color, badge_center, 20, width=3)
+                p_text = self.button_font.render(str(card.power), True, (255, 255, 255))
+                surface.blit(p_text, p_text.get_rect(center=badge_center))
+            
+            # Card name below (only if hovered)
+            if is_hovered:
+                name_bg = pygame.Surface((card_w + 20, 30), pygame.SRCALPHA)
+                name_bg.fill((0, 0, 0, 180))
+                surface.blit(name_bg, (card_x - 10, draw_y + card_h + 5))
+                
+                name_txt = self.small_font.render(card.name, True, (255, 255, 255))
+                name_rect = name_txt.get_rect(center=(card_x + card_w // 2, draw_y + card_h + 20))
+                surface.blit(name_txt, name_rect)
+        
+        # Draw scroll indicators
+        if self.pool_scroll_offset > 0:
+            # Left arrow
+            arrow_surf = self.subtitle_font.render("◀", True, faction_color)
+            surface.blit(arrow_surf, (10, self.accordion_area_rect.centery - 20))
+        
+        max_scroll = max(0, len(pool_ids) * (card_w + spacing) - self.screen_width + 80)
+        if self.pool_scroll_offset < max_scroll:
+            # Right arrow
+            arrow_surf = self.subtitle_font.render("▶", True, faction_color)
+            surface.blit(arrow_surf, (self.screen_width - 35, self.accordion_area_rect.centery - 20))
+        
+        # Pool count indicator
+        count_text = self.small_font.render(f"Pool: {len(pool_ids)} cards", True, (180, 180, 180))
+        surface.blit(count_text, (20, self.accordion_area_rect.top + 15))
 
 
     def draw_card_inspection(self, surface, card):
@@ -1803,44 +1803,38 @@ class DeckBuilderUI:
         surface.blit(close_text, close_rect)
     
     def draw_hover_preview(self, surface):
-        """Draw hover preview card in top right corner of left panel."""
+        """Draw hover preview card - positioned above the hovered card in accordion or next to deck list."""
         if not self.hovered_card_id:
             return
 
         card = ALL_CARDS[self.hovered_card_id]
-
-        # Calculate panel dimensions
-        panel_padding = 20
-        divider_x = self.screen_width // 2
-        left_panel_x = panel_padding
-        left_panel_width = divider_x - panel_padding * 2
-        left_panel_y = 120
-
-        # Get normal card dimensions and double them
-        _, _, normal_card_width, normal_card_height = self.get_card_layout_params(left_panel_width)
-        preview_card_width = normal_card_width * 2
-        preview_card_height = normal_card_height * 2
         
-        # Text area height
-        text_area_height = 140
+        # Preview card dimensions (larger for detail)
+        preview_card_width = 200
+        preview_card_height = 300
+        text_area_height = 100
         total_height = preview_card_height + text_area_height
 
-        # Position in top right corner of left panel with some padding
-        preview_padding = 15
-        preview_x = left_panel_x + left_panel_width - preview_card_width - preview_padding
-        preview_y = left_panel_y + preview_padding
+        # Position: Center above the stats box for deck list hover
+        # or in a floating panel for accordion hover
+        preview_x = self.stats_box_rect.right + 20
+        preview_y = self.stats_box_rect.y
 
         # Draw semi-transparent background
-        bg_surface = pygame.Surface((preview_card_width + 10, total_height + 10), pygame.SRCALPHA)
-        bg_surface.fill((10, 10, 15, 230))  # Darker, more opaque background for readability
-        surface.blit(bg_surface, (preview_x - 5, preview_y - 5))
+        bg_surface = pygame.Surface((preview_card_width + 20, total_height + 20), pygame.SRCALPHA)
+        bg_surface.fill((15, 18, 25, 240))
+        surface.blit(bg_surface, (preview_x - 10, preview_y - 10))
+        
+        # Border
+        border_rect = pygame.Rect(preview_x - 10, preview_y - 10, preview_card_width + 20, total_height + 20)
+        faction_color = self.faction_colors.get(self.selected_faction, self.highlight_color)
+        pygame.draw.rect(surface, faction_color, border_rect, width=3, border_radius=12)
 
         # Draw the card image scaled to preview size
         try:
             scaled_image = pygame.transform.scale(card.image, (preview_card_width, preview_card_height))
             surface.blit(scaled_image, (preview_x, preview_y))
         except:
-            # Fallback: draw a colored rectangle if image fails
             pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), border_radius=8)
 
         # Determine border color based on card type/rarity
@@ -1858,57 +1852,45 @@ class DeckBuilderUI:
             border_color = (192, 192, 192)  # Silver for Special/Weather
             
         # Draw border around the IMAGE only
-        pygame.draw.rect(surface, border_color, pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), width=4, border_radius=8)
+        pygame.draw.rect(surface, border_color, pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), width=3, border_radius=8)
 
-        # Draw power overlay for unit cards (on the image)
+        # Draw power overlay for unit cards
         if card.row not in ["special", "weather"]:
-            power_font = pygame.font.SysFont("Arial", 28, bold=True)
+            power_font = pygame.font.SysFont("Arial", 24, bold=True)
             power_text = power_font.render(str(card.power), True, (255, 255, 255))
-            power_rect = power_text.get_rect(center=(preview_x + preview_card_width // 2, preview_y + preview_card_height - 25))
-            # Black background for power text
-            bg_rect = power_rect.inflate(16, 8)
+            power_rect = power_text.get_rect(center=(preview_x + preview_card_width // 2, preview_y + preview_card_height - 20))
+            bg_rect = power_rect.inflate(12, 6)
             pygame.draw.rect(surface, (0, 0, 0), bg_rect, border_radius=3)
-            pygame.draw.rect(surface, (200, 200, 200), bg_rect, width=1, border_radius=3)
             surface.blit(power_text, power_rect)
             
-        # --- Draw Text Info Below Image ---
-        text_start_y = preview_y + preview_card_height + 10
+        # Text Info Below Image
+        text_start_y = preview_y + preview_card_height + 8
         center_x = preview_x + preview_card_width // 2
         
-        # 1. Card Name
-        name_font = pygame.font.SysFont("Arial", 20, bold=True)
-        name_text = name_font.render(card.name, True, (255, 215, 0)) # Gold color
+        # Card Name
+        name_font = pygame.font.SysFont("Arial", 18, bold=True)
+        name_text = name_font.render(card.name, True, (255, 215, 0))
         name_rect = name_text.get_rect(center=(center_x, text_start_y + 10))
         surface.blit(name_text, name_rect)
         
-        # 2. Row / Type
-        type_font = pygame.font.SysFont("Arial", 16, italic=True)
+        # Row / Type
+        type_font = pygame.font.SysFont("Arial", 14)
         row_str = card.row.capitalize()
-        if card.row == "close": row_str = "Melee Combat"
-        elif card.row == "ranged": row_str = "Ranged Combat"
-        elif card.row == "siege": row_str = "Siege Combat"
+        if card.row == "close": row_str = "Melee"
+        elif card.row == "ranged": row_str = "Ranged"
+        elif card.row == "siege": row_str = "Siege"
         
         type_text = type_font.render(f"{row_str} • {card.faction}", True, (180, 180, 180))
-        type_rect = type_text.get_rect(center=(center_x, text_start_y + 32))
+        type_rect = type_text.get_rect(center=(center_x, text_start_y + 30))
         surface.blit(type_text, type_rect)
         
-        # 3. Ability Description
+        # Ability Description (truncated)
         if card.ability:
-            desc_font = pygame.font.SysFont("Arial", 16)
-            # Wrap text
-            wrapped_lines = self.wrap_text(card.ability, desc_font, preview_card_width - 10)
-            line_y = text_start_y + 55
-            for line in wrapped_lines:
-                line_text = desc_font.render(line, True, (220, 220, 220))
-                line_rect = line_text.get_rect(center=(center_x, line_y))
-                surface.blit(line_text, line_rect)
-                line_y += 18
-        else:
-            # No ability text
-            desc_font = pygame.font.SysFont("Arial", 16)
-            no_ab_text = desc_font.render("No special ability.", True, (100, 100, 100))
-            no_ab_rect = no_ab_text.get_rect(center=(center_x, text_start_y + 60))
-            surface.blit(no_ab_text, no_ab_rect)
+            desc_font = pygame.font.SysFont("Arial", 14)
+            ability_text = card.ability[:40] + "..." if len(card.ability) > 40 else card.ability
+            ability_surf = desc_font.render(ability_text, True, (200, 200, 200))
+            ability_rect = ability_surf.get_rect(center=(center_x, text_start_y + 50))
+            surface.blit(ability_surf, ability_rect)
 
     def draw_card_type_tabs(self, surface, faction_color):
         """Draw tabs for filtering cards by type."""
