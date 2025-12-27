@@ -490,12 +490,14 @@ def run_stats_menu(screen):
         # Top cards
         add_section("Top Cards")
         if computed.get("top_cards"):
-            for cid, rec in computed["top_cards"]:
-                card_name = ALL_CARDS[cid].name if cid in ALL_CARDS else cid
+            for name_key, rec in computed["top_cards"]:
+                # name_key is now the card name
                 plays = rec.get('plays', 0)
                 wins = rec.get('wins', 0)
+                # Use the representative ID stored during recording for the hover preview
+                rep_id = rec.get('id')
                 card_wr = (wins / plays * 100) if plays > 0 else 0
-                add_row(card_name, f"{plays} plays ({card_wr:.0f}% WR)", meta={"card_id": cid})
+                add_row(name_key, f"{plays} plays ({card_wr:.0f}% WR)", meta={"card_id": rep_id})
         else:
             add_row("Top Cards", "No data", meta={"card_id": "no_card_data"})
 
@@ -586,7 +588,8 @@ def run_stats_menu(screen):
                 if entry["label"] == "Last 10 Games" and entry["value"] != "No games yet":
                     value = entry["value"]
                     x_start = lbl_rect.right + 20
-                    # Render each character
+                    # Render each character with spacing
+                    char_spacing = 28  # Increased spacing for better readability
                     for i, ch in enumerate(value):
                         if ch == "W":
                             color = (100, 255, 100) # Green
@@ -596,10 +599,9 @@ def run_stats_menu(screen):
                             color = (220, 240, 255)
                         
                         ch_surf = value_font.render(ch, True, color)
-                        # Monospace spacing approximation
-                        content.blit(ch_surf, (x_start + i * 20, y_cursor))
+                        content.blit(ch_surf, (x_start + i * char_spacing, y_cursor))
                         
-                    val_rect = pygame.Rect(x_start, y_cursor, len(value)*20, ch_surf.get_height())
+                    val_rect = pygame.Rect(x_start, y_cursor, len(value)*char_spacing, ch_surf.get_height())
                 else:
                     val = value_font.render(entry["value"], True, (220, 240, 255))
                     val_rect = val.get_rect(topright=(panel_rect.width - 60, y_cursor))

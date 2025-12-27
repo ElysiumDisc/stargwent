@@ -170,7 +170,7 @@ ALL_CARDS = {
     "jaffa_rebel_tech_3": Card("jaffa_rebel_tech_3", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
     "jaffa_healer_1": Card("jaffa_healer_1", "Jaffa Healer/Shol'va Doctor", FACTION_JAFFA, 5, "ranged", "Medical Evac"),
     "jaffa_healer_2": Card("jaffa_healer_2", "Jaffa Healer/Shol'va Doctor", FACTION_JAFFA, 5, "ranged", "Medical Evac"),
-    "jaffa_tegaris_ship": Card("jaffa_tegaris_ship", "Tegaris Ship", FACTION_JAFFA, 4, "ranged", None),
+    "jaffa_tegaris_ship": Card("jaffa_tegaris_ship", "Tel'tak Ship", FACTION_JAFFA, 4, "siege", None),
     "jaffa_resistance_recruit": Card("jaffa_resistance_recruit", "Resistance Recruit", FACTION_JAFFA, 7, "ranged", None),
     "jaffa_cadet_1": Card("jaffa_cadet_1", "Jaffa Cadets", FACTION_JAFFA, 2, "ranged", "Gate Reinforcement"),
     "jaffa_cadet_2": Card("jaffa_cadet_2", "Jaffa Cadets", FACTION_JAFFA, 2, "ranged", "Gate Reinforcement"),

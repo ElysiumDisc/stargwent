@@ -697,6 +697,7 @@ class Game:
         
         # Randomize who goes first (50/50 coin toss)
         self.current_player = self.rng.choice([self.player1, self.player2])
+        self.player_went_first = (self.current_player == self.player1)
         
         # Stats tracking
         self.turn_count = 0
@@ -712,6 +713,7 @@ class Game:
         self.weather_cards_on_board = {"close": None, "ranged": None, "siege": None}  # Weather visuals per row
         self.winner = None
         self.round_winner = None  # Track who won last round for missions
+        self.round_history = []  # Track winner and scores for each round
         self.last_scorch_positions = []  # Track where Naquadah Overload destroyed cards (player, row_name)
         self.history = []
         self.history_dirty = False
@@ -852,6 +854,10 @@ class Game:
             if card in player.hand:
                 player.hand.remove(card)
                 player.deck.append(card)
+        
+        if player == self.player1:
+            self.player_mulligan_count = getattr(self, "player_mulligan_count", 0) + num_cards
+            
         self.rng.shuffle(player.deck)
         player.draw_cards(len(cards_to_redraw))
     
@@ -952,8 +958,15 @@ class Game:
             self.current_player.hand.remove(card)
             self.last_turn_actor = player
             
-            if self.current_player == self.player1 and hasattr(card, "id"):
-                self.cards_played_ids.append(card.id)
+            # Record card play for stats
+            if self.current_player == self.player1:
+                card_id = getattr(card, "id", None)
+                print(f"[stats-debug] Playing card: {card.name}, id={card_id}, current_total={len(self.cards_played_ids)}")
+                if card_id:
+                    self.cards_played_ids.append(card_id)
+                elif hasattr(card, "name"):
+                     # Fallback for dynamic cards
+                    self.cards_played_ids.append(card.name)
             
             # Handle weather cards
             if card.row == "weather":
@@ -2256,6 +2269,7 @@ class Game:
         if self.player1.score > self.player2.score:
             self.player1.rounds_won += 1
             self.round_winner = self.player1
+            self.round_history.append({"winner": "player1", "p1_score": self.player1.score, "p2_score": self.player2.score})
             self.add_history_event(
                 "round_end",
                 f"═ {battle_desc}! {self.player1.name} claims Round {self.round_number} ({self.player1.score}-{self.player2.score}) ═",
@@ -2265,6 +2279,7 @@ class Game:
         elif self.player2.score > self.player1.score:
             self.player2.rounds_won += 1
             self.round_winner = self.player2
+            self.round_history.append({"winner": "player2", "p1_score": self.player1.score, "p2_score": self.player2.score})
             self.add_history_event(
                 "round_end",
                 f"═ {battle_desc}! {self.player2.name} claims Round {self.round_number} ({self.player2.score}-{self.player1.score}) ═",
@@ -2275,6 +2290,7 @@ class Game:
             self.player1.rounds_won += 1
             self.player2.rounds_won += 1
             self.round_winner = None
+            self.round_history.append({"winner": "draw", "p1_score": self.player1.score, "p2_score": self.player2.score})
             self.add_history_event(
                 "round_end",
                 f"═ Deadlock! Round {self.round_number} ends in a draw ({self.player1.score}-{self.player2.score}) ═",

@@ -4892,6 +4892,58 @@ def main(lan_game_data=None):
                         )
 
                     mode_label = "lan" if LAN_MODE else "ai"
+
+                    # Record rich stats summary once per game (BEFORE blocking UI)
+                    try:
+                        # Extract leader names robustly
+                        leader_obj = game.player1.leader
+                        if isinstance(leader_obj, dict):
+                            leader_name = leader_obj.get('name', 'Unknown')
+                        elif isinstance(leader_obj, str):
+                            leader_name = leader_obj # Use ID if name unavailable
+                        else:
+                            leader_name = str(leader_obj) if leader_obj else 'Unknown'
+
+                        opp_leader_obj = game.player2.leader
+                        if isinstance(opp_leader_obj, dict):
+                            opponent_leader = opp_leader_obj.get('name', 'Unknown')
+                        else:
+                            opponent_leader = str(opp_leader_obj) if opp_leader_obj else 'Unknown'
+
+                        # Check if player lost round 1 (for comeback tracking)
+                        round_history = getattr(game, "round_history", [])
+                        lost_round_1 = len(round_history) > 0 and round_history[0].get("winner") == "player2"
+                        # Check who went first
+                        went_first = getattr(game, "player_went_first", None)
+                        
+                        summary = {
+                            "won": player_won,
+                            "player_faction": player_faction,
+                            "opponent_faction": game.player2.faction,
+                            "leader": leader_name,
+                            "opponent_leader": opponent_leader,
+                            "turns": getattr(game, "turn_count", 0),
+                            "mulligans": getattr(game, "player_mulligan_count", 0),
+                            "abilities": getattr(game, "ability_usage", {}),
+                            "cards_played": getattr(game, "cards_played_ids", []),
+                            "mode": mode_label,
+                            "lan_completed": LAN_MODE,
+                            "lan_disconnect": False,
+                            "ai_difficulty": "hard" if not LAN_MODE else None,
+                            "player_rounds_won": game.player1.rounds_won,
+                            "opponent_rounds_won": game.player2.rounds_won,
+                            "lost_round_1": lost_round_1,
+                            "went_first": went_first,
+                        }
+                        print(f"[stats] Recording summary: won={player_won}, leader={leader_name}")
+                        print(f"[stats] cards_played={len(summary['cards_played'])}, abilities={summary['abilities']}")
+                        get_persistence().record_game_summary(summary)
+                        print("[stats] Summary recorded successfully")
+                    except Exception as exc:
+                        print(f"[stats] Unable to record summary: {exc}")
+                        import traceback
+                        traceback.print_exc()
+
                     if player_won:
                         record_victory(player_faction, mode_label)
 
@@ -4939,38 +4991,6 @@ def main(lan_game_data=None):
                     else:
                         record_defeat(player_faction, mode_label)
                         unlock_system.record_game_result(False)
-
-                    # Record rich stats summary once per game
-                    try:
-                        leader_name = (game.player1.leader or {}).get('name', 'Unknown') if isinstance(game.player1.leader, dict) else str(game.player1.leader)
-                        opponent_leader = (game.player2.leader or {}).get('name', 'Unknown') if isinstance(game.player2.leader, dict) else str(game.player2.leader)
-                        # Check if player lost round 1 (for comeback tracking)
-                        round_history = getattr(game, "round_history", [])
-                        lost_round_1 = len(round_history) > 0 and round_history[0].get("winner") == "player2"
-                        # Check who went first
-                        went_first = getattr(game, "player_went_first", None)
-                        summary = {
-                            "won": player_won,
-                            "player_faction": player_faction,
-                            "opponent_faction": game.player2.faction,
-                            "leader": leader_name,
-                            "opponent_leader": opponent_leader,
-                            "turns": getattr(game, "turn_count", 0),
-                            "mulligans": getattr(game, "player_mulligan_count", 0),
-                            "abilities": getattr(game, "ability_usage", {}),
-                            "cards_played": getattr(game, "cards_played_ids", []),
-                            "mode": mode_label,
-                            "lan_completed": LAN_MODE,
-                            "lan_disconnect": False,
-                            "ai_difficulty": "hard" if not LAN_MODE else None,
-                            "player_rounds_won": game.player1.rounds_won,
-                            "opponent_rounds_won": game.player2.rounds_won,
-                            "lost_round_1": lost_round_1,
-                            "went_first": went_first,
-                        }
-                        get_persistence().record_game_summary(summary)
-                    except Exception as exc:
-                        print(f"[stats] Unable to record summary: {exc}")
             
             score_text = UI_FONT.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, WHITE)
             screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2))

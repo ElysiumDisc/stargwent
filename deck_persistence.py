@@ -273,6 +273,7 @@ class DeckPersistence:
 
     def record_game_summary(self, summary: Dict):
         """Record rich game summary for advanced stats."""
+        print(f"[persistence] Recording summary for leader: {summary.get('leader')}")
         # Leader stats
         leader_name = summary.get("leader") or "Unknown"
         leader_stats = self.unlock_data.setdefault("leader_stats", {})
@@ -296,20 +297,26 @@ class DeckPersistence:
         last_results.append("W" if summary.get("won") else "L")
         self.unlock_data["last_results"] = last_results[-10:]
 
-        # Turn stats
-        turn_stats = self.unlock_data.setdefault("turn_stats", {"total": 0, "games": 0, "min": None, "max": None, "history": []})
+        # Turn stats - ensure all keys exist even if dict was previously empty
+        turn_stats = self.unlock_data.setdefault("turn_stats", {})
+        turn_stats.setdefault("total", 0)
+        turn_stats.setdefault("games", 0)
+        turn_stats.setdefault("min", None)
+        turn_stats.setdefault("max", None)
+        turn_stats.setdefault("history", [])
         turns = summary.get("turns")
         if isinstance(turns, int):
             turn_stats["total"] += turns
             turn_stats["games"] += 1
             turn_stats["min"] = turns if turn_stats["min"] is None else min(turn_stats["min"], turns)
             turn_stats["max"] = turns if turn_stats["max"] is None else max(turn_stats["max"], turns)
-            turn_history = turn_stats.setdefault("history", [])
-            turn_history.append(turns)
-            turn_stats["history"] = turn_history[-50:]
+            turn_stats["history"].append(turns)
+            turn_stats["history"] = turn_stats["history"][-50:]
 
-        # Mulligans
-        mull_data = self.unlock_data.setdefault("mulligans", {"total": 0, "games": 0})
+        # Mulligans - ensure all keys exist
+        mull_data = self.unlock_data.setdefault("mulligans", {})
+        mull_data.setdefault("total", 0)
+        mull_data.setdefault("games", 0)
         mulls = summary.get("mulligans")
         if isinstance(mulls, int):
             mull_data["total"] += mulls
@@ -317,37 +324,48 @@ class DeckPersistence:
 
         # Ability usage
         abilities = self.unlock_data.setdefault("ability_usage", {})
+        print(f"[persistence] Recording abilities from summary: {summary.get('abilities', {})}")
         for key in ("medic", "decoy", "faction_power", "iris_blocks"):
             abilities[key] = abilities.get(key, 0) + int(summary.get("abilities", {}).get(key, 0))
 
-        # Top cards
+        # Top cards - group by name so identical units (Recruit 1, 2, 3) count together
         top_cards = self.unlock_data.setdefault("top_cards", {})
-        for cid in summary.get("cards_played", []):
+        from cards import ALL_CARDS
+        cards_played = summary.get("cards_played", [])
+        print(f"[persistence] Recording {len(cards_played)} cards played")
+        for cid in cards_played:
             if not cid:
                 continue
-            entry = top_cards.setdefault(cid, {"plays": 0, "wins": 0})
+            # Group by name
+            card_name = ALL_CARDS[cid].name if cid in ALL_CARDS else cid
+            entry = top_cards.setdefault(card_name, {"plays": 0, "wins": 0, "id": cid})
             entry["plays"] += 1
+            # Update ID to a valid one if the current one is somehow missing from ALL_CARDS
+            if card_name not in ALL_CARDS and cid in ALL_CARDS:
+                 entry["id"] = cid
+                 
             if summary.get("won"):
                 entry["wins"] += 1
 
         # Mode details
         if summary.get("mode") == "lan":
-            lan_reliability = self.unlock_data.setdefault("lan_reliability", {"completed": 0, "disconnects": 0})
+            lan_reliability = self.unlock_data.setdefault("lan_reliability", {})
+            lan_reliability.setdefault("completed", 0)
+            lan_reliability.setdefault("disconnects", 0)
             if summary.get("lan_completed"):
                 lan_reliability["completed"] += 1
             if summary.get("lan_disconnect"):
                 lan_reliability["disconnects"] += 1
 
         # Round breakdown stats (2-0 sweeps vs 2-1 close games, comebacks)
-        round_stats = self.unlock_data.setdefault("round_stats", {
-            "sweeps_for": 0,      # 2-0 wins
-            "sweeps_against": 0,  # 0-2 losses
-            "close_wins": 0,      # 2-1 wins
-            "close_losses": 0,    # 1-2 losses
-            "comebacks": 0,       # Won after losing round 1
-            "first_turn_games": 0,
-            "first_turn_wins": 0,
-        })
+        round_stats = self.unlock_data.setdefault("round_stats", {})
+        round_stats.setdefault("sweeps_for", 0)
+        round_stats.setdefault("sweeps_against", 0)
+        round_stats.setdefault("close_wins", 0)
+        round_stats.setdefault("close_losses", 0)
+        round_stats.setdefault("comebacks", 0)
+        round_stats.setdefault("first_turn_games", 0)
+        round_stats.setdefault("first_turn_wins", 0)
         
         player_rounds = summary.get("player_rounds_won", 0)
         opponent_rounds = summary.get("opponent_rounds_won", 0)
