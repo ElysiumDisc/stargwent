@@ -168,8 +168,8 @@ ALL_CARDS = {
     "jaffa_rebel_tech_1": Card("jaffa_rebel_tech_1", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
     "jaffa_rebel_tech_2": Card("jaffa_rebel_tech_2", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
     "jaffa_rebel_tech_3": Card("jaffa_rebel_tech_3", "Rebel Technician", FACTION_JAFFA, 3, "close", "Gate Reinforcement"),
-    "jaffa_healer_1": Card("jaffa_healer_1", "Jaffa Healer/Shol'va Doctor", FACTION_JAFFA, 5, "ranged", "Medical Evac"),
-    "jaffa_healer_2": Card("jaffa_healer_2", "Jaffa Healer/Shol'va Doctor", FACTION_JAFFA, 5, "ranged", "Medical Evac"),
+    "jaffa_healer_1": Card("jaffa_healer_1", "Kelno'reem", FACTION_JAFFA, 5, "ranged", "Medical Evac"),
+    "jaffa_healer_2": Card("jaffa_healer_2", "Kelno'reem", FACTION_JAFFA, 5, "ranged", "Medical Evac"),
     "jaffa_tegaris_ship": Card("jaffa_tegaris_ship", "Tel'tak Ship", FACTION_JAFFA, 4, "siege", None),
     "jaffa_resistance_recruit": Card("jaffa_resistance_recruit", "Resistance Recruit", FACTION_JAFFA, 7, "ranged", None),
     "jaffa_cadet_1": Card("jaffa_cadet_1", "Jaffa Cadets", FACTION_JAFFA, 2, "ranged", "Gate Reinforcement"),
@@ -177,9 +177,9 @@ ALL_CARDS = {
     "jaffa_cadet_3": Card("jaffa_cadet_3", "Jaffa Cadets", FACTION_JAFFA, 2, "ranged", "Gate Reinforcement"),
     "jaffa_former_lord_jaffa": Card("jaffa_former_lord_jaffa", "Former System Lord Jaffa", FACTION_JAFFA, 5, "agile", None),
     "jaffa_zat_op": Card("jaffa_zat_op", "Zat'nik'tel Operative", FACTION_JAFFA, 4, "close", None),
-    "jaffa_chakhal": Card("jaffa_chakhal", "Cha'khal Warrior", FACTION_JAFFA, 5, "agile", None),
-    "jaffa_ktau_ally": Card("jaffa_ktau_ally", "K'tau Ally", FACTION_JAFFA, 6, "ranged", None),
-    "jaffa_shalchek_leader": Card("jaffa_shalchek_leader", "Shal'chek Leader", FACTION_JAFFA, 6, "ranged", "Inspiring Leadership"),
+    "jaffa_chakhal": Card("jaffa_chakhal", "Kah'l", FACTION_JAFFA, 5, "ranged", None),
+    "jaffa_ktau_ally": Card("jaffa_ktau_ally", "Sodan Ally", FACTION_JAFFA, 8, "agile", None),
+    "jaffa_shalchek_leader": Card("jaffa_shalchek_leader", "Shak'l", FACTION_JAFFA, 6, "close", "Inspiring Leadership"),
     "jaffa_trinium_cannon": Card("jaffa_trinium_cannon", "Siege Cannon", FACTION_JAFFA, 8, "siege", None),
 
     # --- Lucian Alliance ---

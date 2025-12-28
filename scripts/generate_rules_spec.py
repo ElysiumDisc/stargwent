@@ -532,15 +532,15 @@ def format_card_entry(card: dict, ability_info: dict, combo_lookup: dict, source
 
     row_label = ROW_LABELS.get(card["row"], card["row"])
     card_type = ROW_TYPE_LABEL.get(card["row"], "unit")
-    rarity = card.get("rarity")
+    rarity = card.get("rarity", "Common")
     rarity_text = f" | Rarity: {rarity.title()}" if rarity else ""
     desc = card.get("description")
     desc_text = f" {desc}" if desc else ""
     stats = f"Power {card['power']} | {row_label} {card_type}{rarity_text}"
     entry = f"- **{card['name']}** ({stats}) — {ability_field or 'No keyword ability.'}{desc_text}"
-    entry += f" Effects: {' '.join(effect_bits)}"
-    entry += f" Timing: {' '.join(timing_bits)}"
-    entry += f" Synergy: {' '.join(synergy_bits)}{combo_note}"
+    entry += f" Effects: {" ".join(effect_bits)}"
+    entry += f" Timing: {" ".join(timing_bits)}"
+    entry += f" Synergy: {" ".join(synergy_bits)}{combo_note}"
     entry += f" [Source: {source}; ID: {card['card_id']}]."
     return entry
 

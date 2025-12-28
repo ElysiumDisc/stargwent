@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 2,
-  "total_games": 6,
+  "total_games": 7,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -12,12 +12,12 @@
       "id": "neutral_ascended_daniel"
     },
     "Tok'ra Deep Cover Operative": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "tok_ra_operative"
     },
     "Col. Jack O'Neill": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "tauri_oneill"
     },
@@ -27,7 +27,7 @@
       "id": "neutral_impenetrable_fog_1"
     },
     "Dr. Janet Fraiser": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "tauri_fraiser"
     },
@@ -37,21 +37,46 @@
       "id": "neutral_ancient_drone"
     },
     "Asgard Anti-Goa'uld Pulse": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
-      "id": "neutral_skellige_storm_1"
+      "id": "neutral_skellige_storm_2"
     },
     "Oma Desala": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "neutral_oma_desala"
+    },
+    "Col. Steven Caldwell": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_caldwell"
+    },
+    "BC-304 Heavy Cruiser": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_bc304_1"
+    },
+    "Micrometeorite Shower": {
+      "plays": 1,
+      "wins": 0,
+      "id": "neutral_torrential_rain_1"
+    },
+    "Dr. Daniel Jackson": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_jackson"
+    },
+    "Capt. Cameron Mitchell": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_mitchell"
     }
   },
   "faction_wins": {
     "Tau'ri": 2
   },
   "max_streak": 1,
-  "ai_games": 6,
+  "ai_games": 7,
   "ai_wins": 2,
   "lan_games": 0,
   "lan_wins": 0,
@@ -65,7 +90,7 @@
       "wins": 0
     },
     "Col. Jack O'Neill": {
-      "games": 1,
+      "games": 2,
       "wins": 0
     }
   },
@@ -82,6 +107,10 @@
       "Asgard": {
         "games": 1,
         "wins": 0
+      },
+      "Jaffa Rebellion": {
+        "games": 1,
+        "wins": 0
       }
     }
   },
@@ -89,39 +118,41 @@
     "W",
     "L",
     "L",
+    "L",
     "L"
   ],
   "turn_stats": {
-    "total": 36,
-    "games": 1,
-    "min": 36,
+    "total": 64,
+    "games": 2,
+    "min": 28,
     "max": 36,
     "history": [
-      36
+      36,
+      28
     ]
   },
   "mulligans": {
-    "total": 2,
-    "games": 1
+    "total": 6,
+    "games": 2
   },
   "ability_usage": {
     "medic": 0,
     "decoy": 0,
     "faction_power": 0,
-    "iris_blocks": 0
+    "iris_blocks": 1
   },
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 1,
+    "sweeps_against": 2,
     "close_wins": 0,
     "close_losses": 0,
     "comebacks": 0,
-    "first_turn_games": 1,
+    "first_turn_games": 2,
     "first_turn_wins": 0
   },
   "draft_stats": {
-    "runs_started": 0,
+    "runs_started": 1,
     "runs_completed": 0,
     "battles_won": 0,
     "battles_lost": 0,
