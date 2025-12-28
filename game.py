@@ -426,6 +426,14 @@ class Player:
         # Stargate mechanics
         self.faction_ability = FACTION_ABILITIES.get(faction, None)
         self.dhd_mechanic = DHDMechanic()
+
+        # Check for Neutral Penalty (Mercenary Tax)
+        # If deck has > 50% neutral cards, apply 25% power penalty
+        self.neutral_penalty_active = False
+        if self.deck:
+            neutral_count = sum(1 for c in self.deck if c.faction == FACTION_NEUTRAL)
+            if neutral_count > len(self.deck) / 2:
+                self.neutral_penalty_active = True
         
         # Iris Defense (Tau'ri Only)
         if faction == FACTION_TAURI:
@@ -645,6 +653,10 @@ class Player:
         for row in self.board.values():
             for card in row:
                 self.score += card.displayed_power
+        
+        # Apply Neutral Penalty (Mercenary Tax)
+        if self.neutral_penalty_active:
+            self.score = int(self.score * 0.75)
 
         return activated_combos
 

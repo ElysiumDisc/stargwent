@@ -753,6 +753,7 @@ All abilities renamed and themed around Stargate lore:
   - Maximum 40 cards
   - At least 15 unit cards
   - Only your faction + Neutral cards
+  - **Mercenary Tax**: If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25% (power penalty).
 - **Features**:
   - Add/remove cards from your unlocked collection
   - Select leader from unlocked leaders
