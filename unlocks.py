@@ -60,7 +60,25 @@ UNLOCKABLE_CARDS = {
         "description": "Self-replicating menace that grows stronger in numbers",
         "rarity": "rare"
     },
-    "wraith_hive": {
+    "wraith_hive_1": {
+        "name": "Wraith Hive Ship",
+        "faction": "Neutral",
+        "row": "siege",
+        "power": 9,
+        "ability": "Gate Reinforcement",
+        "description": "Summons all Wraith Hives from deck and hand to board",
+        "rarity": "epic"
+    },
+    "wraith_hive_2": {
+        "name": "Wraith Hive Ship",
+        "faction": "Neutral",
+        "row": "siege",
+        "power": 9,
+        "ability": "Gate Reinforcement",
+        "description": "Summons all Wraith Hives from deck and hand to board",
+        "rarity": "epic"
+    },
+    "wraith_hive_3": {
         "name": "Wraith Hive Ship",
         "faction": "Neutral",
         "row": "siege",
