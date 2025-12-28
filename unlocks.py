@@ -25,7 +25,7 @@ UNLOCKABLE_CARDS = {
         "rarity": "epic"
     },
     "ancient_drone": {
-        "name": "Ancient Drone Weapon",
+        "name": "Ancient Drone chair",
         "faction": "Neutral",
         "row": "ranged",
         "power": 8,
@@ -115,7 +115,7 @@ UNLOCKABLE_CARDS = {
         "rarity": "epic"
     },
     "prometheus_x303": {
-        "name": "Prometheus BC-303",
+        "name": "Prometheus X-303",
         "faction": "Tau'ri",
         "row": "siege",
         "power": 8,

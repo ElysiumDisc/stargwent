@@ -288,7 +288,7 @@ ALL_CARDS = {
 
     # --- Unlockable Cards (from unlocks.py) ---
     "asgard_mothership": Card("asgard_mothership", "Asgard Mothership", FACTION_ASGARD, 10, "siege", "Draw 2 cards when played"),
-    "ancient_drone": Card("ancient_drone", "Ancient Drone Weapon", FACTION_NEUTRAL, 8, "ranged", "Naquadah Overload: Destroy lowest enemy unit"),
+    "ancient_drone": Card("ancient_drone", "Ancient Drone Chair", FACTION_NEUTRAL, 8, "ranged", "Naquadah Overload: Destroy lowest enemy unit"),
     "replicator_swarm_1": Card("replicator_swarm_1", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
     "replicator_swarm_2": Card("replicator_swarm_2", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
     "replicator_swarm_3": Card("replicator_swarm_3", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
@@ -298,7 +298,7 @@ ALL_CARDS = {
     "ori_warship": Card("ori_warship", "Ori Warship", FACTION_NEUTRAL, 11, "siege", "Legendary Commander"),
     "atlantis_city": Card("atlantis_city", "City of Atlantis", FACTION_NEUTRAL, 10, "siege", "Legendary Commander, Inspiring Leadership"),
     "super_soldier": Card("super_soldier", "Anubis Super Soldier", FACTION_GOAULD, 7, "close", "Survival Instinct"),
-    "prometheus_x303": Card("prometheus_x303", "Prometheus BC-303", FACTION_TAURI, 8, "siege", "Draw 1 card when played"),
+    "prometheus_x303": Card("prometheus_x303", "Prometheus X-303", FACTION_TAURI, 8, "siege", "Draw 1 card when played"),
     "kull_warrior": Card("kull_warrior", "Kull Warrior Elite", FACTION_GOAULD, 8, "close", "Legendary Commander, Survival Instinct"),
     "puddle_jumper": Card("puddle_jumper", "Puddle Jumper", FACTION_NEUTRAL, 5, "agile", "Ring Transport: Return to hand to replay"),
     "sodan_warrior": Card("sodan_warrior", "Sodan Cloaked Warrior", FACTION_LUCIAN, 6, "close", "When played: Look at opponent's hand"),
