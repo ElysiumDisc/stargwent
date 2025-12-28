@@ -360,10 +360,20 @@ def run_stats_menu(screen):
 
         # Unlock Progress
         add_section("Unlock Progress")
-        unlocked_leaders = stats.get("unlocked_leaders", [])
-        unlocked_cards = stats.get("unlocked_cards", [])
-        add_row("Leaders Unlocked", f"{len(unlocked_leaders)} / 20")
-        add_row("Cards Unlocked", f"{len(unlocked_cards)} / 20")
+        if stats.get("unlock_override_enabled", False):
+            add_row("Leaders Unlocked", "20 / 20 (Unlock All ON)")
+            add_row("Cards Unlocked", "20 / 20 (Unlock All ON)")
+        else:
+            unlocked_leaders = stats.get("unlocked_leaders", {})
+            # Handle list vs dict format for legacy compatibility
+            if isinstance(unlocked_leaders, list):
+                leader_count = len(unlocked_leaders)
+            else:
+                leader_count = sum(len(leaders) for leaders in unlocked_leaders.values())
+                
+            unlocked_cards = stats.get("unlocked_cards", [])
+            add_row("Leaders Unlocked", f"{leader_count} / 20")
+            add_row("Cards Unlocked", f"{len(unlocked_cards)} / 20")
 
         # Faction Win Rates
         add_section("Faction Win Rates")

@@ -1058,6 +1058,7 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     # Faction power button is square
     faction_size = max(int(CARD_WIDTH * 0.6), 65)
     special_size = max(int(CARD_WIDTH * 0.45), 55)
+    stats_height = max(36, int(42 * SCALE_FACTOR))
 
     # Determine if this player has a special faction button (Iris, Rings, etc.).
     special_info = None
@@ -1077,7 +1078,8 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
         }
 
     # Calculate stack
-    element_heights = [button_height, faction_size]
+    # Treat ability button + stats row as one combined element (4px gap)
+    element_heights = [button_height + 4 + stats_height, faction_size]
     if special_info:
         element_heights.append(special_size)
     element_heights.append(leader_height)
@@ -1145,20 +1147,53 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     
     surface.blit(ability_surface, ability_rect.topleft)
 
-    # Card/Deck counters - compact display below ability button
-    counter_rect = pygame.Rect(ability_rect.x, ability_rect.bottom + 2, ability_rect.width, max(18, int(20 * SCALE_FACTOR)))
-    counter_font = pygame.font.SysFont("Arial", max(9, int(10 * SCALE_FACTOR)), bold=True)
-    counter_surface = pygame.Surface((counter_rect.width, counter_rect.height), pygame.SRCALPHA)
-    counter_surface.fill((15, 20, 30, 180))
+    # ═══ STATS ROW (Hand, Deck, Discard) ═══
+    # Taller and separated for readability - Stargwent Style
+    # stats_height is defined above
+    stats_rect = pygame.Rect(ability_rect.x, ability_rect.bottom + 4, ability_rect.width, stats_height)
     
-    # Single line: H:X  D:X  G:X
-    counter_text = f"H:{len(player.hand)}  D:{len(player.deck)}  G:{len(player.discard_pile)}"
-    counter_surf = counter_font.render(counter_text, True, (180, 180, 200))
-    counter_surface.blit(counter_surf, counter_surf.get_rect(center=counter_surface.get_rect().center))
-    surface.blit(counter_surface, counter_rect.topleft)
+    # Fonts for stats
+    stat_val_font = pygame.font.SysFont("Arial", max(14, int(16 * SCALE_FACTOR)), bold=True)
+    stat_lbl_font = pygame.font.SysFont("Arial", max(8, int(9 * SCALE_FACTOR)), bold=True)
     
-    discard_hit_rect = counter_rect.copy()
-    y_cursor = counter_rect.bottom + spacing
+    # Split into 3 sections: HAND | DECK | DISC
+    section_width = stats_rect.width / 3
+    stats_data = [
+        ("HAND", len(player.hand), (120, 220, 255)),   # Blueish for Hand
+        ("DECK", len(player.deck), (220, 220, 120)),   # Yellowish for Deck
+        ("DISC", len(player.discard_pile), (255, 120, 120)) # Reddish for Discard
+    ]
+
+    for i, (label, value, color) in enumerate(stats_data):
+        # Calculate section area
+        sx = stats_rect.x + (i * section_width)
+        s_rect = pygame.Rect(sx, stats_rect.y, section_width, stats_height)
+        
+        # Draw background panel for this stat
+        # Inflate negative to create gap between sections
+        panel_rect = s_rect.inflate(-4, 0)
+        
+        # Draw semi-transparent background
+        s_bg = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+        s_bg.fill((20, 25, 35, 230))
+        surface.blit(s_bg, panel_rect.topleft)
+        
+        # Draw border (faction colored, slightly dimmed)
+        border_col = tuple(max(0, c - 40) for c in faction_color)
+        pygame.draw.rect(surface, border_col, panel_rect, width=1, border_radius=5)
+        
+        # Draw Label (Top)
+        lbl_surf = stat_lbl_font.render(label, True, (160, 160, 170))
+        lbl_rect = lbl_surf.get_rect(centerx=panel_rect.centerx, top=panel_rect.top + 4)
+        surface.blit(lbl_surf, lbl_rect)
+        
+        # Draw Value (Bottom)
+        val_surf = stat_val_font.render(str(value), True, color)
+        val_rect = val_surf.get_rect(centerx=panel_rect.centerx, bottom=panel_rect.bottom - 2)
+        surface.blit(val_surf, val_rect)
+
+    discard_hit_rect = stats_rect.copy()
+    y_cursor = stats_rect.bottom + spacing
 
     # ═══ FACTION POWER BUTTON ═══
     faction_rect = pygame.Rect(0, y_cursor, faction_size, faction_size)

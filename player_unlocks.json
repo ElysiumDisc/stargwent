@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 2,
-  "total_games": 7,
+  "total_games": 9,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -12,32 +12,32 @@
       "id": "neutral_ascended_daniel"
     },
     "Tok'ra Deep Cover Operative": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "tok_ra_operative"
     },
     "Col. Jack O'Neill": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "tauri_oneill"
     },
     "Nebula Field": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "neutral_impenetrable_fog_1"
     },
     "Dr. Janet Fraiser": {
-      "plays": 2,
+      "plays": 4,
       "wins": 0,
       "id": "tauri_fraiser"
     },
     "Ancients Drone": {
-      "plays": 1,
+      "plays": 3,
       "wins": 0,
       "id": "neutral_ancient_drone"
     },
     "Asgard Anti-Goa'uld Pulse": {
-      "plays": 3,
+      "plays": 7,
       "wins": 0,
       "id": "neutral_skellige_storm_2"
     },
@@ -47,12 +47,12 @@
       "id": "neutral_oma_desala"
     },
     "Col. Steven Caldwell": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "tauri_caldwell"
     },
     "BC-304 Heavy Cruiser": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "tauri_bc304_1"
     },
@@ -70,13 +70,28 @@
       "plays": 1,
       "wins": 0,
       "id": "tauri_mitchell"
+    },
+    "Jonas Quinn": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_quinn"
+    },
+    "Ice Planet Contingency": {
+      "plays": 1,
+      "wins": 0,
+      "id": "neutral_biting_frost_1"
+    },
+    "NID Agent Malcolm Barrett": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_barrett"
     }
   },
   "faction_wins": {
     "Tau'ri": 2
   },
   "max_streak": 1,
-  "ai_games": 7,
+  "ai_games": 9,
   "ai_wins": 2,
   "lan_games": 0,
   "lan_wins": 0,
@@ -90,7 +105,7 @@
       "wins": 0
     },
     "Col. Jack O'Neill": {
-      "games": 2,
+      "games": 4,
       "wins": 0
     }
   },
@@ -105,11 +120,11 @@
         "wins": 0
       },
       "Asgard": {
-        "games": 1,
+        "games": 2,
         "wins": 0
       },
       "Jaffa Rebellion": {
-        "games": 1,
+        "games": 2,
         "wins": 0
       }
     }
@@ -119,21 +134,25 @@
     "L",
     "L",
     "L",
+    "L",
+    "L",
     "L"
   ],
   "turn_stats": {
-    "total": 64,
-    "games": 2,
-    "min": 28,
+    "total": 109,
+    "games": 4,
+    "min": 21,
     "max": 36,
     "history": [
       36,
-      28
+      28,
+      24,
+      21
     ]
   },
   "mulligans": {
-    "total": 6,
-    "games": 2
+    "total": 13,
+    "games": 4
   },
   "ability_usage": {
     "medic": 0,
@@ -144,11 +163,11 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 2,
+    "sweeps_against": 4,
     "close_wins": 0,
     "close_losses": 0,
     "comebacks": 0,
-    "first_turn_games": 2,
+    "first_turn_games": 4,
     "first_turn_wins": 0
   },
   "draft_stats": {

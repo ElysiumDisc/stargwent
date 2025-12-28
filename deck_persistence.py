@@ -225,6 +225,7 @@ class DeckPersistence:
             "lan_reliability": self.unlock_data.get("lan_reliability", {}),
             "draft_stats": self.unlock_data.get("draft_stats", {}),
             "round_stats": self.unlock_data.get("round_stats", {}),
+            "unlock_override_enabled": self.unlock_data.get("unlock_override_enabled", False),
         }
 
     def reset_stats(self):
