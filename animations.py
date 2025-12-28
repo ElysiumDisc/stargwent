@@ -3137,7 +3137,7 @@ class ClearWeatherBlackHole(HeroEntryAnimation):
 class ThorsHammerPurgeEffect(Animation):
     """Blue-white vertical purge beam for Thor's Hammer."""
     def __init__(self, x, y, width, height, duration=1100):
-        super().__init__(duration=duration, easing='linear')
+        super().__init__(duration=duration)
         self.x = x
         self.y = y
         self.width = width
@@ -3173,7 +3173,7 @@ class ThorsHammerPurgeEffect(Animation):
 class ZPMSurgeEffect(Animation):
     """Cyan-gold pulse that doubles siege power."""
     def __init__(self, x, y, duration=1000):
-        super().__init__(duration=duration, easing='linear')
+        super().__init__(duration=duration)
         self.x = x
         self.y = y
 
@@ -3196,7 +3196,7 @@ class ZPMSurgeEffect(Animation):
 class CommunicationRevealEffect(Animation):
     """Eye sweep revealing opponent hand."""
     def __init__(self, x, y, screen_width, screen_height, duration=1200):
-        super().__init__(duration=duration, easing='linear')
+        super().__init__(duration=duration)
         self.x = x
         self.y = y
         self.screen_width = screen_width
@@ -3223,7 +3223,7 @@ class CommunicationRevealEffect(Animation):
 class MerlinAntiOriEffect(Animation):
     """Golden-white anti-Ori blast that only hits the opponent."""
     def __init__(self, x, y, screen_width, screen_height, duration=1100):
-        super().__init__(duration=duration, easing='linear')
+        super().__init__(duration=duration)
         self.x = x
         self.y = y
         self.screen_width = screen_width
@@ -3251,7 +3251,7 @@ class MerlinAntiOriEffect(Animation):
 class DakaraShockwaveEffect(Animation):
     """Massive radial shockwave for Dakara Superweapon."""
     def __init__(self, x, y, screen_width, screen_height, duration=1300):
-        super().__init__(duration=duration, easing='linear')
+        super().__init__(duration=duration)
         self.x = x
         self.y = y
         self.screen_width = screen_width
@@ -3333,6 +3333,8 @@ def create_ability_animation(ability_name, x, y):
         return BerserkerRageEffect(x, y)
     elif "Genetic Enhancement" in ability_name:
         return MardroemeEffect(x, y)
+    elif "Look at opponent's hand" in ability_name:
+        return CommunicationRevealEffect(x, y, 1920, 1080)  # Use default screen size
     else:
         return StargateActivationEffect(x, y, duration=1000)
 

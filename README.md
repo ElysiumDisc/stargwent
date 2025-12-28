@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.9.3-blue)
+![Version](https://img.shields.io/badge/version-3.9.4-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v3.9.4: UNLOCKABLE CARD VERIFICATION & FIXES** - Complete logic audit of all 20 unlockable cards! Fixed ZPM Power doubling (now preserves bonuses), Puddle Jumper Ring Transport for unit cards, and Replicator Swarm description. All abilities verified with correct animations!
 - **⚡ NEW v3.9.2: WITCHER-STYLE DECK BUILDER UI** - Complete visual overhaul featuring bottom accordion card preview (2x size), right-side vertical deck list, holographic stats panel, and smooth drag-and-drop interactions!
 - **⚡ NEW v3.9.1: STATS MENU OVERHAUL** - Comprehensive player statistics with faction win rates, round breakdown (2-0 vs 2-1), comeback tracking, unlock progress, and red DHD-styled reset button!
 - **⚡ NEW v3.9.0: FACTION POWER CINEMATICS** - Faction powers now feature high-fidelity animations: Asgard de-materialization beams, Lucian EM interference glitches, and functional Goa'uld Sarcophagus lid animations!
@@ -178,6 +179,35 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 3.9.4 (December 2025)
+**Unlockable Card Logic Verification & Bug Fixes**
+
+- ✅ **Complete Logic Audit** – Deep verification of all 20 unlockable card abilities:
+  - Verified draw mechanics (Mothership, Prometheus, Tok'ra Operative)
+  - Confirmed destruction logic (Ancient Drone destroys LOWEST unit)
+  - Validated summoning (Gate Reinforcement, Deploy Clones)
+  - Tested combat calculations (Survival Instinct, Tactical Formation)
+  - Verified Legendary Commander immunity (weather, horns, scorch)
+  - Confirmed special effects (Thor's Hammer, Merlin Device, Communication Stones)
+- ✅ **ZPM Power Fix** – Critical bugs fixed:
+  - **Logic Fix**: Now applies doubling during score calculation (not when played)
+  - Preserves leader bonuses and other effects
+  - **Persistence Fix**: Effect now lasts the entire round (was being reset immediately)
+  - Example: 8-power siege with Carter +2 = 10 → ZPM makes it 20 ✅
+- ✅ **Animation Fix** – Fixed crash when playing special effect cards:
+  - Removed invalid `easing` parameter from Animation base class calls
+  - Fixed ZPM, Thor's Hammer, Merlin Device, Communication Stones, Dakara animations
+- ✅ **Puddle Jumper Fix** – Ring Transport now works for unit cards:
+  - Added selection UI when picking up unit cards with Ring Transport
+  - Drag onto unit → triggers Ring Transport with golden ring animation
+  - Drag to empty row → plays as 5-power agile unit
+  - Versatile gameplay: use as unit OR as Ring Transport
+- ✅ **Replicator Swarm Description** – Fixed misleading ability text:
+  - Changed from "Gain +2 per unit" to just "Tactical Formation"
+  - Clarifies that it multiplies base power by copy count (not adds +2)
+- ✅ **Sodan Warrior Animation** – Added CommunicationRevealEffect when played
+- ✅ **All 20 Cards Verified** – Every unlockable card has correct logic and animations
 
 ### Version 3.9.2 (December 2025)
 **Witcher-Style Deck Builder UI Overhaul**
@@ -703,9 +733,10 @@ All abilities renamed and themed around Stargate lore:
 - **Trigger**: Win any game
 - **Reward**: Choose 1 of 3 random cards
 - **Filter**: Only shows cards from your faction + Neutral
-- **Total**: 20 unlockable cards
+- **Total**: 20 unlockable cards (ALL abilities verified v3.9.4!)
 - **Persistence**: Saved to `player_unlocks.json`
 - **Usage**: Access via Deck Builder to customize decks
+- **⚡ v3.9.4 Fixes**: ZPM now doubles total power (not base), Puddle Jumper Ring Transport works correctly, all animations verified
 
 ### Leader Unlocks 🎖️
 - **Trigger**: Win 3 games in a row
@@ -731,27 +762,28 @@ All abilities renamed and themed around Stargate lore:
 
 ### Unlockable Content
 
-#### **20 Unlockable Cards**
+#### **21 Unlockable Cards** (ALL VERIFIED v3.9.4 ✅)
 1. **Ori Warship** (11) - Legendary Commander
 2. **Atlantis City** (10) - Legendary + Inspiring Leadership
 3. **Anubis Super Soldier** (7) - Survival Instinct
 4. **Kull Warrior Elite** (8) - Legendary + Survival Instinct
 5. **Asuran Warship** (10) - Deploy Clones + Tactical Formation
 6. **Destiny Ship** (15, LEGENDARY) - Legendary Commander
-7. **Replicator Swarm** (4) - Tactical Formation
-8. **Wraith Hive** (9) - Gate Reinforcement (swarm tactics)
-9. **Ancient Drone** (8) - Naquadah Overload
-10. **Tok'ra Operative** (4) - Deep Cover Agent
-11. **Puddle Jumper** (5) - Ring Transport
+7. **Replicator Swarm** (4) - Tactical Formation *(v3.9.4: Fixed description)*
+8. **Wraith Hive** (9) - Gate Reinforcement (summons all copies)
+9. **Ancient Drone** (8) - Naquadah Overload (destroys LOWEST enemy unit)
+10. **Tok'ra Operative** (4) - Deep Cover Agent (draws 2-3 cards)
+11. **Puddle Jumper** (5) - Ring Transport *(v3.9.4: Fixed for unit cards!)*
 12. **Prometheus BC-303** (8) - Draw 1 when played
 13. **Asgard Mothership** (10) - Draw 2 when played
 14. **Thor's Hammer** (Special) - Remove all Goa'uld units
-15. **Zero Point Module** (Special) - Double all siege units
+15. **Zero Point Module** (Special) - Double all siege units *(v3.9.4: Now preserves bonuses!)*
 16. **Merlin's Weapon** (Special) - One-sided Naquadah Overload (opponent only)
-17. **Dakara Superweapon** (12) - Legendary Commander (highest normal power)
+17. **Dakara Superweapon** (12) - Legendary Commander
 18. **Replicator Carter** (7) - Survival Instinct
 19. **Communication Device** (Special) - Reveal opponent's hand
-20. **Sodan Warrior** (6) - Reveal hand when played
+20. **Sodan Warrior** (6) - Look at opponent's hand (reveal animation added!)
+21. **All cards** - Logic verified, animations working correctly!
 
 #### **20 Unlockable Leaders**
 

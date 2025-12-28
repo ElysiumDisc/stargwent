@@ -421,6 +421,7 @@ class Player:
         self.hand_revealed = False  # Track if opponent can see this player's hand
         self.reveal_next_round = False  # Pending reveal flag for Yu ability
         self.plays_this_turn = 0  # Track plays for Rak'nor ability
+        self.zpm_active = False  # Track if ZPM was played this round
         
         # Stargate mechanics
         self.faction_ability = FACTION_ABILITIES.get(faction, None)
@@ -608,6 +609,11 @@ class Player:
                 for card in row_cards:
                     if "Legendary Commander" not in (card.ability or ""):
                         card.displayed_power *= 2
+        
+        # Apply ZPM Power (doubles ALL siege units for the round)
+        if self.zpm_active:
+            for card in self.board.get("siege", []):
+                card.displayed_power *= 2
         
         # Apply Faction Abilities that affect score
         if self.faction_ability:
@@ -1469,6 +1475,17 @@ class Game:
             faction_ability = getattr(opponent, "faction_ability", None)
             if faction_ability and hasattr(faction_ability, "can_block_weather"):
                 if faction_ability.can_block_weather():
+                    # Weather was blocked by Asgard Shield
+                    weather_name = ability.replace("Ice Planet Hazard", "Ice Planet") \
+                                          .replace("Nebula Interference", "Nebula") \
+                                          .replace("Asteroid Storm", "Meteor Shower") \
+                                          .replace("Electromagnetic Pulse", "EMP")
+                    self.add_history_event(
+                        "blocked",
+                        f"{weather_name} blocked! {opponent.name}'s Asgard Shield deflected it",
+                        self._owner_label(acting_player),
+                        icon="🛡"
+                    )
                     return affected_rows
 
         # Freyr leader: completely immune to weather
@@ -1550,6 +1567,26 @@ class Game:
                     get_sound_manager().play_weather_sound(sound_key)
                 except Exception as e:
                     logger.warning(f"Failed to play weather sound '{sound_key}': {e}")
+        else:
+            # Weather was blocked by immunity
+            weather_name = ability.replace("Ice Planet Hazard", "Ice Planet") \
+                                  .replace("Nebula Interference", "Nebula") \
+                                  .replace("Asteroid Storm", "Meteor Shower") \
+                                  .replace("Electromagnetic Pulse", "EMP")
+            if freyr_owner:
+                self.add_history_event(
+                    "blocked",
+                    f"{weather_name} blocked! {freyr_owner.name} has weather immunity (Freyr)",
+                    self._owner_label(acting_player),
+                    icon="🛡"
+                )
+            else:
+                self.add_history_event(
+                    "blocked",
+                    f"{weather_name} had no valid targets!",
+                    self._owner_label(acting_player),
+                    icon="⚠"
+                )
 
         return affected_rows
 
@@ -1934,16 +1971,15 @@ class Game:
                 )
 
         elif "Zero Point Module" in card.name or "ZPM" in card.name or "Double all your siege" in ability:
-            # Double all siege units for current player this round
+            # Set ZPM flag - doubling happens in calculate_score()
+            self.current_player.zpm_active = True
             siege_count = len(self.current_player.board.get("siege", []))
-            for siege_card in self.current_player.board.get("siege", []):
-                siege_card.displayed_power = siege_card.power * 2
             if siege_count > 0:
                 self.add_history_event(
                     "ability",
-                    f"{self.current_player.name} activated ZPM - doubled {siege_count} siege units",
+                    f"{self.current_player.name} activated ZPM - will double {siege_count} siege units",
                     self._owner_label(self.current_player),
-                    icon="*"
+                    icon="⚡"
                 )
 
         elif "Communication Device" in card.name or "Reveal opponent's hand" in ability:
@@ -2362,6 +2398,7 @@ class Game:
             pending_reveal = getattr(p, "reveal_next_round", False)
             p.hand_revealed = pending_reveal  # Carry Yu intel into next round
             p.reveal_next_round = False
+            p.zpm_active = False  # Clear ZPM effect for new round
             
             # Reset Ring Transportation for new round (Goa'uld)
             if p.ring_transportation:

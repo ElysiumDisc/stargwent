@@ -38,7 +38,7 @@ UNLOCKABLE_CARDS = {
         "faction": "Neutral",
         "row": "close",
         "power": 4,
-        "ability": "Tactical Formation: Gain +2 power for each close combat unit",
+        "ability": "Tactical Formation",
         "description": "Self-replicating menace that grows stronger in numbers",
         "rarity": "rare"
     },

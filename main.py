@@ -4181,6 +4181,13 @@ def main(lan_game_data=None):
                                         drag_trail_emit_ms = 0
                                         drag_pickup_flash = 1.0
                                         drag_pulse = 0.0
+                                        # Get valid decoy targets for Ring Transport on unit cards (e.g., Puddle Jumper)
+                                        if "Ring Transport" in (card.ability or ""):
+                                            decoy_valid_targets = []
+                                            valid_cards = game.get_decoy_valid_cards()
+                                            for valid_card in valid_cards:
+                                                if hasattr(valid_card, 'rect'):
+                                                    decoy_valid_targets.append((valid_card, valid_card.rect.copy()))
                                     
                                     break
             
@@ -4304,6 +4311,26 @@ def main(lan_game_data=None):
                             if rect.collidepoint(event.pos):
                                 if dragging_card.row == row_name or (dragging_card.row == "agile" and row_name in ["close", "ranged"]):
                                     
+                                    # Check if this is a Ring Transport unit (e.g., Puddle Jumper) dropped on a valid target
+                                    if "Ring Transport" in (dragging_card.ability or "") and decoy_drag_target:
+                                        if game.play_ring_transport(dragging_card, decoy_drag_target):
+                                            # Show ring transport animation with golden rings
+                                            from power import RingTransportAnimation
+                                            start_pos = (decoy_drag_target.rect.centerx, decoy_drag_target.rect.centery)
+                                            # End position is player's hand area
+                                            end_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100)
+                                            ring_transport_animation = RingTransportAnimation(
+                                                decoy_drag_target, start_pos, end_pos,
+                                                SCREEN_WIDTH, SCREEN_HEIGHT
+                                            )
+                                            game.player1.calculate_score()
+                                            game.player2.calculate_score()
+                                            game.switch_turn()
+                                            played = True
+                                        decoy_valid_targets = []
+                                        decoy_drag_target = None
+                                        break
+                                    
                                     # Calculate insertion index
                                     target_player = game.player2 if is_spy else game.player1
                                     row_cards = target_player.board[row_name]
@@ -4359,7 +4386,8 @@ def main(lan_game_data=None):
                                         
                                         # Check for special ability animations
                                         for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones", 
-                                                               "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
+                                                               "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement",
+                                                               "Look at opponent's hand"]:
                                             if special_ability in ability:
                                                 ability_anim = create_ability_animation(ability, effect_x, effect_y)
                                                 anim_manager.add_effect(ability_anim)
