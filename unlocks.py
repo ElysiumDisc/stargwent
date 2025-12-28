@@ -33,7 +33,25 @@ UNLOCKABLE_CARDS = {
         "description": "Ancient technology of immense power",
         "rarity": "rare"
     },
-    "replicator_swarm": {
+    "replicator_swarm_1": {
+        "name": "Replicator Swarm",
+        "faction": "Neutral",
+        "row": "close",
+        "power": 4,
+        "ability": "Tactical Formation",
+        "description": "Self-replicating menace that grows stronger in numbers",
+        "rarity": "rare"
+    },
+    "replicator_swarm_2": {
+        "name": "Replicator Swarm",
+        "faction": "Neutral",
+        "row": "close",
+        "power": 4,
+        "ability": "Tactical Formation",
+        "description": "Self-replicating menace that grows stronger in numbers",
+        "rarity": "rare"
+    },
+    "replicator_swarm_3": {
         "name": "Replicator Swarm",
         "faction": "Neutral",
         "row": "close",

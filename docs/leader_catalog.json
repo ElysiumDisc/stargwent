@@ -118,10 +118,10 @@
     ],
     "unlockable": [
       {
-        "name": "Master Bra'tac",
-        "ability": "Final stand: Units get +3 power in final round",
-        "ability_desc": "+3 power to all units in round 3",
-        "card_id": "jaffa_master_bratac"
+        "name": "Rya'c",
+        "ability": "Hope for Tomorrow: Draw 2 extra cards at start of round 3",
+        "ability_desc": "Automatically draw 2 extra cards when round 3 begins",
+        "card_id": "jaffa_ryac"
       },
       {
         "name": "Ka'lel",

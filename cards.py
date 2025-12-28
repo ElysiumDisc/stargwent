@@ -289,7 +289,9 @@ ALL_CARDS = {
     # --- Unlockable Cards (from unlocks.py) ---
     "asgard_mothership": Card("asgard_mothership", "Asgard Mothership", FACTION_ASGARD, 10, "siege", "Draw 2 cards when played"),
     "ancient_drone": Card("ancient_drone", "Ancient Drone Weapon", FACTION_NEUTRAL, 8, "ranged", "Naquadah Overload: Destroy lowest enemy unit"),
-    "replicator_swarm": Card("replicator_swarm", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
+    "replicator_swarm_1": Card("replicator_swarm_1", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
+    "replicator_swarm_2": Card("replicator_swarm_2", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
+    "replicator_swarm_3": Card("replicator_swarm_3", "Replicator Swarm", FACTION_NEUTRAL, 4, "close", "Tactical Formation"),
     "wraith_hive": Card("wraith_hive", "Wraith Hive Ship", FACTION_NEUTRAL, 9, "siege", "Gate Reinforcement"),
     "ori_warship": Card("ori_warship", "Ori Warship", FACTION_NEUTRAL, 11, "siege", "Legendary Commander"),
     "atlantis_city": Card("atlantis_city", "City of Atlantis", FACTION_NEUTRAL, 10, "siege", "Legendary Commander, Inspiring Leadership"),
