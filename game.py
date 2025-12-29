@@ -753,6 +753,23 @@ class Game:
         combos_p1 = self.player1.calculate_score()
         combos_p2 = self.player2.calculate_score()
 
+        # Log Mercenary Tax penalties
+        if self.player1.neutral_penalty_active:
+            self.add_history_event(
+                "ability",
+                f"{self.player1.name} suffers Mercenary Tax! Score reduced by 25%",
+                self._owner_label(self.player1),
+                icon="!"
+            )
+        
+        if self.player2.neutral_penalty_active:
+            self.add_history_event(
+                "ability",
+                f"{self.player2.name} suffers Mercenary Tax! Score reduced by 25%",
+                self._owner_label(self.player2),
+                icon="!"
+            )
+
         # Log alliance combo activations
         for combo in combos_p1:
             self.add_history_event(

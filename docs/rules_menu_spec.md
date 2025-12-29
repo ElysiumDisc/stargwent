@@ -29,6 +29,7 @@ Generated on 2025-12-28 21:19 UTC using cards.py, content_registry.py, unlocks.p
 
 - **Objective:** Win 2 of 3 rounds by ending a round with more total power. Ties award both players a round win.
 - **Setup:** 10-card starting hand, 2–5 card mulligan, random coin flip determines first player. Deck size 20–40 with at least 15 units; faction decks may include Neutral plus unlocked tech. Custom decks saved in `player_decks.json`.
+- **Mercenary Tax:** If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25% (power penalty).
 - **Resource Systems:** No mana—power is entirely card-driven. Iris Defense is a one-shot shield that destroys the opponent's next card; Dial Home Device (DHD) retrieves one random non-Hero unit per round from discard if unused.
 - **Progression:** Winning any match unlocks one of three random cards (weighted to your faction/Neutral). Three consecutive wins unlock one of three faction leaders. Unlock state stored in `player_unlocks.json`.
 - **Controls Recap:** Drag/drop to play, right-click to inspect, SPACE to trigger Faction Power (once per game), ESC to pause, D to view discard, mouse wheel to scroll panels.
