@@ -28,8 +28,8 @@ FACTION_COLORS = {
     FACTION_TAURI: (100, 150, 255),    # Blue
     FACTION_GOAULD: (200, 160, 50),    # Gold
     FACTION_JAFFA: (200, 100, 50),     # Orange/Rust
-    FACTION_LUCIAN: (100, 200, 100),   # Green
-    FACTION_ASGARD: (200, 200, 255),   # Light Blue/White
+    FACTION_LUCIAN: (200, 100, 255),   # Pink/Purple
+    FACTION_ASGARD: (100, 255, 255),   # Cyan
     FACTION_NEUTRAL: (150, 150, 150)   # Gray
 }
 
@@ -159,7 +159,7 @@ class DraftModeUI:
                 name_bg.fill((0, 0, 0, 180))
                 surface.blit(name_bg, (x, y + self.card_height - name_bg_height))
 
-                faction_color = FACTION_COLORS.get(leader.get('faction'), COLOR_ACCENT_GOLD)
+                faction_color = self._get_faction_color(leader.get('faction'))
                 name = self.font_body.render(leader['name'], True, faction_color)
                 name_rect = name.get_rect(center=(x + self.card_width // 2, y + self.card_height - 30))
                 surface.blit(name, name_rect)
@@ -169,7 +169,7 @@ class DraftModeUI:
                 pygame.draw.rect(surface, COLOR_ACCENT_BLUE, rect, width=3, border_radius=10)
 
                 # Leader name
-                faction_color = FACTION_COLORS.get(leader.get('faction'), COLOR_TEXT_PRIMARY)
+                faction_color = self._get_faction_color(leader.get('faction'))
                 name = self.font_header.render(leader['name'], True, faction_color)
                 name_rect = name.get_rect(center=(x + self.card_width // 2, y + 40))
                 surface.blit(name, name_rect)
@@ -676,15 +676,7 @@ class DraftModeUI:
 
     def _get_faction_color(self, faction: str) -> Tuple[int, int, int]:
         """Get color for a faction."""
-        faction_colors = {
-            "Tau'ri": (100, 150, 255),
-            "Goa'uld": (200, 150, 50),
-            "Jaffa Rebellion": (150, 100, 200),
-            "Lucian Alliance": (200, 50, 50),
-            "Asgard": (50, 200, 200),
-            "Neutral": (150, 150, 150)
-        }
-        return faction_colors.get(faction, COLOR_TEXT_SECONDARY)
+        return FACTION_COLORS.get(faction, COLOR_TEXT_SECONDARY)
 
     def handle_mouse_motion(self, pos: Tuple[int, int], clickable_rects: List[pygame.Rect]):
         """

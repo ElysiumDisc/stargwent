@@ -171,7 +171,7 @@
     "first_turn_wins": 0
   },
   "draft_stats": {
-    "runs_started": 3,
+    "runs_started": 4,
     "runs_completed": 0,
     "battles_won": 0,
     "battles_lost": 0,
@@ -183,5 +183,13 @@
     "highest_deck_power": 0,
     "most_drafted_card": null,
     "card_draft_counts": {}
+  },
+  "active_draft_run": {
+    "wins": 0,
+    "losses": 0,
+    "phase": "leader_select",
+    "current_pick": 0,
+    "leader_id": null,
+    "card_ids": []
   }
 }

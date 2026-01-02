@@ -94,6 +94,8 @@ class DraftModeController:
                  self.current_choices = self.current_run.get_current_choices()
             elif self.current_run.phase == "redraft_leader":
                 self.leader_choices = self.pool.get_leader_choices(3)
+            elif self.current_run.phase == "leader_select":
+                self.leader_choices = self.pool.get_leader_choices(3)
                 
             print(f"Resumed draft run: Phase={self.current_run.phase}, Wins={self.current_run.wins}")
 

@@ -637,8 +637,8 @@ def run_stats_menu(screen):
             FACTION_TAURI: (100, 180, 255),
             FACTION_GOAULD: (220, 180, 80),
             FACTION_JAFFA: (140, 90, 60),
-            FACTION_LUCIAN: (150, 200, 120),
-            FACTION_ASGARD: (180, 220, 255),
+            FACTION_LUCIAN: (200, 100, 255),
+            FACTION_ASGARD: (100, 255, 255),
             FACTION_NEUTRAL: (200, 200, 200),
         }
         # Hover preview - show in center of panel

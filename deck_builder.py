@@ -175,8 +175,8 @@ class DeckBuilderUI:
             FACTION_TAURI: (100, 150, 255),     # Blue
             FACTION_GOAULD: (200, 50, 50),      # Red
             FACTION_JAFFA: (150, 100, 50),      # Brown/Gold
-            FACTION_LUCIAN: (150, 50, 150),     # Purple
-            FACTION_ASGARD: (50, 200, 150),     # Cyan
+            FACTION_LUCIAN: (200, 100, 255),    # Pink
+            FACTION_ASGARD: (100, 255, 255),    # Cyan
         }
         
         # Background colors for factions (darker versions)
