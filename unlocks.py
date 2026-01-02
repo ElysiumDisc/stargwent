@@ -216,11 +216,11 @@ UNLOCKABLE_CARDS = {
     },
     "asuran_warship": {
         "name": "Asuran Aurora-class",
-        "faction": "Asgard",
+        "faction": "Neutral",
         "row": "siege",
         "power": 10,
         "ability": "Deploy Clones, Tactical Formation",
-        "description": "Replicator-built Ancient warship",
+        "description": "Ancient warship",
         "rarity": "epic"
     },
     "destiny_ship": {

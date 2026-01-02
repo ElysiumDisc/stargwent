@@ -309,7 +309,7 @@ ALL_CARDS = {
     "dakara_superweapon": Card("dakara_superweapon", "Dakara Superweapon", FACTION_JAFFA, 12, "siege", "Legendary Commander"),
     "replicator_carter": Card("replicator_carter", "Replicator Carter", FACTION_NEUTRAL, 7, "close", "Survival Instinct"),
     "ancient_communication_stones": Card("ancient_communication_stones", "Ancient Communication Device", FACTION_NEUTRAL, 0, "special", "Reveal opponent's hand for this round"),
-    "asuran_warship": Card("asuran_warship", "Asuran Aurora-class", FACTION_ASGARD, 10, "siege", "Deploy Clones, Tactical Formation"),
+    "asuran_warship": Card("asuran_warship", "Asuran Aurora-class", FACTION_NEUTRAL, 10, "siege", "Grant ZPM, Tactical Formation"),
     "destiny_ship": Card("destiny_ship", "Ancient Ship Destiny", FACTION_NEUTRAL, 15, "siege", "Legendary Commander"),
 }
 

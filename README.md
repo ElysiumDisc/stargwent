@@ -768,7 +768,7 @@ All abilities renamed and themed around Stargate lore:
 2. **Atlantis City** (10) - Legendary + Inspiring Leadership
 3. **Anubis Super Soldier** (7) - Survival Instinct
 4. **Kull Warrior Elite** (8) - Legendary + Survival Instinct
-5. **Asuran Warship** (10) - Deploy Clones + Tactical Formation
+5. **Asuran Aurora-class** (10) - Grant ZPM + Tactical Formation
 6. **Destiny Ship** (15, LEGENDARY) - Legendary Commander
 7. **Replicator Swarm** (4) - Tactical Formation *(v3.9.4: Fixed description)*
 8. **Wraith Hive** (9) - Gate Reinforcement (summons all copies)
@@ -784,7 +784,7 @@ All abilities renamed and themed around Stargate lore:
 18. **Replicator Carter** (7) - Survival Instinct
 19. **Communication Device** (Special) - Reveal opponent's hand
 20. **Sodan Warrior** (6) - Look at opponent's hand (reveal animation added!)
-21. **All cards** - Logic verified, animations working correctly!
+21. **Grant ZPM** - Adds a ZPM card to hand (Asuran Aurora-class)
 
 #### **20 Unlockable Leaders**
 

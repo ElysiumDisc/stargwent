@@ -1184,6 +1184,10 @@ class Game:
             if "Deploy Clones" in (card.ability or ""):
                 self.trigger_summon_shield_maidens(target_player, row_name)
             
+            # Trigger Grant ZPM
+            if "Grant ZPM" in (card.ability or ""):
+                self.trigger_grant_zpm(target_player)
+            
             # Trigger Activate Combat Protocol
             if "Activate Combat Protocol" in (card.ability or ""):
                 self.trigger_summon_avenger(target_player, row_name)
@@ -1361,6 +1365,20 @@ class Game:
         from cards import Card
         avenger = Card("token_avenger", "Asgard Avenger", player.faction, 5, row_name, None)
         player.board[row_name].append(avenger)
+    
+    def trigger_grant_zpm(self, player):
+        """Grant ZPM: Add a Zero Point Module card to the player's hand."""
+        from cards import Card, FACTION_NEUTRAL
+        # Create ZPM card
+        zpm = Card("zpm_power", "Zero Point Module", FACTION_NEUTRAL, 0, "special", "Double all your siege units this round")
+        player.hand.append(zpm)
+        self.add_history_event(
+            "ability",
+            f"{player.name} obtained a Zero Point Module!",
+            self._owner_label(player),
+            icon="⚡",
+            card_ref=zpm
+        )
     
     def trigger_mardroeme(self, player):
         """Genetic Enhancement: Transform weakest unit in each row into a 8-power berserker."""

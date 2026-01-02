@@ -1490,17 +1490,27 @@ class DeckBuilderUI:
         unit_count = len([c for c in deck_cards if c.row in ["close", "ranged", "siege", "agile"]])
         special_count = len([c for c in deck_cards if c.row == "special"])
         weather_count = len([c for c in deck_cards if c.row == "weather"])
+        neutral_count = len([c for c in deck_cards if c.faction == FACTION_NEUTRAL])
         total_power = sum(c.power for c in deck_cards if c.row not in ["special", "weather"])
         
         # Deck validity check
         is_valid, status_msg = validate_deck(deck_cards)
         
+        # Check for Mercenary Tax (Neutral Penalty)
+        mercenary_tax = False
+        if len(deck_cards) > 0 and neutral_count > len(deck_cards) / 2:
+            mercenary_tax = True
+        
         stats = [
             (f"Total Cards: {len(deck_cards)} / {MAX_DECK_SIZE}", (255, 255, 255)),
             (f"Unit Cards: {unit_count} (Min 15)", (100, 255, 100) if unit_count >= 15 else (255, 100, 100)),
-            (f"Special: {special_count}  |  Weather: {weather_count}", (200, 200, 200)),
+            (f"Spec: {special_count} | Weath: {weather_count} | Neut: {neutral_count}", (200, 200, 200)),
             (f"Total Strength: {total_power}", (255, 215, 0)),
         ]
+        
+        if mercenary_tax:
+            stats.append(("! MERCENARY TAX ACTIVE !", (255, 50, 50)))
+            stats.append(("(-25% Final Score)", (255, 100, 100)))
 
         y_offset = self.stats_box_rect.y + 55
         for text, color in stats:
