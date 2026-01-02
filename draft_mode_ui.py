@@ -8,7 +8,7 @@ import pygame
 import math
 import os
 from typing import List, Dict, Optional, Tuple
-from cards import Card, ALL_CARDS
+from cards import Card, ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
 from animations import get_scale_factor
 
 
@@ -22,6 +22,16 @@ COLOR_TEXT_PRIMARY = (220, 220, 230)
 COLOR_TEXT_SECONDARY = (150, 160, 180)
 COLOR_ACCENT_GOLD = (255, 215, 0)
 COLOR_ACCENT_BLUE = (100, 150, 255)
+
+# Faction Colors
+FACTION_COLORS = {
+    FACTION_TAURI: (100, 150, 255),    # Blue
+    FACTION_GOAULD: (200, 160, 50),    # Gold
+    FACTION_JAFFA: (200, 100, 50),     # Orange/Rust
+    FACTION_LUCIAN: (100, 200, 100),   # Green
+    FACTION_ASGARD: (200, 200, 255),   # Light Blue/White
+    FACTION_NEUTRAL: (150, 150, 150)   # Gray
+}
 
 
 class DraftModeUI:
@@ -149,7 +159,8 @@ class DraftModeUI:
                 name_bg.fill((0, 0, 0, 180))
                 surface.blit(name_bg, (x, y + self.card_height - name_bg_height))
 
-                name = self.font_body.render(leader['name'], True, COLOR_ACCENT_GOLD)
+                faction_color = FACTION_COLORS.get(leader.get('faction'), COLOR_ACCENT_GOLD)
+                name = self.font_body.render(leader['name'], True, faction_color)
                 name_rect = name.get_rect(center=(x + self.card_width // 2, y + self.card_height - 30))
                 surface.blit(name, name_rect)
             else:
@@ -158,7 +169,8 @@ class DraftModeUI:
                 pygame.draw.rect(surface, COLOR_ACCENT_BLUE, rect, width=3, border_radius=10)
 
                 # Leader name
-                name = self.font_header.render(leader['name'], True, COLOR_TEXT_PRIMARY)
+                faction_color = FACTION_COLORS.get(leader.get('faction'), COLOR_TEXT_PRIMARY)
+                name = self.font_header.render(leader['name'], True, faction_color)
                 name_rect = name.get_rect(center=(x + self.card_width // 2, y + 40))
                 surface.blit(name, name_rect)
 
