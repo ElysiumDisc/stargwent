@@ -1,9 +1,9 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 1,
+  "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 10,
+  "total_games": 11,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -12,12 +12,12 @@
       "id": "neutral_ascended_daniel"
     },
     "Tok'ra Deep Cover Operative": {
-      "plays": 4,
+      "plays": 5,
       "wins": 1,
       "id": "tok_ra_operative"
     },
     "Col. Jack O'Neill": {
-      "plays": 4,
+      "plays": 5,
       "wins": 1,
       "id": "tauri_oneill"
     },
@@ -42,7 +42,7 @@
       "id": "neutral_skellige_storm_2"
     },
     "Oma Desala": {
-      "plays": 3,
+      "plays": 4,
       "wins": 1,
       "id": "neutral_oma_desala"
     },
@@ -52,9 +52,9 @@
       "id": "tauri_caldwell"
     },
     "BC-304 Heavy Cruiser": {
-      "plays": 4,
+      "plays": 6,
       "wins": 2,
-      "id": "tauri_bc304_1"
+      "id": "tauri_bc304_2"
     },
     "Micrometeorite Shower": {
       "plays": 2,
@@ -77,7 +77,7 @@
       "id": "tauri_quinn"
     },
     "Ice Planet Contingency": {
-      "plays": 2,
+      "plays": 3,
       "wins": 1,
       "id": "neutral_biting_frost_1"
     },
@@ -92,7 +92,7 @@
       "id": "destiny_ship"
     },
     "City of Atlantis": {
-      "plays": 1,
+      "plays": 2,
       "wins": 1,
       "id": "atlantis_city"
     },
@@ -125,13 +125,18 @@
       "plays": 1,
       "wins": 1,
       "id": "tauri_vala"
+    },
+    "Zero Point Module": {
+      "plays": 1,
+      "wins": 0,
+      "id": "zpm_power"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 10,
+  "ai_games": 11,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -145,7 +150,7 @@
       "wins": 0
     },
     "Col. Jack O'Neill": {
-      "games": 5,
+      "games": 6,
       "wins": 1
     }
   },
@@ -160,7 +165,7 @@
         "wins": 0
       },
       "Asgard": {
-        "games": 2,
+        "games": 3,
         "wins": 0
       },
       "Jaffa Rebellion": {
@@ -177,11 +182,12 @@
     "L",
     "L",
     "L",
-    "W"
+    "W",
+    "L"
   ],
   "turn_stats": {
-    "total": 179,
-    "games": 5,
+    "total": 226,
+    "games": 6,
     "min": 21,
     "max": 70,
     "history": [
@@ -189,27 +195,28 @@
       28,
       24,
       21,
-      70
+      70,
+      47
     ]
   },
   "mulligans": {
-    "total": 18,
-    "games": 5
+    "total": 23,
+    "games": 6
   },
   "ability_usage": {
     "medic": 1,
     "decoy": 0,
     "faction_power": 1,
-    "iris_blocks": 2
+    "iris_blocks": 3
   },
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 4,
+    "sweeps_against": 5,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 5,
+    "first_turn_games": 6,
     "first_turn_wins": 1
   },
   "draft_stats": {

@@ -63,6 +63,7 @@ from animations import (
     CommunicationRevealEffect,
     MerlinAntiOriEffect,
     DakaraShockwaveEffect,
+    ReplicatorCrawlEffect,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -597,6 +598,9 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         return True
     if "naquadah" in name_lower or "overload" in ability_lower:
         anim_manager.add_effect(NaquadahExplosionEffect(effect_x, effect_y, duration=1500))
+        return True
+    if "replicator swarm" in name_lower:
+        anim_manager.add_effect(ReplicatorCrawlEffect(screen_width, screen_height))
         return True
     return False
 
@@ -4449,6 +4453,13 @@ def main(lan_game_data=None):
                                             game.play_card(dragging_card, row_name, index=insert_index)
                                     else:
                                         game.play_card(dragging_card, row_name, index=insert_index)
+                                    
+                                    # Add special card effects for unit cards too
+                                    effect_x = rect.centerx
+                                    effect_y = rect.centery
+                                    if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT):
+                                        # Default stargate effect if no special effect
+                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
                                     
                                     played = True
                                     break

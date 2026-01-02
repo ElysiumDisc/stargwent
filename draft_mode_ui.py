@@ -153,16 +153,23 @@ class DraftModeUI:
                 border_width = 5 if i == self.selected_index else 3
                 pygame.draw.rect(surface, border_color, rect, width=border_width, border_radius=10)
 
-                # Draw leader name at bottom with semi-transparent background
-                name_bg_height = 60
+                # Draw leader name and ability at bottom with semi-transparent background
+                name_bg_height = 110
                 name_bg = pygame.Surface((self.card_width, name_bg_height), pygame.SRCALPHA)
-                name_bg.fill((0, 0, 0, 180))
+                name_bg.fill((0, 0, 0, 200))  # Slightly darker for readability
                 surface.blit(name_bg, (x, y + self.card_height - name_bg_height))
 
                 faction_color = self._get_faction_color(leader.get('faction'))
                 name = self.font_body.render(leader['name'], True, faction_color)
-                name_rect = name.get_rect(center=(x + self.card_width // 2, y + self.card_height - 30))
+                name_rect = name.get_rect(center=(x + self.card_width // 2, y + self.card_height - 90))
                 surface.blit(name, name_rect)
+                
+                # Draw ability description
+                ability = leader.get('ability_desc') or leader.get('ability', '')
+                self._draw_wrapped_text(surface, ability, 
+                                      (x + 10, y + self.card_height - 65), 
+                                      self.card_width - 20, 
+                                      self.font_small, (200, 200, 200))
             else:
                 # Fallback: draw colored rectangle with text (old behavior)
                 pygame.draw.rect(surface, color, rect, border_radius=10)

@@ -3518,6 +3518,126 @@ class AITurnAnimation:
             surface.blit(text, text_rect)
 
 
+class ReplicatorCrawlEffect(Animation):
+    """Swarming replicator spiders crawling across the screen."""
+    def __init__(self, screen_width, screen_height, duration=10000):
+        super().__init__(duration=duration)
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.spiders = []
+        
+        # Create spider-like replicators
+        for _ in range(60):
+            angle = random.uniform(0, math.pi * 2)
+            speed = random.uniform(1.5, 4)
+            self.spiders.append({
+                'x': random.randint(-100, screen_width + 100),
+                'y': random.randint(-100, screen_height + 100),
+                'angle': angle,
+                'speed': speed,
+                'size': random.randint(8, 16),
+                'leg_phase': random.uniform(0, math.pi * 2),
+                'leg_speed': random.uniform(0.15, 0.25),
+                'rotation': random.uniform(0, 360),
+                'rotation_speed': random.uniform(-2, 2)
+            })
+    
+    def draw(self, surface):
+        if self.finished:
+            return
+        
+        progress = self.get_progress()
+        alpha = int(255 * (1 - progress))
+        
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        
+        for spider in self.spiders:
+            # Update spider position - crawling movement
+            spider['x'] += math.cos(spider['angle']) * spider['speed']
+            spider['y'] += math.sin(spider['angle']) * spider['speed']
+            spider['leg_phase'] += spider['leg_speed']
+            spider['rotation'] += spider['rotation_speed']
+            
+            # Random direction changes for organic movement
+            if random.random() < 0.02:
+                spider['angle'] += random.uniform(-0.5, 0.5)
+            
+            # Wrap around screen
+            if spider['x'] < -100:
+                spider['x'] = self.screen_width + 100
+            elif spider['x'] > self.screen_width + 100:
+                spider['x'] = -100
+            if spider['y'] < -100:
+                spider['y'] = self.screen_height + 100
+            elif spider['y'] > self.screen_height + 100:
+                spider['y'] = -100
+            
+            # Calculate pulsing alpha
+            pulse = abs(math.sin(spider['leg_phase']))
+            spider_alpha = int(alpha * (0.7 + 0.3 * pulse))
+            
+            # Draw spider body (metallic block)
+            body_size = spider['size']
+            body_color = (140, 140, 160, spider_alpha)
+            
+            # Main body (tilted square)
+            body_rect = pygame.Rect(
+                int(spider['x'] - body_size // 2),
+                int(spider['y'] - body_size // 2),
+                body_size,
+                body_size
+            )
+            
+            # Create rotated body surface
+            body_surf = pygame.Surface((body_size * 2, body_size * 2), pygame.SRCALPHA)
+            pygame.draw.rect(body_surf, body_color, 
+                           (body_size // 2, body_size // 2, body_size, body_size))
+            
+            # Add core glow
+            core_color = (180, 180, 200, spider_alpha // 2)
+            pygame.draw.rect(body_surf, core_color,
+                           (body_size // 2 + 2, body_size // 2 + 2, body_size - 4, body_size - 4))
+            
+            # Rotate body
+            rotated_body = pygame.transform.rotate(body_surf, spider['rotation'])
+            body_pos = (
+                int(spider['x'] - rotated_body.get_width() // 2),
+                int(spider['y'] - rotated_body.get_height() // 2)
+            )
+            overlay.blit(rotated_body, body_pos)
+            
+            # Draw 8 spider legs (4 on each side)
+            leg_color = (120, 120, 140, spider_alpha)
+            leg_length = body_size * 1.2
+            
+            for i in range(8):
+                # Leg angle around the body
+                base_angle = (i * math.pi / 4) + math.radians(spider['rotation'])
+                
+                # Animate leg movement (walking motion)
+                leg_bend = math.sin(spider['leg_phase'] + i * math.pi / 4) * 0.3
+                
+                # Leg segments
+                mid_x = spider['x'] + math.cos(base_angle) * (leg_length * 0.5)
+                mid_y = spider['y'] + math.sin(base_angle) * (leg_length * 0.5)
+                
+                end_angle = base_angle + leg_bend
+                end_x = spider['x'] + math.cos(end_angle) * leg_length
+                end_y = spider['y'] + math.sin(end_angle) * leg_length
+                
+                # Draw leg (two segments for articulation)
+                pygame.draw.line(overlay, leg_color, 
+                               (int(spider['x']), int(spider['y'])),
+                               (int(mid_x), int(mid_y)), 2)
+                pygame.draw.line(overlay, leg_color,
+                               (int(mid_x), int(mid_y)),
+                               (int(end_x), int(end_y)), 2)
+        
+        surface.blit(overlay, (0, 0))
+        
+        surface.blit(overlay, (0, 0))
+
+
 class AnimationManager:
     """Manages all active animations."""
     def __init__(self):

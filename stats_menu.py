@@ -546,16 +546,17 @@ def run_stats_menu(screen):
             if perfect_runs > 0:
                 add_row("Perfect Runs (8 Wins)", str(perfect_runs))
 
+            # Deck power stats
+            avg_power = draft.get("avg_deck_power", 0.0)
+            highest_power = draft.get("highest_deck_power", 0)
+            add_row("Avg Deck Power", f"{avg_power:.1f}")
+            add_row("Highest Deck Power", str(highest_power))
+
             # Deck stats
             total_cards = draft.get("total_cards_drafted", 0)
             if runs_completed > 0:
                 avg_cards = total_cards / runs_completed
                 add_row("Avg Cards/Run", f"{avg_cards:.1f}")
-
-            avg_power = draft.get("avg_deck_power", 0.0)
-            highest_power = draft.get("highest_deck_power", 0)
-            add_row("Avg Deck Power", f"{avg_power:.1f}")
-            add_row("Highest Deck Power", str(highest_power))
 
             # Most drafted leader (with hover preview)
             drafted_leaders = draft.get("drafted_leaders", {})

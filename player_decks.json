@@ -31,7 +31,7 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_hathor_unlock",
+    "leader": "goauld_baal",
     "cards": [
       "goauld_osiris_guard_1",
       "goauld_kull_warrior_2",
@@ -76,7 +76,7 @@
     ]
   },
   "Jaffa Rebellion": {
-    "leader": "jaffa_bratac",
+    "leader": "jaffa_tealc",
     "cards": [
       "neutral_clear_weather_1",
       "jaffa_resistance_recruit",
