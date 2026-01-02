@@ -55,6 +55,9 @@ class DraftModeController:
 
         # UI state
         self.clickable_rects = []
+        
+        # Arcade button rect (shown when unlock all is enabled)
+        self.arcade_button_rect = None
 
         # Clock for animations
         self.clock = pygame.time.Clock()
@@ -254,6 +257,72 @@ class DraftModeController:
             
             title = pygame.font.SysFont("Arial", 48, bold=True).render("CHOOSE NEW LEADER", True, (255, 215, 0))
             surface.blit(title, (self.screen_width//2 - title.get_width()//2, 30))
+        
+        # Draw arcade button if unlock override is enabled (easter egg shortcut)
+        self.arcade_button_rect = None
+        if self.unlock_manager.is_unlock_override_enabled():
+            self._draw_arcade_button(surface)
+    
+    def _draw_arcade_button(self, surface: pygame.Surface):
+        """Draw the arcade mini-game button in bottom right corner."""
+        import math
+        
+        # Button position and size
+        btn_size = 60
+        margin = 20
+        btn_x = self.screen_width - btn_size - margin
+        btn_y = self.screen_height - btn_size - margin
+        
+        self.arcade_button_rect = pygame.Rect(btn_x, btn_y, btn_size, btn_size)
+        
+        # Check hover
+        mouse_pos = pygame.mouse.get_pos()
+        is_hovered = self.arcade_button_rect.collidepoint(mouse_pos)
+        
+        # Draw button background (circular, stargate-like)
+        center = (btn_x + btn_size // 2, btn_y + btn_size // 2)
+        radius = btn_size // 2
+        
+        # Outer ring (pulsing glow when hovered)
+        if is_hovered:
+            glow_alpha = int(150 + 50 * math.sin(pygame.time.get_ticks() / 200))
+            glow_surf = pygame.Surface((btn_size + 20, btn_size + 20), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surf, (255, 150, 0, glow_alpha), (btn_size // 2 + 10, btn_size // 2 + 10), radius + 8)
+            surface.blit(glow_surf, (btn_x - 10, btn_y - 10))
+        
+        # Main circle (dark background)
+        pygame.draw.circle(surface, (30, 30, 50), center, radius)
+        
+        # Inner ring (stargate orange)
+        ring_color = (255, 180, 50) if is_hovered else (200, 140, 40)
+        pygame.draw.circle(surface, ring_color, center, radius, 3)
+        
+        # Draw chevrons around the ring (9 chevrons like a stargate)
+        for i in range(9):
+            angle = math.radians(i * 40 - 90)  # Start from top
+            chev_x = center[0] + math.cos(angle) * (radius - 8)
+            chev_y = center[1] + math.sin(angle) * (radius - 8)
+            chev_color = (255, 200, 100) if is_hovered else (180, 140, 60)
+            pygame.draw.circle(surface, chev_color, (int(chev_x), int(chev_y)), 4)
+        
+        # Draw spaceship icon in center
+        ship_color = (100, 200, 255) if is_hovered else (80, 150, 200)
+        # Simple ship shape (triangle pointing right)
+        ship_points = [
+            (center[0] + 12, center[1]),       # Nose
+            (center[0] - 8, center[1] - 10),   # Top wing
+            (center[0] - 4, center[1]),        # Body indent
+            (center[0] - 8, center[1] + 10),   # Bottom wing
+        ]
+        pygame.draw.polygon(surface, ship_color, ship_points)
+        
+        # Draw "ARCADE" text below if hovered
+        if is_hovered:
+            font = pygame.font.SysFont("Arial", 14, bold=True)
+            text = font.render("ARCADE", True, (255, 200, 100))
+            text_x = center[0] - text.get_width() // 2
+            text_y = btn_y + btn_size + 5
+            surface.blit(text, (text_x, text_y))
 
     def handle_event(self, event: pygame.event.Event) -> Optional[str]:
         """
@@ -315,6 +384,10 @@ class DraftModeController:
 
             else:
                 clicked_index = self.ui.handle_click(event.pos, self.clickable_rects)
+                
+                # Check for arcade button click
+                if self.arcade_button_rect and self.arcade_button_rect.collidepoint(event.pos):
+                    return "launch_arcade"
 
                 if clicked_index is not None:
                     if self.current_run.phase == "leader_select":
@@ -409,6 +482,10 @@ class DraftModeController:
                     return self.get_drafted_deck()
                 elif action == "exit":
                     return None
+                elif action == "launch_arcade":
+                    # Launch the space shooter mini-game with ship selection
+                    from space_shooter import run_space_shooter
+                    run_space_shooter(screen)  # Shows ship selection screen
 
             # Render
             self.render(screen)

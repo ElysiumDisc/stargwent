@@ -3758,6 +3758,10 @@ def main(lan_game_data=None):
                         return
                     elif event.key == pygame.K_ESCAPE:
                         running = False
+                    elif event.key == pygame.K_RETURN and getattr(game, 'draft_victory', False):
+                        # Launch space shooter easter egg with ship selection!
+                        from space_shooter import run_space_shooter
+                        run_space_shooter(screen)  # Shows ship selection screen
             elif event.type == pygame.MOUSEWHEEL:
                 if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
                     history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
@@ -5179,13 +5183,14 @@ def main(lan_game_data=None):
             if getattr(game, 'draft_victory', False):
                 egg_font = pygame.font.SysFont("Arial", 48, bold=True)
                 egg_text = egg_font.render("EASTER EGG UNLOCKED!", True, (255, 0, 255))
-                sub_text = UI_FONT.render("Spaceship Shooter Mode - Coming Soon to Stargwent!", True, (200, 100, 255))
+                sub_text = UI_FONT.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
                 
                 screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 20))
                 screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 70))
                 y_offset += 100
             
             restart_text = UI_FONT.render("Press R to restart or ESC to quit", True, WHITE)
+            screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
             history_panel_rect = None
         else:
