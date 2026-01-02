@@ -17,6 +17,7 @@ from cards import (
 )
 from ai_opponent import AIController
 from enum import Enum, auto
+from draft_mode import DraftRun
 
 class UIState(Enum):
     """Finite State Machine for UI interaction modes."""
@@ -4939,20 +4940,81 @@ def main(lan_game_data=None):
                     # Record win/loss using persistence system
                     player_won = (game.winner == game.player1)
 
-                    # Record draft mode completion if this was a draft game
+                    # Update Draft Run Progress
                     if is_draft_mode:
                         persistence = get_persistence()
-                        leader_name = player_leader.get('name', 'Unknown')
-                        leader_id = player_leader.get('card_id', '')
-                        deck_power = sum(card.power for card in player_deck)
-                        persistence.record_draft_completion(
-                            leader_id=leader_id,
-                            leader_name=leader_name,
-                            faction=player_faction,
-                            cards=player_deck,
-                            deck_power=deck_power,
-                            won=player_won
-                        )
+                        # Update the active run
+                        active_run_data = persistence.get_active_draft_run()
+                        if active_run_data:
+                            current_wins = active_run_data.get('wins', 0)
+                            
+                            if player_won:
+                                current_wins += 1
+                                active_run_data['wins'] = current_wins
+                                
+                                # Check milestones
+                                msg_list = []
+                                
+                                if current_wins >= DraftRun.MAX_WINS: # 8 Wins
+                                    msg_list.append("DRAFT CHAMPION! 8 WINS!")
+                                    msg_list.append("You have conquered the galaxy!")
+                                    game.draft_victory = True
+                                    persistence.clear_active_draft_run()
+                                    # Record stats for completed run
+                                    leader_name = player_leader.get('name', 'Unknown')
+                                    leader_id = player_leader.get('card_id', '')
+                                    deck_power = sum(card.power for card in player_deck)
+                                    persistence.record_draft_completion(
+                                        leader_id=leader_id,
+                                        leader_name=leader_name,
+                                        faction=player_faction,
+                                        cards=player_deck,
+                                        deck_power=deck_power,
+                                        won=True
+                                    )
+                                else:
+                                    # Continue Run
+                                    if current_wins == DraftRun.MILESTONE_REDRAFT_LEADER: # 5 Wins
+                                        active_run_data['phase'] = "redraft_leader"
+                                        msg_list.append("Milestone Reached: Leader Redraft Available!")
+                                    elif current_wins == DraftRun.MILESTONE_REDRAFT_CARDS: # 3 Wins
+                                        active_run_data['phase'] = "redraft_cards_select"
+                                        msg_list.append("Milestone Reached: Card Redraft Available!")
+                                    else:
+                                        # Ensure we go back to review/battle ready
+                                        active_run_data['phase'] = "review"
+                                    
+                                    persistence.save_active_draft_run(active_run_data)
+                                    msg_list.append(f"Draft Run Progress: {current_wins}/{DraftRun.MAX_WINS} Wins")
+                                
+                                game.draft_messages = msg_list
+                                
+                            else:
+                                # Defeat - End Run
+                                persistence.clear_active_draft_run()
+                                game.draft_messages = ["Draft Run Ended", f"Final Result: {current_wins} Wins"]
+                                # Record stats
+                                leader_name = player_leader.get('name', 'Unknown')
+                                leader_id = player_leader.get('card_id', '')
+                                deck_power = sum(card.power for card in player_deck)
+                                persistence.record_draft_completion(
+                                    leader_id=leader_id,
+                                    leader_name=leader_name,
+                                    faction=player_faction,
+                                    cards=player_deck,
+                                    deck_power=deck_power,
+                                    won=False
+                                )
+                        else:
+                             # Fallback if no run data found (legacy/error)
+                            persistence.record_draft_completion(
+                                leader_id=player_leader.get('card_id', ''),
+                                leader_name=player_leader.get('name', 'Unknown'),
+                                faction=player_faction,
+                                cards=player_deck,
+                                deck_power=sum(c.power for c in player_deck),
+                                won=player_won
+                            )
 
                     mode_label = "lan" if LAN_MODE else "ai"
 
@@ -5069,6 +5131,24 @@ def main(lan_game_data=None):
             if hasattr(game, 'streak_message'):
                 screen.blit(game.streak_message, (SCREEN_WIDTH // 2 - game.streak_message.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
                 y_offset += 35
+            
+            if hasattr(game, 'draft_messages'):
+                for msg in game.draft_messages:
+                    if isinstance(msg, str):
+                        msg_surf = UI_FONT.render(msg, True, (255, 200, 100))
+                    else:
+                        msg_surf = msg
+                    screen.blit(msg_surf, (SCREEN_WIDTH // 2 - msg_surf.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
+                    y_offset += 35
+
+            if getattr(game, 'draft_victory', False):
+                egg_font = pygame.font.SysFont("Arial", 48, bold=True)
+                egg_text = egg_font.render("EASTER EGG UNLOCKED!", True, (255, 0, 255))
+                sub_text = UI_FONT.render("Spaceship Shooter Mode - Coming Soon to Stargwent!", True, (200, 100, 255))
+                
+                screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 20))
+                screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 70))
+                y_offset += 100
             
             restart_text = UI_FONT.render("Press R to restart or ESC to quit", True, WHITE)
             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))

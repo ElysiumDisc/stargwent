@@ -112,8 +112,25 @@ class DeckPersistence:
                 "highest_deck_power": 0,
                 "most_drafted_card": None,
                 "card_draft_counts": {}  # card_id: count
-            }
+            },
+            "active_draft_run": None  # Stores current run state if active
         }
+    
+    def get_active_draft_run(self) -> Optional[Dict]:
+        """Get the currently active draft run if one exists."""
+        return self.unlock_data.get("active_draft_run")
+
+    def save_active_draft_run(self, run_data: Dict):
+        """Save the state of the active draft run."""
+        self.unlock_data["active_draft_run"] = run_data
+        self.save_unlocks()
+        print(f"✓ Active draft run saved (Wins: {run_data.get('wins', 0)})")
+
+    def clear_active_draft_run(self):
+        """Clear the active draft run (game over or completed)."""
+        self.unlock_data["active_draft_run"] = None
+        self.save_unlocks()
+
     
     def get_deck(self, faction: str) -> Dict:
         """Get deck configuration for a faction"""

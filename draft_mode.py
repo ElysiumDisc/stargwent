@@ -105,6 +105,11 @@ class DraftRun:
 
     CARDS_TO_DRAFT = 30
     CHOICES_PER_PICK = 3
+    MAX_WINS = 8
+    
+    # Milestone constants
+    MILESTONE_REDRAFT_CARDS = 3
+    MILESTONE_REDRAFT_LEADER = 5
 
     def __init__(self, pool: DraftPool):
         """
@@ -117,8 +122,13 @@ class DraftRun:
         self.drafted_leader: Optional[Dict] = None
         self.drafted_cards: List[Card] = []
         self.current_pick = 0
-        self.phase = "leader_select"  # leader_select, draft, review, battle
+        self.phase = "leader_select"  # leader_select, draft, review, battle, redraft_cards_select, redraft_cards_pick, redraft_leader
         self.pick_history: List[Tuple[Card, List[Card]]] = []  # For undo feature
+        
+        # Run progress
+        self.wins = 0
+        self.losses = 0
+        self.cards_to_remove_count = 0
 
         # Rarity weights for balanced drafting
         # Lower weight = rarer appearance
@@ -128,6 +138,42 @@ class DraftRun:
             'rare': 3,
             'common': 4
         }
+    
+    def to_dict(self) -> Dict:
+        """Serialize run state to dictionary."""
+        return {
+            'wins': self.wins,
+            'losses': self.losses,
+            'phase': self.phase,
+            'current_pick': self.current_pick,
+            'leader_id': self.drafted_leader['card_id'] if self.drafted_leader else None,
+            'card_ids': [c.id for c in self.drafted_cards] if hasattr(self.drafted_cards[0], 'id') else [], # Assuming cards have IDs
+            # Note: We need a way to robustly save card IDs. 
+            # Ideally card objects have an 'id' attribute or we map names.
+            # Using a simplified list for now, relying on controller to rebuild.
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, pool: DraftPool) -> 'DraftRun':
+        """Create DraftRun from serialized data."""
+        run = cls(pool)
+        run.wins = data.get('wins', 0)
+        run.losses = data.get('losses', 0)
+        run.phase = data.get('phase', 'leader_select')
+        run.current_pick = data.get('current_pick', 0)
+        
+        # Restore leader
+        leader_id = data.get('leader_id')
+        if leader_id:
+            for leader in pool.available_leaders:
+                if leader['card_id'] == leader_id:
+                    run.drafted_leader = leader
+                    break
+        
+        # Restore cards (Logic requires persistence to store IDs properly)
+        # This is a placeholder - actual restoration needs card lookup
+        # We'll handle full restoration in the Controller or expanded persistence
+        return run
 
     def select_leader(self, leader: Dict):
         """
@@ -137,7 +183,10 @@ class DraftRun:
             leader: Selected leader dictionary
         """
         self.drafted_leader = leader
-        self.phase = "draft"
+        if self.phase == "redraft_leader":
+            self.phase = "review"  # Done redrafting leader
+        else:
+            self.phase = "draft"
 
     def get_current_choices(self) -> List[Card]:
         """
@@ -146,7 +195,7 @@ class DraftRun:
         Returns:
             List of 3 card options
         """
-        if self.phase != "draft":
+        if self.phase not in ["draft", "redraft_cards_pick"]:
             return []
 
         return self.pool.get_card_choices(
@@ -162,18 +211,43 @@ class DraftRun:
             card: Selected card
             all_choices: All choices shown (for undo history)
         """
-        if self.phase != "draft":
+        if self.phase == "draft":
+            # Store history for undo
+            if all_choices:
+                self.pick_history.append((copy.deepcopy(card), [copy.deepcopy(c) for c in all_choices]))
+
+            self.drafted_cards.append(copy.deepcopy(card))
+            self.current_pick += 1
+
+            if self.current_pick >= self.CARDS_TO_DRAFT:
+                self.phase = "review"
+        
+        elif self.phase == "redraft_cards_pick":
+            self.drafted_cards.append(copy.deepcopy(card))
+            self.cards_to_remove_count -= 1
+            if self.cards_to_remove_count <= 0:
+                self.phase = "review"
+                self.cards_to_remove_count = 0
+
+    def start_card_redraft(self):
+        """Enter phase to remove 5 cards."""
+        self.phase = "redraft_cards_select"
+        self.cards_to_remove_count = 5
+
+    def remove_card_for_redraft(self, index: int):
+        """Remove a card during redraft selection."""
+        if self.phase != "redraft_cards_select":
             return
+        if 0 <= index < len(self.drafted_cards):
+            self.drafted_cards.pop(index)
+            self.cards_to_remove_count -= 1
+            if self.cards_to_remove_count <= 0:
+                self.phase = "redraft_cards_pick"
+                self.cards_to_remove_count = 5 # Now we need to pick 5
 
-        # Store history for undo
-        if all_choices:
-            self.pick_history.append((copy.deepcopy(card), [copy.deepcopy(c) for c in all_choices]))
-
-        self.drafted_cards.append(copy.deepcopy(card))
-        self.current_pick += 1
-
-        if self.current_pick >= self.CARDS_TO_DRAFT:
-            self.phase = "review"
+    def start_leader_redraft(self):
+        """Enter phase to maybe swap leader."""
+        self.phase = "redraft_leader"
 
     def undo_last_pick(self) -> Optional[List[Card]]:
         """
@@ -335,36 +409,8 @@ class DraftRun:
                     stats['medic_count'] += 1
 
         return stats
+        return previous_choices
 
-
-def calculate_draft_rewards(wins: int, max_wins: int = 1) -> Dict:
-    """
-    Calculate rewards based on draft performance.
-
-    Args:
-        wins: Number of wins achieved
-        max_wins: Maximum possible wins (currently 1 battle per run)
-
-    Returns:
-        Dict with reward details
-    """
-    rewards = {
-        'cards_unlocked': 0,
-        'xp_earned': 0,
-        'special_unlock': None
-    }
-
-    if wins >= 1:
-        # Victory rewards
-        rewards['cards_unlocked'] = random.randint(2, 4)  # 2-4 random card unlocks
-        rewards['xp_earned'] = 150
-
-        # Small chance for special unlock
-        if random.random() < 0.1:  # 10% chance
-            rewards['special_unlock'] = 'random_leader'
-    else:
-        # Consolation rewards
-        rewards['cards_unlocked'] = 1
-        rewards['xp_earned'] = 50
-
-    return rewards
+    def is_draft_complete(self) -> bool:
+        """Check if drafting is complete."""
+        return len(self.drafted_cards) >= self.CARDS_TO_DRAFT
