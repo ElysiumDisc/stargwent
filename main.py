@@ -1010,7 +1010,9 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
         owner_color = player_color if entry.owner == "player" else ai_color
         
         # Override color for Chat/System events
-        if entry.event_type == "chat":
+        if entry.event_type == "system":
+            owner_color = (255, 215, 0) # Gold
+        elif entry.event_type == "chat":
             if "System" in entry.description:
                 owner_color = (255, 215, 0) # Gold
             elif "You" in entry.description:

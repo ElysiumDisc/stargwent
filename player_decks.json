@@ -1,6 +1,6 @@
 {
   "Tau'ri": {
-    "leader": "tauri_quinn",
+    "leader": "tauri_oneill",
     "cards": [
       "neutral_ascended_daniel",
       "neutral_oma_desala",
@@ -22,12 +22,12 @@
       "atlantis_city",
       "destiny_ship",
       "neutral_biting_frost_1",
-      "neutral_impenetrable_fog_2",
       "neutral_impenetrable_fog_1",
       "neutral_torrential_rain_1",
       "neutral_skellige_storm_1",
-      "neutral_skellige_storm_2",
-      "tauri_vala"
+      "tauri_vala",
+      "ancient_communication_stones",
+      "zpm_power"
     ]
   },
   "Goa'uld": {

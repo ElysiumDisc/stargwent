@@ -3171,8 +3171,8 @@ class ThorsHammerPurgeEffect(Animation):
 
 
 class ZPMSurgeEffect(Animation):
-    """Cyan-gold pulse that doubles siege power."""
-    def __init__(self, x, y, duration=1000):
+    """Massive ZPM energy discharge."""
+    def __init__(self, x, y, duration=1500):
         super().__init__(duration=duration)
         self.x = x
         self.y = y
@@ -3181,16 +3181,40 @@ class ZPMSurgeEffect(Animation):
         if self.finished:
             return
         progress = self.get_progress()
-        pulse = math.sin(progress * math.pi)
-        radius = int(80 + 180 * progress)
-        surge_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-        center = (radius, radius)
+        
+        # Create a canvas large enough for the effect
+        size = 800
+        canvas = pygame.Surface((size, size), pygame.SRCALPHA)
+        center = (size // 2, size // 2)
+        
+        # Ease out
+        ease = 1 - pow(1 - progress, 4)
+        
+        # Central ZPM Glow (Orange/Gold)
+        alpha_core = int(255 * (1 - progress))
+        pygame.draw.circle(canvas, (255, 180, 50, alpha_core), center, 40)
+        pygame.draw.circle(canvas, (255, 255, 200, alpha_core), center, 20)
+        
+        # Expanding Rings (Ancient Blue/Cyan)
+        for i in range(3):
+            sub_prog = (progress * 1.5 - i * 0.2)
+            if 0 < sub_prog < 1:
+                r = int(300 * sub_prog)
+                a = int(200 * (1 - sub_prog))
+                pygame.draw.circle(canvas, (100, 240, 255, a), center, r, width=10)
+        
+        # Energy Spikes
+        if progress < 0.8:
+            for i in range(8):
+                angle = i * (360/8) + progress * 90
+                rad = math.radians(angle)
+                length = 50 + 250 * ease
+                end_x = center[0] + math.cos(rad) * length
+                end_y = center[1] + math.sin(rad) * length
+                pygame.draw.line(canvas, (255, 220, 100, int(180 * (1-progress))), center, (end_x, end_y), 4)
 
-        pygame.draw.circle(surge_surface, (40, 200, 255, int(180 * pulse)), center, radius, width=6)
-        pygame.draw.circle(surge_surface, (255, 215, 120, int(120 * pulse)), center, max(10, radius // 3))
-        pygame.draw.circle(surge_surface, (255, 255, 255, int(90 * pulse)), center, max(6, radius // 6))
-
-        surface.blit(surge_surface, (self.x - radius, self.y - radius))
+        # Blit to screen centered at self.x, self.y
+        surface.blit(canvas, (self.x - size // 2, self.y - size // 2))
 
 
 class CommunicationRevealEffect(Animation):

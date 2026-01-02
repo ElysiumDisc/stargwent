@@ -1,98 +1,138 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 0,
-  "total_wins": 2,
-  "total_games": 9,
+  "consecutive_wins": 1,
+  "total_wins": 3,
+  "total_games": 10,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "neutral_ascended_daniel"
     },
     "Tok'ra Deep Cover Operative": {
-      "plays": 3,
-      "wins": 0,
+      "plays": 4,
+      "wins": 1,
       "id": "tok_ra_operative"
     },
     "Col. Jack O'Neill": {
-      "plays": 3,
-      "wins": 0,
+      "plays": 4,
+      "wins": 1,
       "id": "tauri_oneill"
     },
     "Nebula Field": {
-      "plays": 3,
-      "wins": 0,
+      "plays": 4,
+      "wins": 1,
       "id": "neutral_impenetrable_fog_1"
     },
     "Dr. Janet Fraiser": {
-      "plays": 4,
-      "wins": 0,
+      "plays": 5,
+      "wins": 1,
       "id": "tauri_fraiser"
     },
     "Ancients Drone": {
-      "plays": 3,
-      "wins": 0,
+      "plays": 4,
+      "wins": 1,
       "id": "neutral_ancient_drone"
     },
     "Asgard Anti-Goa'uld Pulse": {
-      "plays": 7,
-      "wins": 0,
+      "plays": 9,
+      "wins": 2,
       "id": "neutral_skellige_storm_2"
     },
     "Oma Desala": {
-      "plays": 2,
-      "wins": 0,
+      "plays": 3,
+      "wins": 1,
       "id": "neutral_oma_desala"
     },
     "Col. Steven Caldwell": {
-      "plays": 2,
-      "wins": 0,
+      "plays": 3,
+      "wins": 1,
       "id": "tauri_caldwell"
     },
     "BC-304 Heavy Cruiser": {
-      "plays": 2,
-      "wins": 0,
+      "plays": 4,
+      "wins": 2,
       "id": "tauri_bc304_1"
     },
     "Micrometeorite Shower": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "neutral_torrential_rain_1"
     },
     "Dr. Daniel Jackson": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "tauri_jackson"
     },
     "Capt. Cameron Mitchell": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "tauri_mitchell"
     },
     "Jonas Quinn": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "tauri_quinn"
     },
     "Ice Planet Contingency": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "neutral_biting_frost_1"
     },
     "NID Agent Malcolm Barrett": {
-      "plays": 1,
-      "wins": 0,
+      "plays": 2,
+      "wins": 1,
       "id": "tauri_barrett"
+    },
+    "Ancient Ship Destiny": {
+      "plays": 1,
+      "wins": 1,
+      "id": "destiny_ship"
+    },
+    "City of Atlantis": {
+      "plays": 1,
+      "wins": 1,
+      "id": "atlantis_city"
+    },
+    "Ancient Communication Device": {
+      "plays": 1,
+      "wins": 1,
+      "id": "ancient_communication_stones"
+    },
+    "Dr. Samantha Carter": {
+      "plays": 1,
+      "wins": 1,
+      "id": "tauri_carter"
+    },
+    "Ori Warship": {
+      "plays": 1,
+      "wins": 1,
+      "id": "ori_warship"
+    },
+    "Dr. Rodney McKay": {
+      "plays": 1,
+      "wins": 1,
+      "id": "neutral_mckay"
+    },
+    "Gen. George Hammond": {
+      "plays": 1,
+      "wins": 1,
+      "id": "tauri_hammond"
+    },
+    "Liaison Vala Mal Doran": {
+      "plays": 1,
+      "wins": 1,
+      "id": "tauri_vala"
     }
   },
   "faction_wins": {
-    "Tau'ri": 2
+    "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 9,
-  "ai_wins": 2,
+  "ai_games": 10,
+  "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
   "leader_stats": {
@@ -105,15 +145,15 @@
       "wins": 0
     },
     "Col. Jack O'Neill": {
-      "games": 4,
-      "wins": 0
+      "games": 5,
+      "wins": 1
     }
   },
   "matchups": {
     "Tau'ri": {
       "Goa'uld": {
-        "games": 1,
-        "wins": 1
+        "games": 2,
+        "wins": 2
       },
       "Lucian Alliance": {
         "games": 2,
@@ -136,39 +176,41 @@
     "L",
     "L",
     "L",
-    "L"
+    "L",
+    "W"
   ],
   "turn_stats": {
-    "total": 109,
-    "games": 4,
+    "total": 179,
+    "games": 5,
     "min": 21,
-    "max": 36,
+    "max": 70,
     "history": [
       36,
       28,
       24,
-      21
+      21,
+      70
     ]
   },
   "mulligans": {
-    "total": 13,
-    "games": 4
+    "total": 18,
+    "games": 5
   },
   "ability_usage": {
-    "medic": 0,
+    "medic": 1,
     "decoy": 0,
-    "faction_power": 0,
-    "iris_blocks": 1
+    "faction_power": 1,
+    "iris_blocks": 2
   },
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
     "sweeps_against": 4,
-    "close_wins": 0,
+    "close_wins": 1,
     "close_losses": 0,
-    "comebacks": 0,
-    "first_turn_games": 4,
-    "first_turn_wins": 0
+    "comebacks": 1,
+    "first_turn_games": 5,
+    "first_turn_wins": 1
   },
   "draft_stats": {
     "runs_started": 4,
