@@ -362,7 +362,7 @@ class Ship:
         self.weapon_type = "laser"  # default
         if faction_lower in ["asgard"]:
             self.weapon_type = "beam"
-            self.fire_rate = 0  # Continuous
+            self.fire_rate = 180  # 3 second cooldown at 60 FPS
         elif faction_lower in ["tau'ri", "tauri"]:
             self.weapon_type = "missile"
             self.fire_rate = 50  # Slower
@@ -379,6 +379,7 @@ class Ship:
         # For beam weapon
         self.beam_active = False
         self.current_beam = None
+        self.beam_cooldown = 0  # Cooldown after beam stops
         
         # Ship image
         self.image = None
@@ -479,6 +480,8 @@ class Ship:
         """Update ship position and cooldowns."""
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
+        if self.beam_cooldown > 0:
+            self.beam_cooldown -= 1
         
         if self.is_player and keys:
             # Player controls
@@ -498,6 +501,8 @@ class Ship:
         """Smart AI update - aims at player, dodges asteroids."""
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
+        if self.beam_cooldown > 0:
+            self.beam_cooldown -= 1
         
         # AI targeting - try to align with player's Y position
         target_y = player_ship.y
@@ -544,9 +549,9 @@ class Ship:
         direction = 1 if self.is_player else -1
         fire_x = self.x + (self.width if self.is_player else 0)
         
-        # Beam weapon is special - it's continuous
+        # Beam weapon is special - it's continuous but has cooldown after use
         if self.weapon_type == "beam":
-            if not self.current_beam:
+            if self.beam_cooldown <= 0 and not self.current_beam:
                 self.current_beam = ContinuousBeam(self, direction, self.laser_color, self.screen_width)
             return self.current_beam
         
@@ -565,7 +570,9 @@ class Ship:
         return None
     
     def stop_beam(self):
-        """Stop the continuous beam weapon."""
+        """Stop the continuous beam weapon and start cooldown."""
+        if self.current_beam:
+            self.beam_cooldown = self.fire_rate  # Start cooldown (180 frames = 3 sec for Asgard)
         self.current_beam = None
     
     def get_rect(self):
@@ -807,11 +814,33 @@ class SpaceShooterGame:
         self.ai_ships = []
         num_enemies = self.current_wave  # Wave 1 = 1 enemy, Wave 5 = 5 enemies
         
-        # Distribute enemies vertically
-        spacing = self.screen_height // (num_enemies + 1)
+        # Minimum vertical spacing between ships to avoid overlap
+        min_spacing = 150
+        margin = 150  # Keep away from top/bottom edges
+        usable_height = self.screen_height - 2 * margin
         
+        # Generate random Y positions with minimum separation
+        y_positions = []
         for i in range(num_enemies):
-            y_pos = spacing * (i + 1)
+            attempts = 0
+            while attempts < 50:
+                y_pos = random.randint(margin, self.screen_height - margin)
+                # Check distance from all existing positions
+                valid = True
+                for existing_y in y_positions:
+                    if abs(y_pos - existing_y) < min_spacing:
+                        valid = False
+                        break
+                if valid:
+                    y_positions.append(y_pos)
+                    break
+                attempts += 1
+            else:
+                # Fallback: use evenly spaced position if random placement fails
+                spacing = usable_height // (num_enemies + 1)
+                y_positions.append(margin + spacing * (i + 1))
+        
+        for i, y_pos in enumerate(y_positions):
             # Pick random faction for variety (but not player's faction)
             enemy_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
             

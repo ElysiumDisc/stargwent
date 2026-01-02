@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 11,
+  "total_games": 12,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -52,7 +52,7 @@
       "id": "tauri_caldwell"
     },
     "BC-304 Heavy Cruiser": {
-      "plays": 6,
+      "plays": 7,
       "wins": 2,
       "id": "tauri_bc304_2"
     },
@@ -130,13 +130,48 @@
       "plays": 1,
       "wins": 0,
       "id": "zpm_power"
+    },
+    "Ground Control Technician": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_ground_tech_2"
+    },
+    "Dr. Elizabeth Weir": {
+      "plays": 1,
+      "wins": 0,
+      "id": "neutral_weir"
+    },
+    "Rebel Technician": {
+      "plays": 1,
+      "wins": 0,
+      "id": "jaffa_rebel_tech_3"
+    },
+    "SG-1 Commandos": {
+      "plays": 1,
+      "wins": 0,
+      "id": "tauri_sg1_commando_3"
+    },
+    "Kelno'reem": {
+      "plays": 1,
+      "wins": 0,
+      "id": "jaffa_healer_2"
+    },
+    "Naquadah Bomb": {
+      "plays": 1,
+      "wins": 0,
+      "id": "neutral_scorch_2"
+    },
+    "Rebel Infantry": {
+      "plays": 1,
+      "wins": 0,
+      "id": "jaffa_rebel_infantry_2"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 11,
+  "ai_games": 12,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -152,6 +187,10 @@
     "Col. Jack O'Neill": {
       "games": 6,
       "wins": 1
+    },
+    "Apophis": {
+      "games": 1,
+      "wins": 0
     }
   },
   "matchups": {
@@ -172,6 +211,12 @@
         "games": 2,
         "wins": 0
       }
+    },
+    "Goa'uld": {
+      "Asgard": {
+        "games": 1,
+        "wins": 0
+      }
     }
   },
   "last_results": [
@@ -183,11 +228,12 @@
     "L",
     "L",
     "W",
+    "L",
     "L"
   ],
   "turn_stats": {
-    "total": 226,
-    "games": 6,
+    "total": 254,
+    "games": 7,
     "min": 21,
     "max": 70,
     "history": [
@@ -196,15 +242,16 @@
       24,
       21,
       70,
-      47
+      47,
+      28
     ]
   },
   "mulligans": {
-    "total": 23,
-    "games": 6
+    "total": 28,
+    "games": 7
   },
   "ability_usage": {
-    "medic": 1,
+    "medic": 2,
     "decoy": 0,
     "faction_power": 1,
     "iris_blocks": 3
@@ -212,33 +259,54 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 5,
+    "sweeps_against": 6,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 6,
+    "first_turn_games": 7,
     "first_turn_wins": 1
   },
   "draft_stats": {
-    "runs_started": 4,
-    "runs_completed": 0,
+    "runs_started": 5,
+    "runs_completed": 1,
     "battles_won": 0,
-    "battles_lost": 0,
+    "battles_lost": 1,
     "best_run_wins": 0,
-    "total_cards_drafted": 0,
-    "drafted_leaders": {},
-    "drafted_factions": {},
-    "avg_deck_power": 0.0,
-    "highest_deck_power": 0,
-    "most_drafted_card": null,
-    "card_draft_counts": {}
+    "total_cards_drafted": 18,
+    "drafted_leaders": {
+      "Apophis": 1
+    },
+    "drafted_factions": {
+      "Goa'uld": 1
+    },
+    "avg_deck_power": 53.0,
+    "highest_deck_power": 53,
+    "most_drafted_card": "lucian_thug",
+    "card_draft_counts": {
+      "lucian_thug": 2,
+      "kull_warrior": 1,
+      "neutral_clear_weather_2": 2,
+      "goauld_drone_1": 1,
+      "lucian_enforcer_2": 1,
+      "neutral_clear_weather_3": 1,
+      "asgard_diplomat": 1,
+      "goauld_symbiote": 1,
+      "merlin_device": 1,
+      "jaffa_former_lord_jaffa": 1,
+      "goauld_glider_swarm_2": 1,
+      "wraith_hive_3": 1,
+      "neutral_skellige_storm_3": 1,
+      "neutral_commanders_horn_2": 1,
+      "asgard_scientist_1": 1,
+      "neutral_teyla": 1
+    }
   },
   "active_draft_run": {
     "wins": 0,
     "losses": 0,
-    "phase": "leader_select",
+    "phase": "draft",
     "current_pick": 0,
-    "leader_id": null,
+    "leader_id": "asgard_heimdall",
     "card_ids": []
   }
 }
