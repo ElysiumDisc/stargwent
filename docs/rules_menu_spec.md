@@ -32,6 +32,10 @@ Generated on 2025-12-28 21:19 UTC using cards.py, content_registry.py, unlocks.p
 - **Mercenary Tax:** If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25% (power penalty).
 - **Resource Systems:** No mana—power is entirely card-driven. Iris Defense is a one-shot shield that destroys the opponent's next card; Dial Home Device (DHD) retrieves one random non-Hero unit per round from discard if unused.
 - **Progression:** Winning any match unlocks one of three random cards (weighted to your faction/Neutral). Three consecutive wins unlock one of three faction leaders. Unlock state stored in `player_unlocks.json`.
+- **Draft Mode (Arena):** A rogue-like gauntlet where you build a deck from random choices.
+  - **The Run:** Survive to 8 wins to claim the championship.
+  - **Milestones:** At **3 Wins**, you may redraft 5 cards to refine your deck. At **5 Wins**, you may redraft your Leader to adapt strategies.
+  - **Victory:** Reaching 8 wins ends the run and reveals a special secret.
 - **Controls Recap:** Drag/drop to play, right-click to inspect, SPACE to trigger Faction Power (once per game), ESC to pause, D to view discard, mouse wheel to scroll panels.
 - **Battlefield Cues:** Weather slots on the left show hazards affecting rows; horn slots highlight Command Network placement; discard, artifact, and history panels remain clickable from this tab to reinforce UI literacy.
 

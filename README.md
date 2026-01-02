@@ -325,7 +325,11 @@ All abilities renamed and themed around Stargate lore:
 - ✅ **Roguelike Deck Building** – New game mode! Build a deck from scratch by picking 1 of 3 cards at a time until you have 30.
 - ✅ **Cross-Faction Chaos** – Draft pool includes ALL unlocked cards from ALL factions. Combine Asgard tech with Goa'uld numbers!
 - ✅ **Risk/Reward** – Choose your leader wisely at the start—their ability defines your run.
-- ✅ **Battle & Rewards** – Take your drafted deck into battle against the AI. Wins earn massive XP and card unlocks.
+- ✅ **Multi-Stage Progression** – The fight doesn't end at one battle!
+  - **1 Win**: Earn standard Card & Leader unlocks.
+  - **3 Wins**: Milestone reached! **Redraft 5 cards** to refine your synergy.
+  - **5 Wins**: Milestone reached! **Redraft your Leader** to adapt for the endgame.
+  - **8 Wins**: **DRAFT CHAMPION!** Complete the run and discover a hidden Easter Egg... 🚀
 
 ### Version 2.9 (November 2025)
 **LAN Multiplayer Overhaul & Robustness**
