@@ -540,6 +540,11 @@ def run_stats_menu(screen):
             # Best run
             best_run = draft.get("best_run_wins", 0)
             add_row("Best Run", f"{best_run} win{'s' if best_run != 1 else ''}")
+            
+            # Perfect runs
+            perfect_runs = draft.get("perfect_runs", 0)
+            if perfect_runs > 0:
+                add_row("Perfect Runs (8 Wins)", str(perfect_runs))
 
             # Deck stats
             total_cards = draft.get("total_cards_drafted", 0)

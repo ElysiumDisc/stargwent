@@ -147,8 +147,8 @@ UNLOCKABLE_CARDS = {
         "faction": "Lucian",
         "row": "close",
         "power": 6,
-        "ability": "When played: Look at opponent's hand",
-        "description": "Invisible warrior reveals enemy secrets",
+        "ability": "When played: Look at opponent's hand for 30s",
+        "description": "Invisible warrior reveals enemy secrets for a limited time",
         "rarity": "epic"
     },
     "tok_ra_operative": {
@@ -210,8 +210,8 @@ UNLOCKABLE_CARDS = {
         "faction": "Neutral",
         "row": "special",
         "power": 0,
-        "ability": "Reveal opponent's hand for this round",
-        "description": "See through enemy eyes - reveals all cards in opponent's hand",
+        "ability": "Reveal opponent's hand for 30 seconds",
+        "description": "See through enemy eyes - reveals all cards in opponent's hand for a limited time",
         "rarity": "rare"
     },
     "asuran_warship": {

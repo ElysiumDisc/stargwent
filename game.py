@@ -419,6 +419,7 @@ class Player:
         self.current_round_number = 1  # Track round for leader abilities
         self.units_played_this_round = 0  # Track for Gerak and Ka'lel abilities
         self.hand_revealed = False  # Track if opponent can see this player's hand
+        self.hand_reveal_timer = 0  # Timer for hand reveal (in seconds)
         self.reveal_next_round = False  # Pending reveal flag for Yu ability
         self.plays_this_turn = 0  # Track plays for Rak'nor ability
         self.zpm_active = False  # Track if ZPM was played this round
@@ -2030,12 +2031,13 @@ class Game:
                 )
 
         elif "Communication Device" in card.name or "Reveal opponent's hand" in ability:
-            # Set a flag to reveal opponent's hand for this round
+            # Set a flag to reveal opponent's hand for 30 seconds
             opponent = self.player2 if self.current_player == self.player1 else self.player1
             opponent.hand_revealed = True
+            opponent.hand_reveal_timer = 30  # 30 second reveal
             self.add_history_event(
                 "ability",
-                f"{self.current_player.name} revealed {opponent.name}'s hand",
+                f"{self.current_player.name} revealed {opponent.name}'s hand for 30s",
                 self._owner_label(self.current_player),
                 icon="👀"
             )
@@ -2045,6 +2047,13 @@ class Game:
             # Similar to Communication Device but for when unit is played
             opponent = self.player2 if self.current_player == self.player1 else self.player1
             opponent.hand_revealed = True
+            opponent.hand_reveal_timer = 30  # 30 second reveal
+            self.add_history_event(
+                "ability",
+                f"{self.current_player.name} revealed {opponent.name}'s hand for 30s",
+                self._owner_label(self.current_player),
+                icon="👀"
+            )
     
     def apply_decoy(self, selected_card):
         """Apply decoy effect - return selected card to current player's hand."""

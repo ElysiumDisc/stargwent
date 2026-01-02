@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-3.9.5-blue)
+![Version](https://img.shields.io/badge/version-4.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.0.0: DRAFT MODE GAUNTLET & UNIFIED VISUALS** - Expanded Draft Mode into an 8-win roguelike gauntlet with redraft milestones (3 Wins: Cards, 5 Wins: Leader)! Standardized faction colors across all menus: Lucian Alliance is now Pink, Asgard is bright Cyan. Removed legacy XP system for a cleaner progression loop!
 - **⚡ NEW v3.9.4: UNLOCKABLE CARD VERIFICATION & FIXES** - Complete logic audit of all 20 unlockable cards! Fixed ZPM Power doubling (now preserves bonuses), Puddle Jumper Ring Transport for unit cards, and Replicator Swarm description. All abilities verified with correct animations!
 - **⚡ NEW v3.9.2: WITCHER-STYLE DECK BUILDER UI** - Complete visual overhaul featuring bottom accordion card preview (2x size), right-side vertical deck list, holographic stats panel, and smooth drag-and-drop interactions!
 - **⚡ NEW v3.9.1: STATS MENU OVERHAUL** - Comprehensive player statistics with faction win rates, round breakdown (2-0 vs 2-1), comeback tracking, unlock progress, and red DHD-styled reset button!
@@ -179,6 +180,22 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.0.0 (January 2026)
+**Draft Mode Gauntlet & Unified Faction Visuals**
+
+- ✅ **Expanded Draft Mode Gauntlet** – Draft Mode is now a multi-stage roguelike challenge!
+  - Survive up to 8 wins to become the Draft Champion.
+  - **Milestone (3 Wins)**: Redraft 5 cards of your choice to refine your synergies.
+  - **Milestone (5 Wins)**: Option to redraft your Leader to adapt your endgame strategy.
+  - **Victory (8 Wins)**: Unlock a special Easter Egg hint for future content!
+  - **Persistence**: Draft runs are now saved and can be resumed from the main menu.
+- ✅ **Unified Faction Colors** – Standardized the visual identity of all factions across the entire game:
+  - **Lucian Alliance**: Now consistently Pink `(200, 100, 255)` in UI, text, and glow effects.
+  - **Asgard**: Now a bright, high-tech Cyan `(100, 255, 255)`.
+  - Applied to Draft Mode UI, Stats Menu, Deck Builder, and in-game combat effects.
+- ✅ **XP System Removal** – Removed the redundant XP calculation and tracking to focus on the more direct Card and Leader unlock progression system.
+- ✅ **Stability Fixes** – Fixed a bug where resuming a Draft Mode run at the `leader_select` phase would result in an empty screen.
 
 ### Version 3.9.4 (December 2025)
 **Unlockable Card Logic Verification & Bug Fixes**
@@ -498,17 +515,6 @@ All abilities renamed and themed around Stargate lore:
 
 ### Version 1.6 (September 2025)
 **Fullscreen Polish & Round Winner Announcements**
-
-#### UI Improvements
-- ✅ **Fullscreen Bottom UI Fix** - Pass button, Faction Power UI, and all bottom elements now stay properly visible in fullscreen mode
-- ✅ **Safe Margin System** - Implemented 3% bottom margin and 2% right margin to prevent UI cutoff
-- ✅ **Dynamic Hand Area** - Hand area now reserves minimum 25% of screen height (250px minimum) to prevent card cropping
-- ✅ **Improved Button Positioning** - DHD Pass button and Mulligan button repositioned with increased safe spacing
-
-#### Round Winner System
-- ✅ **Cinematic Round Winner Overlay** - Beautiful 3-second announcement showing who won each round
-- ✅ **Detailed Scoreboard** - Displays all 3 rounds with highlights for wins/losses
-- ✅ **Perfect Timing** - Announcement appears BEFORE hyperspace transition to next round
 
 
 
@@ -839,7 +845,7 @@ All abilities renamed and themed around Stargate lore:
 - Special destruction (Thor's Hammer removes Goa'uld)
 - Power doubling (ZPM doubles siege)
 - One-sided scorch (Merlin's Weapon)
-- Hand reveal (Communication Device, Sodan)
+- Hand reveal (Communication Device, Sodan) - 30s timer
 - All core mechanics (Gate Reinforcement, Tactical Formation, etc.)
 
 ### To change a card name (and its internal ID) you need to update the reference in four specific locations
@@ -1181,20 +1187,11 @@ player_unlocks.json       # Unlocked leaders/cards + win stats
 | Browse Cards | Arrow keys / Mouse wheel |
 | Quick Select | 1/2/3 keys (rewards) |
 
----
-
-### 🚧 Polish & Enhancement
-- Sound effects & music
-- Advanced AI difficulty levels
-- Per-card custom animations (expand beyond current set)
-- More hyperspace/wormhole effects
-- LAN reconnection and state recovery
 
 ### 📋 Planned
 - Tournament mode (best-of-3)
 - Achievement system
 - More factions (Wraith, Ori, Atlantis)
-- Statistics tracking
 - Custom card creation tools
 - Internet matchmaking (beyond LAN/VPN)
 

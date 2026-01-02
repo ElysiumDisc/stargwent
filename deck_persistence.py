@@ -105,6 +105,7 @@ class DeckPersistence:
                 "battles_won": 0,
                 "battles_lost": 0,
                 "best_run_wins": 0,
+                "perfect_runs": 0,
                 "total_cards_drafted": 0,
                 "drafted_leaders": {},  # leader_id: count
                 "drafted_factions": {},  # faction: count
@@ -279,6 +280,7 @@ class DeckPersistence:
             "battles_won": 0,
             "battles_lost": 0,
             "best_run_wins": 0,
+            "perfect_runs": 0,
             "total_cards_drafted": 0,
             "drafted_leaders": {},
             "drafted_factions": {},
@@ -420,7 +422,7 @@ class DeckPersistence:
         self.save_unlocks()
 
     def record_draft_completion(self, leader_id: str, leader_name: str, faction: str,
-                               cards: list, deck_power: int, won: bool):
+                               cards: list, deck_power: int, won: bool, final_wins: int = 0):
         """
         Record draft run completion with full details.
 
@@ -431,6 +433,7 @@ class DeckPersistence:
             cards: List of drafted cards
             deck_power: Total power of drafted deck
             won: Whether the draft battle was won
+            final_wins: Total wins in the run (if completed)
         """
         draft_stats = self.unlock_data.setdefault("draft_stats", {})
 
@@ -444,11 +447,16 @@ class DeckPersistence:
         # Win/loss
         if won:
             draft_stats["battles_won"] = draft_stats.get("battles_won", 0) + 1
-            # For now, best run is just 1 (could expand for multi-battle runs later)
-            if draft_stats.get("best_run_wins", 0) < 1:
-                draft_stats["best_run_wins"] = 1
         else:
             draft_stats["battles_lost"] = draft_stats.get("battles_lost", 0) + 1
+
+        # Best Run & Perfect Runs
+        if final_wins > 0:
+            if final_wins > draft_stats.get("best_run_wins", 0):
+                draft_stats["best_run_wins"] = final_wins
+            
+            if final_wins >= 8:
+                draft_stats["perfect_runs"] = draft_stats.get("perfect_runs", 0) + 1
 
         # Cards drafted
         draft_stats["total_cards_drafted"] = draft_stats.get("total_cards_drafted", 0) + len(cards)

@@ -838,6 +838,17 @@ def draw_opponent_hand(surface, opponent):
             pygame.draw.rect(surface, (100, 150, 200), 
                             (card_x, hand_y, CARD_WIDTH, CARD_HEIGHT), 
                             2, border_radius=8)
+    
+    # Draw countdown timer if hand is revealed by a timed effect
+    if opponent.hand_revealed and opponent.hand_reveal_timer > 0:
+        timer_text = f"HAND REVEALED: {int(opponent.hand_reveal_timer)}s"
+        timer_surf = UI_FONT.render(timer_text, True, (255, 215, 0))
+        # Position it above the hand
+        timer_rect = timer_surf.get_rect(center=(SCREEN_WIDTH // 2, hand_y - 25))
+        # Add a dark background for readability
+        bg_rect = timer_rect.inflate(20, 10)
+        pygame.draw.rect(surface, (0, 0, 0, 180), bg_rect, border_radius=5)
+        surface.blit(timer_surf, timer_rect)
 
 
 def draw_weather_slots(surface, game):
@@ -3326,6 +3337,15 @@ def main(lan_game_data=None):
         dt = clock.tick(144)  # 144 FPS for buttery smooth animations and card movement
         update_battle_music()
 
+        # Update hand reveal timers
+        for p in [game.player1, game.player2]:
+            if p.hand_revealed and p.hand_reveal_timer > 0:
+                p.hand_reveal_timer -= dt / 1000.0
+                if p.hand_reveal_timer <= 0:
+                    p.hand_revealed = False
+                    p.hand_reveal_timer = 0
+                    game.add_history_event("system", f"{p.name}'s hand is no longer revealed", "ai", icon="👁️")
+
         # Poll chat messages in LAN mode
         if lan_chat_panel:
             lan_chat_panel.poll_session()
@@ -4970,7 +4990,8 @@ def main(lan_game_data=None):
                                         faction=player_faction,
                                         cards=player_deck,
                                         deck_power=deck_power,
-                                        won=True
+                                        won=True,
+                                        final_wins=current_wins
                                     )
                                 else:
                                     # Continue Run
@@ -5003,7 +5024,8 @@ def main(lan_game_data=None):
                                     faction=player_faction,
                                     cards=player_deck,
                                     deck_power=deck_power,
-                                    won=False
+                                    won=False,
+                                    final_wins=current_wins
                                 )
                         else:
                              # Fallback if no run data found (legacy/error)
