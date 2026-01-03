@@ -62,12 +62,16 @@ class DraftModeController:
         # Clock for animations
         self.clock = pygame.time.Clock()
         
-        # Try to restore active run
-        self._try_restore_run()
+        # Startup menu state
+        self.has_saved_run = get_persistence().get_active_draft_run() is not None
+        self.show_startup_menu = self.has_saved_run
+        self.startup_rects = []
+        self.back_button_rect = None
 
-    def _try_restore_run(self):
-        """Attempt to restore an active draft run from persistence."""
+    def _restore_active_run(self):
+        """Restore the active draft run from persistence."""
         active_data = get_persistence().get_active_draft_run()
+        print(f"[DraftController] Restoring run. Data exists: {active_data is not None}")
         if active_data:
             self.current_run = DraftRun(self.pool)
             self.current_run.wins = active_data.get('wins', 0)
@@ -77,11 +81,15 @@ class DraftModeController:
             
             # Restore leader
             leader_id = active_data.get('leader_id')
+            print(f"[DraftController] Restoring leader: {leader_id}")
             if leader_id:
                 for leader in self.pool.available_leaders:
                     if leader['card_id'] == leader_id:
                         self.current_run.drafted_leader = leader
+                        print(f"[DraftController] Leader restored: {leader['name']}")
                         break
+                else:
+                    print(f"[DraftController] WARNING: Leader {leader_id} not found in pool!")
             
             # Restore cards
             card_ids = active_data.get('card_ids', [])
@@ -100,7 +108,7 @@ class DraftModeController:
             elif self.current_run.phase == "leader_select":
                 self.leader_choices = self.pool.get_leader_choices(3)
                 
-            print(f"Resumed draft run: Phase={self.current_run.phase}, Wins={self.current_run.wins}")
+            print(f"[DraftController] Resumed draft run: Phase={self.current_run.phase}, Wins={self.current_run.wins}")
 
     def save_run_state(self):
         """Save current run state to persistence."""
@@ -132,6 +140,7 @@ class DraftModeController:
             'leader_id': leader_id,
             'card_ids': card_ids
         }
+        print(f"[DraftController] Saving run state: Phase={data['phase']}, Leader={leader_id}")
         get_persistence().save_active_draft_run(data)
 
     def start_new_run(self):
@@ -154,6 +163,16 @@ class DraftModeController:
         Args:
             surface: Pygame surface to draw on
         """
+        # Draw back button everywhere
+        self.back_button_rect = self.ui.draw_back_button(surface)
+
+        if self.show_startup_menu:
+            cont_rect, new_rect = self.ui.draw_startup_menu(surface)
+            self.startup_rects = [cont_rect, new_rect]
+            # Re-draw back button on top if needed, but it should be fine
+            self.back_button_rect = self.ui.draw_back_button(surface) # Ensure on top
+            return
+
         if not self.current_run:
             self.start_new_run()
 
@@ -334,6 +353,24 @@ class DraftModeController:
         Returns:
             Action string: "start_battle", "exit", or None
         """
+        # Handle Back Button
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.back_button_rect and self.back_button_rect.collidepoint(event.pos):
+                return "exit"
+        
+        # Handle Startup Menu
+        if self.show_startup_menu:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.startup_rects and len(self.startup_rects) >= 2:
+                    cont_rect, new_rect = self.startup_rects[0], self.startup_rects[1]
+                    if cont_rect.collidepoint(event.pos):
+                        self._restore_active_run()
+                        self.show_startup_menu = False
+                    elif new_rect.collidepoint(event.pos):
+                        self.start_new_run()
+                        self.show_startup_menu = False
+            return None
+
         if not self.current_run:
             return None
 
@@ -463,8 +500,8 @@ class DraftModeController:
         Returns:
             Drafted deck dictionary if completed, None if exited
         """
-        if not self.current_run:
-            self.start_new_run()
+        # Do not automatically start new run here; render() handles it if needed,
+        # and we might be showing the startup menu first.
         
         running = True
 

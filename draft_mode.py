@@ -41,7 +41,7 @@ class DraftPool:
         ]
         self.available_leaders = [
             leader for leader in LEADER_REGISTRY
-            if leader['name'] in unlocked_leaders
+            if leader['card_id'] in unlocked_leaders
         ]
 
         # Ensure we have enough content

@@ -110,7 +110,7 @@ class Missile(Projectile):
 
 
 class ContinuousBeam:
-    """Asgard continuous beam weapon - deals damage over time, reaches entire screen."""
+    """Asgard continuous beam weapon - deals damage over time."""
     def __init__(self, ship, direction, color, screen_width):
         self.ship = ship
         self.direction = direction
@@ -119,9 +119,14 @@ class ContinuousBeam:
         self.active = True
         self.damage_per_frame = 0.8
         self.pulse = 0
+        self.current_length = screen_width  # Default to full screen
     
     def update(self):
         self.pulse += 0.2
+    
+    def set_length(self, length):
+        """Set the current beam length based on collision."""
+        self.current_length = length
     
     def get_start_pos(self):
         return (self.ship.x + (self.ship.width if self.direction == 1 else 0), self.ship.y)
@@ -129,36 +134,49 @@ class ContinuousBeam:
     def get_rect(self):
         start_x, start_y = self.get_start_pos()
         if self.direction == 1:
-            beam_length = self.screen_width - start_x
-            return pygame.Rect(int(start_x), int(start_y) - 10, beam_length, 20)
+            return pygame.Rect(int(start_x), int(start_y) - 10, self.current_length, 20)
         else:
-            return pygame.Rect(0, int(start_y) - 10, int(start_x), 20)
+            return pygame.Rect(int(start_x) - self.current_length, int(start_y) - 10, self.current_length, 20)
     
     def draw(self, surface):
         start_x, start_y = self.get_start_pos()
         
         if self.direction == 1:
-            end_x = self.screen_width
+            end_x = start_x + self.current_length
         else:
-            end_x = 0
+            end_x = start_x - self.current_length
         
-        beam_length = abs(end_x - start_x)
-        
-        # Pulsing beam effect
+        # Pulsing beam effect - pre-calculate width
+        # Use simpler drawing to avoid frame drops
         pulse_width = 8 + int(math.sin(self.pulse) * 4)
         
-        # Create beam surface
-        beam_surf = pygame.Surface((beam_length + 20, 60), pygame.SRCALPHA)
+        # Draw directly to surface instead of creating new one every frame
+        # Draw outer glow
+        color_with_alpha = (*self.color[:3], 40)
+        # Using separate surface for alpha blending is expensive, so we just use lines
+        # For better performance, we'll just draw solid lines with varying widths/colors
+        # to simulate glow without alpha blending overhead if possible,
+        # OR just use one alpha surface for the whole beam if needed, but let's try direct lines.
         
-        # Outer glow
-        pygame.draw.line(beam_surf, (*self.color[:3], 40), (10, 30), (beam_length + 10, 30), pulse_width + 12)
-        pygame.draw.line(beam_surf, (*self.color[:3], 80), (10, 30), (beam_length + 10, 30), pulse_width + 6)
-        pygame.draw.line(beam_surf, self.color, (10, 30), (beam_length + 10, 30), pulse_width)
-        # White hot core
-        pygame.draw.line(beam_surf, (255, 255, 255), (10, 30), (beam_length + 10, 30), pulse_width // 2)
+        # To get transparency we do need a surface or 'blend_rgba_mult' but
+        # standard pygame.draw.line doesn't support alpha on the main surface directly unless it's an alpha surface.
+        # But main surface is usually not alpha.
+        # So we MUST use a temp surface for alpha, BUT we can optimize it.
+        # However, creating a surface size of (screen_width, 60) every frame is the slow part.
         
-        blit_x = min(start_x, end_x) - 10
-        surface.blit(beam_surf, (int(blit_x), int(start_y) - 30))
+        # Optimization: Only draw the core beam directly if we want speed,
+        # but for the glow we need alpha.
+        # Let's try drawing just a few lines directly. It won't have "true" additive glow but it's fast.
+        
+        # Draw wide faint line (simulated glow)
+        glow_color = (max(0, self.color[0]-50), max(0, self.color[1]-50), max(0, self.color[2]-50))
+        pygame.draw.line(surface, glow_color, (start_x, start_y), (end_x, start_y), pulse_width + 12)
+        
+        # Draw main color
+        pygame.draw.line(surface, self.color, (start_x, start_y), (end_x, start_y), pulse_width)
+        
+        # Draw white core
+        pygame.draw.line(surface, (255, 255, 255), (start_x, start_y), (end_x, start_y), max(1, pulse_width // 2))
 
 
 class EnergyBall(Projectile):
@@ -258,26 +276,15 @@ class Asteroid:
         self.screen_width = screen_width
         self.screen_height = screen_height
         
-        # Start from right side, move left - SLOW speed
+        # Start from right side, move left
         self.x = screen_width + 150
         self.y = random.randint(150, screen_height - 150)
-        self.speed = random.uniform(1.0, 2.0)  # Much slower
-        self.size = random.randint(120, 200)  # Much bigger
+        self.speed = random.uniform(3.0, 6.0)  # Faster "normal" speed
+        self.size = random.randint(120, 200)
         self.rotation = 0
-        self.rotation_speed = random.uniform(-0.5, 0.5)  # Slower rotation
-        self.health = self.size * 2  # More health for bigger asteroids
+        self.rotation_speed = random.uniform(-1.0, 1.0)
+        self.health = self.size * 0.5
         self.active = True
-        
-        # Generate rocky shape (irregular polygon)
-        self.points = []
-        num_points = random.randint(8, 14)
-        for i in range(num_points):
-            angle = (i / num_points) * math.pi * 2
-            dist = self.size // 2 + random.randint(-self.size // 5, self.size // 5)
-            self.points.append((
-                math.cos(angle) * dist,
-                math.sin(angle) * dist
-            ))
         
         self.color = random.choice([
             (100, 90, 80),
@@ -285,18 +292,54 @@ class Asteroid:
             (90, 85, 75),
             (70, 65, 55)
         ])
+        
+        # Pre-render asteroid surface
+        self.original_image = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
+        center = self.size
+        
+        # Generate rocky shape points
+        points = []
+        num_points = random.randint(8, 14)
+        for i in range(num_points):
+            angle = (i / num_points) * math.pi * 2
+            dist = self.size // 2 + random.randint(-self.size // 5, self.size // 5)
+            points.append((
+                center + math.cos(angle) * dist,
+                center + math.sin(angle) * dist
+            ))
+        
+        # Draw to original image
+        pygame.draw.polygon(self.original_image, self.color, points)
+        pygame.draw.polygon(self.original_image, (50, 45, 40), points, 3)
+        
+        # Add craters
+        for i in range(3):
+            crater_x = center + random.randint(-self.size // 3, self.size // 3)
+            crater_y = center + random.randint(-self.size // 3, self.size // 3)
+            crater_size = random.randint(3, 8)
+            pygame.draw.circle(self.original_image, (60, 55, 50), (crater_x, crater_y), crater_size)
+            
+        self.image = self.original_image
+        self.rect = self.image.get_rect(center=(int(self.x), int(self.y)))
     
     def update(self):
         self.x -= self.speed
         self.rotation += self.rotation_speed
+        
+        # Rotate image (not every frame if possible, but fine for now)
+        # For better performance, we could rotate only every N frames or use a sprite group
+        self.image = pygame.transform.rotate(self.original_image, self.rotation)
+        self.rect = self.image.get_rect(center=(int(self.x), int(self.y)))
         
         # Remove if off screen
         if self.x < -self.size:
             self.active = False
     
     def get_rect(self):
-        return pygame.Rect(int(self.x) - self.size // 2, int(self.y) - self.size // 2,
-                          self.size, self.size)
+        # Return smaller hitbox for forgiveness
+        hitbox_size = self.size * 0.8
+        return pygame.Rect(int(self.x) - hitbox_size // 2, int(self.y) - hitbox_size // 2,
+                          hitbox_size, hitbox_size)
     
     def take_damage(self, amount):
         self.health -= amount
@@ -306,30 +349,7 @@ class Asteroid:
         return False
     
     def draw(self, surface):
-        # Create rotated asteroid surface
-        asteroid_surf = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
-        center = self.size
-        
-        # Rotate points
-        rotated_points = []
-        for px, py in self.points:
-            angle = math.radians(self.rotation)
-            rx = px * math.cos(angle) - py * math.sin(angle) + center
-            ry = px * math.sin(angle) + py * math.cos(angle) + center
-            rotated_points.append((rx, ry))
-        
-        # Draw asteroid
-        pygame.draw.polygon(asteroid_surf, self.color, rotated_points)
-        pygame.draw.polygon(asteroid_surf, (50, 45, 40), rotated_points, 3)
-        
-        # Add some crater details
-        for i in range(3):
-            crater_x = center + random.randint(-self.size // 3, self.size // 3)
-            crater_y = center + random.randint(-self.size // 3, self.size // 3)
-            crater_size = random.randint(3, 8)
-            pygame.draw.circle(asteroid_surf, (60, 55, 50), (crater_x, crater_y), crater_size)
-        
-        surface.blit(asteroid_surf, (int(self.x) - center, int(self.y) - center))
+        surface.blit(self.image, self.rect)
 
 
 class Ship:
@@ -498,11 +518,11 @@ class Ship:
         if self.current_beam:
             self.current_beam.update()
             self.beam_duration_timer += 1
-            if self.beam_duration_timer >= 180:  # 3 seconds at 60 FPS
+            if self.beam_duration_timer >= 120:  # 2 seconds at 60 FPS
                 self.stop_beam()
     
-    def update_ai(self, player_ship, asteroids):
-        """Smart AI update - aims at player, dodges asteroids."""
+    def update_ai(self, player_ship, asteroids, other_ships=None):
+        """Smart AI update - aims at player, dodges asteroids and other ships."""
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
         if self.beam_cooldown > 0:
@@ -525,10 +545,32 @@ class Ship:
                         dodge_direction = 1   # Dodge down
                     break
         
+        # Separation logic (avoid stacking)
+        separation_force = 0
+        if other_ships:
+            for other in other_ships:
+                if other == self:
+                    continue
+                
+                dist_y = self.y - other.y
+                if abs(dist_y) < 100:  # Too close vertically
+                    # Push away
+                    if dist_y > 0:
+                        separation_force += 3
+                    else:
+                        separation_force -= 3
+                    
+                    # If exactly on top, push randomly
+                    if dist_y == 0:
+                        separation_force += random.choice([-3, 3])
+
         # Apply dodge or pursue player
         if dodge_direction != 0:
             # Dodging asteroid - move faster
             self.y += dodge_direction * self.speed * 1.2
+        elif separation_force != 0:
+             # Avoiding collision with other ship
+             self.y += separation_force
         else:
             # Pursue player with some prediction
             y_diff = target_y - self.y
@@ -548,7 +590,7 @@ class Ship:
         if self.current_beam:
             self.current_beam.update()
             self.beam_duration_timer += 1
-            if self.beam_duration_timer >= 180:  # 3 seconds at 60 FPS
+            if self.beam_duration_timer >= 120:  # 2 seconds at 60 FPS
                 self.stop_beam()
     
     def fire(self):
@@ -914,7 +956,7 @@ class SpaceShooterGame:
         
         # Update all AI ships with smart behavior
         for ai_ship in self.ai_ships:
-            ai_ship.update_ai(self.player_ship, self.asteroids)
+            ai_ship.update_ai(self.player_ship, self.asteroids, self.ai_ships)
             
             # AI firing
             if not hasattr(ai_ship, 'ai_fire_timer'):
@@ -1014,48 +1056,108 @@ class SpaceShooterGame:
         # Check beam collision
         if self.player_ship.current_beam:
             beam = self.player_ship.current_beam
-            beam_rect = beam.get_rect()
             
-            for ai_ship in self.ai_ships[:]:
-                if beam_rect.colliderect(ai_ship.get_rect()):
-                    ai_ship.hit_flash = 3
-                    if ai_ship.take_damage(beam.damage_per_frame):
+            # Find closest hit to truncate beam
+            beam_start_x, _ = beam.get_start_pos()
+            beam_full_rect = beam.get_rect() # This gets the current rect, which might be full width initially
+            
+            # If we want to find blocking, we should check against a "max range" beam first
+            # But get_rect already uses current_length. 
+            # We need to reset length to max to check collisions effectively, or just check everything against a theoretical full beam.
+            # Let's assume current_length was set to screen_width at start of frame or we check purely based on Y and Direction.
+            
+            # To properly block, we find the closest object in the beam's path.
+            closest_hit_dist = self.screen_width
+            hit_target = None
+            is_asteroid = False
+            
+            # Check AI ships
+            for ai_ship in self.ai_ships:
+                # Simple check: is it in the beam's Y range and in front?
+                # Beam is 20px high.
+                beam_y = self.player_ship.y
+                if abs(ai_ship.y - beam_y) < (ai_ship.height // 2 + 10):
+                    # It's in Y range. Is it in X range?
+                    dist = ai_ship.x - beam_start_x
+                    if 0 < dist < closest_hit_dist:
+                        closest_hit_dist = dist
+                        hit_target = ai_ship
+                        is_asteroid = False
+            
+            # Check asteroids
+            for asteroid in self.asteroids:
+                beam_y = self.player_ship.y
+                if abs(asteroid.y - beam_y) < (asteroid.size // 2 + 10):
+                    dist = (asteroid.x - asteroid.size//2) - beam_start_x
+                    if 0 < dist < closest_hit_dist:
+                        closest_hit_dist = dist
+                        hit_target = asteroid
+                        is_asteroid = True
+            
+            # Set beam length
+            beam.set_length(closest_hit_dist)
+            
+            # Apply damage to the hit target
+            if hit_target:
+                if is_asteroid:
+                    if hit_target.take_damage(beam.damage_per_frame):
+                        self.explosions.append(Explosion(hit_target.x, hit_target.y))
+                        if hit_target in self.asteroids:
+                            self.asteroids.remove(hit_target)
+                else:
+                    hit_target.hit_flash = 3
+                    if hit_target.take_damage(beam.damage_per_frame):
                         self.explosions.append(Explosion(
-                            ai_ship.x + ai_ship.width // 2, ai_ship.y))
-                        self.ai_ships.remove(ai_ship)
+                            hit_target.x + hit_target.width // 2, hit_target.y))
+                        self.ai_ships.remove(hit_target)
                         self.enemies_defeated += 1
                         if len(self.ai_ships) == 0:
                             self.wave_complete = True
-            
-            for asteroid in self.asteroids[:]:
-                if beam_rect.colliderect(asteroid.get_rect()):
-                    if asteroid.take_damage(beam.damage_per_frame):
-                        self.explosions.append(Explosion(asteroid.x, asteroid.y))
-                        self.asteroids.remove(asteroid)
         
         # Check AI beam collision with player
         for ai_ship in self.ai_ships:
             if ai_ship.current_beam:
                 beam = ai_ship.current_beam
-                beam_rect = beam.get_rect()
+                beam_start_x, _ = beam.get_start_pos()
                 
-                # AI beam vs player
-                if beam_rect.colliderect(self.player_ship.get_rect()):
-                    self.player_hit_flash = 3
-                    if self.player_ship.take_damage(beam.damage_per_frame):
-                        self.game_over = True
-                        self.winner = "ai"
-                        self.explosions.append(Explosion(
-                            self.player_ship.x + self.player_ship.width // 2,
-                            self.player_ship.y))
+                closest_hit_dist = self.screen_width
+                hit_target = None
+                is_asteroid = False
                 
-                # AI beam vs asteroids
-                for asteroid in self.asteroids[:]:
-                    if beam_rect.colliderect(asteroid.get_rect()):
-                        if asteroid.take_damage(beam.damage_per_frame):
-                            self.explosions.append(Explosion(asteroid.x, asteroid.y))
-                            if asteroid in self.asteroids:
-                                self.asteroids.remove(asteroid)
+                # Check player (AI shoots Left, so dist is Start - Target)
+                beam_y = ai_ship.y
+                if abs(self.player_ship.y - beam_y) < (self.player_ship.height // 2 + 10):
+                    dist = beam_start_x - (self.player_ship.x + self.player_ship.width)
+                    if 0 < dist < closest_hit_dist:
+                        closest_hit_dist = dist
+                        hit_target = self.player_ship
+                        is_asteroid = False
+                
+                # Check asteroids
+                for asteroid in self.asteroids:
+                    if abs(asteroid.y - beam_y) < (asteroid.size // 2 + 10):
+                        dist = beam_start_x - (asteroid.x + asteroid.size//2)
+                        if 0 < dist < closest_hit_dist:
+                            closest_hit_dist = dist
+                            hit_target = asteroid
+                            is_asteroid = True
+                
+                beam.set_length(closest_hit_dist)
+                
+                if hit_target:
+                    if is_asteroid:
+                        if hit_target.take_damage(beam.damage_per_frame):
+                            self.explosions.append(Explosion(hit_target.x, hit_target.y))
+                            if hit_target in self.asteroids:
+                                self.asteroids.remove(hit_target)
+                    else:
+                        self.player_hit_flash = 3
+                        if self.player_ship.take_damage(beam.damage_per_frame):
+                            self.game_over = True
+                            self.winner = "ai"
+                            self.explosions.append(Explosion(
+                                self.player_ship.x + self.player_ship.width // 2,
+                                self.player_ship.y))
         
         # Ship collision with asteroids (damages shields)
         for asteroid in self.asteroids[:]:

@@ -267,7 +267,7 @@
     "first_turn_wins": 1
   },
   "draft_stats": {
-    "runs_started": 5,
+    "runs_started": 17,
     "runs_completed": 1,
     "battles_won": 0,
     "battles_lost": 1,
@@ -305,8 +305,12 @@
     "wins": 0,
     "losses": 0,
     "phase": "draft",
-    "current_pick": 0,
-    "leader_id": "asgard_heimdall",
-    "card_ids": []
+    "current_pick": 3,
+    "leader_id": "goauld_cronus",
+    "card_ids": [
+      "tauri_tokra_op_1",
+      "jaffa_staff_team_1",
+      "replicator_swarm_1"
+    ]
   }
 }

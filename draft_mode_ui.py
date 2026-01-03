@@ -80,6 +80,92 @@ class DraftModeUI:
         else:
             print(f"Draft mode background not found at {draft_bg_path}")
 
+    def draw_back_button(self, surface: pygame.Surface) -> pygame.Rect:
+        """
+        Draw a back button in the top left corner.
+        
+        Args:
+            surface: Pygame surface to draw on
+            
+        Returns:
+            Button rect
+        """
+        btn_width = int(120 * self.scale)
+        btn_height = int(40 * self.scale)
+        btn_rect = pygame.Rect(20, 20, btn_width, btn_height)
+        
+        # Hover effect handled by caller checking rect later, but we can check mouse here for visual
+        mouse_pos = pygame.mouse.get_pos()
+        is_hovered = btn_rect.collidepoint(mouse_pos)
+        
+        color = (60, 80, 100) if is_hovered else (40, 50, 70)
+        border_color = COLOR_ACCENT_BLUE if is_hovered else COLOR_TEXT_SECONDARY
+        
+        pygame.draw.rect(surface, color, btn_rect, border_radius=8)
+        pygame.draw.rect(surface, border_color, btn_rect, width=2, border_radius=8)
+        
+        text = self.font_small.render("BACK", True, COLOR_TEXT_PRIMARY)
+        text_rect = text.get_rect(center=btn_rect.center)
+        surface.blit(text, text_rect)
+        
+        return btn_rect
+
+    def draw_startup_menu(self, surface: pygame.Surface) -> Tuple[pygame.Rect, pygame.Rect]:
+        """
+        Draw the startup menu (New vs Continue).
+        
+        Returns:
+            Tuple of (continue_rect, new_draft_rect)
+        """
+        if self.draft_bg:
+            surface.blit(self.draft_bg, (0, 0))
+        else:
+            surface.fill(COLOR_DARK_BG)
+            
+        # Title
+        title = self.font_title.render("DRAFT MODE", True, COLOR_ACCENT_GOLD)
+        title_rect = title.get_rect(center=(self.screen_width // 2, self.screen_height // 3))
+        surface.blit(title, title_rect)
+        
+        btn_width = int(300 * self.scale)
+        btn_height = int(80 * self.scale)
+        spacing = int(40 * self.scale)
+        
+        center_x = self.screen_width // 2
+        start_y = self.screen_height // 2
+        
+        # Continue Button
+        continue_rect = pygame.Rect(0, 0, btn_width, btn_height)
+        continue_rect.center = (center_x, start_y)
+        
+        # New Draft Button
+        new_rect = pygame.Rect(0, 0, btn_width, btn_height)
+        new_rect.center = (center_x, start_y + btn_height + spacing)
+        
+        mouse_pos = pygame.mouse.get_pos()
+        
+        # Draw Continue
+        is_hovered = continue_rect.collidepoint(mouse_pos)
+        color = (60, 100, 60) if is_hovered else (40, 80, 40)
+        pygame.draw.rect(surface, color, continue_rect, border_radius=15)
+        pygame.draw.rect(surface, (100, 200, 100), continue_rect, width=3, border_radius=15)
+        
+        cont_text = self.font_header.render("CONTINUE DRAFT", True, COLOR_TEXT_PRIMARY)
+        cont_text_rect = cont_text.get_rect(center=continue_rect.center)
+        surface.blit(cont_text, cont_text_rect)
+        
+        # Draw New
+        is_hovered = new_rect.collidepoint(mouse_pos)
+        color = (100, 60, 60) if is_hovered else (80, 40, 40)
+        pygame.draw.rect(surface, color, new_rect, border_radius=15)
+        pygame.draw.rect(surface, (200, 100, 100), new_rect, width=3, border_radius=15)
+        
+        new_text = self.font_header.render("NEW DRAFT", True, COLOR_TEXT_PRIMARY)
+        new_text_rect = new_text.get_rect(center=new_rect.center)
+        surface.blit(new_text, new_text_rect)
+        
+        return continue_rect, new_rect
+
     def draw_leader_selection(self, surface: pygame.Surface, leaders: List[Dict]) -> List[pygame.Rect]:
         """
         Draw leader selection screen.
