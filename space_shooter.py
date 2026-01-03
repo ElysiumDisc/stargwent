@@ -380,6 +380,7 @@ class Ship:
         self.beam_active = False
         self.current_beam = None
         self.beam_cooldown = 0  # Cooldown after beam stops
+        self.beam_duration_timer = 0
         
         # Ship image
         self.image = None
@@ -496,6 +497,9 @@ class Ship:
         # Update beam if active
         if self.current_beam:
             self.current_beam.update()
+            self.beam_duration_timer += 1
+            if self.beam_duration_timer >= 180:  # 3 seconds at 60 FPS
+                self.stop_beam()
     
     def update_ai(self, player_ship, asteroids):
         """Smart AI update - aims at player, dodges asteroids."""
@@ -543,6 +547,9 @@ class Ship:
         # Update beam if active
         if self.current_beam:
             self.current_beam.update()
+            self.beam_duration_timer += 1
+            if self.beam_duration_timer >= 180:  # 3 seconds at 60 FPS
+                self.stop_beam()
     
     def fire(self):
         """Fire weapon based on faction type."""
@@ -553,6 +560,7 @@ class Ship:
         if self.weapon_type == "beam":
             if self.beam_cooldown <= 0 and not self.current_beam:
                 self.current_beam = ContinuousBeam(self, direction, self.laser_color, self.screen_width)
+                self.beam_duration_timer = 0
             return self.current_beam
         
         # Other weapons have cooldown
