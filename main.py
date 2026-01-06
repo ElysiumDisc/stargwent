@@ -722,6 +722,9 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
     else:
         card_y = COMMAND_BAR_Y + (COMMAND_BAR_HEIGHT - card_h) // 2
     
+    # Get current time for idle animation
+    idle_time = pygame.time.get_ticks() / 1000.0  # Convert to seconds
+    
     for i, card in enumerate(player.hand):
         if card == dragging_card:
             continue
@@ -738,8 +741,20 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
             base_scale = 0.95 if accordion_active else 1.0
             card_scale = base_scale * (hover_scale if is_hovered else 1.0)
         edge_alpha = 205 if (accordion_active and (i == 0 or i == len(player.hand) - 1)) else 255
-        draw_y = card_y - (int(25 * SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0)
-        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha)
+        
+        # Idle animation: subtle float and tilt (like Balatro)
+        # Each card has a phase offset based on index for organic feel
+        phase_offset = i * 0.7  # Stagger animation between cards
+        idle_float = math.sin(idle_time * 1.5 + phase_offset) * 3  # Gentle 3px float
+        idle_tilt = math.sin(idle_time * 1.2 + phase_offset + 0.5) * 1.5  # Subtle 1.5° tilt
+        
+        # Don't apply idle animation to hovered or selected cards (they have their own effects)
+        if is_hovered or is_selected:
+            idle_float = 0
+            idle_tilt = 0
+        
+        draw_y = card_y - (int(25 * SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0) + idle_float
+        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha, tilt_angle=idle_tilt)
         
         if is_mulligan_selected:
             pygame.draw.rect(surface, (100, 100, 255), card.rect, width=4, border_radius=5)
@@ -816,31 +831,52 @@ def draw_opponent_hand(surface, opponent):
     # Get card back image
     card_back_image = get_card_back(CARD_WIDTH, CARD_HEIGHT)
     
+    # Get current time for idle animation
+    idle_time = pygame.time.get_ticks() / 1000.0
+    
     for i, card in enumerate(opponent.hand):
         if i >= len(card_positions):
             continue
         card_x = card_positions[i]
         alpha = 205 if accordion_active and (i == 0 or i == total_cards - 1) else 255
+        
+        # Idle animation for opponent cards too (subtle float and tilt)
+        phase_offset = i * 0.7
+        idle_float = math.sin(idle_time * 1.5 + phase_offset) * 3
+        idle_tilt = math.sin(idle_time * 1.2 + phase_offset + 0.5) * 1.5
+        
+        draw_y = hand_y + idle_float
+        
         if opponent.hand_revealed:
             draw_card(
                 surface,
                 card,
                 card_x,
-                hand_y,
+                draw_y,
                 render_details=True,
                 update_rect=False,
-                alpha=alpha
+                alpha=alpha,
+                tilt_angle=idle_tilt
             )
             pygame.draw.rect(surface, (255, 215, 0), 
-                             (card_x, hand_y, CARD_WIDTH, CARD_HEIGHT), 
+                             (card_x, int(draw_y), CARD_WIDTH, CARD_HEIGHT), 
                              2, border_radius=8)
         else:
-            temp_surface = card_back_image.copy()
-            if alpha < 255:
-                temp_surface.set_alpha(alpha)
-            surface.blit(temp_surface, (card_x, hand_y))
+            # Apply tilt to card back
+            if idle_tilt != 0:
+                rotated_back = pygame.transform.rotozoom(card_back_image, idle_tilt, 1.0)
+                if alpha < 255:
+                    rotated_back.set_alpha(alpha)
+                # Center the rotated image
+                rot_rect = rotated_back.get_rect(center=(card_x + CARD_WIDTH // 2, int(draw_y) + CARD_HEIGHT // 2))
+                surface.blit(rotated_back, rot_rect.topleft)
+            else:
+                temp_surface = card_back_image.copy()
+                if alpha < 255:
+                    temp_surface.set_alpha(alpha)
+                surface.blit(temp_surface, (card_x, int(draw_y)))
             pygame.draw.rect(surface, (100, 150, 200), 
-                            (card_x, hand_y, CARD_WIDTH, CARD_HEIGHT), 
+                            (card_x, int(draw_y), CARD_WIDTH, CARD_HEIGHT), 
                             2, border_radius=8)
     
     # Draw countdown timer if hand is revealed by a timed effect
