@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 12,
+  "total_games": 13,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -165,13 +165,23 @@
       "plays": 1,
       "wins": 0,
       "id": "jaffa_rebel_infantry_2"
+    },
+    "Goa'uld Drone": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_drone_2"
+    },
+    "Unscheduled Jaffa": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_unscheduled_jaffa_1"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 12,
+  "ai_games": 13,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -189,7 +199,7 @@
       "wins": 1
     },
     "Apophis": {
-      "games": 1,
+      "games": 2,
       "wins": 0
     }
   },
@@ -214,13 +224,12 @@
     },
     "Goa'uld": {
       "Asgard": {
-        "games": 1,
+        "games": 2,
         "wins": 0
       }
     }
   },
   "last_results": [
-    "W",
     "L",
     "L",
     "L",
@@ -228,13 +237,14 @@
     "L",
     "L",
     "W",
+    "L",
     "L",
     "L"
   ],
   "turn_stats": {
-    "total": 254,
-    "games": 7,
-    "min": 21,
+    "total": 263,
+    "games": 8,
+    "min": 9,
     "max": 70,
     "history": [
       36,
@@ -243,12 +253,13 @@
       21,
       70,
       47,
-      28
+      28,
+      9
     ]
   },
   "mulligans": {
-    "total": 28,
-    "games": 7
+    "total": 31,
+    "games": 8
   },
   "ability_usage": {
     "medic": 2,
@@ -259,11 +270,11 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 6,
+    "sweeps_against": 7,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 7,
+    "first_turn_games": 8,
     "first_turn_wins": 1
   },
   "draft_stats": {
