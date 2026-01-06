@@ -1,0 +1,58 @@
+LEADER VOICE CLIPS
+==================
+
+Place .ogg audio files here to play voice clips when hovering over leaders
+in Draft Mode leader selection. Files should be named by leader card_id.
+
+Expected files (based on content_registry.py):
+
+TAU'RI LEADERS:
+- tauri_oneill.ogg        (Col. Jack O'Neill)
+- tauri_hammond.ogg       (Gen. George Hammond)
+- tauri_carter.ogg        (Dr. Samantha Carter)
+- tauri_landry.ogg        (Gen. Landry) [Unlockable]
+- tauri_mckay.ogg         (Dr. McKay) [Unlockable]
+- tauri_quinn.ogg         (Jonas Quinn) [Unlockable]
+- tauri_langford.ogg      (Catherine Langford) [Unlockable]
+
+GOA'ULD LEADERS:
+- goauld_apophis.ogg      (Apophis)
+- goauld_yu.ogg           (Lord Yu)
+- goauld_sokar.ogg        (Sokar)
+- goauld_baal.ogg         (Ba'al) [Unlockable]
+- goauld_anubis.ogg       (Anubis) [Unlockable]
+- goauld_hathor_unlock.ogg (Hathor) [Unlockable]
+- goauld_cronus.ogg       (Cronus) [Unlockable]
+
+JAFFA LEADERS:
+- jaffa_tealc.ogg         (Teal'c)
+- jaffa_bratac.ogg        (Bra'tac)
+- jaffa_raknor.ogg        (Rak'nor)
+- jaffa_kalel.ogg         (Ka'lel) [Unlockable]
+- jaffa_gerak.ogg         (Gerak) [Unlockable]
+- jaffa_ishta.ogg         (Ishta) [Unlockable]
+- jaffa_ryac.ogg          (Rya'c) [Unlockable]
+
+LUCIAN ALLIANCE LEADERS:
+- lucian_vulkar.ogg       (Vulkar)
+- lucian_sodan_master.ogg (Sodan Master)
+- lucian_baal_clone.ogg   (Ba'al Clone)
+- lucian_netan.ogg        (Netan) [Unlockable]
+- lucian_vala.ogg         (Vala Mal Doran) [Unlockable]
+- lucian_anateo.ogg       (Anateo) [Unlockable]
+- lucian_kiva.ogg         (Kiva) [Unlockable]
+
+ASGARD LEADERS:
+- asgard_freyr.ogg        (Freyr)
+- asgard_loki.ogg         (Loki)
+- asgard_heimdall.ogg     (Heimdall)
+- asgard_thor.ogg         (Thor Supreme Commander) [Unlockable]
+- asgard_hermiod.ogg      (Hermiod) [Unlockable]
+- asgard_penegal.ogg      (Penegal) [Unlockable]
+- asgard_aegir.ogg        (Aegir) [Unlockable]
+
+NOTES:
+- Format: OGG Vorbis audio
+- Recommended: 2-5 second clips (short intro/catchphrase)
+- If a file doesn't exist, no sound plays (silent fallback)
+- The system also checks assets/audio/commander_snippets/ as fallback

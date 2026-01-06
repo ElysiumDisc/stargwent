@@ -10,6 +10,7 @@ import os
 from typing import List, Dict, Optional, Tuple
 from cards import Card, ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
 from animations import get_scale_factor
+from sound_manager import get_sound_manager
 
 
 # Colors
@@ -65,6 +66,10 @@ class DraftModeUI:
         self.selected_index = None
         self.review_scroll_y = 0  # For scrolling in review phase
         self.draft_scroll_y = 0   # For scrolling in draft sidebar
+        
+        # Leader voice hover tracking
+        self.last_hovered_leader_id = None
+        self.leader_choices_cache = []  # Cache of current leader choices for voice lookup
 
         # Load draft mode background
         self.draft_bg = None
@@ -177,6 +182,9 @@ class DraftModeUI:
         Returns:
             List of clickable rects for each leader
         """
+        # Cache leaders for voice playback on hover
+        self.leader_choices_cache = leaders
+        
         # Use background image if available, otherwise fill with color
         if self.draft_bg:
             surface.blit(self.draft_bg, (0, 0))
@@ -304,6 +312,9 @@ class DraftModeUI:
         Returns:
             List of clickable rects for each choice
         """
+        # Clear leader cache when not in leader selection (stops voice on hover)
+        self.leader_choices_cache = []
+        
         # Use background image if available, otherwise fill with color
         if self.draft_bg:
             surface.blit(self.draft_bg, (0, 0))
@@ -779,11 +790,36 @@ class DraftModeUI:
             pos: Mouse (x, y) position
             clickable_rects: List of clickable rectangles
         """
+        old_hovered = self.hovered_index
         self.hovered_index = None
         for i, rect in enumerate(clickable_rects):
             if rect.collidepoint(pos):
                 self.hovered_index = i
                 break
+        
+        # Play leader voice when hovering over a new leader
+        if self.hovered_index != old_hovered and self.leader_choices_cache:
+            if self.hovered_index is not None and self.hovered_index < len(self.leader_choices_cache):
+                leader = self.leader_choices_cache[self.hovered_index]
+                leader_id = leader.get('card_id', '')
+                if leader_id and leader_id != self.last_hovered_leader_id:
+                    sound_manager = get_sound_manager()
+                    sound_manager.stop_leader_voice()  # Stop any playing voice
+                    sound_manager.play_leader_voice(leader_id)
+                    self.last_hovered_leader_id = leader_id
+            else:
+                # Moved off all leaders - stop voice
+                self.last_hovered_leader_id = None
+
+    def set_leader_choices(self, leaders: List[Dict]):
+        """
+        Cache leader choices for voice playback lookup.
+        
+        Args:
+            leaders: List of leader dictionaries with 'card_id' keys
+        """
+        self.leader_choices_cache = leaders
+        self.last_hovered_leader_id = None
 
     def handle_click(self, pos: Tuple[int, int], clickable_rects: List[pygame.Rect]) -> Optional[int]:
         """

@@ -258,6 +258,86 @@ class SoundEffectManager:
             print(f"[audio] Failed to play iris sound: {exc}")
         return False
 
+    def get_leader_voice_sound(self, leader_id):
+        """
+        Get or load a leader voice snippet by leader card ID.
+        Looks for assets/audio/leader_voices/<leader_id>.ogg
+
+        Args:
+            leader_id: The leader's card ID (e.g., 'tauri_oneill', 'jaffa_tealc')
+
+        Returns:
+            pygame.mixer.Sound object or None if not found/loadable
+        """
+        cache_key = f"leader_voice_{leader_id}"
+        if cache_key in self.loaded_sounds:
+            return self.loaded_sounds[cache_key]
+
+        # Try leader_voices subfolder first, then commander_snippets as fallback
+        voice_paths = [
+            os.path.join(self.ROW_SOUNDS_PATH, "leader_voices", f"{leader_id}.ogg"),
+            os.path.join(self.COMMANDER_SNIPPETS_PATH, f"{leader_id}.ogg"),
+        ]
+
+        for sound_path in voice_paths:
+            if os.path.exists(sound_path):
+                try:
+                    sound = pygame.mixer.Sound(sound_path)
+                    self.loaded_sounds[cache_key] = sound
+                    return sound
+                except pygame.error as exc:
+                    print(f"[audio] Failed to load leader voice {leader_id}: {exc}")
+                    return None
+
+        # Silent fail - voice file not yet created
+        return None
+
+    def play_leader_voice(self, leader_id, volume=0.8):
+        """
+        Play a leader voice snippet when hovering/selecting in draft mode.
+
+        Args:
+            leader_id: The leader's card ID (e.g., 'tauri_oneill')
+            volume: Volume level from 0.0 to 1.0
+
+        Returns:
+            True if sound was played, False otherwise
+        """
+        sound = self.get_leader_voice_sound(leader_id)
+        if sound:
+            try:
+                # Stop any currently playing leader voice to avoid overlap
+                sound.stop()
+                sound.set_volume(self._get_effective_sfx_volume(volume))
+                sound.play()
+                return True
+            except pygame.error as exc:
+                print(f"[audio] Failed to play leader voice {leader_id}: {exc}")
+        return False
+
+    def stop_leader_voice(self, leader_id=None):
+        """
+        Stop a specific leader voice or all leader voices.
+
+        Args:
+            leader_id: Specific leader to stop, or None to stop all
+        """
+        if leader_id:
+            cache_key = f"leader_voice_{leader_id}"
+            if cache_key in self.loaded_sounds:
+                try:
+                    self.loaded_sounds[cache_key].stop()
+                except pygame.error:
+                    pass
+        else:
+            # Stop all leader voices
+            for key, sound in self.loaded_sounds.items():
+                if key.startswith("leader_voice_"):
+                    try:
+                        sound.stop()
+                    except pygame.error:
+                        pass
+
     def preload_all_commander_sounds(self):
         """
         Preload all commander snippets to avoid lag during gameplay.
