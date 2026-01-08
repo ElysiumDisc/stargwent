@@ -1098,6 +1098,9 @@ class Game:
             if "Legendary Commander" in (card.ability or ""):
                 # Legendary commanders get their unique voice snippet
                 sound_manager.play_commander_snippet(card.id, volume=0.7)
+            elif card.id == "goauld_symbiote":
+                # Symbiote has its own sound effect triggered in add_special_card_effect
+                pass
             elif row_name in ('close', 'ranged', 'siege'):
                 # Regular unit cards get row-type sound
                 sound_manager.play_row_sound(row_name, volume=0.5)

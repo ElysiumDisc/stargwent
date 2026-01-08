@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.0.0-blue)
+![Version](https://img.shields.io/badge/version-4.0.1-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.0.1: GOA'ULD SYMBIOTE ANIMATION & LAN REMATCH** - The Goa'uld Symbiote card now features a creepy larva animation that leaps toward opponent cards seeking a host! LAN chat now shows message timestamps. After LAN games, players can choose to Play Again (new faction/leader) or Disconnect!
 - **⚡ NEW v4.0.0: DRAFT MODE GAUNTLET & UNIFIED VISUALS** - Expanded Draft Mode into an 8-win roguelike gauntlet with redraft milestones (3 Wins: Cards, 5 Wins: Leader)! Standardized faction colors across all menus: Lucian Alliance is now Pink, Asgard is bright Cyan. Removed legacy XP system for a cleaner progression loop!
 - **⚡ NEW v3.9.4: UNLOCKABLE CARD VERIFICATION & FIXES** - Complete logic audit of all 20 unlockable cards! Fixed ZPM Power doubling (now preserves bonuses), Puddle Jumper Ring Transport for unit cards, and Replicator Swarm description. All abilities verified with correct animations!
 - **⚡ NEW v3.9.2: WITCHER-STYLE DECK BUILDER UI** - Complete visual overhaul featuring bottom accordion card preview (2x size), right-side vertical deck list, holographic stats panel, and smooth drag-and-drop interactions!
@@ -180,6 +181,21 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.0.1 (January 2026)
+**Goa'uld Symbiote Animation & LAN Improvements**
+
+- ✅ **Goa'uld Symbiote Animation** – When played, the Goa'uld Symbiote card triggers a creepy larva animation:
+  - Snake-like symbiote with 18 body segments that coil, leap, and seek a host
+  - Three animation phases: Coil (prepare), Leap (arc through air), Land (wrap around target)
+  - Glowing red eyes, fangs visible during attack, greenish slime trail
+  - "SEEKING HOST..." text floats during the leap phase
+- ✅ **LAN Chat Timestamps** – All chat messages now display `[HH:MM]` timestamps in a dim gray color for better conversation tracking
+- ✅ **LAN Rematch System** – After a LAN game ends, players can:
+  - Press **P** to **Play Again** – Stay connected and choose new faction/leader
+  - Press **ESC** to **Disconnect** – Close the connection and return to menu
+  - Both players must confirm rematch before proceeding to deck selection
+  - Ready status shown for both players in the rematch lobby
 
 ### Version 4.0.0 (January 2026)
 **Draft Mode Gauntlet & Unified Faction Visuals**

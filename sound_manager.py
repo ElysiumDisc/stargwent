@@ -338,6 +338,28 @@ class SoundEffectManager:
                     except pygame.error:
                         pass
 
+    def play_symbiote_sound(self, volume=0.8):
+        """
+        Play Goa'uld symbiote seeking host sound.
+        Looks for assets/audio/symbiote.ogg
+
+        Args:
+            volume: Volume level from 0.0 to 1.0
+
+        Returns:
+            True if sound was played, False otherwise
+        """
+        sound = self._load_generic_sound("symbiote", "symbiote.ogg")
+        if not sound:
+            return False
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play symbiote sound: {exc}")
+            return False
+
     def preload_all_commander_sounds(self):
         """
         Preload all commander snippets to avoid lag during gameplay.

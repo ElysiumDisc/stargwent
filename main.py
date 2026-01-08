@@ -64,6 +64,7 @@ from animations import (
     MerlinAntiOriEffect,
     DakaraShockwaveEffect,
     ReplicatorCrawlEffect,
+    GoauldSymbioteAnimation,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -580,6 +581,7 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
     """Trigger unique animations for special cards matching lore/logic."""
     name_lower = (card.name or "").lower()
     ability_lower = (card.ability or "").lower()
+    card_id = getattr(card, 'card_id', '') or ''
 
     if "thor" in name_lower or "remove all goa'uld" in ability_lower:
         anim_manager.add_effect(ThorsHammerPurgeEffect(effect_x, effect_y, screen_width, screen_height))
@@ -601,6 +603,17 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         return True
     if "replicator swarm" in name_lower:
         anim_manager.add_effect(ReplicatorCrawlEffect(screen_width, screen_height))
+        return True
+    # Goa'uld Symbiote - larva seeking host animation
+    if card_id == "goauld_symbiote" or "symbiote" in name_lower:
+        # Target a random point in opponent's board area (top third of screen)
+        import random
+        target_x = random.randint(screen_width // 4, screen_width * 3 // 4)
+        target_y = random.randint(screen_height // 6, screen_height // 3)
+        anim_manager.add_effect(GoauldSymbioteAnimation(effect_x, effect_y, target_x, target_y))
+        # Play symbiote sound effect
+        from sound_manager import get_sound_manager
+        get_sound_manager().play_symbiote_sound()
         return True
     return False
 
@@ -3776,14 +3789,24 @@ def main(lan_game_data=None):
                 show_round_winner_announcement(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             # Step 3: Hyperspace transition with persistent stars and radial blur
+            # Check if player lost both rounds (0-2 deficit going into round 3)
+            player_lost_both = (game.player1.rounds_won == 0 and game.player2.rounds_won == 2)
+            
             if game.round_number == 2:
                 transition_text = "ENTERING HYPERSPACE..."
+                create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
             elif game.round_number == 3:
-                transition_text = "EMERGING NEAR PLANET..."
+                if player_lost_both:
+                    # Player is about to lose - show black hole defeat transition
+                    from animations import create_black_hole_defeat_transition
+                    create_black_hole_defeat_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT)
+                else:
+                    # Normal round 3 - emerging near planet
+                    transition_text = "EMERGING NEAR PLANET..."
+                    create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
             else:
                 transition_text = f"ROUND {game.round_number}"
-            
-            create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
+                create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
             
             ambient_effects.end_round()
             ambient_effects.start_round(round_number=game.round_number)
@@ -4039,11 +4062,26 @@ def main(lan_game_data=None):
                 
                 # Game over screen - R to restart
                 if game.game_state == "game_over":
-                    if event.key == pygame.K_r:
+                    if event.key == pygame.K_r and not LAN_MODE:
                         stop_battle_music()
                         main()
                         return
+                    elif event.key == pygame.K_p and LAN_MODE:
+                        # Play again in LAN mode - go back to deck selection while staying connected
+                        if network_proxy and network_proxy.session.is_connected():
+                            # Send play again message to peer
+                            network_proxy.session.send("play_again", {"request": True})
+                            stop_battle_music()
+                            # Return to LAN menu with existing session for rematch
+                            from lan_menu import run_lan_rematch
+                            result = run_lan_rematch(screen, network_proxy.session, network_proxy.role)
+                            if result:
+                                # Restart game with new decks
+                                main()
+                            return
                     elif event.key == pygame.K_ESCAPE:
+                        if LAN_MODE and network_proxy:
+                            network_proxy.session.close()
                         running = False
                     elif event.key == pygame.K_RETURN and getattr(game, 'draft_victory', False):
                         # Launch space shooter easter egg with ship selection!
@@ -5476,9 +5514,14 @@ def main(lan_game_data=None):
                 screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 70))
                 y_offset += 100
             
-            restart_text = UI_FONT.render("Press R to restart or ESC to quit", True, WHITE)
-            screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
-            screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
+            # Show different options for LAN mode vs solo play
+            if LAN_MODE:
+                # LAN mode: offer Play Again or Disconnect
+                play_again_text = UI_FONT.render("Press P to PLAY AGAIN (new faction/leader) or ESC to DISCONNECT", True, (100, 200, 255))
+                screen.blit(play_again_text, (SCREEN_WIDTH // 2 - play_again_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
+            else:
+                restart_text = UI_FONT.render("Press R to restart or ESC to quit", True, WHITE)
+                screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
             history_panel_rect = None
         else:
             draw_board(screen, game, selected_card, dragging_card=dragging_card,

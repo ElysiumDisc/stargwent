@@ -3132,6 +3132,419 @@ class ClearWeatherBlackHole(HeroEntryAnimation):
         return not self.finished
 
 
+def create_black_hole_defeat_transition(screen, screen_width, screen_height, duration=4000):
+    """
+    Full-screen black hole transition for when player is about to lose (0-2 deficit).
+    Shows a menacing black hole consuming the screen with ominous text.
+    """
+    clock = pygame.time.Clock()
+    start_time = pygame.time.get_ticks()
+    center_x = screen_width // 2
+    center_y = screen_height // 2
+    
+    # Create debris particles being sucked into black hole
+    debris = []
+    for _ in range(150):
+        angle = random.uniform(0, 360)
+        distance = random.uniform(300, max(screen_width, screen_height))
+        debris.append({
+            'angle': angle,
+            'distance': distance,
+            'size': random.randint(2, 8),
+            'color': random.choice([
+                (255, 100, 50),   # Orange/fire
+                (200, 80, 40),    # Dark orange
+                (150, 60, 30),    # Brown
+                (100, 100, 120),  # Grey debris
+                (80, 80, 100),    # Dark grey
+            ]),
+            'rotation_speed': random.uniform(1.5, 4.0),
+            'pull_speed': random.uniform(0.5, 2.0),
+            'alpha': 255
+        })
+    
+    # Accretion disk particles (glowing ring around black hole)
+    accretion = []
+    for i in range(60):
+        angle = i * 6
+        accretion.append({
+            'angle': angle,
+            'base_distance': random.uniform(80, 150),
+            'size': random.randint(3, 7),
+            'color': (255, 150 + random.randint(-50, 50), 50),
+            'speed': random.uniform(3, 6)
+        })
+    
+    # Stars being stretched (spaghettification effect)
+    stretched_stars = []
+    for _ in range(30):
+        stretched_stars.append({
+            'x': random.randint(0, screen_width),
+            'y': random.randint(0, screen_height),
+            'length': random.randint(20, 100),
+            'alpha': random.randint(100, 200)
+        })
+    
+    while pygame.time.get_ticks() - start_time < duration:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
+                    return
+        
+        elapsed = pygame.time.get_ticks() - start_time
+        progress = elapsed / duration
+        dt = clock.tick(60)
+        
+        # Fill with deep space black
+        screen.fill((0, 0, 5))
+        
+        # Draw stretched stars (spaghettification toward center)
+        for star in stretched_stars:
+            dx = center_x - star['x']
+            dy = center_y - star['y']
+            dist = math.sqrt(dx*dx + dy*dy)
+            if dist > 0:
+                # Calculate stretch direction toward black hole
+                stretch_x = dx / dist
+                stretch_y = dy / dist
+                
+                # Stretch increases as we get closer to black hole and as time progresses
+                stretch_factor = star['length'] * (1 + progress * 3) * (1 - min(dist / 800, 1))
+                
+                end_x = star['x'] + stretch_x * stretch_factor
+                end_y = star['y'] + stretch_y * stretch_factor
+                
+                alpha = int(star['alpha'] * (1 - progress * 0.5))
+                if alpha > 0:
+                    line_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+                    pygame.draw.line(line_surf, (255, 255, 255, alpha), 
+                                   (int(star['x']), int(star['y'])), 
+                                   (int(end_x), int(end_y)), 1)
+                    screen.blit(line_surf, (0, 0))
+        
+        # Update and draw debris being pulled in
+        for d in debris:
+            # Spiral inward
+            d['angle'] += d['rotation_speed'] * (dt / 16.0)
+            d['distance'] -= d['pull_speed'] * (1 + progress * 3) * (dt / 16.0)
+            
+            # Fade as it gets close
+            if d['distance'] < 100:
+                d['alpha'] = max(0, d['alpha'] - 5 * (dt / 16.0))
+            
+            if d['distance'] > 0 and d['alpha'] > 0:
+                rad = math.radians(d['angle'])
+                dx = center_x + math.cos(rad) * d['distance']
+                dy = center_y + math.sin(rad) * d['distance']
+                
+                # Draw debris with trail
+                trail_length = min(30, d['distance'] * 0.1)
+                trail_x = dx - math.cos(rad) * trail_length
+                trail_y = dy - math.sin(rad) * trail_length
+                
+                debris_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+                pygame.draw.line(debris_surf, (*d['color'], int(d['alpha'] * 0.5)), 
+                               (int(trail_x), int(trail_y)), (int(dx), int(dy)), max(1, d['size'] // 2))
+                pygame.draw.circle(debris_surf, (*d['color'], int(d['alpha'])), 
+                                 (int(dx), int(dy)), d['size'])
+                screen.blit(debris_surf, (0, 0))
+        
+        # Draw accretion disk (glowing ring)
+        accretion_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+        for a in accretion:
+            a['angle'] += a['speed'] * (dt / 16.0)
+            rad = math.radians(a['angle'])
+            
+            # Elliptical orbit for 3D effect
+            disk_x = center_x + math.cos(rad) * a['base_distance'] * 1.5
+            disk_y = center_y + math.sin(rad) * a['base_distance'] * 0.4
+            
+            # Glow intensity based on position (brighter in front)
+            glow = 150 + int(50 * math.sin(rad))
+            color = (255, glow, 50, 200)
+            
+            pygame.draw.circle(accretion_surf, color, (int(disk_x), int(disk_y)), a['size'])
+        screen.blit(accretion_surf, (0, 0))
+        
+        # Draw black hole center (grows over time)
+        hole_radius = int(30 + progress * 70)
+        
+        # Event horizon glow
+        for r in range(hole_radius + 40, hole_radius, -5):
+            glow_alpha = int(100 * (1 - (r - hole_radius) / 40))
+            glow_surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surf, (100, 50, 150, glow_alpha), (r, r), r)
+            screen.blit(glow_surf, (center_x - r, center_y - r))
+        
+        # Pure black center
+        pygame.draw.circle(screen, (0, 0, 0), (center_x, center_y), hole_radius)
+        
+        # Gravitational lensing ring (bright edge)
+        pygame.draw.circle(screen, (200, 100, 255), (center_x, center_y), hole_radius + 3, 2)
+        pygame.draw.circle(screen, (255, 200, 100), (center_x, center_y), hole_radius + 1, 1)
+        
+        # Ominous text
+        text_alpha = int(255 * min(1.0, progress * 2))
+        
+        title_font = pygame.font.SysFont("Arial", 64, bold=True)
+        sub_font = pygame.font.SysFont("Arial", 32)
+        
+        # Main text
+        title_text = "GRAVITATIONAL COLLAPSE"
+        title_surf = title_font.render(title_text, True, (255, 50, 50))
+        title_surf.set_alpha(text_alpha)
+        title_rect = title_surf.get_rect(center=(center_x, 80))
+        screen.blit(title_surf, title_rect)
+        
+        # Sub text (appears later)
+        if progress > 0.3:
+            sub_alpha = int(255 * min(1.0, (progress - 0.3) * 2))
+            sub_text = "Your forces are being consumed..."
+            sub_surf = sub_font.render(sub_text, True, (200, 150, 150))
+            sub_surf.set_alpha(sub_alpha)
+            sub_rect = sub_surf.get_rect(center=(center_x, screen_height - 100))
+            screen.blit(sub_surf, sub_rect)
+        
+        # Screen darkening at the end
+        if progress > 0.8:
+            dark_alpha = int(255 * (progress - 0.8) / 0.2)
+            dark_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+            dark_surf.fill((0, 0, 0, dark_alpha))
+            screen.blit(dark_surf, (0, 0))
+        
+        pygame.display.flip()
+    
+    # Final flash to black
+    screen.fill((0, 0, 0))
+    pygame.display.flip()
+
+
+class GoauldSymbioteAnimation(Animation):
+    """Goa'uld larva symbiote jumping animation - seeks a host on opponent's side."""
+    def __init__(self, start_x, start_y, target_x, target_y, duration=1400):
+        super().__init__(duration)
+        self.start_x = start_x
+        self.start_y = start_y
+        self.target_x = target_x
+        self.target_y = target_y
+        self.current_x = start_x
+        self.current_y = start_y
+        
+        # Symbiote body segments (snake-like) - longer body
+        self.segments = []
+        self.num_segments = 18  # More segments for longer body
+        for i in range(self.num_segments):
+            self.segments.append({
+                'x': start_x,
+                'y': start_y,
+                'size': max(3, 10 - i * 0.35),  # Larger head, tapers toward tail
+                'delay': i * 0.025  # Tighter trail delay
+            })
+        
+        # Slime trail particles
+        self.slime_trail = []
+        
+        # Animation phases: coil (0-20%), leap (20-70%), land (70-100%)
+        self.phase = "coil"
+        self.coil_offset = 0
+        self.wiggle_phase = 0
+        
+        # Symbiote colors (sickly yellowish-tan Goa'uld larva)
+        self.body_color = (180, 160, 100)  # Pale tan
+        self.highlight_color = (220, 200, 140)  # Lighter highlights
+        self.eye_color = (255, 80, 80)  # Glowing red eyes
+    
+    def update(self, dt):
+        active = super().update(dt)
+        progress = self.get_progress()
+        self.wiggle_phase += 0.25 * (dt / 16.0)
+        
+        # Phase transitions
+        if progress < 0.2:
+            self.phase = "coil"
+        elif progress < 0.7:
+            self.phase = "leap"
+        else:
+            self.phase = "land"
+        
+        # Calculate head position based on phase
+        if self.phase == "coil":
+            # Coiling up, preparing to jump
+            coil_progress = progress / 0.2
+            self.coil_offset = math.sin(coil_progress * math.pi * 3) * 15
+            self.current_x = self.start_x + self.coil_offset
+            self.current_y = self.start_y - coil_progress * 20  # Rises slightly
+            
+        elif self.phase == "leap":
+            # Leaping through the air in an arc
+            leap_progress = (progress - 0.2) / 0.5
+            eased = self.ease_out_cubic(leap_progress)
+            
+            # Parabolic arc (high jump)
+            arc_height = -180 * math.sin(leap_progress * math.pi)
+            
+            self.current_x = self.start_x + (self.target_x - self.start_x) * eased
+            self.current_y = self.start_y + (self.target_y - self.start_y) * eased + arc_height
+            
+            # Add wiggle during flight
+            wiggle = math.sin(self.wiggle_phase * 8) * 8
+            self.current_x += wiggle
+            
+        else:  # land
+            # Landing and wrapping around target
+            land_progress = (progress - 0.7) / 0.3
+            self.current_x = self.target_x + math.sin(land_progress * math.pi * 2) * 10 * (1 - land_progress)
+            self.current_y = self.target_y + math.cos(land_progress * math.pi) * 5
+        
+        # Update body segments (follow the head with delay)
+        for i, seg in enumerate(self.segments):
+            delay = seg['delay']
+            delayed_progress = max(0, progress - delay)
+            
+            if delayed_progress < 0.2:
+                # Still at start
+                seg['x'] = self.start_x + math.sin(self.wiggle_phase + i * 0.5) * 5
+                seg['y'] = self.start_y + i * 2
+            elif delayed_progress < 0.7:
+                # Following head through arc
+                t = (delayed_progress - 0.2) / 0.5
+                eased_t = self.ease_out_cubic(t)
+                arc = -180 * math.sin(t * math.pi)
+                seg['x'] = self.start_x + (self.target_x - self.start_x) * eased_t
+                seg['y'] = self.start_y + (self.target_y - self.start_y) * eased_t + arc
+                # Wiggle
+                seg['x'] += math.sin(self.wiggle_phase * 8 + i * 0.8) * (8 - i * 0.5)
+            else:
+                # At target
+                wrap_angle = (self.wiggle_phase * 2 + i * 0.6) * (1 - (delayed_progress - 0.7) / 0.3)
+                radius = 15 + i * 2
+                seg['x'] = self.target_x + math.cos(wrap_angle) * radius * (1 - (delayed_progress - 0.7) / 0.3 * 0.5)
+                seg['y'] = self.target_y + math.sin(wrap_angle) * radius * 0.5
+        
+        # Add slime trail particles during leap
+        if self.phase == "leap" and random.random() < 0.4:
+            self.slime_trail.append({
+                'x': self.current_x + random.uniform(-5, 5),
+                'y': self.current_y + random.uniform(-3, 3),
+                'size': random.randint(2, 5),
+                'alpha': 180,
+                'life': 1.0
+            })
+        
+        # Limit slime trail
+        if len(self.slime_trail) > 40:
+            self.slime_trail = self.slime_trail[-40:]
+        
+        # Fade slime trail
+        for slime in self.slime_trail[:]:
+            slime['life'] -= dt / 800.0
+            slime['alpha'] = int(180 * slime['life'])
+            if slime['life'] <= 0:
+                self.slime_trail.remove(slime)
+        
+        return active
+    
+    def ease_out_cubic(self, t):
+        return 1 - pow(1 - t, 3)
+    
+    def draw(self, surface):
+        if self.finished:
+            return
+        
+        progress = self.get_progress()
+        
+        # Draw slime trail first (behind symbiote)
+        for slime in self.slime_trail:
+            if slime['alpha'] > 0:
+                slime_surf = pygame.Surface((slime['size'] * 2, slime['size'] * 2), pygame.SRCALPHA)
+                slime_color = (120, 140, 80, slime['alpha'])  # Greenish slime
+                pygame.draw.circle(slime_surf, slime_color, (slime['size'], slime['size']), slime['size'])
+                surface.blit(slime_surf, (int(slime['x'] - slime['size']), int(slime['y'] - slime['size'])))
+        
+        # Draw body segments (tail to head)
+        for i in range(len(self.segments) - 1, -1, -1):
+            seg = self.segments[i]
+            size = int(seg['size'])
+            
+            # Segment surface with glow
+            seg_size = size * 3
+            seg_surf = pygame.Surface((seg_size, seg_size), pygame.SRCALPHA)
+            
+            # Outer glow
+            glow_alpha = 60 if self.phase == "leap" else 30
+            pygame.draw.circle(seg_surf, (*self.body_color, glow_alpha), (seg_size // 2, seg_size // 2), size + 2)
+            
+            # Main body segment
+            pygame.draw.circle(seg_surf, self.body_color, (seg_size // 2, seg_size // 2), size)
+            
+            # Highlight on top
+            highlight_offset = -size // 3
+            pygame.draw.circle(seg_surf, self.highlight_color, (seg_size // 2 + highlight_offset, seg_size // 2 + highlight_offset), max(1, size // 2))
+            
+            surface.blit(seg_surf, (int(seg['x'] - seg_size // 2), int(seg['y'] - seg_size // 2)))
+        
+        # Draw head (larger, with eyes)
+        head_size = 12
+        head_surf = pygame.Surface((head_size * 4, head_size * 4), pygame.SRCALPHA)
+        center = head_size * 2
+        
+        # Head glow (menacing)
+        if self.phase == "leap":
+            pygame.draw.circle(head_surf, (200, 180, 100, 80), (center, center), head_size + 4)
+        
+        # Head body
+        pygame.draw.ellipse(head_surf, self.body_color, (center - head_size, center - head_size // 2, head_size * 2, head_size))
+        
+        # Eyes (glowing red, menacing)
+        eye_offset_x = 4
+        eye_offset_y = -2
+        eye_size = 3
+        
+        # Eye glow
+        pygame.draw.circle(head_surf, (255, 100, 100, 150), (center - eye_offset_x, center + eye_offset_y), eye_size + 2)
+        pygame.draw.circle(head_surf, (255, 100, 100, 150), (center + eye_offset_x, center + eye_offset_y), eye_size + 2)
+        
+        # Eye cores
+        pygame.draw.circle(head_surf, self.eye_color, (center - eye_offset_x, center + eye_offset_y), eye_size)
+        pygame.draw.circle(head_surf, self.eye_color, (center + eye_offset_x, center + eye_offset_y), eye_size)
+        
+        # Eye pupils (tiny black dots)
+        pygame.draw.circle(head_surf, (0, 0, 0), (center - eye_offset_x, center + eye_offset_y), 1)
+        pygame.draw.circle(head_surf, (0, 0, 0), (center + eye_offset_x, center + eye_offset_y), 1)
+        
+        # Mandibles/fangs when attacking
+        if self.phase == "leap" or (self.phase == "land" and progress < 0.85):
+            fang_color = (220, 200, 160)
+            # Left fang
+            pygame.draw.line(head_surf, fang_color, (center - 6, center + 4), (center - 8, center + 10), 2)
+            # Right fang
+            pygame.draw.line(head_surf, fang_color, (center + 6, center + 4), (center + 8, center + 10), 2)
+        
+        surface.blit(head_surf, (int(self.current_x - center), int(self.current_y - center)))
+        
+        # Draw "SEEKING HOST" text during leap
+        if self.phase == "leap":
+            text_alpha = int(200 * math.sin(progress * math.pi))
+            if text_alpha > 20:
+                font = pygame.font.Font(None, 32)
+                text = font.render("SEEKING HOST...", True, (200, 180, 100))
+                text.set_alpha(text_alpha)
+                text_rect = text.get_rect(center=(self.current_x, self.current_y - 50))
+                surface.blit(text, text_rect)
+        
+        # Draw impact burst when landing
+        if self.phase == "land" and progress < 0.8:
+            land_progress = (progress - 0.7) / 0.1
+            if land_progress < 1.0:
+                burst_radius = int(20 + land_progress * 30)
+                burst_alpha = int((1 - land_progress) * 150)
+                burst_surf = pygame.Surface((burst_radius * 2, burst_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(burst_surf, (200, 180, 100, burst_alpha), (burst_radius, burst_radius), burst_radius, width=3)
+                surface.blit(burst_surf, (int(self.target_x - burst_radius), int(self.target_y - burst_radius)))
+
+
 # === Special Card Effects ===
 
 class ThorsHammerPurgeEffect(Animation):

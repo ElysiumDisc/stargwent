@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 13,
+  "total_games": 14,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -175,13 +175,43 @@
       "plays": 1,
       "wins": 0,
       "id": "goauld_unscheduled_jaffa_1"
+    },
+    "Serpent Guard Elite": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_serpent_guard_3"
+    },
+    "Anubis Guard": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_anubis_guard_2"
+    },
+    "Osiris Guard": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_osiris_guard_2"
+    },
+    "Goa'uld Scout": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_scout"
+    },
+    "Death Glider Swarm": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_glider_swarm_2"
+    },
+    "Goa'uld Symbiote": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_symbiote"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 13,
+  "ai_games": 14,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -199,7 +229,7 @@
       "wins": 1
     },
     "Apophis": {
-      "games": 2,
+      "games": 3,
       "wins": 0
     }
   },
@@ -226,6 +256,10 @@
       "Asgard": {
         "games": 2,
         "wins": 0
+      },
+      "Tau'ri": {
+        "games": 1,
+        "wins": 0
       }
     }
   },
@@ -235,15 +269,15 @@
     "L",
     "L",
     "L",
-    "L",
     "W",
+    "L",
     "L",
     "L",
     "L"
   ],
   "turn_stats": {
-    "total": 263,
-    "games": 8,
+    "total": 298,
+    "games": 9,
     "min": 9,
     "max": 70,
     "history": [
@@ -254,12 +288,13 @@
       70,
       47,
       28,
-      9
+      9,
+      35
     ]
   },
   "mulligans": {
-    "total": 31,
-    "games": 8
+    "total": 36,
+    "games": 9
   },
   "ability_usage": {
     "medic": 2,
@@ -270,15 +305,15 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 7,
+    "sweeps_against": 8,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 8,
+    "first_turn_games": 9,
     "first_turn_wins": 1
   },
   "draft_stats": {
-    "runs_started": 17,
+    "runs_started": 19,
     "runs_completed": 1,
     "battles_won": 0,
     "battles_lost": 1,
@@ -315,13 +350,9 @@
   "active_draft_run": {
     "wins": 0,
     "losses": 0,
-    "phase": "draft",
-    "current_pick": 3,
-    "leader_id": "goauld_cronus",
-    "card_ids": [
-      "tauri_tokra_op_1",
-      "jaffa_staff_team_1",
-      "replicator_swarm_1"
-    ]
+    "phase": "leader_select",
+    "current_pick": 0,
+    "leader_id": null,
+    "card_ids": []
   }
 }

@@ -404,3 +404,136 @@ def run_lan_menu(screen):
     if session:
         session.close()
     return None
+
+
+def run_lan_rematch(screen, session, role):
+    """
+    Handle rematch flow after a LAN game ends.
+    Both players stay connected and can choose new factions/leaders.
+    Returns dict with session info if both ready, None to exit.
+    """
+    clock = pygame.time.Clock()
+    screen_w, screen_h = screen.get_size()
+    center_x = screen_w // 2
+    
+    status_lines = ["Game Over - Rematch?", "Waiting for opponent's decision..."]
+    peer_ready = False
+    local_ready = False
+    
+    # Button definitions
+    button_width = 350
+    button_height = 60
+    button_x = center_x - button_width // 2
+    
+    rematch_btn = pygame.Rect(button_x, 300, button_width, button_height)
+    disconnect_btn = pygame.Rect(button_x, 400, button_width, button_height)
+    
+    def add_status(msg):
+        status_lines.append(msg)
+        while len(status_lines) > 6:
+            status_lines.pop(0)
+    
+    running = True
+    while running:
+        # Draw gradient background
+        for y in range(screen_h):
+            ratio = y / screen_h
+            r = int(15 + ratio * 20)
+            g = int(20 + ratio * 25)
+            b = int(40 + ratio * 50)
+            pygame.draw.line(screen, (r, g, b), (0, y), (screen_w, y))
+        
+        mx, my = pygame.mouse.get_pos()
+        
+        # Check for peer messages
+        if session and session.is_connected():
+            msg = session.receive()
+            if msg:
+                mtype = msg.get("type")
+                payload = msg.get("payload", {})
+                
+                if mtype == "play_again":
+                    if payload.get("request"):
+                        add_status("Opponent wants to play again!")
+                        peer_ready = True
+                    elif payload.get("decline"):
+                        add_status("Opponent declined rematch.")
+                        running = False
+                        session.close()
+                        return None
+                elif mtype == "disconnect":
+                    add_status("Opponent disconnected.")
+                    running = False
+                    return None
+        else:
+            add_status("Connection lost!")
+            running = False
+            return None
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                if session:
+                    session.send("play_again", {"decline": True})
+                    session.close()
+                running = False
+                return None
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    if session:
+                        session.send("play_again", {"decline": True})
+                        session.close()
+                    running = False
+                    return None
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if rematch_btn.collidepoint(mx, my):
+                    local_ready = True
+                    session.send("play_again", {"request": True})
+                    add_status("You are ready for rematch!")
+                elif disconnect_btn.collidepoint(mx, my):
+                    session.send("play_again", {"decline": True})
+                    session.close()
+                    running = False
+                    return None
+        
+        # Check if both players ready
+        if local_ready and peer_ready:
+            add_status("Both players ready! Starting new match...")
+            pygame.time.wait(500)  # Brief pause
+            return {"session": session, "role": role}
+        
+        # Draw UI
+        draw_text(screen, "REMATCH?", 100, (255, 215, 0), 48, center_x)
+        draw_text(screen, "Stay connected and play again with new decks", 160, (150, 150, 180), 20, center_x)
+        
+        # Status box
+        status_box = pygame.Rect(center_x - 300, 200, 600, 80)
+        pygame.draw.rect(screen, (30, 40, 50), status_box, border_radius=8)
+        pygame.draw.rect(screen, (80, 120, 160), status_box, 2, border_radius=8)
+        
+        # Show ready status
+        local_status = "✓ You: READY" if local_ready else "○ You: Waiting..."
+        peer_status = "✓ Opponent: READY" if peer_ready else "○ Opponent: Waiting..."
+        local_color = (100, 255, 100) if local_ready else (150, 150, 150)
+        peer_color = (100, 255, 100) if peer_ready else (150, 150, 150)
+        
+        draw_text(screen, local_status, 215, local_color, 20, center_x - 120)
+        draw_text(screen, peer_status, 245, peer_color, 20, center_x - 120)
+        
+        # Rematch button
+        rematch_hover = rematch_btn.collidepoint(mx, my)
+        if local_ready:
+            draw_button(screen, rematch_btn, "✓ READY!", 32, False, (60, 120, 60), (60, 120, 60))
+        else:
+            draw_button(screen, rematch_btn, "PLAY AGAIN", 32, rematch_hover, (40, 120, 80), (60, 160, 100))
+        
+        # Disconnect button
+        disconnect_hover = disconnect_btn.collidepoint(mx, my)
+        draw_button(screen, disconnect_btn, "DISCONNECT", 32, disconnect_hover, (120, 60, 60), (160, 80, 80))
+        
+        # Instructions
+        draw_text(screen, "Press ESC to disconnect", screen_h - 60, (120, 120, 140), 16, center_x)
+        
+        pygame.display.flip()
+        clock.tick(60)
+    
+    return None

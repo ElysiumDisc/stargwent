@@ -1,4 +1,5 @@
 import pygame
+from datetime import datetime
 from typing import List, Optional
 from lan_session import LanSession
 from lan_protocol import LanMessageType, build_chat_message, parse_message
@@ -13,7 +14,8 @@ class LanChatPanel:
         self.max_lines = max_lines
         self.chat_log: List[dict] = []
         self.input_text = ""
-        self.font = pygame.font.SysFont("Consolas", 24)
+        self.font = pygame.font.SysFont("Consolas", 22)
+        self.timestamp_font = pygame.font.SysFont("Consolas", 16)
         self.title_font = pygame.font.SysFont("Arial", 28)
         self.font_small = pygame.font.SysFont("Arial", 14, bold=True)
         self.active = True
@@ -24,6 +26,10 @@ class LanChatPanel:
         self.local_is_typing = False
         self.last_local_input_time = 0
         self.typing_timeout = 2000  # Send "stopped typing" after 2s of inactivity
+
+    def _get_timestamp(self):
+        """Get current time as HH:MM format."""
+        return datetime.now().strftime("%H:%M")
 
     def add_message(self, prefix: str, text: str, color: Optional[tuple] = None):
         if color is None:
@@ -39,8 +45,13 @@ class LanChatPanel:
         if self.on_message:
             self.on_message(prefix, text, color)
         
-        # Keep local log as backup/fallback
-        self.chat_log.append({"text": f"{prefix}: {text}", "color": color})
+        # Keep local log with timestamp
+        timestamp = self._get_timestamp()
+        self.chat_log.append({
+            "text": f"{prefix}: {text}",
+            "color": color,
+            "timestamp": timestamp
+        })
         if len(self.chat_log) > self.max_lines:
             self.chat_log.pop(0)
 
@@ -153,13 +164,25 @@ class LanChatPanel:
             if isinstance(entry, str):
                 text = entry
                 color = (220, 220, 220)
+                timestamp = ""
             else:
                 text = entry["text"]
                 color = entry["color"]
+                timestamp = entry.get("timestamp", "")
             
+            # Draw timestamp in dim color first
+            if timestamp:
+                ts_color = (100, 100, 120)  # Dim gray for timestamp
+                ts_surf = self.timestamp_font.render(f"[{timestamp}]", True, ts_color)
+                surface.blit(ts_surf, (rect.x + 8, y + 2))
+                text_x = rect.x + 55  # Offset for message after timestamp
+            else:
+                text_x = rect.x + 10
+            
+            # Draw message text
             surf = self.font.render(text, True, color)
-            surface.blit(surf, (rect.x + 10, y))
-            y += 24
+            surface.blit(surf, (text_x, y))
+            y += 26
         
         input_rect = pygame.Rect(rect.x, rect.bottom + 10, rect.width, 40)
         
