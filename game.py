@@ -2406,12 +2406,7 @@ class Game:
                             icon="X"
                         )
 
-        self.round_number = min(self.round_number + 1, 3)
-        
-        # Reset turn counters for new round
-        self.cards_played_this_round = {self.player1: 0, self.player2: 0}
-
-        # Check for game over
+        # Check for game over BEFORE incrementing round number
         # If both players have 2+ wins, it's a draw (e.g. 1 win each + 1 draw, or 2 draws)
         if self.player1.rounds_won >= 2 and self.player2.rounds_won >= 2:
             self.game_state = "game_over"
@@ -2431,6 +2426,11 @@ class Game:
             self.game_state = "game_over"
             self.winner = self.player2
             return
+
+        self.round_number = min(self.round_number + 1, 3)
+        
+        # Reset turn counters for new round
+        self.cards_played_this_round = {self.player1: 0, self.player2: 0}
 
         # Move all board cards to discard pile
         for p in [self.player1, self.player2]:

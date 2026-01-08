@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 14,
+  "total_games": 16,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -202,16 +202,21 @@
       "id": "goauld_glider_swarm_2"
     },
     "Goa'uld Symbiote": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_symbiote"
+    },
+    "Sokar": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_sokar"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 14,
+  "ai_games": 16,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -229,7 +234,7 @@
       "wins": 1
     },
     "Apophis": {
-      "games": 3,
+      "games": 5,
       "wins": 0
     }
   },
@@ -254,10 +259,14 @@
     },
     "Goa'uld": {
       "Asgard": {
-        "games": 2,
+        "games": 3,
         "wins": 0
       },
       "Tau'ri": {
+        "games": 1,
+        "wins": 0
+      },
+      "Jaffa Rebellion": {
         "games": 1,
         "wins": 0
       }
@@ -267,17 +276,17 @@
     "L",
     "L",
     "L",
-    "L",
-    "L",
     "W",
+    "L",
+    "L",
     "L",
     "L",
     "L",
     "L"
   ],
   "turn_stats": {
-    "total": 298,
-    "games": 9,
+    "total": 326,
+    "games": 11,
     "min": 9,
     "max": 70,
     "history": [
@@ -289,12 +298,14 @@
       47,
       28,
       9,
-      35
+      35,
+      19,
+      9
     ]
   },
   "mulligans": {
-    "total": 36,
-    "games": 9
+    "total": 46,
+    "games": 11
   },
   "ability_usage": {
     "medic": 2,
@@ -305,15 +316,15 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 8,
+    "sweeps_against": 10,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 9,
+    "first_turn_games": 11,
     "first_turn_wins": 1
   },
   "draft_stats": {
-    "runs_started": 19,
+    "runs_started": 20,
     "runs_completed": 1,
     "battles_won": 0,
     "battles_lost": 1,
