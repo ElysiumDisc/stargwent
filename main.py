@@ -2820,10 +2820,15 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
     card_x = (screen_width - card_display_width) // 2
     card_y = max(40, (screen_height - card_display_height - 180) // 2)  # Room for description
     
-    # Draw card image (scaled up with smooth scaling for quality)
+    # Draw card image (load original for better quality)
     try:
-        # Use smoothscale for better quality at larger sizes
-        large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
+        # Load original image from file for crisp display
+        if hasattr(card, 'image_path') and os.path.exists(card.image_path):
+            original_image = pygame.image.load(card.image_path).convert_alpha()
+            large_card_image = pygame.transform.smoothscale(original_image, (card_display_width, card_display_height))
+        else:
+            # Fallback to scaled existing image
+            large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
         surface.blit(large_card_image, (card_x, card_y))
     except:
         pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
@@ -2858,6 +2863,10 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
     desc_box_padding = 15
     desc_box_width = card_display_width + 100  # Wider for more text
     desc_box_x = (screen_width - desc_box_width) // 2
+    
+    # Ensure valid dimensions (at least 1x1)
+    desc_box_width = max(1, desc_box_width)
+    desc_box_height = max(1, desc_box_height)
     
     # Create semi-transparent description box
     desc_surface = pygame.Surface((desc_box_width, desc_box_height), pygame.SRCALPHA)
