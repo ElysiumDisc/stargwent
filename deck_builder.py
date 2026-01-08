@@ -1778,9 +1778,13 @@ class DeckBuilderUI:
         card_x = (self.screen_width - card_display_width) // 2
         card_y = (self.screen_height - card_display_height) // 2 - 50
         
-        # Draw card image (scaled up)
+        # Draw card image (load original for quality)
         try:
-            large_card_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
+            if hasattr(card, 'image_path') and os.path.exists(card.image_path):
+                original_image = pygame.image.load(card.image_path).convert_alpha()
+                large_card_image = pygame.transform.smoothscale(original_image, (card_display_width, card_display_height))
+            else:
+                large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
             surface.blit(large_card_image, (card_x, card_y))
         except:
             pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
