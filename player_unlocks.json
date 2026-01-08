@@ -324,7 +324,7 @@
     "first_turn_wins": 1
   },
   "draft_stats": {
-    "runs_started": 20,
+    "runs_started": 23,
     "runs_completed": 1,
     "battles_won": 0,
     "battles_lost": 1,
@@ -361,9 +361,9 @@
   "active_draft_run": {
     "wins": 0,
     "losses": 0,
-    "phase": "leader_select",
+    "phase": "draft",
     "current_pick": 0,
-    "leader_id": null,
+    "leader_id": "lucian_baal_clone",
     "card_ids": []
   }
 }

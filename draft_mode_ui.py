@@ -235,7 +235,12 @@ class DraftModeUI:
                 # Fallback to card in ALL_CARDS if _leader.png doesn't exist
                 if leader_image is None and leader_card_id in ALL_CARDS:
                     leader_card = ALL_CARDS[leader_card_id]
-                    leader_image = pygame.transform.smoothscale(leader_card.image, (self.card_width, self.card_height))
+                    # Load original image for quality
+                    if hasattr(leader_card, 'image_path') and os.path.exists(leader_card.image_path):
+                        original_image = pygame.image.load(leader_card.image_path).convert_alpha()
+                        leader_image = pygame.transform.smoothscale(original_image, (self.card_width, self.card_height))
+                    else:
+                        leader_image = pygame.transform.smoothscale(leader_card.image, (self.card_width, self.card_height))
 
             if leader_image:
                 surface.blit(leader_image, (x, y))
@@ -360,10 +365,15 @@ class DraftModeUI:
             synergy = synergy_scores[i] if synergy_scores and i < len(synergy_scores) else None
             synergy_score = synergy['score'] if synergy else 0
 
-            # Display actual card image from assets
+            # Display actual card image from assets (load original for quality)
             if card.image:
-                # Scale card image to fit
-                card_image = pygame.transform.smoothscale(card.image, (self.card_width, int(self.card_height * 1.2)))
+                # Load original image for crisp display
+                if hasattr(card, 'image_path') and os.path.exists(card.image_path):
+                    original_image = pygame.image.load(card.image_path).convert_alpha()
+                    card_image = pygame.transform.smoothscale(original_image, (self.card_width, int(self.card_height * 1.2)))
+                else:
+                    # Fallback to scaled existing image
+                    card_image = pygame.transform.smoothscale(card.image, (self.card_width, int(self.card_height * 1.2)))
                 surface.blit(card_image, (x, y))
 
                 # Add border based on state - highlight synergy cards
@@ -513,7 +523,12 @@ class DraftModeUI:
 
             if leader_image is None and leader_card_id in ALL_CARDS:
                 leader_card = ALL_CARDS[leader_card_id]
-                leader_image = pygame.transform.smoothscale(leader_card.image, (leader_card_width, leader_card_height))
+                # Load original image for quality
+                if hasattr(leader_card, 'image_path') and os.path.exists(leader_card.image_path):
+                    original_image = pygame.image.load(leader_card.image_path).convert_alpha()
+                    leader_image = pygame.transform.smoothscale(original_image, (leader_card_width, leader_card_height))
+                else:
+                    leader_image = pygame.transform.smoothscale(leader_card.image, (leader_card_width, leader_card_height))
 
         if leader_image:
             image_x = left_panel_rect.centerx - leader_card_width // 2

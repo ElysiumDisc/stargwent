@@ -1710,9 +1710,13 @@ class DeckBuilderUI:
             pygame.draw.rect(shadow_surf, (0, 0, 0, 100), shadow_surf.get_rect(), border_radius=10)
             surface.blit(shadow_surf, (card_x - 5 + shadow_offset, draw_y + shadow_offset))
             
-            # Draw card image (scaled to 2x)
+            # Draw card image (load original for quality)
             try:
-                large_img = pygame.transform.smoothscale(card.image, (card_w, card_h))
+                if hasattr(card, 'image_path') and os.path.exists(card.image_path):
+                    original_image = pygame.image.load(card.image_path).convert_alpha()
+                    large_img = pygame.transform.smoothscale(original_image, (card_w, card_h))
+                else:
+                    large_img = pygame.transform.smoothscale(card.image, (card_w, card_h))
                 surface.blit(large_img, (card_x, draw_y))
             except:
                 pygame.draw.rect(surface, (60, 60, 70), pygame.Rect(card_x, draw_y, card_w, card_h), border_radius=8)
