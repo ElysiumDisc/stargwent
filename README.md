@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.2.0: MODERN DECK BUILDER ICONS** - Replaced text tabs with high-resolution circular icon buttons for card filtering. Added dedicated "Special" and "Neutral" tabs with distinct iconography. Refined visual polish with consistent icon scaling and selection glows.
 - **⚡ NEW v4.0.1: GOA'ULD SYMBIOTE ANIMATION & LAN REMATCH** - The Goa'uld Symbiote card now features a creepy larva animation that leaps toward opponent cards seeking a host! LAN chat now shows message timestamps. After LAN games, players can choose to Play Again (new faction/leader) or Disconnect!
 - **⚡ NEW v4.0.0: DRAFT MODE GAUNTLET & UNIFIED VISUALS** - Expanded Draft Mode into an 8-win roguelike gauntlet with redraft milestones (3 Wins: Cards, 5 Wins: Leader)! Standardized faction colors across all menus: Lucian Alliance is now Pink, Asgard is bright Cyan. Removed legacy XP system for a cleaner progression loop!
 - **⚡ NEW v3.9.4: UNLOCKABLE CARD VERIFICATION & FIXES** - Complete logic audit of all 20 unlockable cards! Fixed ZPM Power doubling (now preserves bonuses), Puddle Jumper Ring Transport for unit cards, and Replicator Swarm description. All abilities verified with correct animations!
@@ -93,13 +94,11 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
 - **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
 - **⚡ NEW v1.6: IMPROVED HAND LAYOUT** - Hand area dynamically reserves 25% of screen height to prevent card cutoff in fullscreen!
-- **⚡ NEWv1.7 - Witcher 3 Gwent Layout: Authentic board design with clear separation, proper lane spacing, weather separator, and fixed hand positioning!*
-- **⚡ NEWv1.6 - Fullscreen UI fixes: All bottom elements now properly visible with safe margins + Round winner scoreboard announcement!*
-- **⚡ NEWv1.5.1 - Naquadah Overload now shows targeted blue explosions only on rows with destroyed cards!*
-- **⚡ NEWv1.5.0 - Apophis weather decree, dual-lane storms, horn slots, legendary lightning, and Yu intel overhaul! *Legendary commanders now crackle with lightning as they land — embrace the spectacle!*
+
 ### 🆕 Recent UI Updates
 - **Witcher-Style Deck Builder** - Complete redesign inspired by The Witcher 3's Gwent interface:
   - **Bottom Accordion**: Horizontal scrolling card pool with 2x sized cards, hover lift animation, and card name tooltips
+  - **Circular Icon Tabs**: New high-resolution circular buttons for filtering cards by type (Close, Ranged, Siege, Special, etc.).
   - **Right Deck List**: Vertical list view showing power, name, quantity, and row-type color indicators
   - **Holographic Stats Panel**: Translucent top-left panel with deck validity, card counts, and total strength
   - **Chevron Back Button**: Stylized "« DEPARTURE" button with faction-colored border
@@ -181,6 +180,15 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.2.0 (January 2026)
+**Deck Builder Visual & Functional Polish**
+
+- ✅ **Circular Icon Tabs** – Replaced rectangular text tabs with high-quality circular buttons featuring distinct icons for each card category (Close, Ranged, Siege, etc.).
+- ✅ **New Card Categories** – Added dedicated "Special" and "Neutral" tabs to better organize non-unit cards and cross-faction assets.
+- ✅ **Icon Quality Upgrade** – Tab icons now scale smoothly to 75% of the button diameter, ensuring crisp visuals even at 4K resolution.
+- ✅ **Asset Reorganization** – Migrated all UI icons to a dedicated `assets/icons/` directory for cleaner project structure.
+- ✅ **UI Cleanup** – Removed redundant instruction text from the deck builder for a cleaner, more immersive look.
 
 ### Version 4.0.1 (January 2026)
 **Goa'uld Symbiote Animation & LAN Improvements**
@@ -853,7 +861,7 @@ All abilities renamed and themed around Stargate lore:
 - ✅ Vala Mal Doran - "Thief's Luck": Steal card at round 2
 - ✅ Kiva - "Brutal Tactics": First unit +4 power
 - ✅ Thor Supreme Commander - "Fleet Command": Motherships +3
-- ✅ Aegir - "Asgard Archives": Draw on siege play
+- ✅ Aegir - "Asgard Archives": Draw 1 card when playing siege units
 - ✅ All other leader abilities fully functional!
 
 #### **20/20 Card Abilities Working**
@@ -977,209 +985,10 @@ All abilities renamed and themed around Stargate lore:
 
 ### New Factions
   The script has hardcoded visual settings for factions that won't automatically update. If you add a brand new faction (e.g., "Replicators"), you will need to edit scripts/create_placeholders.py to add:
-   * `FACTION_COLORS`: You need to define what color the placeholder cards should be (e.g., silver/purple).
+   * `FACTION_COLORS`: You need to tell it what color the placeholder cards should be (e.g., silver/purple).
    * `FACTION_BACKGROUND_IDS`: You need to tell it what filename to use for the faction selection screen.
    * Imports: You will need to add the new FACTION_NAME constant to the import line at the top of the script.
 
-
-  
-  
-### 🎵 Complete Audio File Guide
-
-All audio files are `.ogg` format (OGG Vorbis). Place them in `assets/audio/`.
-
----
-
-#### Menu & Battle Music
-
-| File | Location | When It Plays |
-|------|----------|---------------|
-| `main_menu_music.ogg` | `assets/audio/` | Main menu (loops infinitely) |
-| `battle_round1.ogg` | `assets/audio/` | Round 1 battle (loops) |
-| `battle_round2.ogg` | `assets/audio/` | Round 2 battle - more intense (loops) |
-| `battle_round3.ogg` | `assets/audio/` | Round 3 battle - climactic finale (loops) |
-
----
-
-#### Faction Preview Themes (Menu Hover)
-
-Play when hovering over faction buttons in selection menu. Restart every 10 seconds while hovering.
-
-| File | Location | Faction |
-|------|----------|---------|
-| `tauri_theme.ogg` | `assets/audio/` | Tau'ri |
-| `goauld_theme.ogg` | `assets/audio/` | Goa'uld |
-| `jaffa_theme.ogg` | `assets/audio/` | Jaffa Rebellion |
-| `lucian_theme.ogg` | `assets/audio/` | Lucian Alliance |
-| `asgard_theme.ogg` | `assets/audio/` | Asgard |
-
----
-
-#### Unit Card Row Sounds
-
-Play when a non-legendary unit card is placed on the board.
-
-| File | Location | Row Type |
-|------|----------|----------|
-| `close.ogg` | `assets/audio/` | Close combat units |
-| `ranged.ogg` | `assets/audio/` | Ranged units |
-| `siege.ogg` | `assets/audio/` | Siege units |
-
----
-
-#### Special Ability Sounds
-
-| File | Location | When It Plays |
-|------|----------|---------------|
-| `ring.ogg` | `assets/audio/` | Ring Transport card used (Goa'uld) |
-| `iris.ogg` | `assets/audio/` | Tau'ri Iris Defense OR Faction Power (The Gate Shutdown) |
-
----
-
-#### Legendary Commander Voice Snippets (27 total)
-
-Play when a legendary commander is deployed. Place all in `assets/audio/commander_snippets/`.
-
-**Tau'ri (4):**
-| File | Character |
-|------|-----------|
-| `tauri_oneill.ogg` | Col. Jack O'Neill |
-| `tauri_hammond.ogg` | Gen. George Hammond |
-| `tauri_jackson.ogg` | Dr. Daniel Jackson |
-| `tauri_carter.ogg` | Dr. Samantha Carter |
-
-**Goa'uld (5):**
-| File | Character |
-|------|-----------|
-| `goauld_sokar.ogg` | Sokar |
-| `goauld_yu.ogg` | Lord Yu |
-| `goauld_hathor.ogg` | Hathor |
-| `goauld_apophis.ogg` | Apophis |
-| `goauld_isis.ogg` | Isis |
-
-**Jaffa Rebellion (4):**
-| File | Character |
-|------|-----------|
-| `jaffa_tealc.ogg` | Teal'c |
-| `jaffa_bratac.ogg` | Bra'tac |
-| `jaffa_raknor.ogg` | Rak'nor |
-| `jaffa_master_bratac.ogg` | Master Bra'tac |
-
-**Lucian Alliance (4):**
-| File | Character |
-|------|-----------|
-| `lucian_vulkar.ogg` | Vulkar |
-| `lucian_curtis.ogg` | Sg. Curtis |
-| `lucian_sodan_master.ogg` | The Sodan Master |
-| `lucian_baal_clone.ogg` | Ba'al Clone |
-
-**Asgard (3):**
-| File | Character |
-|------|-----------|
-| `asgard_freyr.ogg` | Freyr |
-| `asgard_loki.ogg` | Loki |
-| `asgard_heimdall.ogg` | Heimdall |
-
-**Neutral (6):**
-| File | Character |
-|------|-----------|
-| `neutral_ascended_daniel.ogg` | Ascended Daniel Jackson |
-| `neutral_oma_desala.ogg` | Oma Desala |
-| `neutral_mckay.ogg` | Dr. Rodney McKay |
-| `neutral_teyla.ogg` | Teyla Emmagan |
-| `neutral_ancient_drone.ogg` | Ancients Drone |
-| `neutral_weir.ogg` | Dr. Elizabeth Weir |
-
-- **Weather, Horn**: Weather and horn cues now hook to dedicated files; add these to `assets/audio/`:
-  - `weather_clear.ogg`
-  - `weather_ice_planet_hazard.ogg`
-  - `weather_nebula_interference.ogg`
-  - `weather_asteroid_storm.ogg`
-  - `weather_electromagnetic_pulse.ogg`
-  - `horn.ogg`
----
-
-#### Audio File Summary
-
-**Total Files Needed: 41**
-- Menu/Battle Music: 4
-- Faction Themes: 5
-- Row Sounds: 3
-- Special Sounds: 2
-- Commander Snippets: 26
-- Stargate sequence: 1 (`stargate_sequence.ogg`)
-
-All files are optional - missing files are silently skipped (no crashes).
-
-
-
-### LAN Multiplayer (v2.2 - COMPLETE!)
-- Choose **LAN MULTIPLAYER** in the main menu
-- **Host**: Runs TCP listener on port 4765, displays local IP addresses, waits for opponent
-- **Join**: Enter host's LAN IP to connect
-- **Deck Selection**: Both players select faction, leader, and deck independently
-- **Leader Matchup**: Full cinematic animation showing both leaders
-- **Gameplay**: Complete networked game with:
-  - All card plays synchronized in real-time
-  - Pass turn synchronization
-  - Faction power activation sync
-  - NetworkController seamlessly replaces AI
-- **Chat System**: "Subspace Communications" overlay toggles with `T`/`ESC`; when active it captures keyboard focus, when closed a subtle "Press T to Chat" hint sits below history, and the history panel stays visible during LAN matches.
-- **Unlock Override**: All factions, leaders, and cards automatically unlocked in LAN mode (no grind)
-- **Single-Player Unaffected**: Your progression system remains intact for solo games
-- **Zero Dependencies**: Uses only Python's built-in `socket` module - no extra packages needed!
-
-### Data Files (Auto-Generated)
-```
-player_decks.json         # Per-faction deck configurations (leader + cards)
-player_unlocks.json       # Unlocked leaders/cards + win stats
-```
-
-**Example `player_decks.json`:**
-```json
-{
-  "Tau'ri": {
-    "leader": "tauri_oneill",
-    "cards": ["tauri_sg1", "tauri_prometheus", ...]
-  },
-  "Goa'uld": {
-    "leader": "goauld_apophis",
-    "cards": []  // Empty = use default deck
-  }
-}
-```
-
-**Example `player_unlocks.json`:**
-```json
-{
-  "unlocked_cards": ["tauri_mckay", "goauld_baal"],
-  "unlocked_leaders": ["tauri_landry"],
-  "consecutive_wins": 5,
-  "total_wins": 12,
-  "faction_wins": {"Tau'ri": 5, "Goa'uld": 7}
-}
-```
-
----
-
-## 🔧 Technical Details
-
-### Power Calculation Order
-1. **Base Power** - Start with card's base
-2. **Leader Abilities** - Apply power bonuses
-3. **Weather Effects** - Reduce non-Legendary to 1
-4. **Survival Instinct** - +2 if weather active
-5. **Tactical Formation** - Multiply by copies
-6. **Command Network** - Double all in row
-
-### Example
-- Card: Clone Warrior (4 power, Tactical Formation)
-- 3 copies, Command Network active, no weather
-- **Calculation**: 4 × 3 (formation) × 2 (horn) = 24 each
-- **Total**: 72 power from 3 cards!
-
-
----
 
 ## 💡 Quick Reference
 
@@ -1266,4 +1075,3 @@ Suggestions and feedback welcome!
 
 
 > Stargwent is intentionally modular: every card, leader, soundtrack, and UI element lives in plain Python and editable assets so anyone can reskin the experience into their own fantasy Gwent variant—Lord of the Rings, Dragon Ball, or whatever universe you want to explore. Dive into the codebase, swap art/audio JSON entries, and the engine adapts.
-

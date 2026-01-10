@@ -199,10 +199,36 @@ class DeckBuilderUI:
         self.load_faction_backgrounds()
         self.load_leader_backgrounds()
         self.load_deck_building_bg()
+        self.load_tab_icons()
         self.tab_rects = {}
         
         # Layout
         self.setup_layout()
+
+    def load_tab_icons(self):
+        """Load icons for deck builder tabs."""
+        self.tab_icons = {}
+        icon_mappings = {
+            "all": "icons/all.png",
+            "close": "icons/close.png",
+            "ranged": "icons/ranged.png",
+            "siege": "icons/siege.png",
+            "agile": "icons/agile.png",
+            "weather": "icons/weather.png",
+            "legendary": "icons/Legendary commander.png",
+            "neutral": "icons/neutral.png",
+            "special": "icons/special.png"
+        }
+        
+        for tab_type, filename in icon_mappings.items():
+            path = os.path.join("assets", filename)
+            if os.path.exists(path):
+                try:
+                    img = pygame.image.load(path).convert_alpha()
+                    # Store original image for high-quality scaling during draw
+                    self.tab_icons[tab_type] = img
+                except Exception as e:
+                    print(f"Failed to load tab icon {filename}: {e}")
 
     def get_leader_pool(self, faction):
         """Return base leaders plus any unlocked/override leaders for the faction."""
@@ -1457,10 +1483,8 @@ class DeckBuilderUI:
         # Instructions at bottom of deck list area
         if self.inspected_card_id:
             instructions = self.small_font.render("Press SPACE or Click to close", True, (255, 255, 100))
-        else:
-            instructions = self.small_font.render("Drag from bottom • Right-click list to preview", True, (180, 200, 220))
-        inst_rect = instructions.get_rect(midbottom=(self.deck_list_rect.centerx, self.deck_list_rect.bottom - 10))
-        surface.blit(instructions, inst_rect)
+            inst_rect = instructions.get_rect(midbottom=(self.deck_list_rect.centerx, self.deck_list_rect.bottom - 10))
+            surface.blit(instructions, inst_rect)
 
     def draw_back_button(self, surface):
         """Draws a stylized chevron back button (Top Left)."""
@@ -1924,42 +1948,78 @@ class DeckBuilderUI:
             ("Ranged", "ranged"),
             ("Siege", "siege"),
             ("Agile", "agile"),
+            ("Legendary", "legendary"),
             ("Special", "special"),
             ("Weather", "weather"),
             ("Neutral", "neutral")
         ]
         
-        tab_width = 100
-        tab_height = 40
-        tab_spacing = 5
-        total_width = len(tabs) * tab_width + (len(tabs) - 1) * tab_spacing
+        tab_radius = 38
+        tab_diameter = tab_radius * 2
+        tab_spacing = 10
+        total_width = len(tabs) * tab_diameter + (len(tabs) - 1) * tab_spacing
         start_x = (self.screen_width - total_width) // 2
-        tab_y = 70
+        tab_y = 80  # Center Y coordinate
+        
         self.tab_rects = {}
         
+        mouse_pos = pygame.mouse.get_pos()
+        
         for i, (label, tab_type) in enumerate(tabs):
-            tab_x = start_x + i * (tab_width + tab_spacing)
-            tab_rect = pygame.Rect(tab_x, tab_y, tab_width, tab_height)
+            center_x = start_x + i * (tab_diameter + tab_spacing) + tab_radius
+            center = (center_x, tab_y)
+            
+            # Bounding box for clicks (used in event loop)
+            tab_rect = pygame.Rect(center_x - tab_radius, tab_y - tab_radius, tab_diameter, tab_diameter)
+            self.tab_rects[tab_type] = tab_rect
+            
+            is_hovered = tab_rect.collidepoint(mouse_pos)
             
             # Color based on selection
             if self.current_tab == tab_type:
-                color = faction_color
-                text_color = (255, 255, 255)
+                bg_color = faction_color
+                border_color = (255, 255, 255)
+                # Draw outer glow for selection
+                pygame.draw.circle(surface, (255, 255, 255), center, tab_radius + 4, width=3)
             else:
-                color = (60, 60, 70)
-                text_color = (150, 150, 150)
+                bg_color = (30, 35, 50)
+                border_color = (80, 80, 90)
+                if is_hovered:
+                    border_color = (220, 220, 220)
+                    bg_color = (50, 55, 70)
             
-            # Draw tab
-            pygame.draw.rect(surface, color, tab_rect, border_radius=5)
-            pygame.draw.rect(surface, faction_color, tab_rect, width=2, border_radius=5)
+            # Draw circle background
+            pygame.draw.circle(surface, bg_color, center, tab_radius)
             
-            # Draw label
-            label_text = self.small_font.render(label, True, text_color)
-            label_rect = label_text.get_rect(center=tab_rect.center)
-            surface.blit(label_text, label_rect)
+            # Draw content (Icon or Text)
+            if hasattr(self, 'tab_icons') and tab_type in self.tab_icons:
+                icon = self.tab_icons[tab_type]
+                # Scale icon to FILL the circle entirely
+                icon_size = tab_diameter
+                scaled_icon = pygame.transform.smoothscale(icon, (icon_size, icon_size))
+                icon_rect = scaled_icon.get_rect(center=center)
+                surface.blit(scaled_icon, icon_rect)
+            else:
+                # Fallback to text if icon missing
+                short_label = label[:3]
+                label_text = self.small_font.render(short_label, True, (200, 200, 200))
+                label_rect = label_text.get_rect(center=center)
+                surface.blit(label_text, label_rect)
             
-            # Store rect for click detection
-            self.tab_rects[tab_type] = tab_rect
+            # Draw border on top of icon for consistent look
+            pygame.draw.circle(surface, border_color, center, tab_radius, width=2)
+            
+            # Draw tooltip if hovered
+            if is_hovered:
+                text = self.small_font.render(label, True, (255, 255, 255))
+                text_rect = text.get_rect(midtop=(center_x, tab_y + tab_radius + 8))
+                
+                # Small background for tooltip
+                bg_rect = text_rect.inflate(10, 4)
+                pygame.draw.rect(surface, (20, 20, 25), bg_rect, border_radius=4)
+                pygame.draw.rect(surface, (100, 100, 100), bg_rect, width=1, border_radius=4)
+                
+                surface.blit(text, text_rect)
     
     def get_faction_description(self, faction):
         """Get a short description for each faction."""
@@ -2146,6 +2206,12 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     if card_type and card_type != "all":
         if card_type == "neutral":
             filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].faction == FACTION_NEUTRAL]
+        elif card_type == "legendary":
+            filtered_ids = [
+                id for id in filtered_ids 
+                if "legendary commander" in (ALL_CARDS[id].ability or "").lower() 
+                or (ALL_CARDS[id].power >= 10 and ALL_CARDS[id].row not in ["special", "weather"])
+            ]
         else:
             filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].row == card_type]
     
@@ -2159,7 +2225,7 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
             
             match = False
             if keyword_lower == "hero":
-                if "legendary commander" in ability or (card.power >= 10 and card.row not in ["special", "weather"]):
+                if "legendary commander" in ability or (card.power >= 10 and card.row not in ["special", "weather"]) or card.row == "special":
                     match = True
             elif keyword_lower == "spy":
                 if "deep cover agent" in ability:

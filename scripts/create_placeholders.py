@@ -931,17 +931,62 @@ def create_oneill_clone_token():
     else:
         print(f"  ⊗ Skipped: tauri_oneill_clone.png (already exists)")
 
+def create_tab_icon(filename, label, color):
+    """Creates a placeholder icon for deck builder tabs."""
+    size = 256
+    surface = pygame.Surface((size, size), pygame.SRCALPHA)
+    
+    # Background circle
+    pygame.draw.circle(surface, color, (size // 2, size // 2), size // 2 - 10)
+    pygame.draw.circle(surface, WHITE, (size // 2, size // 2), size // 2 - 10, width=5)
+    
+    # Text label (first 1-3 letters)
+    font = pygame.font.SysFont("Arial", 80, bold=True)
+    text = font.render(label[:3].upper(), True, WHITE)
+    rect = text.get_rect(center=(size // 2, size // 2))
+    surface.blit(text, rect)
+    
+    icon_path = os.path.join(ASSETS_DIR, "icons", filename)
+    if should_create_file(icon_path):
+        pygame.image.save(surface, icon_path)
+        return icon_path
+    return None
+
 def main():
     """Generates all placeholder assets."""
     if not os.path.exists(ASSETS_DIR):
         os.makedirs(ASSETS_DIR)
+    
+    # Create icons folder
+    icons_dir = os.path.join(ASSETS_DIR, "icons")
+    if not os.path.exists(icons_dir):
+        os.makedirs(icons_dir)
     
     # Create ships folder
     ships_dir = os.path.join(ASSETS_DIR, "ships")
     if not os.path.exists(ships_dir):
         os.makedirs(ships_dir)
     
-    print("Generating card images...")
+    print("Generating tab icons...")
+    tab_icons = [
+        ("all.png", "ALL", (100, 100, 100)),
+        ("close.png", "CLS", (200, 50, 50)),
+        ("ranged.png", "RNG", (50, 150, 200)),
+        ("siege.png", "SGE", (200, 150, 50)),
+        ("agile.png", "AGL", (100, 200, 100)),
+        ("weather.png", "WTH", (100, 100, 150)),
+        ("Legendary commander.png", "LEG", (255, 215, 0)),
+        ("neutral.png", "NTR", (150, 150, 150)),
+        ("special.png", "SPC", (180, 100, 200)),
+    ]
+    for filename, label, color in tab_icons:
+        path = create_tab_icon(filename, label, color)
+        if path:
+            print(f"  ✓ {path}")
+        else:
+            print(f"  ⊗ Skipped: icons/{filename} (already exists)")
+
+    print("\nGenerating card images...")
     for card_id, card in ALL_CARDS.items():
         path = create_card_image(card)
         if path:
