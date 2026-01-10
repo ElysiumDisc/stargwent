@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 17,
+  "total_games": 18,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -230,13 +230,28 @@
       "plays": 1,
       "wins": 0,
       "id": "ring_transport_decoy"
+    },
+    "Freyr": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_freyr"
+    },
+    "Solar Flare/Ion Storm": {
+      "plays": 1,
+      "wins": 0,
+      "id": "neutral_clear_weather_1"
+    },
+    "Energy Pistol Drone": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_energy_drone_2"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 17,
+  "ai_games": 18,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -255,6 +270,10 @@
     },
     "Apophis": {
       "games": 6,
+      "wins": 0
+    },
+    "Thor Supreme Commander": {
+      "games": 1,
       "wins": 0
     }
   },
@@ -294,12 +313,18 @@
         "games": 1,
         "wins": 0
       }
+    },
+    "Asgard": {
+      "Tau'ri": {
+        "games": 1,
+        "wins": 0
+      }
     }
   },
   "last_results": [
     "L",
-    "L",
     "W",
+    "L",
     "L",
     "L",
     "L",
@@ -309,8 +334,8 @@
     "L"
   ],
   "turn_stats": {
-    "total": 364,
-    "games": 12,
+    "total": 389,
+    "games": 13,
     "min": 9,
     "max": 70,
     "history": [
@@ -325,12 +350,13 @@
       35,
       19,
       9,
-      38
+      38,
+      25
     ]
   },
   "mulligans": {
-    "total": 49,
-    "games": 12
+    "total": 51,
+    "games": 13
   },
   "ability_usage": {
     "medic": 2,
@@ -341,11 +367,11 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 11,
+    "sweeps_against": 12,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 12,
+    "first_turn_games": 13,
     "first_turn_wins": 1
   },
   "draft_stats": {

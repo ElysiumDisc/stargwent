@@ -313,41 +313,7 @@ ALL_CARDS = {
     "destiny_ship": Card("destiny_ship", "Ancient Ship Destiny", FACTION_NEUTRAL, 15, "siege", "Legendary Commander"),
 }
 
-def reload_card_images():
-    """
-    Reload all card images. Call this after pygame display is properly initialized.
-    This ensures cards use the correct display size and load images properly.
-    """
-    import os
-    for card_id, card in ALL_CARDS.items():
-        # Recalculate card dimensions based on current screen
-        try:
-            screen = pygame.display.get_surface()
-            if screen:
-                screen_height = screen.get_height()
-                # Updated to match main.py card dimensions (25% larger)
-                card_width = int(screen_height * 0.093)
-                card_height = int(screen_height * 0.139)
-            else:
-                card_width, card_height = 100, 150  # Updated default
-        except:
-            card_width, card_height = 100, 150  # Updated default
-        
-        card.rect = pygame.Rect(0, 0, card_width, card_height)
-        
-        # Reload and scale the image
-        try:
-            if os.path.exists(card.image_path):
-                original_image = pygame.image.load(card.image_path).convert_alpha()
-                card.image = pygame.transform.scale(original_image, (card.rect.width, card.rect.height))
-            else:
-                # If the image file is missing, keep the fallback
-                card.image = pygame.Surface((card.rect.width, card.rect.height))
-                card.image.fill((80, 80, 90))
-        except (pygame.error, FileNotFoundError, OSError):
-            # If loading fails, keep the fallback
-            card.image = pygame.Surface((card.rect.width, card.rect.height))
-            card.image.fill((80, 80, 90))
+
 
 # ============================================================================
 # CARD BACK PLACEHOLDER (for opponent's hidden hand)
@@ -426,3 +392,77 @@ def get_card_back(width, height):
             _card_back_cache[key] = create_card_back(width, height)
     
     return _card_back_cache[key]
+
+# ============================================================================
+# IMAGE CACHING OPTIMIZATION
+# ============================================================================
+_original_image_cache = {}
+
+def reload_card_images():
+    """
+    Reload all card images. Call this after pygame display is properly initialized.
+    This ensures cards use the correct display size and load images properly.
+    
+    OPTIMIZATION: Uses a memory cache to avoid disk I/O on every reload/resize.
+    Also pre-calculates hover images to avoid expensive smoothscale per frame.
+    """
+    import os
+    
+    # Pre-calculate dimensions
+    try:
+        screen = pygame.display.get_surface()
+        if screen:
+            screen_height = screen.get_height()
+            # Updated to match main.py card dimensions (25% larger)
+            card_width = int(screen_height * 0.093)
+            card_height = int(screen_height * 0.139)
+        else:
+            card_width, card_height = 100, 150
+    except:
+        card_width, card_height = 100, 150
+
+    print(f"Loading card images... Target size: {card_width}x{card_height}")
+    
+    for card_id, card in ALL_CARDS.items():
+        card.rect = pygame.Rect(0, 0, card_width, card_height)
+        
+        # 1. Get the original image (from Cache or Disk)
+        original_image = None
+        if card.image_path in _original_image_cache:
+            original_image = _original_image_cache[card.image_path]
+        else:
+            # Not in cache, try to load
+            try:
+                if os.path.exists(card.image_path):
+                    original_image = pygame.image.load(card.image_path).convert_alpha()
+                    _original_image_cache[card.image_path] = original_image
+            except (pygame.error, FileNotFoundError, OSError):
+                # Failed to load
+                pass
+        
+        # 2. Generate Scaled Versions (Normal & Hover)
+        if original_image:
+            # Normal size
+            try:
+                card.image = pygame.transform.smoothscale(original_image, (card_width, card_height))
+            except:
+                 card.image = pygame.transform.scale(original_image, (card_width, card_height))
+                 
+            # Hover size (1.08x) - Pre-calculated for performance
+            hover_w = int(card_width * 1.08)
+            hover_h = int(card_height * 1.08)
+            try:
+                card.hover_image = pygame.transform.smoothscale(original_image, (hover_w, hover_h))
+            except:
+                card.hover_image = pygame.transform.scale(original_image, (hover_w, hover_h))
+        else:
+            # Fallback for missing images
+            card.image = pygame.Surface((card_width, card_height))
+            card.image.fill((80, 80, 90))
+            
+            # Fallback hover
+            hover_w = int(card_width * 1.08)
+            hover_h = int(card_height * 1.08)
+            card.hover_image = pygame.transform.scale(card.image, (hover_w, hover_h))
+
+    print("Card images loaded.")

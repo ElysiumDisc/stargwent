@@ -20,11 +20,11 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.2.0-blue)
+![Version](https://img.shields.io/badge/version-4.3.1-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
-![Status](https://img.shields.io/badge/status-Complete-brightgreen)
+![Status](https://img.shields.io/badge/status-Optimized-brightgreen)
 
 ---
 
@@ -52,6 +52,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.3.1: ARCHITECTURE REFACTORING** - Split monolithic 6,000+ line `main.py` into clean, maintainable modules (`display_manager.py`, `game_config.py`, `render_engine.py`). Centralized configuration, improved testability, and eliminated code duplication while maintaining full backward compatibility!
+- **⚡ NEW v4.3.0: ASSET CACHING & PERFORMANCE OVERHAUL** - Implemented a global `ImageCache` system that stores high-resolution card assets in RAM, eliminating disk I/O stutters during resolution changes and menu transitions. Pre-calculated 1.08x hover images now provide instant, buttery-smooth card enlargement without the CPU overhead of per-frame scaling.
 - **⚡ NEW v4.2.0: MODERN DECK BUILDER ICONS** - Replaced text tabs with high-resolution circular icon buttons for card filtering. Added dedicated "Special" and "Neutral" tabs with distinct iconography. Refined visual polish with consistent icon scaling and selection glows.
 - **⚡ NEW v4.0.1: GOA'ULD SYMBIOTE ANIMATION & LAN REMATCH** - The Goa'uld Symbiote card now features a creepy larva animation that leaps toward opponent cards seeking a host! LAN chat now shows message timestamps. After LAN games, players can choose to Play Again (new faction/leader) or Disconnect!
 - **⚡ NEW v4.0.0: DRAFT MODE GAUNTLET & UNIFIED VISUALS** - Expanded Draft Mode into an 8-win roguelike gauntlet with redraft milestones (3 Wins: Cards, 5 Wins: Leader)! Standardized faction colors across all menus: Lucian Alliance is now Pink, Asgard is bright Cyan. Removed legacy XP system for a cleaner progression loop!
@@ -180,6 +182,21 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.3.1 (January 2026)
+**Architecture Refactoring & Code Health**
+
+- ✅ **Modular Architecture** – Split monolithic 6,000+ line `main.py` into logical, maintainable modules:
+  - `display_manager.py` (138 lines) – Centralized display mode, resolution, and fullscreen handling
+  - `game_config.py` (213 lines) – All layout calculations, fonts, colors, and configuration constants
+  - `render_engine.py` (794 lines) – Complete drawing system (cards, hands, UI elements, leader portraits)
+  - `main.py` (5,033 lines) – Core game loop now focused on game logic without rendering clutter
+- ✅ **Improved Maintainability** – Changes to display, config, or rendering no longer risk breaking unrelated systems
+- ✅ **Centralized Configuration** – Single source of truth for all layout percentages, colors, fonts, and dimensions
+- ✅ **Better Testability** – Each module can now be tested independently
+- ✅ **Code Deduplication** – Removed ~80 lines of redundant layout calculations
+- ✅ **Cleaner Imports** – All display, config, and render functions properly imported from their respective modules
+- ✅ **No Regressions** – Full backward compatibility maintained; all features work exactly as before
 
 ### Version 4.2.0 (January 2026)
 **Deck Builder Visual & Functional Polish**
