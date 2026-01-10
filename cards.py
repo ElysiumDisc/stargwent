@@ -397,17 +397,20 @@ def get_card_back(width, height):
 # IMAGE CACHING OPTIMIZATION
 # ============================================================================
 _original_image_cache = {}
+_last_loaded_size = None  # Cache to avoid redundant reloads
 
 def reload_card_images():
     """
     Reload all card images. Call this after pygame display is properly initialized.
     This ensures cards use the correct display size and load images properly.
-    
+
     OPTIMIZATION: Uses a memory cache to avoid disk I/O on every reload/resize.
     Also pre-calculates hover images to avoid expensive smoothscale per frame.
+    Skips reload if target size hasn't changed (v4.3.1).
     """
+    global _last_loaded_size
     import os
-    
+
     # Pre-calculate dimensions
     try:
         screen = pygame.display.get_surface()
@@ -421,6 +424,13 @@ def reload_card_images():
     except:
         card_width, card_height = 100, 150
 
+    # OPTIMIZATION: Skip reload if size hasn't changed
+    target_size = (card_width, card_height)
+    if _last_loaded_size == target_size:
+        print(f"  ↻ Using cached images at {card_width}x{card_height}")
+        return
+
+    _last_loaded_size = target_size
     print(f"Loading card images... Target size: {card_width}x{card_height}")
     
     for card_id, card in ALL_CARDS.items():

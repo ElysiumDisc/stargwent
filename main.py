@@ -19,6 +19,13 @@ from ai_opponent import AIController
 from enum import Enum, auto
 from draft_mode import DraftRun
 
+# ============================================================================
+# DEBUG MODE (v4.3.1)
+# ============================================================================
+# Set to True to enable FPS counter and performance profiling
+DEBUG_MODE = os.environ.get('STARGWENT_DEBUG', '').lower() in ('1', 'true', 'yes')
+# Toggle with F3 key during gameplay
+
 class UIState(Enum):
     """Finite State Machine for UI interaction modes."""
     # Core Game Phases (synced with game.game_state)
@@ -181,7 +188,8 @@ display_manager.initialize_display()
 cfg.recalculate_dimensions()
 
 # Pull commonly used values into module scope for convenience
-screen = display_manager.screen
+# NOTE: screen reference is updated in game loop after mode changes
+screen = display_manager.screen  # Initial reference
 SCREEN_WIDTH = display_manager.SCREEN_WIDTH
 SCREEN_HEIGHT = display_manager.SCREEN_HEIGHT
 SCALE_FACTOR = display_manager.SCALE_FACTOR
@@ -2284,7 +2292,7 @@ def main(lan_game_data=None):
         lan_game_data: Optional dict with LAN game info to skip menu/deck builder.
                       Keys: 'game', 'player_faction', 'player_leader', 'ai_faction', 'ai_leader'
     """
-    global MULLIGAN_BUTTON_RECT
+    global MULLIGAN_BUTTON_RECT, screen  # Update screen ref on fullscreen toggle
 
     # If LAN game data provided, skip menu and deck builder
     if lan_game_data:
@@ -2613,6 +2621,8 @@ def main(lan_game_data=None):
     
     while running:
         sync_fullscreen_from_surface()
+        # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
+        screen = display_manager.screen
         dt = clock.tick(144)  # 144 FPS for buttery smooth animations and card movement
         update_battle_music()
 
@@ -2894,9 +2904,11 @@ def main(lan_game_data=None):
                     lan_chat_panel.handle_event(event)
                     continue  # Skip other key handlers when typing in chat
 
-                # F3 - Toggle debug overlay
+                # F3 - Toggle debug overlay (zone boundaries + FPS counter)
                 if event.key == pygame.K_F3:
+                    global DEBUG_MODE
                     debug_overlay_enabled = not debug_overlay_enabled
+                    DEBUG_MODE = debug_overlay_enabled  # Link to FPS counter
                     print(f"🔍 Debug Overlay: {'ENABLED' if debug_overlay_enabled else 'DISABLED'}")
                 
                 # Debug: Print all key presses
@@ -5022,6 +5034,27 @@ def main(lan_game_data=None):
             # Draw text background
             pygame.draw.rect(screen, (0, 0, 0, 150), wait_rect.inflate(40, 20), border_radius=10)
             screen.blit(wait_text, wait_rect)
+
+        # Debug overlay: FPS counter and performance stats (v4.3.1)
+        if DEBUG_MODE:
+            current_fps = clock.get_fps()
+            # FPS counter (top-left corner)
+            fps_text = UI_FONT.render(f"FPS: {current_fps:.1f}", True, (0, 255, 0))
+            fps_bg = pygame.Surface((fps_text.get_width() + 10, fps_text.get_height() + 6), pygame.SRCALPHA)
+            fps_bg.fill((0, 0, 0, 180))
+            screen.blit(fps_bg, (8, 8))
+            screen.blit(fps_text, (13, 11))
+
+            # Animation pool stats (if available)
+            if hasattr(anim_manager, 'pool'):
+                pool_stats = anim_manager.pool.get_stats()
+                if pool_stats:
+                    y_offset = 35
+                    stats_text = UI_FONT.render(f"Pool: {sum(pool_stats.values())} cached", True, (255, 255, 0))
+                    stats_bg = pygame.Surface((stats_text.get_width() + 10, stats_text.get_height() + 6), pygame.SRCALPHA)
+                    stats_bg.fill((0, 0, 0, 180))
+                    screen.blit(stats_bg, (8, y_offset))
+                    screen.blit(stats_text, (13, y_offset + 3))
 
         pygame.display.flip()
 

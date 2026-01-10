@@ -14,6 +14,80 @@ MAX_TRAIL_PARTICLES = 50
 MAX_HEARTS_PARTICLES = 30
 MAX_GENERAL_PARTICLES = 100
 
+
+# ============================================================================
+# ANIMATION POOLING SYSTEM (v4.3.1)
+# ============================================================================
+class AnimationPool:
+    """
+    Object pool for animations to reduce GC pressure during particle-heavy effects.
+    Reuses finished animations instead of creating new ones every time.
+    """
+    def __init__(self):
+        self._pools = {}  # animation_type -> List[Animation]
+        self._max_pool_size = 20  # Limit per animation type to prevent unbounded growth
+
+    def get(self, animation_type, *args, **kwargs):
+        """
+        Get an animation from the pool or create a new one.
+
+        Args:
+            animation_type: The animation class to instantiate
+            *args, **kwargs: Arguments to pass to the animation constructor
+
+        Returns:
+            Animation instance (reused or new)
+        """
+        type_name = animation_type.__name__
+
+        # Try to reuse from pool
+        if type_name in self._pools and self._pools[type_name]:
+            anim = self._pools[type_name].pop()
+            # Check if animation has a reset method
+            if hasattr(anim, 'reset'):
+                anim.reset(*args, **kwargs)
+            else:
+                # If no reset method, reinitialize basic properties
+                anim.__init__(*args, **kwargs)
+            return anim
+
+        # No pooled instance available, create new
+        return animation_type(*args, **kwargs)
+
+    def return_animation(self, anim):
+        """
+        Return a finished animation to the pool for reuse.
+
+        Args:
+            anim: The animation to return to the pool
+        """
+        if anim is None:
+            return
+
+        type_name = type(anim).__name__
+
+        # Initialize pool for this type if needed
+        if type_name not in self._pools:
+            self._pools[type_name] = []
+
+        # Only add to pool if below max size
+        if len(self._pools[type_name]) < self._max_pool_size:
+            # Clear any references that might prevent cleanup
+            if hasattr(anim, 'card_image'):
+                anim.card_image = None
+            if hasattr(anim, 'on_complete'):
+                anim.on_complete = None
+
+            self._pools[type_name].append(anim)
+
+    def clear(self):
+        """Clear all pooled animations (useful for testing or cleanup)."""
+        self._pools.clear()
+
+    def get_stats(self):
+        """Get statistics about the pool (for debugging)."""
+        return {type_name: len(pool) for type_name, pool in self._pools.items()}
+
 class Animation:
     """Base class for all animations."""
     def __init__(self, duration):
@@ -4052,7 +4126,7 @@ class ReplicatorCrawlEffect(Animation):
 
 
 class AnimationManager:
-    """Manages all active animations."""
+    """Manages all active animations with object pooling (v4.3.1)."""
     def __init__(self):
         self.animations = []
         self.effects = []
@@ -4060,6 +4134,7 @@ class AnimationManager:
         self.row_weather_effects = []  # NEW: Row-specific weather
         self.clock = pygame.time.Clock()
         self.score_animations = {}  # Track score animations per player
+        self.pool = AnimationPool()  # NEW: Animation pooling system
     
     def add_animation(self, animation):
         """Add an animation to the manager."""
@@ -4091,24 +4166,47 @@ class AnimationManager:
             self.weather_effect = None
     
     def update(self, dt):
-        """Update all animations and effects."""
-        # Update animations
-        self.animations = [anim for anim in self.animations if anim.update(dt)]
-        
-        # Update effects
-        self.effects = [effect for effect in self.effects if effect.update(dt)]
-        
+        """Update all animations and effects with pooling (v4.3.1)."""
+        # Update animations and return finished ones to pool
+        active_animations = []
+        for anim in self.animations:
+            if anim.update(dt):
+                active_animations.append(anim)
+            else:
+                # Animation finished, return to pool
+                self.pool.return_animation(anim)
+        self.animations = active_animations
+
+        # Update effects and return finished ones to pool
+        active_effects = []
+        for effect in self.effects:
+            if effect.update(dt):
+                active_effects.append(effect)
+            else:
+                # Effect finished, return to pool
+                self.pool.return_animation(effect)
+        self.effects = active_effects
+
         # Update score animations
         for player_id in list(self.score_animations.keys()):
             if not self.score_animations[player_id].update(dt):
+                # Return to pool before deleting
+                self.pool.return_animation(self.score_animations[player_id])
                 del self.score_animations[player_id]
-        
+
         # Update weather
         if self.weather_effect:
             self.weather_effect.update(dt)
-        
+
         # Update row weather effects
-        self.row_weather_effects = [effect for effect in self.row_weather_effects if effect.update(dt)]
+        active_row_weather = []
+        for effect in self.row_weather_effects:
+            if effect.update(dt):
+                active_row_weather.append(effect)
+            else:
+                # Return to pool
+                self.pool.return_animation(effect)
+        self.row_weather_effects = active_row_weather
     
     def draw_effects(self, surface):
         """Draw all visual effects."""

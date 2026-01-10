@@ -31,12 +31,22 @@ WINDOWED_WIDTH = 0
 WINDOWED_HEIGHT = 0
 WINDOWED_SCALE_FACTOR = 1.0
 WINDOWED_FLAGS = 0
+_initialized = False  # Guard to prevent re-initialization
 
 def initialize_display():
-    """Detects resolution and sets up the initial display state."""
+    """Detects resolution and sets up the initial display state.
+
+    NOTE: Only initializes once. Subsequent calls are skipped to preserve
+    fullscreen state across game state transitions.
+    """
     global SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN, screen
     global DESKTOP_WIDTH, DESKTOP_HEIGHT, WINDOWED_WIDTH, WINDOWED_HEIGHT
-    global WINDOWED_SCALE_FACTOR, WINDOWED_FLAGS
+    global WINDOWED_SCALE_FACTOR, WINDOWED_FLAGS, _initialized
+
+    # GUARD: Only initialize once
+    if _initialized:
+        return
+    _initialized = True
 
     _desktop_cache_file = os.path.join(tempfile.gettempdir(), 'stargwent_desktop_cache.txt')
 
@@ -131,8 +141,19 @@ def sync_fullscreen_from_surface():
         return
     is_fullscreen = bool(surface.get_flags() & pygame.FULLSCREEN)
     if is_fullscreen != FULLSCREEN:
+        print(f"⚠️  Display state mismatch! SDL says fullscreen={is_fullscreen}, but FULLSCREEN={FULLSCREEN}")
+        print(f"    Surface flags: {surface.get_flags()}, pygame.FULLSCREEN={pygame.FULLSCREEN}")
+        print(f"    Syncing to SDL state...")
         set_display_mode(is_fullscreen, reload_cards=True)
 
 def toggle_fullscreen_mode():
     """Flip fullscreen state respecting all UI/layout updates."""
-    set_display_mode(not FULLSCREEN, reload_cards=True)
+    new_state = not FULLSCREEN
+    print(f"🔄 Toggling fullscreen: {FULLSCREEN} → {new_state}")
+    set_display_mode(new_state, reload_cards=True)
+
+    # Verify the change took effect
+    surface = pygame.display.get_surface()
+    if surface:
+        actual_fullscreen = bool(surface.get_flags() & pygame.FULLSCREEN)
+        print(f"✓ Fullscreen toggle complete. Requested={new_state}, Actual SDL state={actual_fullscreen}")
