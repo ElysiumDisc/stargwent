@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 16,
+  "total_games": 17,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -57,9 +57,9 @@
       "id": "tauri_bc304_2"
     },
     "Micrometeorite Shower": {
-      "plays": 2,
+      "plays": 3,
       "wins": 1,
-      "id": "neutral_torrential_rain_1"
+      "id": "neutral_torrential_rain_2"
     },
     "Dr. Daniel Jackson": {
       "plays": 2,
@@ -167,7 +167,7 @@
       "id": "jaffa_rebel_infantry_2"
     },
     "Goa'uld Drone": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_drone_2"
     },
@@ -182,14 +182,14 @@
       "id": "goauld_serpent_guard_3"
     },
     "Anubis Guard": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_anubis_guard_2"
     },
     "Osiris Guard": {
-      "plays": 1,
+      "plays": 3,
       "wins": 0,
-      "id": "goauld_osiris_guard_2"
+      "id": "goauld_osiris_guard_1"
     },
     "Goa'uld Scout": {
       "plays": 1,
@@ -202,7 +202,7 @@
       "id": "goauld_glider_swarm_2"
     },
     "Goa'uld Symbiote": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "goauld_symbiote"
     },
@@ -210,13 +210,33 @@
       "plays": 1,
       "wins": 0,
       "id": "goauld_sokar"
+    },
+    "Council of Yu": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_council_yu"
+    },
+    "Ha'tak Mothership": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_hatak_1"
+    },
+    "Council of Ba'al": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_council_baal"
+    },
+    "ring_transport_decoy": {
+      "plays": 1,
+      "wins": 0,
+      "id": "ring_transport_decoy"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 16,
+  "ai_games": 17,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -234,7 +254,7 @@
       "wins": 1
     },
     "Apophis": {
-      "games": 5,
+      "games": 6,
       "wins": 0
     }
   },
@@ -269,11 +289,14 @@
       "Jaffa Rebellion": {
         "games": 1,
         "wins": 0
+      },
+      "Lucian Alliance": {
+        "games": 1,
+        "wins": 0
       }
     }
   },
   "last_results": [
-    "L",
     "L",
     "L",
     "W",
@@ -282,11 +305,12 @@
     "L",
     "L",
     "L",
+    "L",
     "L"
   ],
   "turn_stats": {
-    "total": 326,
-    "games": 11,
+    "total": 364,
+    "games": 12,
     "min": 9,
     "max": 70,
     "history": [
@@ -300,27 +324,28 @@
       9,
       35,
       19,
-      9
+      9,
+      38
     ]
   },
   "mulligans": {
-    "total": 46,
-    "games": 11
+    "total": 49,
+    "games": 12
   },
   "ability_usage": {
     "medic": 2,
     "decoy": 0,
-    "faction_power": 1,
+    "faction_power": 2,
     "iris_blocks": 3
   },
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 10,
+    "sweeps_against": 11,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 11,
+    "first_turn_games": 12,
     "first_turn_wins": 1
   },
   "draft_stats": {
