@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 3,
-  "total_games": 18,
+  "total_games": 19,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ascended Daniel Jackson": {
@@ -157,9 +157,9 @@
       "id": "jaffa_healer_2"
     },
     "Naquadah Bomb": {
-      "plays": 1,
+      "plays": 3,
       "wins": 0,
-      "id": "neutral_scorch_2"
+      "id": "neutral_scorch_1"
     },
     "Rebel Infantry": {
       "plays": 1,
@@ -237,7 +237,7 @@
       "id": "asgard_freyr"
     },
     "Solar Flare/Ion Storm": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "neutral_clear_weather_1"
     },
@@ -245,13 +245,33 @@
       "plays": 1,
       "wins": 0,
       "id": "asgard_energy_drone_2"
+    },
+    "Energy Pulse Turret": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_pulse_turret_1"
+    },
+    "Asgard Clone Trooper": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_clone_trooper_3"
+    },
+    "Asgard Defense Platform": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_defense_platform"
+    },
+    "Asgard Diplomat": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_diplomat"
     }
   },
   "faction_wins": {
     "Tau'ri": 3
   },
   "max_streak": 1,
-  "ai_games": 18,
+  "ai_games": 19,
   "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
@@ -273,7 +293,7 @@
       "wins": 0
     },
     "Thor Supreme Commander": {
-      "games": 1,
+      "games": 2,
       "wins": 0
     }
   },
@@ -318,12 +338,16 @@
       "Tau'ri": {
         "games": 1,
         "wins": 0
+      },
+      "Lucian Alliance": {
+        "games": 1,
+        "wins": 0
       }
     }
   },
   "last_results": [
-    "L",
     "W",
+    "L",
     "L",
     "L",
     "L",
@@ -334,8 +358,8 @@
     "L"
   ],
   "turn_stats": {
-    "total": 389,
-    "games": 13,
+    "total": 409,
+    "games": 14,
     "min": 9,
     "max": 70,
     "history": [
@@ -351,27 +375,28 @@
       19,
       9,
       38,
-      25
+      25,
+      20
     ]
   },
   "mulligans": {
-    "total": 51,
-    "games": 13
+    "total": 53,
+    "games": 14
   },
   "ability_usage": {
     "medic": 2,
     "decoy": 0,
-    "faction_power": 2,
+    "faction_power": 3,
     "iris_blocks": 3
   },
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 0,
-    "sweeps_against": 12,
+    "sweeps_against": 13,
     "close_wins": 1,
     "close_losses": 0,
     "comebacks": 1,
-    "first_turn_games": 13,
+    "first_turn_games": 14,
     "first_turn_wins": 1
   },
   "draft_stats": {
