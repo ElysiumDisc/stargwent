@@ -3289,9 +3289,9 @@ def main(lan_game_data=None):
                     steal_info["animation_started"] = True
     
             # 1. Sidebar Positioning (No More Percentages)
-            panel_width = 220 # Narrower panel to fit next to scores
+            panel_width = 300 # Wider panel for chat/history (score boxes are now narrower)
             history_rect = pygame.Rect(
-                cfg.SIDEBAR_X + 260,
+                cfg.SIDEBAR_X + 175,
                 pct_y(0.12),
                 panel_width,
                 pct_y(0.80) - pct_y(0.12)
@@ -3309,7 +3309,36 @@ def main(lan_game_data=None):
                 history_scroll_offset,
                 pygame.mouse.get_pos()
             )
-    
+
+            # LAN Chat UI - show input box when active, hint when inactive
+            if LAN_MODE and lan_chat_panel:
+                chat_font = pygame.font.SysFont("Consolas", max(18, int(20 * SCALE_FACTOR)))
+                if lan_chat_panel.active:
+                    # Draw chat input box below history panel
+                    input_rect = pygame.Rect(
+                        history_rect.x,
+                        history_rect.bottom + 8,
+                        history_rect.width,
+                        36
+                    )
+                    pygame.draw.rect(screen, (25, 35, 55), input_rect, border_radius=6)
+                    pygame.draw.rect(screen, (80, 140, 200), input_rect, width=2, border_radius=6)
+
+                    # Draw input text or placeholder
+                    input_text = lan_chat_panel.input_text if lan_chat_panel.input_text else "Type message... (Enter to send)"
+                    text_color = (220, 220, 220) if lan_chat_panel.input_text else (120, 140, 160)
+                    input_surf = chat_font.render(input_text, True, text_color)
+                    screen.blit(input_surf, (input_rect.x + 10, input_rect.y + 8))
+
+                    # Draw typing indicator if peer is typing
+                    if lan_chat_panel.peer_is_typing:
+                        typing_text = chat_font.render("Peer is typing...", True, (100, 200, 255))
+                        screen.blit(typing_text, (input_rect.x, input_rect.y - 22))
+                else:
+                    # Show hint to open chat
+                    hint_text = chat_font.render("Press T to chat", True, (100, 140, 180))
+                    screen.blit(hint_text, (history_rect.x, history_rect.bottom + 12))
+
             # Round and Turn indicator in HUD (horizontal layout)
             round_font = pygame.font.SysFont("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
             round_text = round_font.render(f"Round {game.round_number}", True, cfg.WHITE)

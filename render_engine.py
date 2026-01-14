@@ -506,8 +506,8 @@ def _render_sg1_score_box(tint, row_box, score, surface, is_player):
 def draw_row_score_boxes(surface, game, anchor_x_right=None):
     # Sidebar anchoring logic
     # Box scores are aligned to SIDEBAR_X + 20
-    box_x = cfg.SIDEBAR_X + 20
-    box_width = 220 # Roughly half the sidebar width
+    box_x = cfg.SIDEBAR_X + 15
+    box_width = 150 # Narrower score boxes to give more space to chat/history
 
     row_height = cfg.PLAYER_ROW_RECTS["close"].height
     box_height = max(24, int(row_height * 0.40))
