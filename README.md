@@ -52,7 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
-- **⚡ NEW v4.6.0: DHD BACK BUTTONS & NAVIGATION POLISH** - Replaced all "Back" buttons with circular DHD-style buttons featuring metallic rings, glowing chevrons, and cyan activation crystals! Holding arrow keys now continuously browses. Fixed deck builder keyboard navigation!
+- **⚡ NEW v4.6.0: DHD BACK BUTTONS & NAVIGATION POLISH** - Replaced all "Back" buttons with circular DHD-style buttons! Holding arrow keys now continuously browses. SPACE previews cards (F plays). Wider chat/history panel with LAN chat input box!
 - **⚡ NEW v4.5.0: UNIVERSAL KEYBOARD CONTROLS** - Full keyboard navigation across all game screens! Arrow keys for card/menu navigation, F to play cards, G for faction power, Tab to cycle buttons. Cards now highlight with row-type colors (red=close, blue=ranged, green=siege). Enhanced pause menu with Options integration!
 - **⚡ NEW v4.4.0: DRAFT MODE SAVE & POST-GAME POLISH** - Draft mode now features Save & Continue options! After winning a match, choose to Continue Draft, Save & Exit, or Abandon. Post-game menu redesigned with Stargwent-styled buttons. Fixed critical card sharing bug and improved FPS with font/surface caching!
 - **⚡ NEW v4.3.1: ARCHITECTURE REFACTORING** - Split monolithic 6,000+ line `main.py` into clean, maintainable modules (`display_manager.py`, `game_config.py`, `render_engine.py`). Centralized configuration, improved testability, and eliminated code duplication while maintaining full backward compatibility!
@@ -195,6 +195,9 @@ All abilities renamed and themed around Stargate lore:
   - Consistent top-left positioning across all menus
   - Applied to: Deck Builder, Options, Settings, Stats Menu, Draft Mode UI
 - ✅ **Continuous Keyboard Navigation** – Holding arrow keys now continuously browses cards/menus instead of requiring repeated key presses (300ms delay, 50ms repeat interval)
+- ✅ **Spacebar Preview Fix** – SPACE now correctly previews the selected card instead of playing it (F key plays cards)
+- ✅ **Wider Chat/History Panel** – Narrowed row score boxes (220px → 150px) to give more space to the history panel (220px → 300px)
+- ✅ **LAN Chat UI** – Added visible chat input box and "Press T to chat" hint in LAN mode, plus "Peer is typing..." indicator
 - ✅ **Mulligan Phase Cleanup** – Removed descriptive text overlay during mulligan for cleaner visuals
 - ✅ **Deck Builder Keyboard Fix** – Fixed critical bug where arrow keys and other keyboard navigation wasn't working in the deck builder (events weren't being passed to handler)
 - ✅ **Consistent Tab Navigation** – Added correct filter tabs for deck builder keyboard navigation (all, close, ranged, siege, agile, legendary, special, weather, neutral)
@@ -203,11 +206,11 @@ All abilities renamed and themed around Stargate lore:
 **Universal Keyboard Controls & Row-Type Highlighting**
 
 - ✅ **Universal Keyboard Navigation** – The entire game is now fully playable with keyboard:
-  - **In-Game Combat**: LEFT/RIGHT to select cards in hand, UP/DOWN for row selection, F to play card to default row, G for faction power, Tab to cycle Pass/Faction Power buttons, SPACE to activate selected button
+  - **In-Game Combat**: LEFT/RIGHT to select cards in hand, UP/DOWN for row selection, F to play card, SPACE to preview card, G for faction power, Tab to cycle Pass/Faction Power buttons, SPACE to activate selected button
   - **Deck Builder**: Tab to switch focus between card pool and deck list, LEFT/RIGHT to navigate card pool with auto-scroll, UP/DOWN to navigate deck or switch filter tabs, F/ENTER to add card, DELETE/BACKSPACE to remove, SPACE to preview
   - **Stats Menu**: UP/DOWN arrows, PAGE UP/DOWN, HOME/END for scrolling
   - **Draft Mode**: LEFT/RIGHT between choices, UP/DOWN for menu navigation, ENTER/SPACE to select
-  - **Mulligan Phase**: LEFT/RIGHT to select cards, SPACE/ENTER to toggle selection, F to confirm
+  - **Mulligan Phase**: LEFT/RIGHT to select cards, SPACE to toggle selection, ENTER to confirm
 - ✅ **Row-Type Color Highlighting** – Cards now show their row type when hovered or keyboard-selected:
   - **Close Combat**: Red border
   - **Ranged**: Blue border
@@ -1073,12 +1076,13 @@ All abilities renamed and themed around Stargate lore:
 | Action | Control |
 |--------|---------|
 | **Navigate Hand** | **LEFT/RIGHT arrows** |
-| **Select Row** | **UP/DOWN arrows** |
-| **Play Card to Default Row** | **F key** |
+| **Select Row (for agile/weather)** | **UP/DOWN arrows** |
+| **Play Card** | **F key** |
+| **Preview Card** | **SPACE** |
 | **Activate Faction Power** | **G key** |
 | **Cycle Pass/Power Buttons** | **Tab key** |
-| **Activate Selected Button** | **SPACE or ENTER** |
-| **Preview Card** | **SPACE (on hovered card)** |
+| **Activate Selected Button** | **SPACE** |
+| **Close Overlay / Open Chat** | **ENTER** |
 | Fullscreen | F11 |
 | Pause Menu | ESC |
 | Debug Overlay | F3 |

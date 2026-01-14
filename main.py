@@ -1430,10 +1430,56 @@ def main(lan_game_data=None):
                         # Cycle between pass (0) and faction power (1)
                         keyboard_button_cursor = 1 - keyboard_button_cursor
 
-                # SPACEBAR or ENTER = Play card via keyboard or close overlays
-                elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                # SPACEBAR = Preview card or close overlays
+                elif event.key == pygame.K_SPACE:
+                    if inspected_card or inspected_leader:
+                        # Close preview
+                        inspected_card = None
+                        inspected_leader = None
+                    elif ui_state in (UIState.DISCARD_VIEW, UIState.JONAS_PEEK):
+                        # Close overlays
+                        if ui_state == UIState.JONAS_PEEK:
+                            game.opponent_drawn_cards = []
+                        ui_state = UIState.PLAYING
+                        discard_scroll = 0
+                    elif keyboard_button_cursor >= 0 and game.game_state == "playing" and game.current_player == game.player1:
+                        # Activate keyboard-selected button
+                        if keyboard_button_cursor == 0:
+                            # Pass button
+                            game.pass_turn()
+                            if network_proxy:
+                                network_proxy.send_pass()
+                            keyboard_button_cursor = -1
+                        elif keyboard_button_cursor == 1:
+                            # Faction power button
+                            if game.player1.faction_power and game.player1.faction_power.is_available():
+                                if game.player1.faction_power.activate(game, game.player1):
+                                    faction_power_effect = FactionPowerEffect(
+                                        game.player1.faction,
+                                        SCREEN_WIDTH // 2,
+                                        SCREEN_HEIGHT // 2,
+                                        SCREEN_WIDTH,
+                                        SCREEN_HEIGHT
+                                    )
+                                    game.add_history_event(
+                                        "faction_power",
+                                        f"{game.player1.name} used {game.player1.faction_power.name}",
+                                        "player"
+                                    )
+                                    if network_proxy:
+                                        network_proxy.send_faction_power(game.player1.faction_power.name)
+                                    game.player1.calculate_score()
+                                    game.player2.calculate_score()
+                            keyboard_button_cursor = -1
+                    elif keyboard_mode_active and keyboard_hand_cursor >= 0 and game.current_player == game.player1:
+                        # Preview the keyboard-selected card
+                        if keyboard_hand_cursor < len(game.player1.hand):
+                            inspected_card = game.player1.hand[keyboard_hand_cursor]
+
+                # ENTER = Close overlays or open chat (F key plays cards)
+                elif event.key == pygame.K_RETURN:
                     # Skip if chat is active (RETURN opens chat)
-                    if lan_chat_panel and not lan_chat_panel.active and event.key == pygame.K_RETURN:
+                    if lan_chat_panel and not lan_chat_panel.active:
                         lan_chat_panel.active = True
                         continue
 
@@ -1476,56 +1522,6 @@ def main(lan_game_data=None):
                                     game.player1.calculate_score()
                                     game.player2.calculate_score()
                             keyboard_button_cursor = -1
-                    elif keyboard_mode_active and keyboard_hand_cursor >= 0 and game.game_state == "playing" and game.current_player == game.player1:
-                        # Play the keyboard-selected card
-                        if keyboard_hand_cursor < len(game.player1.hand):
-                            card = game.player1.hand[keyboard_hand_cursor]
-
-                            # Determine target row
-                            if card.row == "close":
-                                target_row = "close"
-                            elif card.row == "ranged":
-                                target_row = "ranged"
-                            elif card.row == "siege":
-                                target_row = "siege"
-                            elif card.row == "agile":
-                                valid_rows = ["close", "ranged"]
-                                target_row = valid_rows[keyboard_row_cursor % len(valid_rows)]
-                            elif card.row == "weather":
-                                valid_rows = ["close", "ranged", "siege"]
-                                target_row = valid_rows[keyboard_row_cursor % len(valid_rows)]
-                            elif card.row == "special":
-                                if "Command Network" in (card.ability or ""):
-                                    valid_rows = ["close", "ranged", "siege"]
-                                    target_row = valid_rows[keyboard_row_cursor % len(valid_rows)]
-                                elif "Wormhole Stabilization" in (card.ability or ""):
-                                    target_row = "weather"
-                                elif "Ring Transport" in (card.ability or ""):
-                                    target_row = None
-                                else:
-                                    target_row = "special"
-                            else:
-                                target_row = card.row
-
-                            if target_row:
-                                game.play_card(card, target_row)
-                                row_rect = cfg.PLAYER_ROW_RECTS.get(target_row)
-                                if row_rect:
-                                    anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=800))
-                                if network_proxy:
-                                    network_proxy.send_play_card(card.id, target_row)
-                                keyboard_hand_cursor = min(keyboard_hand_cursor, len(game.player1.hand) - 1)
-                                if len(game.player1.hand) == 0:
-                                    keyboard_hand_cursor = -1
-                                    keyboard_mode_active = False
-                                keyboard_row_cursor = 0
-                                hovered_card = None
-                    elif hovered_card and game.game_state == "playing":
-                        # Preview hovered card with spacebar
-                        inspected_card = hovered_card
-                    elif selected_card and game.game_state == "playing":
-                        # Preview selected card (legacy behavior)
-                        inspected_card = selected_card
 
                 # Keyboard navigation for mulligan phase
                 if game.game_state == "mulligan" and not mulligan_local_done:
