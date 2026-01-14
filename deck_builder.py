@@ -11,6 +11,7 @@ from cards import (
 )
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
 from game_settings import get_settings
+import board_renderer
 
 # Faction theme music paths for hover preview
 FACTION_THEME_MUSIC = {
@@ -158,13 +159,21 @@ class DeckBuilderUI:
         self.keyboard_deck_cursor = -1  # -1 = none, 0+ = index in deck list
         self.keyboard_focus = "pool"  # "pool" or "deck" - which panel has focus
 
+        # IMAGE CACHE for scaled card images (avoid loading from disk every frame)
+        self._scaled_image_cache = {}  # (card_id, width, height) -> pygame.Surface
+
         # Fonts
         self.title_font = pygame.font.SysFont("Arial", 64, bold=True)
         self.subtitle_font = pygame.font.SysFont("Arial", 36, bold=True)
         self.desc_font = pygame.font.SysFont("Arial", 24)
         self.button_font = pygame.font.SysFont("Arial", 28, bold=True)
-        self.small_font = pygame.font.SysFont("Arial", 20)  # Increased from 18
-        self.stat_font = pygame.font.SysFont("Arial", 22)  # New font for stats
+        self.small_font = pygame.font.SysFont("Arial", 20)
+        self.stat_font = pygame.font.SysFont("Arial", 22)
+        # Additional cached fonts for hover preview
+        self.power_font = pygame.font.SysFont("Arial", 24, bold=True)
+        self.preview_name_font = pygame.font.SysFont("Arial", 18, bold=True)
+        self.preview_type_font = pygame.font.SysFont("Arial", 14)
+        self.preview_desc_font = pygame.font.SysFont("Arial", 14)
         
         # Colors
         self.bg_color = (15, 15, 25)
@@ -234,6 +243,20 @@ class DeckBuilderUI:
                     self.tab_icons[tab_type] = img
                 except Exception as e:
                     print(f"Failed to load tab icon {filename}: {e}")
+
+    def _get_scaled_card_image(self, card, width, height):
+        """Get a cached scaled card image. Loads from disk only once per size."""
+        cache_key = (card.id, width, height)
+        if cache_key not in self._scaled_image_cache:
+            try:
+                if hasattr(card, 'image_path') and os.path.exists(card.image_path):
+                    original = pygame.image.load(card.image_path).convert_alpha()
+                    self._scaled_image_cache[cache_key] = pygame.transform.smoothscale(original, (width, height))
+                else:
+                    self._scaled_image_cache[cache_key] = pygame.transform.smoothscale(card.image, (width, height))
+            except Exception:
+                return None
+        return self._scaled_image_cache[cache_key]
 
     def get_leader_pool(self, faction):
         """Return base leaders plus any unlocked/override leaders for the faction."""
@@ -312,11 +335,11 @@ class DeckBuilderUI:
         )
         
         # === NEW DECK REVIEW LAYOUT ===
-        # Back button (Top Left - Chevron styled)
-        self.back_button = pygame.Rect(30, 30, 180, 50)
-        
+        # Back button (Top Left - DHD styled)
+        self.back_button = pygame.Rect(20, 20, 80, 104)  # DHD button size
+
         # Stats Box (Top Left below back button - Holographic style)
-        self.stats_box_rect = pygame.Rect(30, 100, 320, 180)
+        self.stats_box_rect = pygame.Rect(20, 130, 320, 180)
         
         # Deck List Panel (Right Side - vertical list)
         deck_list_width = 380
@@ -820,7 +843,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = max(0, self.keyboard_deck_cursor - 1) if self.keyboard_deck_cursor > 0 else unique_count - 1
                         else:
-                            tabs = ["all", "unit", "special", "weather"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx - 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -832,7 +855,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = (self.keyboard_deck_cursor + 1) % unique_count
                         else:
-                            tabs = ["all", "unit", "special", "weather"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx + 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -1006,7 +1029,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = max(0, self.keyboard_deck_cursor - 1) if self.keyboard_deck_cursor > 0 else unique_count - 1
                         else:
-                            tabs = ["all", "unit", "special", "weather"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx - 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -1018,7 +1041,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = (self.keyboard_deck_cursor + 1) % unique_count
                         else:
-                            tabs = ["all", "unit", "special", "weather"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx + 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -1136,6 +1159,10 @@ class DeckBuilderUI:
             
             # Faction selection (LEFT CLICK ONLY)
             if self.state == "faction_select" and event.button == 1:
+                # Back button in faction select (only for standalone deck builder)
+                if not self.for_new_game and self.back_button.collidepoint(mouse_pos):
+                    self.return_to_menu = True
+                    return
                 for button in self.faction_buttons:
                     if button['rect'].collidepoint(mouse_pos):
                         self.selected_faction = button['faction']
@@ -1244,11 +1271,16 @@ class DeckBuilderUI:
                     if self.back_button.collidepoint(mouse_pos):
                         if self.for_new_game:
                             self.state = "leader_select"
-                            self.deck_scroll_offset = 0
-                            self.inspected_card_id = None
                         else:
-                            self.save_current_deck("Deck saved before returning to main menu")
-                            self.return_to_menu = True
+                            # Go back to faction select, not main menu
+                            self.save_current_deck("Deck saved")
+                            self.state = "faction_select"
+                            self.selected_faction = None
+                            self.selected_leader = None
+                        self.deck_scroll_offset = 0
+                        self.inspected_card_id = None
+                        self.keyboard_pool_cursor = -1
+                        self.keyboard_deck_cursor = -1
                         return
                     
                     if self.for_new_game and self.continue_button.collidepoint(mouse_pos):
@@ -1429,6 +1461,10 @@ class DeckBuilderUI:
     
     def draw_faction_select(self, surface):
         """Draw faction selection screen."""
+        # Back button (only for standalone deck builder)
+        if not self.for_new_game:
+            self.draw_back_button(surface)
+
         # Title
         title = self.title_font.render("SELECT YOUR FACTION", True, self.highlight_color)
         title_rect = title.get_rect(center=(self.screen_width // 2, 100))
@@ -1521,12 +1557,9 @@ class DeckBuilderUI:
             surface.set_clip(None)
             pygame.draw.rect(surface, (255, 255, 255), self.leader_area_rect, width=2, border_radius=12)
         
-        # Back button
-        pygame.draw.rect(surface, self.button_color, self.back_button, border_radius=5)
-        back_text = self.button_font.render("< Back", True, self.text_color)
-        back_rect = back_text.get_rect(center=self.back_button.center)
-        surface.blit(back_text, back_rect)
-        
+        # Back button (DHD style)
+        self.back_button = board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
+
         # Review Deck button (if leader selected)
         if self.selected_leader:
             review_rect = self._leader_button_display_rect(self.review_deck_button)
@@ -1640,15 +1673,8 @@ class DeckBuilderUI:
             surface.blit(instructions, inst_rect)
 
     def draw_back_button(self, surface):
-        """Draws a stylized chevron back button (Top Left)."""
-        pygame.draw.rect(surface, (40, 50, 70), self.back_button, border_radius=10)
-        pygame.draw.rect(surface, (100, 200, 255), self.back_button, width=2, border_radius=10)
-        
-        if self.for_new_game:
-            txt = self.button_font.render("« BACK", True, (255, 255, 255))
-        else:
-            txt = self.button_font.render("« DEPARTURE", True, (255, 255, 255))
-        surface.blit(txt, txt.get_rect(center=self.back_button.center))
+        """Draws a DHD-style back button (Top Left)."""
+        self.back_button = board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
     def draw_stats_hologram(self, surface, faction_color):
         """Draws a cool, translucent stats box in the top left."""
@@ -1742,30 +1768,37 @@ class DeckBuilderUI:
         row_height = 38
         y_offset = self.deck_list_rect.y + 15 - self.deck_scroll_offset
         mouse_pos = pygame.mouse.get_pos()
-        
-        for cid in unique_ids:
+
+        for idx, cid in enumerate(unique_ids):
             card = ALL_CARDS[cid]
             row_rect = pygame.Rect(
-                self.deck_list_rect.x + 8, 
-                y_offset, 
-                self.deck_list_rect.width - 16, 
+                self.deck_list_rect.x + 8,
+                y_offset,
+                self.deck_list_rect.width - 16,
                 row_height - 4
             )
-            
+
             # Skip if outside visible area
             if row_rect.bottom < self.deck_list_rect.y or row_rect.top > self.deck_list_rect.bottom:
                 y_offset += row_height
                 continue
-            
-            # Hover effect
+
+            # Check if this card is keyboard-selected
+            is_keyboard_selected = (self.keyboard_focus == "deck" and
+                                   self.keyboard_deck_cursor == idx)
+
+            # Hover or keyboard selection effect
             is_hovered = row_rect.collidepoint(mouse_pos) and self.deck_list_rect.collidepoint(mouse_pos)
-            if is_hovered:
-                hover_color = (*faction_color[:3], 80)
+            if is_hovered or is_keyboard_selected:
+                # Use cyan for keyboard selection, faction color for hover
+                highlight_color = (0, 200, 255) if is_keyboard_selected and not is_hovered else faction_color
+                hover_color = (*highlight_color[:3], 80)
                 hover_surf = pygame.Surface((row_rect.width, row_rect.height), pygame.SRCALPHA)
                 pygame.draw.rect(hover_surf, hover_color, hover_surf.get_rect(), border_radius=6)
                 surface.blit(hover_surf, row_rect.topleft)
-                pygame.draw.rect(surface, faction_color, row_rect, width=1, border_radius=6)
-                self.hovered_card_id = cid
+                pygame.draw.rect(surface, highlight_color, row_rect, width=2 if is_keyboard_selected else 1, border_radius=6)
+                if is_hovered:
+                    self.hovered_card_id = cid
             
             # Row type color indicator (left edge)
             row_colors = {
@@ -1869,16 +1902,20 @@ class DeckBuilderUI:
                 continue
             
             target_rect = pygame.Rect(card_x, card_y, card_w, card_h)
-            
+
+            # Check if this card is keyboard-selected (need this before lift animation)
+            is_keyboard_selected = (self.keyboard_focus == "pool" and
+                                   self.keyboard_pool_cursor == i)
+
             # Hover detection and lift animation
             is_hovered = target_rect.collidepoint(mouse_pos) and self.accordion_area_rect.collidepoint(mouse_pos)
-            
-            # Smooth lift animation
+
+            # Smooth lift animation (lift on hover OR keyboard selection)
             current_lift = self.accordion_lift_amount.get(cid, 0)
-            target_lift = lift_amount if is_hovered else 0
+            target_lift = lift_amount if (is_hovered or is_keyboard_selected) else 0
             new_lift = current_lift + (target_lift - current_lift) * 0.3
             self.accordion_lift_amount[cid] = new_lift
-            
+
             draw_y = card_y - int(new_lift)
             
             # Draw card shadow
@@ -1887,23 +1924,21 @@ class DeckBuilderUI:
             pygame.draw.rect(shadow_surf, (0, 0, 0, 100), shadow_surf.get_rect(), border_radius=10)
             surface.blit(shadow_surf, (card_x - 5 + shadow_offset, draw_y + shadow_offset))
             
-            # Draw card image (load original for quality)
-            try:
-                if hasattr(card, 'image_path') and os.path.exists(card.image_path):
-                    original_image = pygame.image.load(card.image_path).convert_alpha()
-                    large_img = pygame.transform.smoothscale(original_image, (card_w, card_h))
-                else:
-                    large_img = pygame.transform.smoothscale(card.image, (card_w, card_h))
+            # Draw card image (cached for performance)
+            large_img = self._get_scaled_card_image(card, card_w, card_h)
+            if large_img:
                 surface.blit(large_img, (card_x, draw_y))
-            except:
+            else:
                 pygame.draw.rect(surface, (60, 60, 70), pygame.Rect(card_x, draw_y, card_w, card_h), border_radius=8)
-            
-            # Border (glowing on hover)
-            if is_hovered:
-                # Outer glow
+
+            # Border (glowing on hover or keyboard selection)
+            if is_hovered or is_keyboard_selected:
+                # Outer glow - use cyan for keyboard, yellow for hover
+                glow_color = (0, 200, 255) if is_keyboard_selected and not is_hovered else self.highlight_color
                 glow_rect = pygame.Rect(card_x - 4, draw_y - 4, card_w + 8, card_h + 8)
-                pygame.draw.rect(surface, self.highlight_color, glow_rect, width=4, border_radius=12)
-                self.accordion_hover_card_id = cid
+                pygame.draw.rect(surface, glow_color, glow_rect, width=4, border_radius=12)
+                if is_hovered:
+                    self.accordion_hover_card_id = cid
             else:
                 pygame.draw.rect(surface, (100, 100, 100), pygame.Rect(card_x, draw_y, card_w, card_h), width=2, border_radius=8)
             
@@ -1915,13 +1950,14 @@ class DeckBuilderUI:
                 p_text = self.button_font.render(str(card.power), True, (255, 255, 255))
                 surface.blit(p_text, p_text.get_rect(center=badge_center))
             
-            # Card name below (only if hovered)
-            if is_hovered:
+            # Card name below (if hovered or keyboard selected)
+            if is_hovered or is_keyboard_selected:
                 name_bg = pygame.Surface((card_w + 20, 30), pygame.SRCALPHA)
                 name_bg.fill((0, 0, 0, 180))
                 surface.blit(name_bg, (card_x - 10, draw_y + card_h + 5))
-                
-                name_txt = self.small_font.render(card.name, True, (255, 255, 255))
+
+                name_color = (0, 200, 255) if is_keyboard_selected and not is_hovered else (255, 255, 255)
+                name_txt = self.small_font.render(card.name, True, name_color)
                 name_rect = name_txt.get_rect(center=(card_x + card_w // 2, draw_y + card_h + 20))
                 surface.blit(name_txt, name_rect)
         
@@ -1955,15 +1991,11 @@ class DeckBuilderUI:
         card_x = (self.screen_width - card_display_width) // 2
         card_y = (self.screen_height - card_display_height) // 2 - 50
         
-        # Draw card image (load original for quality)
-        try:
-            if hasattr(card, 'image_path') and os.path.exists(card.image_path):
-                original_image = pygame.image.load(card.image_path).convert_alpha()
-                large_card_image = pygame.transform.smoothscale(original_image, (card_display_width, card_display_height))
-            else:
-                large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
+        # Draw card image (cached for performance)
+        large_card_image = self._get_scaled_card_image(card, card_display_width, card_display_height)
+        if large_card_image:
             surface.blit(large_card_image, (card_x, card_y))
-        except:
+        else:
             pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
         
         pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=5)
@@ -2057,39 +2089,35 @@ class DeckBuilderUI:
 
         # Draw power overlay for unit cards
         if card.row not in ["special", "weather"]:
-            power_font = pygame.font.SysFont("Arial", 24, bold=True)
-            power_text = power_font.render(str(card.power), True, (255, 255, 255))
+            power_text = self.power_font.render(str(card.power), True, (255, 255, 255))
             power_rect = power_text.get_rect(center=(preview_x + preview_card_width // 2, preview_y + preview_card_height - 20))
             bg_rect = power_rect.inflate(12, 6)
             pygame.draw.rect(surface, (0, 0, 0), bg_rect, border_radius=3)
             surface.blit(power_text, power_rect)
-            
+
         # Text Info Below Image
         text_start_y = preview_y + preview_card_height + 8
         center_x = preview_x + preview_card_width // 2
-        
+
         # Card Name
-        name_font = pygame.font.SysFont("Arial", 18, bold=True)
-        name_text = name_font.render(card.name, True, (255, 215, 0))
+        name_text = self.preview_name_font.render(card.name, True, (255, 215, 0))
         name_rect = name_text.get_rect(center=(center_x, text_start_y + 10))
         surface.blit(name_text, name_rect)
-        
+
         # Row / Type
-        type_font = pygame.font.SysFont("Arial", 14)
         row_str = card.row.capitalize()
         if card.row == "close": row_str = "Melee"
         elif card.row == "ranged": row_str = "Ranged"
         elif card.row == "siege": row_str = "Siege"
-        
-        type_text = type_font.render(f"{row_str} • {card.faction}", True, (180, 180, 180))
+
+        type_text = self.preview_type_font.render(f"{row_str} • {card.faction}", True, (180, 180, 180))
         type_rect = type_text.get_rect(center=(center_x, text_start_y + 30))
         surface.blit(type_text, type_rect)
-        
+
         # Ability Description (truncated)
         if card.ability:
-            desc_font = pygame.font.SysFont("Arial", 14)
             ability_text = card.ability[:40] + "..." if len(card.ability) > 40 else card.ability
-            ability_surf = desc_font.render(ability_text, True, (200, 200, 200))
+            ability_surf = self.preview_desc_font.render(ability_text, True, (200, 200, 200))
             ability_rect = ability_surf.get_rect(center=(center_x, text_start_y + 50))
             surface.blit(ability_surf, ability_rect)
 
@@ -2456,6 +2484,9 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
                     if deck_builder.state == "leader_select":
                         deck_builder.state = "faction_select"
                         deck_builder.selected_leader = None
+                    elif deck_builder.state == "deck_review" and deck_builder.inspected_card_id:
+                        # Close inspection instead of exiting
+                        deck_builder.inspected_card_id = None
                     else:
                         stop_faction_theme()
                         return None
@@ -2467,6 +2498,9 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
                     reload_card_images()
                     screen = pygame.display.get_surface()
                     deck_builder.refresh_for_surface(screen)
+                else:
+                    # Pass other keyboard events to deck builder for navigation
+                    deck_builder.handle_event(event)
             else:
                 deck_builder.handle_event(event)
         

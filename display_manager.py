@@ -8,6 +8,9 @@ from cards import reload_card_images
 # Initialize Pygame
 pygame.init()
 
+# Enable keyboard repeat (delay_ms, interval_ms) for continuous navigation when holding keys
+pygame.key.set_repeat(300, 50)
+
 # Set high DPI awareness for Windows
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(1)  # Windows 8.1+

@@ -5,6 +5,7 @@ from deck_persistence import get_persistence
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
 from content_registry import get_all_leaders_for_faction
 from animations import get_scale_factor
+import board_renderer
 
 # Construct FACTION_LEADERS mapping for easy lookup
 FACTION_LEADERS = {
@@ -212,8 +213,8 @@ def run_stats_menu(screen):
     label_font = pygame.font.SysFont("Arial", 32, bold=True)
     value_font = pygame.font.SysFont("Arial", 30)
 
-    # Buttons
-    back_rect = pygame.Rect(panel_rect.x + 28, panel_rect.y + 22, 140, 48)
+    # Buttons - DHD back button at top left of screen
+    back_rect = pygame.Rect(20, 20, 80, 104)
     # Reset button is circular DHD style - make it square for proper circle
     reset_rect = pygame.Rect(panel_rect.right - 90, panel_rect.bottom - 90, 70, 70)
 
@@ -301,13 +302,6 @@ def run_stats_menu(screen):
         panel_surf = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
         panel_surf.fill((20, 30, 50, 230))
         pygame.draw.rect(panel_surf, (90, 170, 240), panel_surf.get_rect(), width=3, border_radius=16)
-
-        # Back button
-        pygame.draw.rect(panel_surf, (30, 45, 70), back_rect.move(-panel_rect.x, -panel_rect.y), border_radius=8)
-        pygame.draw.rect(panel_surf, (90, 170, 240), back_rect.move(-panel_rect.x, -panel_rect.y), width=2, border_radius=8)
-        back_text = button_font.render("← Back", True, (210, 230, 255))
-        back_text_rect = back_text.get_rect(center=back_rect.move(-panel_rect.x, -panel_rect.y).center)
-        panel_surf.blit(back_text, back_text_rect)
 
         # Reset button - Red DHD Stargate style
         reset_local = reset_rect.move(-panel_rect.x, -panel_rect.y)
@@ -705,4 +699,8 @@ def run_stats_menu(screen):
         panel_surf.blit(hint, hint_rect)
 
         screen.blit(panel_surf, panel_rect.topleft)
+
+        # DHD back button at top left (drawn on top of everything)
+        back_rect = board_renderer.draw_dhd_back_button(screen, 20, 20, 80)
+
         pygame.display.flip()

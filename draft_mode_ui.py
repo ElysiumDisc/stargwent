@@ -11,6 +11,7 @@ from typing import List, Dict, Optional, Tuple
 from cards import Card, ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
 from animations import get_scale_factor
 from sound_manager import get_sound_manager
+import board_renderer
 
 
 # Colors
@@ -87,33 +88,15 @@ class DraftModeUI:
 
     def draw_back_button(self, surface: pygame.Surface) -> pygame.Rect:
         """
-        Draw a back button in the top left corner.
-        
+        Draw a DHD-style back button in the top left corner.
+
         Args:
             surface: Pygame surface to draw on
-            
+
         Returns:
             Button rect
         """
-        btn_width = int(120 * self.scale)
-        btn_height = int(40 * self.scale)
-        btn_rect = pygame.Rect(20, 20, btn_width, btn_height)
-        
-        # Hover effect handled by caller checking rect later, but we can check mouse here for visual
-        mouse_pos = pygame.mouse.get_pos()
-        is_hovered = btn_rect.collidepoint(mouse_pos)
-        
-        color = (60, 80, 100) if is_hovered else (40, 50, 70)
-        border_color = COLOR_ACCENT_BLUE if is_hovered else COLOR_TEXT_SECONDARY
-        
-        pygame.draw.rect(surface, color, btn_rect, border_radius=8)
-        pygame.draw.rect(surface, border_color, btn_rect, width=2, border_radius=8)
-        
-        text = self.font_small.render("BACK", True, COLOR_TEXT_PRIMARY)
-        text_rect = text.get_rect(center=btn_rect.center)
-        surface.blit(text, text_rect)
-        
-        return btn_rect
+        return board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
     def draw_startup_menu(self, surface: pygame.Surface) -> Tuple[pygame.Rect, pygame.Rect]:
         """

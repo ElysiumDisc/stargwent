@@ -2869,11 +2869,7 @@ def main(lan_game_data=None):
         ambient_effects.draw(screen)
         
         if game.game_state == "mulligan":
-            # Draw mulligan UI
-            mulligan_title = cfg.SCORE_FONT.render("Select up to 2 cards to redraw", True, cfg.WHITE)
-            screen.blit(mulligan_title, (SCREEN_WIDTH // 2 - mulligan_title.get_width() // 2, int(SCREEN_HEIGHT * 0.019)))
-            mulligan_subtitle = cfg.UI_FONT.render("Click cards to select/deselect, then click Redraw button", True, cfg.WHITE)
-            screen.blit(mulligan_subtitle, (SCREEN_WIDTH // 2 - mulligan_subtitle.get_width() // 2, int(SCREEN_HEIGHT * 0.046)))
+            # Draw mulligan UI (hand and button only, no text)
             draw_hand(
                 screen,
                 game.player1,

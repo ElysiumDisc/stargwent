@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.5.0-blue)
+![Version](https://img.shields.io/badge/version-4.6.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.6.0: DHD BACK BUTTONS & NAVIGATION POLISH** - Replaced all "Back" buttons with circular DHD-style buttons featuring metallic rings, glowing chevrons, and cyan activation crystals! Holding arrow keys now continuously browses. Fixed deck builder keyboard navigation!
 - **⚡ NEW v4.5.0: UNIVERSAL KEYBOARD CONTROLS** - Full keyboard navigation across all game screens! Arrow keys for card/menu navigation, F to play cards, G for faction power, Tab to cycle buttons. Cards now highlight with row-type colors (red=close, blue=ranged, green=siege). Enhanced pause menu with Options integration!
 - **⚡ NEW v4.4.0: DRAFT MODE SAVE & POST-GAME POLISH** - Draft mode now features Save & Continue options! After winning a match, choose to Continue Draft, Save & Exit, or Abandon. Post-game menu redesigned with Stargwent-styled buttons. Fixed critical card sharing bug and improved FPS with font/surface caching!
 - **⚡ NEW v4.3.1: ARCHITECTURE REFACTORING** - Split monolithic 6,000+ line `main.py` into clean, maintainable modules (`display_manager.py`, `game_config.py`, `render_engine.py`). Centralized configuration, improved testability, and eliminated code duplication while maintaining full backward compatibility!
@@ -93,7 +94,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **⚡ NEW v1.9: Seamless Fullscreen** - Toggle with F11 or launch via `--fullscreen`; mode persists from menus through combat.
 - **⚡ NEW v1.9: RULE MENU COMPENDIUM** - In-game `RULE MENU` button that opens the fully formatted rulebook generated from live card data.
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
-- **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
+- **DHD Buttons** - Authentic Stargate Dial Home Device styling for Pass button (in-game) and Back buttons (menus) with glowing chevrons and cyan crystals
 - **⚡ NEW v1.7: WITCHER 3 GWENT LAYOUT** - Complete visual restructure matching authentic Gwent board design with clear separation, proper lane spacing, and fixed hand positioning!
 - **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
 - **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
@@ -105,7 +106,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
   - **Circular Icon Tabs**: New high-resolution circular buttons for filtering cards by type (Close, Ranged, Siege, Special, etc.).
   - **Right Deck List**: Vertical list view showing power, name, quantity, and row-type color indicators
   - **Holographic Stats Panel**: Translucent top-left panel with deck validity, card counts, and total strength
-  - **Chevron Back Button**: Stylized "« DEPARTURE" button with faction-colored border
+  - **DHD Back Button**: Circular Dial Home Device button with metallic ring, glowing chevrons, and cyan center crystal (top-left in all menus)
   - **Top-Center Faction Tabs**: Filter cards by type (All, Close, Ranged, Siege, etc.)
 - **Elite AI Strategy** - The AI now uses Gwent-style "bleeding" and hero preservation tactics to challenge even experienced players.
 - **Draft Mode Polish** - "Your Deck" list is now scrollable, groups duplicates (e.g. "3x Alpha Team"), and features a centered "Start Battle" layout.
@@ -184,6 +185,19 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.6.0 (January 2026)
+**DHD Back Buttons & Navigation Polish**
+
+- ✅ **DHD-Style Back Buttons** – Replaced all "Departure" and "Back" buttons with circular DHD (Dial Home Device) buttons across the game:
+  - Metallic ring with 7 glowing orange chevron symbols
+  - Cyan glowing center button (like the Stargate's DHD activation crystal)
+  - Consistent top-left positioning across all menus
+  - Applied to: Deck Builder, Options, Settings, Stats Menu, Draft Mode UI
+- ✅ **Continuous Keyboard Navigation** – Holding arrow keys now continuously browses cards/menus instead of requiring repeated key presses (300ms delay, 50ms repeat interval)
+- ✅ **Mulligan Phase Cleanup** – Removed descriptive text overlay during mulligan for cleaner visuals
+- ✅ **Deck Builder Keyboard Fix** – Fixed critical bug where arrow keys and other keyboard navigation wasn't working in the deck builder (events weren't being passed to handler)
+- ✅ **Consistent Tab Navigation** – Added correct filter tabs for deck builder keyboard navigation (all, close, ranged, siege, agile, legendary, special, weather, neutral)
 
 ### Version 4.5.0 (January 2026)
 **Universal Keyboard Controls & Row-Type Highlighting**
@@ -322,7 +336,7 @@ All abilities renamed and themed around Stargate lore:
   - Special and Weather card counts
   - Total deck strength
   - Deck validity status with icon
-- ✅ **Chevron Back Button** – Stylized "« BACK" / "« DEPARTURE" button in top-left
+- ✅ **Back Button** – Stylized back button in top-left (now upgraded to DHD style in v4.6.0)
 - ✅ **Top-Center Faction Tabs** – Card type filters maintained from previous version
 - ✅ **Improved Drag & Drop** – Drag from accordion to deck list to add, drag out to remove
 - ✅ **Right-Click Preview** – Works on both accordion cards and deck list items

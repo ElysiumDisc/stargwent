@@ -314,6 +314,57 @@ def draw_pass_button(surface, game, button_rect=None):
     surface.blit(pass_text, text_rect)
 
 
+def draw_dhd_back_button(surface, x=30, y=30, size=80, label=None):
+    """Draws a DHD-style back button. Returns the button rect for click detection."""
+    center_x = x + size // 2
+    center_y = y + size // 2
+
+    # Outer DHD ring (scaled)
+    outer_radius = size // 2
+    inner_radius = int(outer_radius * 0.65)
+
+    # Outer ring color (bronze/metallic)
+    outer_color = (100, 120, 140)
+    pygame.draw.circle(surface, outer_color, (center_x, center_y), outer_radius)
+    pygame.draw.circle(surface, (70, 90, 110), (center_x, center_y), outer_radius, width=max(1, int(3 * display_manager.SCALE_FACTOR)))
+
+    # DHD symbols around the ring (simplified chevrons)
+    num_symbols = 7
+    for i in range(num_symbols):
+        angle = (i * 360 / num_symbols) - 90  # Start from top
+        rad = math.radians(angle)
+        symbol_dist = outer_radius * 0.75
+        symbol_x = center_x + math.cos(rad) * symbol_dist
+        symbol_y = center_y + math.sin(rad) * symbol_dist
+
+        # Small chevron-like dots - cyan/blue themed
+        symbol_color = (100, 180, 220)
+        symbol_size = max(2, int(size * 0.06))
+        pygame.draw.circle(surface, symbol_color, (int(symbol_x), int(symbol_y)), symbol_size)
+
+    # Center button - glowing cyan/blue (always active)
+    glow_time = pygame.time.get_ticks() / 600.0
+    glow_pulse = abs(math.sin(glow_time))
+
+    # Outer glow
+    glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
+    glow_alpha = int(60 + glow_pulse * 40)
+    pygame.draw.circle(glow_surf, (50, 150, 255, glow_alpha), (inner_radius * 1.5, inner_radius * 1.5), inner_radius + 8)
+    surface.blit(glow_surf, (center_x - inner_radius * 1.5, center_y - inner_radius * 1.5))
+
+    # Main button - glowing cyan/blue
+    pygame.draw.circle(surface, (40, 100, 160), (center_x, center_y), inner_radius)
+    pygame.draw.circle(surface, (60, 140, 200), (center_x, center_y), max(1, inner_radius - 4))
+    pygame.draw.circle(surface, (80, 180, 240), (center_x, center_y), max(1, inner_radius - 8))
+
+    # Center dot (button press point)
+    pygame.draw.circle(surface, (150, 220, 255), (center_x, center_y), max(2, int(size * 0.08)))
+    pygame.draw.circle(surface, (200, 240, 255), (center_x, center_y), max(1, int(size * 0.04)))
+
+    # Return clickable rect (just the circle, no label)
+    return pygame.Rect(x, y, size, size)
+
+
 def draw_mulligan_button(surface, mulligan_selected):
     """Draws the mulligan confirm button."""
     num_selected = len(mulligan_selected)

@@ -5,6 +5,7 @@ Handles persistent game settings like volume, controls, etc.
 import json
 import os
 import pygame
+import board_renderer
 
 SETTINGS_FILE = "game_settings.json"
 
@@ -122,31 +123,8 @@ def get_settings() -> GameSettings:
 
 
 def draw_back_button(surface, font=None):
-    """Draw a consistent back button in top-left corner. Returns the button rect."""
-    if font is None:
-        font = pygame.font.SysFont("Arial", 24, bold=True)
-
-    btn_width, btn_height = 100, 40
-    btn_x, btn_y = 20, 20
-    btn_rect = pygame.Rect(btn_x, btn_y, btn_width, btn_height)
-
-    mouse_pos = pygame.mouse.get_pos()
-    is_hover = btn_rect.collidepoint(mouse_pos)
-
-    # Button colors (Stargate theme)
-    bg_color = (50, 70, 100) if is_hover else (30, 45, 70)
-    border_color = (100, 180, 255) if is_hover else (70, 130, 200)
-    text_color = (220, 240, 255) if is_hover else (180, 200, 220)
-
-    pygame.draw.rect(surface, bg_color, btn_rect, border_radius=8)
-    pygame.draw.rect(surface, border_color, btn_rect, width=2, border_radius=8)
-
-    # Arrow + text
-    text = font.render("< BACK", True, text_color)
-    text_rect = text.get_rect(center=btn_rect.center)
-    surface.blit(text, text_rect)
-
-    return btn_rect
+    """Draw a DHD-style back button in top-left corner. Returns the button rect."""
+    return board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
 
 def run_settings_menu(screen):

@@ -16,6 +16,7 @@ from rules_menu import run_rules_menu
 from lan_menu import run_lan_menu
 from stats_menu import run_stats_menu
 from dhd_button import DHDButtonManager
+import board_renderer
 
 # Save file for custom decks
 CUSTOM_DECKS_FILE = "player_decks.json"
@@ -507,17 +508,8 @@ class MainMenu:
             surface.blit(glow_surf, (title_rect.x + 2, title_rect.y + 2))
             surface.blit(title_surface, title_rect)
 
-            # Back button
-            mouse_pos = pygame.mouse.get_pos()
-            back_hovered = back_rect.collidepoint(mouse_pos)
-            back_color = (40, 60, 90) if back_hovered else (30, 45, 70)
-            border_color = (100, 180, 255) if back_hovered else (70, 130, 200)
-            
-            pygame.draw.rect(surface, back_color, back_rect, border_radius=10)
-            pygame.draw.rect(surface, border_color, back_rect, width=2, border_radius=10)
-            back_text = label_font.render("<< Back", True, (210, 230, 255))
-            back_text_rect = back_text.get_rect(center=back_rect.center)
-            surface.blit(back_text, back_text_rect)
+            # Back button (DHD style - top left)
+            back_rect = board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
             # === VOLUME SECTION ===
             volume_label = label_font.render("Master Volume", True, (220, 230, 255))
@@ -860,8 +852,8 @@ class DeckCustomizationUI:
             rect = pygame.Rect(x, 10, tab_width, tab_height)
             self.tab_rects.append({'faction': faction, 'rect': rect})
         
-        # Back button
-        self.back_button = pygame.Rect(20, self.screen_height - 70, 150, 50)
+        # Back button (DHD style - top left)
+        self.back_button = pygame.Rect(20, 20, 80, 104)
         
         # Save button
         self.save_button = pygame.Rect(self.screen_width - 170, self.screen_height - 70, 150, 50)
@@ -1046,10 +1038,8 @@ class DeckCustomizationUI:
         self.draw_available_cards(surface)
         self.draw_current_deck(surface)
         
-        # Buttons
-        pygame.draw.rect(surface, (60, 60, 80), self.back_button, border_radius=5)
-        back_text = self.subtitle_font.render("BACK", True, self.text_color)
-        surface.blit(back_text, (self.back_button.centerx - back_text.get_width() // 2, self.back_button.centery - back_text.get_height() // 2))
+        # Buttons - DHD back button
+        self.back_button = board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
         
         pygame.draw.rect(surface, (50, 150, 50), self.save_button, border_radius=5)
         save_text = self.subtitle_font.render("SAVE", True, self.text_color)
