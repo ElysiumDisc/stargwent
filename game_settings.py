@@ -44,6 +44,7 @@ class GameSettings:
             "master_volume": 0.7,  # 0.0 to 1.0
             "music_volume": 0.7,
             "sfx_volume": 0.7,
+            "show_fps": False,
         }
 
     def get_master_volume(self) -> float:
@@ -99,6 +100,15 @@ class GameSettings:
         """Get effective SFX volume (master * sfx)"""
         return self.get_master_volume() * self.get_sfx_volume()
 
+    def get_show_fps(self) -> bool:
+        """Get show FPS setting"""
+        return self.settings.get("show_fps", False)
+
+    def set_show_fps(self, show: bool):
+        """Set show FPS setting"""
+        self.settings["show_fps"] = bool(show)
+        self.save_settings()
+
 
 # Global settings instance
 _settings_instance = None
@@ -109,3 +119,154 @@ def get_settings() -> GameSettings:
     if _settings_instance is None:
         _settings_instance = GameSettings()
     return _settings_instance
+
+
+def draw_back_button(surface, font=None):
+    """Draw a consistent back button in top-left corner. Returns the button rect."""
+    if font is None:
+        font = pygame.font.SysFont("Arial", 24, bold=True)
+
+    btn_width, btn_height = 100, 40
+    btn_x, btn_y = 20, 20
+    btn_rect = pygame.Rect(btn_x, btn_y, btn_width, btn_height)
+
+    mouse_pos = pygame.mouse.get_pos()
+    is_hover = btn_rect.collidepoint(mouse_pos)
+
+    # Button colors (Stargate theme)
+    bg_color = (50, 70, 100) if is_hover else (30, 45, 70)
+    border_color = (100, 180, 255) if is_hover else (70, 130, 200)
+    text_color = (220, 240, 255) if is_hover else (180, 200, 220)
+
+    pygame.draw.rect(surface, bg_color, btn_rect, border_radius=8)
+    pygame.draw.rect(surface, border_color, btn_rect, width=2, border_radius=8)
+
+    # Arrow + text
+    text = font.render("< BACK", True, text_color)
+    text_rect = text.get_rect(center=btn_rect.center)
+    surface.blit(text, text_rect)
+
+    return btn_rect
+
+
+def run_settings_menu(screen):
+    """Run the settings menu."""
+    settings = get_settings()
+    clock = pygame.time.Clock()
+    running = True
+
+    screen_width, screen_height = screen.get_size()
+
+    # Slider tracking
+    dragging_slider = None
+
+    while running:
+        mouse_pos = pygame.mouse.get_pos()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                import sys
+                sys.exit()
+
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Check back button
+                if back_rect.collidepoint(event.pos):
+                    running = False
+
+                # Check sliders
+                for name, slider_rect in slider_rects.items():
+                    if slider_rect.collidepoint(event.pos):
+                        dragging_slider = name
+                        # Update value immediately
+                        x_rel = (event.pos[0] - slider_rect.x) / slider_rect.width
+                        x_rel = max(0.0, min(1.0, x_rel))
+                        if name == "master":
+                            settings.set_master_volume(x_rel)
+                        elif name == "music":
+                            settings.set_music_volume(x_rel)
+                        elif name == "sfx":
+                            settings.set_sfx_volume(x_rel)
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                dragging_slider = None
+
+            elif event.type == pygame.MOUSEMOTION and dragging_slider:
+                slider_rect = slider_rects.get(dragging_slider)
+                if slider_rect:
+                    x_rel = (event.pos[0] - slider_rect.x) / slider_rect.width
+                    x_rel = max(0.0, min(1.0, x_rel))
+                    if dragging_slider == "master":
+                        settings.set_master_volume(x_rel)
+                    elif dragging_slider == "music":
+                        settings.set_music_volume(x_rel)
+                    elif dragging_slider == "sfx":
+                        settings.set_sfx_volume(x_rel)
+
+        # Draw
+        screen.fill((20, 25, 35))
+
+        # Back button
+        back_rect = draw_back_button(screen)
+
+        # Title
+        title_font = pygame.font.SysFont("Arial", 48, bold=True)
+        title = title_font.render("SETTINGS", True, (200, 220, 255))
+        screen.blit(title, (screen_width // 2 - title.get_width() // 2, 80))
+
+        # Sliders
+        slider_font = pygame.font.SysFont("Arial", 28, bold=True)
+        slider_rects = {}
+        slider_y = 180
+        slider_width = 400
+        slider_height = 30
+        slider_x = screen_width // 2 - slider_width // 2
+
+        volumes = [
+            ("master", "Master Volume", settings.get_master_volume()),
+            ("music", "Music Volume", settings.get_music_volume()),
+            ("sfx", "SFX Volume", settings.get_sfx_volume()),
+        ]
+
+        for name, label, value in volumes:
+            # Label
+            label_surf = slider_font.render(label, True, (180, 200, 220))
+            screen.blit(label_surf, (slider_x, slider_y))
+            slider_y += 35
+
+            # Slider background
+            slider_rect = pygame.Rect(slider_x, slider_y, slider_width, slider_height)
+            slider_rects[name] = slider_rect
+            pygame.draw.rect(screen, (40, 50, 70), slider_rect, border_radius=5)
+            pygame.draw.rect(screen, (70, 100, 140), slider_rect, width=2, border_radius=5)
+
+            # Slider fill
+            fill_width = int(slider_width * value)
+            if fill_width > 0:
+                fill_rect = pygame.Rect(slider_x, slider_y, fill_width, slider_height)
+                pygame.draw.rect(screen, (80, 140, 200), fill_rect, border_radius=5)
+
+            # Slider handle
+            handle_x = slider_x + int(slider_width * value)
+            handle_rect = pygame.Rect(handle_x - 8, slider_y - 4, 16, slider_height + 8)
+            pygame.draw.rect(screen, (150, 200, 255), handle_rect, border_radius=4)
+
+            # Value text
+            value_text = slider_font.render(f"{int(value * 100)}%", True, (255, 255, 255))
+            screen.blit(value_text, (slider_x + slider_width + 20, slider_y))
+
+            slider_y += 60
+
+        # Hint text
+        hint_font = pygame.font.SysFont("Arial", 20)
+        hint = hint_font.render("Press ESC or click BACK to return", True, (120, 140, 160))
+        screen.blit(hint, (screen_width // 2 - hint.get_width() // 2, screen_height - 60))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    return

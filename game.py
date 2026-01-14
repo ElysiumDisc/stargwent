@@ -70,21 +70,21 @@ class GoauldAbility(FactionAbility):
 
     def apply_to_score(self, player):
         """Called during score calculation."""
-        # Check if player has any Hero on board
+        # Check if player has any Legendary Commander on board
         has_hero = False
         for row in player.board.values():
             for card in row:
-                if "Hero" in (card.ability or ""):
+                if "Legendary Commander" in (card.ability or ""):
                     has_hero = True
                     break
             if has_hero:
                 break
 
         if has_hero:
-            # Add bonus to all non-Hero units
+            # Add bonus to all non-Legendary Commander units
             for row in player.board.values():
                 for card in row:
-                    if "Hero" not in (card.ability or ""):
+                    if "Legendary Commander" not in (card.ability or ""):
                         card.displayed_power += BALANCE_CONFIG["goauld_command_bonus"]
 
 
@@ -99,7 +99,7 @@ class JaffaAbility(FactionAbility):
     def apply_to_score(self, player):
         """Called during score calculation."""
         for row_name, row_cards in player.board.items():
-            non_hero_units = [c for c in row_cards if "Hero" not in (c.ability or "")]
+            non_hero_units = [c for c in row_cards if "Legendary Commander" not in (c.ability or "")]
             if len(non_hero_units) > 1:
                 bonus = min(BALANCE_CONFIG["jaffa_brotherhood_max"], len(non_hero_units) - 1)
                 for card in non_hero_units:
@@ -450,7 +450,8 @@ class Player:
 
     def build_deck(self):
         """Builds a starting deck for the player based on their faction."""
-        deck = [card for card in ALL_CARDS.values() if card.faction == self.faction]
+        # Deep copy cards to prevent shared state between players
+        deck = [copy.deepcopy(card) for card in ALL_CARDS.values() if card.faction == self.faction]
         self._rng.shuffle(deck)
         return deck
 
@@ -692,10 +693,16 @@ class Player:
         )
         clone.is_oneill_clone = True
         clone.clone_turns_remaining = 4  # removed when about to take 4th turn
+
+        # Load the image for the clone card
+        from cards import load_card_image
+        load_card_image(clone)
+
         self.board["close"].append(clone)
 
     def decrement_clone_tokens(self):
         """Reduce lifetime on O'Neill clones and remove expired ones."""
+        # Check this player's board for clone tokens
         for row_name, row_cards in self.board.items():
             for card in list(row_cards):
                 if getattr(card, "is_oneill_clone", False):
@@ -713,7 +720,11 @@ class Game:
 
         self.player1 = Player("Player 1", player1_faction, player1_deck, player1_leader, rng=self.rng)
         self.player2 = Player("Player 2", player2_faction, player2_deck, player2_leader, rng=self.rng)
-        
+
+        # Store faction info for stats tracking
+        self.player1_faction = player1_faction
+        self.player2_faction = player2_faction
+
         # Randomize who goes first (50/50 coin toss)
         self.current_player = self.rng.choice([self.player1, self.player2])
         self.player_went_first = (self.current_player == self.player1)
@@ -833,6 +844,9 @@ class Game:
 
     def _apply_leader_round_start_effects(self, player):
         """Handle leader-specific triggers that occur at round start."""
+        # First, decrement all clone tokens at round start
+        self.decrement_all_clone_tokens()
+
         if not player.leader:
             return
         leader_name = player.leader.get('name', '')
@@ -924,7 +938,6 @@ class Game:
                 # Recalculate scores
                 self.calculate_scores_and_log()
         if self.last_turn_actor:
-            self.last_turn_actor.decrement_clone_tokens()
             self.last_turn_actor = None
         if self.player1.has_passed and self.player2.has_passed:
             self.end_round()
@@ -1021,13 +1034,25 @@ class Game:
             
             # Handle special cards
             if card.row == "special":
-                self.apply_special_effect(card, row_name)
-                self.current_player.discard_pile.append(card)
-                self._log_card_play(player, card, row_name=row_name, note="Special")
-                self.calculate_scores_and_log()
-                player.plays_this_turn += 1
-                self.switch_turn()
-                return
+                # Check if this is a Command Network (horn) card
+                ability = card.ability or ""
+                if "Command Network" in ability:
+                    # Apply horn effect but don't discard the card - it stays in the horn slot
+                    self.apply_special_effect(card, row_name)
+                    self._log_card_play(player, card, row_name=row_name, note="Horn")
+                    self.calculate_scores_and_log()
+                    player.plays_this_turn += 1
+                    self.switch_turn()
+                    return
+                else:
+                    # Regular special cards go to discard pile
+                    self.apply_special_effect(card, row_name)
+                    self.current_player.discard_pile.append(card)
+                    self._log_card_play(player, card, row_name=row_name, note="Special")
+                    self.calculate_scores_and_log()
+                    player.plays_this_turn += 1
+                    self.switch_turn()
+                    return
 
             # Validate row placement for unit cards
             valid_rows = ["close", "ranged", "siege"]
@@ -1357,17 +1382,20 @@ class Game:
     def trigger_summon_shield_maidens(self, player, row_name):
         """Deploy Clones: Add 2 Shield Maiden tokens (2 power each) to the row."""
         # Create token cards (not in deck, just spawned)
-        from cards import Card
+        from cards import Card, load_card_image
         maiden1 = Card("token_maiden_1", "Shield Maiden", player.faction, 2, row_name, None)
         maiden2 = Card("token_maiden_2", "Shield Maiden", player.faction, 2, row_name, None)
-        
+        # Load images for tokens
+        load_card_image(maiden1)
+        load_card_image(maiden2)
         player.board[row_name].append(maiden1)
         player.board[row_name].append(maiden2)
-    
+
     def trigger_summon_avenger(self, player, row_name):
         """Activate Combat Protocol: Add 1 Avenger token (5 power) to the row."""
-        from cards import Card
+        from cards import Card, load_card_image
         avenger = Card("token_avenger", "Asgard Avenger", player.faction, 5, row_name, None)
+        load_card_image(avenger)
         player.board[row_name].append(avenger)
     
     def trigger_grant_zpm(self, player):
@@ -2622,6 +2650,18 @@ class Game:
                 "neutral",
                 icon="=="
             )
+
+    def decrement_all_clone_tokens(self):
+        """Reduce lifetime on all O'Neill clones for both players and remove expired ones."""
+        # Process clone tokens for both players
+        for player in [self.player1, self.player2]:
+            for row_name, row_cards in player.board.items():
+                for card in list(row_cards):  # Use list() to avoid modification during iteration
+                    if getattr(card, "is_oneill_clone", False):
+                        card.clone_turns_remaining -= 1
+                        if card.clone_turns_remaining <= 0:
+                            row_cards.remove(card)
+                            player.discard_pile.append(card)
 
         # Reset turn to player 1
         self.current_player = self.player1

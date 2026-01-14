@@ -147,7 +147,7 @@ class DraftRun:
             'phase': self.phase,
             'current_pick': self.current_pick,
             'leader_id': self.drafted_leader['card_id'] if self.drafted_leader else None,
-            'card_ids': [c.id for c in self.drafted_cards] if hasattr(self.drafted_cards[0], 'id') else [], # Assuming cards have IDs
+            'card_ids': [c.id for c in self.drafted_cards] if self.drafted_cards and hasattr(self.drafted_cards[0], 'id') else [],
             # Note: We need a way to robustly save card IDs. 
             # Ideally card objects have an 'id' attribute or we map names.
             # Using a simplified list for now, relying on controller to rebuild.
@@ -409,8 +409,3 @@ class DraftRun:
                     stats['medic_count'] += 1
 
         return stats
-        return previous_choices
-
-    def is_draft_complete(self) -> bool:
-        """Check if drafting is complete."""
-        return len(self.drafted_cards) >= self.CARDS_TO_DRAFT

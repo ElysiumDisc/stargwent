@@ -1581,45 +1581,50 @@ class ScorePopAnimation(Animation):
 
 
 class AmbientStarfield:
-    """Subtle moving starfield for background atmosphere."""
-    def __init__(self, screen_width, screen_height, num_stars=100):
+    """Moving starfield optimized with static caching for 4K performance."""
+    def __init__(self, screen_width, screen_height, num_stars=150):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.stars = []
         
-        # Create stars with different sizes and speeds
+        # We use a smaller number of dynamic stars for "movement"
+        # and pre-render a dense static field for "depth"
+        self.static_stars_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+        for _ in range(num_stars * 10):
+            x = random.randint(0, screen_width)
+            y = random.randint(0, screen_height)
+            brightness = random.randint(40, 150)
+            color = (brightness, brightness, brightness, random.randint(50, 200))
+            pygame.draw.circle(self.static_stars_surf, color, (x, y), random.choice([1, 1, 2]))
+
+        # Dynamic moving stars
         for _ in range(num_stars):
             self.stars.append({
                 'x': random.randint(0, screen_width),
                 'y': random.randint(0, screen_height),
-                'size': random.choice([1, 1, 1, 2, 2, 3]),  # Mostly small
-                'speed': random.uniform(0.02, 0.15),
-                'brightness': random.randint(100, 255),
-                'twinkle_phase': random.uniform(0, 6.28)  # 2*pi
+                'size': random.choice([1, 1, 2, 2, 3]),
+                'speed': random.uniform(0.05, 0.25),
+                'brightness': random.randint(150, 255),
+                'twinkle_phase': random.uniform(0, 6.28)
             })
     
     def update(self, dt):
-        """Update star positions and twinkle."""
         for star in self.stars:
-            # Slow drift
             star['y'] += star['speed'] * (dt / 16.0)
-            
-            # Wrap around
             if star['y'] > self.screen_height:
                 star['y'] = 0
                 star['x'] = random.randint(0, self.screen_width)
-            
-            # Subtle twinkle
             star['twinkle_phase'] += 0.02 * (dt / 16.0)
     
     def draw(self, surface):
-        """Draw the starfield."""
+        # 1. Blit the entire static field in ONE call
+        surface.blit(self.static_stars_surf, (0, 0))
+        
+        # 2. Draw only the few moving stars
         for star in self.stars:
-            # Calculate twinkling brightness
-            twinkle = math.sin(star['twinkle_phase']) * 0.3 + 0.7  # 0.4 to 1.0
+            twinkle = math.sin(star['twinkle_phase']) * 0.3 + 0.7
             brightness = int(star['brightness'] * twinkle)
             color = (brightness, brightness, brightness)
-            
             pos = (int(star['x']), int(star['y']))
             if star['size'] == 1:
                 surface.set_at(pos, color)

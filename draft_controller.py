@@ -78,6 +78,7 @@ class DraftModeController:
             self.current_run.losses = active_data.get('losses', 0)
             self.current_run.phase = active_data.get('phase', 'leader_select')
             self.current_run.current_pick = active_data.get('current_pick', 0)
+            self.current_run.cards_to_remove_count = active_data.get('cards_to_remove_count', 0)
             
             # Restore leader
             leader_id = active_data.get('leader_id')
@@ -138,7 +139,8 @@ class DraftModeController:
             'phase': self.current_run.phase,
             'current_pick': self.current_run.current_pick,
             'leader_id': leader_id,
-            'card_ids': card_ids
+            'card_ids': card_ids,
+            'cards_to_remove_count': self.current_run.cards_to_remove_count
         }
         print(f"[DraftController] Saving run state: Phase={data['phase']}, Leader={leader_id}")
         get_persistence().save_active_draft_run(data)
@@ -466,10 +468,94 @@ class DraftModeController:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return "exit"
-            
+
+            # Keyboard navigation for startup menu
+            if self.show_startup_menu:
+                if event.key in (pygame.K_UP, pygame.K_DOWN):
+                    # Toggle between continue (0) and new (1)
+                    if self.ui.hovered_index is None:
+                        self.ui.hovered_index = 0
+                    else:
+                        self.ui.hovered_index = 1 - self.ui.hovered_index
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    if self.ui.hovered_index == 0:
+                        self._restore_active_run()
+                        self.show_startup_menu = False
+                    elif self.ui.hovered_index == 1:
+                        self.start_new_run()
+                        self.show_startup_menu = False
+                return None
+
+            # Keyboard navigation for leader/card selection
+            if self.current_run:
+                num_choices = len(self.clickable_rects)
+
+                if self.current_run.phase in ("leader_select", "draft", "redraft_leader", "redraft_cards_pick"):
+                    # LEFT/RIGHT to navigate between choices
+                    if event.key in (pygame.K_LEFT, pygame.K_a):
+                        if self.ui.hovered_index is None:
+                            self.ui.hovered_index = 0
+                        else:
+                            self.ui.hovered_index = (self.ui.hovered_index - 1) % num_choices
+                    elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                        if self.ui.hovered_index is None:
+                            self.ui.hovered_index = 0
+                        else:
+                            self.ui.hovered_index = (self.ui.hovered_index + 1) % num_choices
+
+                    # ENTER/SPACE to select highlighted choice
+                    elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                        if self.ui.hovered_index is not None and num_choices > 0:
+                            clicked_index = self.ui.hovered_index
+
+                            if self.current_run.phase == "leader_select":
+                                selected_leader = self.leader_choices[clicked_index]
+                                self.current_run.select_leader(selected_leader)
+                                self.current_choices = []
+                                self.ui.hovered_index = None
+                                self.save_run_state()
+
+                            elif self.current_run.phase == "draft":
+                                selected_card = self.current_choices[clicked_index]
+                                self.current_run.pick_card(selected_card, self.current_choices)
+                                self.current_choices = []
+                                self.ui.selected_index = None
+                                self.ui.hovered_index = None
+                                self.save_run_state()
+
+                            elif self.current_run.phase == "redraft_leader":
+                                selected_leader = self.leader_choices[clicked_index]
+                                self.current_run.select_leader(selected_leader)
+                                self.leader_choices = []
+                                self.ui.hovered_index = None
+                                self.save_run_state()
+
+                            elif self.current_run.phase == "redraft_cards_pick":
+                                selected_card = self.current_choices[clicked_index]
+                                self.current_run.pick_card(selected_card)
+                                self.current_choices = []
+                                self.ui.selected_index = None
+                                self.ui.hovered_index = None
+                                self.save_run_state()
+
+                elif self.current_run.phase == "review":
+                    # UP/DOWN to navigate between battle and redraft buttons
+                    if event.key in (pygame.K_UP, pygame.K_DOWN):
+                        if self.ui.hovered_index is None:
+                            self.ui.hovered_index = 0
+                        else:
+                            self.ui.hovered_index = 1 - self.ui.hovered_index
+
+                    elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                        if self.ui.hovered_index == 0:
+                            return "start_battle"
+                        elif self.ui.hovered_index == 1:
+                            self.start_new_run()
+                            self.ui.hovered_index = None
+
             # Undo last pick with Z or Backspace
             if event.key in (pygame.K_z, pygame.K_BACKSPACE):
-                if self.current_run.phase == "draft" and self.current_run.current_pick > 0:
+                if self.current_run and self.current_run.phase == "draft" and self.current_run.current_pick > 0:
                     previous_choices = self.current_run.undo_last_pick()
                     if previous_choices:
                         self.current_choices = previous_choices

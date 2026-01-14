@@ -153,6 +153,11 @@ class DeckBuilderUI:
         self.accordion_hover_card_id = None  # Card being hovered in accordion
         self.accordion_lift_amount = {}  # Per-card lift animation state
 
+        # KEYBOARD NAVIGATION STATE
+        self.keyboard_pool_cursor = -1  # -1 = none, 0+ = index in filtered pool
+        self.keyboard_deck_cursor = -1  # -1 = none, 0+ = index in deck list
+        self.keyboard_focus = "pool"  # "pool" or "deck" - which panel has focus
+
         # Fonts
         self.title_font = pygame.font.SysFont("Arial", 64, bold=True)
         self.subtitle_font = pygame.font.SysFont("Arial", 36, bold=True)
@@ -754,17 +759,14 @@ class DeckBuilderUI:
                     return
 
         elif event.type == pygame.KEYDOWN:
-            # Handle spacebar for card inspection
-            if event.key == pygame.K_SPACE and self.state == "deck_review":
-                # Close inspection if already open
-                if self.inspected_card_id:
-                    self.inspected_card_id = None
-            
-            # Scroll in deck review with arrow keys OR WASD
-            elif self.state == "deck_review":
+            # Keyboard navigation in deck review
+            if self.state == "deck_review":
                 if self.inspected_card_id and self.deck_preview_ids:
                     # Navigate between cards with arrow keys when zoomed
-                    current_idx = self.deck_preview_ids.index(self.inspected_card_id)
+                    try:
+                        current_idx = self.deck_preview_ids.index(self.inspected_card_id)
+                    except ValueError:
+                        current_idx = 0
                     if event.key in [pygame.K_LEFT, pygame.K_a]:
                         new_idx = (current_idx - 1) % len(self.deck_preview_ids)
                         self.inspected_card_id = self.deck_preview_ids[new_idx]
@@ -777,12 +779,89 @@ class DeckBuilderUI:
                     elif event.key in [pygame.K_DOWN, pygame.K_s]:
                         new_idx = (current_idx + 1) % len(self.deck_preview_ids)
                         self.inspected_card_id = self.deck_preview_ids[new_idx]
+                    elif event.key == pygame.K_ESCAPE:
+                        self.inspected_card_id = None
                 else:
-                    # Scroll the deck grid when not zoomed
-                    if event.key in [pygame.K_UP, pygame.K_w]:
-                        self.deck_scroll_offset = max(0, self.deck_scroll_offset - 50)
+                    pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+                    pool_count = len(pool_ids) if pool_ids else 0
+
+                    if event.key == pygame.K_TAB:
+                        if self.keyboard_focus == "pool":
+                            self.keyboard_focus = "deck"
+                            self.keyboard_deck_cursor = 0 if self.deck_preview_ids else -1
+                        else:
+                            self.keyboard_focus = "pool"
+                            self.keyboard_pool_cursor = 0 if pool_count > 0 else -1
+
+                    elif event.key in [pygame.K_LEFT, pygame.K_a]:
+                        if self.keyboard_focus == "pool" and pool_count > 0:
+                            if self.keyboard_pool_cursor < 0:
+                                self.keyboard_pool_cursor = 0
+                            else:
+                                self.keyboard_pool_cursor = (self.keyboard_pool_cursor - 1) % pool_count
+                            card_w = 175
+                            if self.keyboard_pool_cursor < self.pool_scroll_offset // card_w:
+                                self.pool_scroll_offset = max(0, self.keyboard_pool_cursor * card_w)
+
+                    elif event.key in [pygame.K_RIGHT, pygame.K_d]:
+                        if self.keyboard_focus == "pool" and pool_count > 0:
+                            if self.keyboard_pool_cursor < 0:
+                                self.keyboard_pool_cursor = 0
+                            else:
+                                self.keyboard_pool_cursor = (self.keyboard_pool_cursor + 1) % pool_count
+                            card_w = 175
+                            cards_visible = max(1, (self.screen_width - 350) // card_w)
+                            if self.keyboard_pool_cursor >= (self.pool_scroll_offset // card_w) + cards_visible:
+                                self.pool_scroll_offset = (self.keyboard_pool_cursor - cards_visible + 1) * card_w
+
+                    elif event.key in [pygame.K_UP, pygame.K_w]:
+                        if self.keyboard_focus == "deck" and self.deck_preview_ids:
+                            unique_count = len(set(self.deck_preview_ids))
+                            if unique_count > 0:
+                                self.keyboard_deck_cursor = max(0, self.keyboard_deck_cursor - 1) if self.keyboard_deck_cursor > 0 else unique_count - 1
+                        else:
+                            tabs = ["all", "unit", "special", "weather"]
+                            idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
+                            self.current_tab = tabs[(idx - 1) % len(tabs)]
+                            self.pool_scroll_offset = 0
+                            self.keyboard_pool_cursor = 0
+
                     elif event.key in [pygame.K_DOWN, pygame.K_s]:
-                        self.deck_scroll_offset += 50
+                        if self.keyboard_focus == "deck" and self.deck_preview_ids:
+                            unique_count = len(set(self.deck_preview_ids))
+                            if unique_count > 0:
+                                self.keyboard_deck_cursor = (self.keyboard_deck_cursor + 1) % unique_count
+                        else:
+                            tabs = ["all", "unit", "special", "weather"]
+                            idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
+                            self.current_tab = tabs[(idx + 1) % len(tabs)]
+                            self.pool_scroll_offset = 0
+                            self.keyboard_pool_cursor = 0
+
+                    elif event.key in [pygame.K_f, pygame.K_RETURN] and self.keyboard_focus == "pool":
+                        if pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
+                            if self.deck_preview_ids is None:
+                                self.deck_preview_ids = []
+                            self.deck_preview_ids.append(pool_ids[self.keyboard_pool_cursor])
+
+                    elif event.key in [pygame.K_DELETE, pygame.K_BACKSPACE] and self.keyboard_focus == "deck":
+                        if self.deck_preview_ids and self.keyboard_deck_cursor >= 0:
+                            from collections import Counter
+                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            if self.keyboard_deck_cursor < len(unique_ids):
+                                self.deck_preview_ids.remove(unique_ids[self.keyboard_deck_cursor])
+                                if self.keyboard_deck_cursor >= len(set(self.deck_preview_ids)):
+                                    self.keyboard_deck_cursor = max(0, len(set(self.deck_preview_ids)) - 1)
+
+                    elif event.key == pygame.K_SPACE:
+                        if self.inspected_card_id:
+                            self.inspected_card_id = None
+                        elif self.keyboard_focus == "pool" and pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
+                            self.inspected_card_id = pool_ids[self.keyboard_pool_cursor]
+                        elif self.keyboard_focus == "deck" and self.deck_preview_ids:
+                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            if 0 <= self.keyboard_deck_cursor < len(unique_ids):
+                                self.inspected_card_id = unique_ids[self.keyboard_deck_cursor]
             
             # Navigate between leaders with arrow keys
             elif self.state == "leader_select" and self.leader_buttons:
@@ -866,17 +945,14 @@ class DeckBuilderUI:
                         self.pool_scroll_offset = 0
         
         elif event.type == pygame.KEYDOWN:
-            # Handle spacebar for card inspection
-            if event.key == pygame.K_SPACE and self.state == "deck_review":
-                # Close inspection if already open
-                if self.inspected_card_id:
-                    self.inspected_card_id = None
-            
-            # Scroll in deck review with arrow keys OR WASD
-            elif self.state == "deck_review":
+            # Keyboard navigation in deck review
+            if self.state == "deck_review":
                 if self.inspected_card_id and self.deck_preview_ids:
                     # Navigate between cards with arrow keys when zoomed
-                    current_idx = self.deck_preview_ids.index(self.inspected_card_id)
+                    try:
+                        current_idx = self.deck_preview_ids.index(self.inspected_card_id)
+                    except ValueError:
+                        current_idx = 0
                     if event.key in [pygame.K_LEFT, pygame.K_a]:
                         new_idx = (current_idx - 1) % len(self.deck_preview_ids)
                         self.inspected_card_id = self.deck_preview_ids[new_idx]
@@ -889,12 +965,89 @@ class DeckBuilderUI:
                     elif event.key in [pygame.K_DOWN, pygame.K_s]:
                         new_idx = (current_idx + 1) % len(self.deck_preview_ids)
                         self.inspected_card_id = self.deck_preview_ids[new_idx]
+                    elif event.key == pygame.K_ESCAPE:
+                        self.inspected_card_id = None
                 else:
-                    # Scroll the deck grid when not zoomed
-                    if event.key in [pygame.K_UP, pygame.K_w]:
-                        self.deck_scroll_offset = max(0, self.deck_scroll_offset - 50)
+                    pool_ids = get_cards_by_type_and_strength(self.card_pool_ids, self.current_tab, self.keyword_filter)
+                    pool_count = len(pool_ids) if pool_ids else 0
+
+                    if event.key == pygame.K_TAB:
+                        if self.keyboard_focus == "pool":
+                            self.keyboard_focus = "deck"
+                            self.keyboard_deck_cursor = 0 if self.deck_preview_ids else -1
+                        else:
+                            self.keyboard_focus = "pool"
+                            self.keyboard_pool_cursor = 0 if pool_count > 0 else -1
+
+                    elif event.key in [pygame.K_LEFT, pygame.K_a]:
+                        if self.keyboard_focus == "pool" and pool_count > 0:
+                            if self.keyboard_pool_cursor < 0:
+                                self.keyboard_pool_cursor = 0
+                            else:
+                                self.keyboard_pool_cursor = (self.keyboard_pool_cursor - 1) % pool_count
+                            card_w = 175
+                            if self.keyboard_pool_cursor < self.pool_scroll_offset // card_w:
+                                self.pool_scroll_offset = max(0, self.keyboard_pool_cursor * card_w)
+
+                    elif event.key in [pygame.K_RIGHT, pygame.K_d]:
+                        if self.keyboard_focus == "pool" and pool_count > 0:
+                            if self.keyboard_pool_cursor < 0:
+                                self.keyboard_pool_cursor = 0
+                            else:
+                                self.keyboard_pool_cursor = (self.keyboard_pool_cursor + 1) % pool_count
+                            card_w = 175
+                            cards_visible = max(1, (self.screen_width - 350) // card_w)
+                            if self.keyboard_pool_cursor >= (self.pool_scroll_offset // card_w) + cards_visible:
+                                self.pool_scroll_offset = (self.keyboard_pool_cursor - cards_visible + 1) * card_w
+
+                    elif event.key in [pygame.K_UP, pygame.K_w]:
+                        if self.keyboard_focus == "deck" and self.deck_preview_ids:
+                            unique_count = len(set(self.deck_preview_ids))
+                            if unique_count > 0:
+                                self.keyboard_deck_cursor = max(0, self.keyboard_deck_cursor - 1) if self.keyboard_deck_cursor > 0 else unique_count - 1
+                        else:
+                            tabs = ["all", "unit", "special", "weather"]
+                            idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
+                            self.current_tab = tabs[(idx - 1) % len(tabs)]
+                            self.pool_scroll_offset = 0
+                            self.keyboard_pool_cursor = 0
+
                     elif event.key in [pygame.K_DOWN, pygame.K_s]:
-                        self.deck_scroll_offset += 50
+                        if self.keyboard_focus == "deck" and self.deck_preview_ids:
+                            unique_count = len(set(self.deck_preview_ids))
+                            if unique_count > 0:
+                                self.keyboard_deck_cursor = (self.keyboard_deck_cursor + 1) % unique_count
+                        else:
+                            tabs = ["all", "unit", "special", "weather"]
+                            idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
+                            self.current_tab = tabs[(idx + 1) % len(tabs)]
+                            self.pool_scroll_offset = 0
+                            self.keyboard_pool_cursor = 0
+
+                    elif event.key in [pygame.K_f, pygame.K_RETURN] and self.keyboard_focus == "pool":
+                        if pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
+                            if self.deck_preview_ids is None:
+                                self.deck_preview_ids = []
+                            self.deck_preview_ids.append(pool_ids[self.keyboard_pool_cursor])
+
+                    elif event.key in [pygame.K_DELETE, pygame.K_BACKSPACE] and self.keyboard_focus == "deck":
+                        if self.deck_preview_ids and self.keyboard_deck_cursor >= 0:
+                            from collections import Counter
+                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            if self.keyboard_deck_cursor < len(unique_ids):
+                                self.deck_preview_ids.remove(unique_ids[self.keyboard_deck_cursor])
+                                if self.keyboard_deck_cursor >= len(set(self.deck_preview_ids)):
+                                    self.keyboard_deck_cursor = max(0, len(set(self.deck_preview_ids)) - 1)
+
+                    elif event.key == pygame.K_SPACE:
+                        if self.inspected_card_id:
+                            self.inspected_card_id = None
+                        elif self.keyboard_focus == "pool" and pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
+                            self.inspected_card_id = pool_ids[self.keyboard_pool_cursor]
+                        elif self.keyboard_focus == "deck" and self.deck_preview_ids:
+                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            if 0 <= self.keyboard_deck_cursor < len(unique_ids):
+                                self.inspected_card_id = unique_ids[self.keyboard_deck_cursor]
             
             # Navigate between leaders with arrow keys
             elif self.state == "leader_select" and self.leader_buttons:
@@ -2306,11 +2459,11 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
                     else:
                         stop_faction_theme()
                         return None
-                elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
+                elif event.key == pygame.K_F11:
                     if toggle_fullscreen_callback:
                         toggle_fullscreen_callback()
                     else:
-                        pygame.display.toggle_fullscreen()
+                        import display_manager; display_manager.toggle_fullscreen_mode()
                     reload_card_images()
                     screen = pygame.display.get_surface()
                     deck_builder.refresh_for_surface(screen)

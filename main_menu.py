@@ -344,6 +344,16 @@ class MainMenu:
         unlock_y = fullscreen_y + int(220 * scale)
         unlock_gate_rect.center = (center_x, unlock_y)
 
+        # FPS toggle
+        fps_gate_radius = int(60 * scale)
+        fps_gate_rect = pygame.Rect(0, 0, fps_gate_radius * 2, fps_gate_radius * 2)
+        # Position FPS toggle to the right of Unlock toggle
+        fps_y = unlock_y
+        fps_x = center_x + int(250 * scale)
+        # Shift Unlock toggle to the left
+        unlock_gate_rect.center = (center_x - int(250 * scale), unlock_y)
+        fps_gate_rect.center = (fps_x, fps_y)
+
         def draw_stargate_toggle(active, rect, pulse_phase=0):
             """Draw a Stargate-style toggle with animation."""
             gate_surf = pygame.Surface(rect.size, pygame.SRCALPHA)
@@ -440,8 +450,13 @@ class MainMenu:
                         set_volume_from_pos(event.pos[0])
                     elif unlock_gate_rect.collidepoint(event.pos):
                         self.toggle_unlock_override()
+                    elif fps_gate_rect.collidepoint(event.pos):
+                        settings.set_show_fps(not settings.get_show_fps())
                     elif gate_rect.collidepoint(event.pos):
-                        pygame.display.toggle_fullscreen()
+                        import display_manager
+                        display_manager.toggle_fullscreen_mode()
+                        # Update surface reference after toggle
+                        surface = display_manager.screen
                         
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     dragging_slider = False
@@ -568,7 +583,7 @@ class MainMenu:
 
             # === UNLOCK SECTION ===
             unlock_label = label_font.render("Unlock All Content", True, (220, 230, 255))
-            unlock_label_rect = unlock_label.get_rect(center=(center_x, unlock_y - unlock_gate_radius - int(30 * scale)))
+            unlock_label_rect = unlock_label.get_rect(center=(unlock_gate_rect.centerx, unlock_y - unlock_gate_radius - int(30 * scale)))
             surface.blit(unlock_label, unlock_label_rect)
 
             # Unlock Stargate toggle
@@ -579,8 +594,24 @@ class MainMenu:
             state_text = "UNLOCKED" if self._unlock_override_state() else "PROGRESSION"
             state_color = (100, 255, 120) if self._unlock_override_state() else (180, 180, 190)
             status_surface = status_font.render(state_text, True, state_color)
-            status_rect = status_surface.get_rect(center=(center_x, unlock_y + unlock_gate_radius + int(25 * scale)))
+            status_rect = status_surface.get_rect(center=(unlock_gate_rect.centerx, unlock_gate_rect.bottom + int(25 * scale)))
             surface.blit(status_surface, status_rect)
+
+            # === FPS SECTION ===
+            fps_label = label_font.render("Show FPS", True, (220, 230, 255))
+            fps_label_rect = fps_label.get_rect(center=(fps_gate_rect.centerx, fps_y - fps_gate_radius - int(30 * scale)))
+            surface.blit(fps_label, fps_label_rect)
+
+            # FPS Stargate toggle
+            fps_surface = draw_stargate_toggle(settings.get_show_fps(), fps_gate_rect, pulse_phase)
+            surface.blit(fps_surface, fps_gate_rect.topleft)
+
+            # FPS status
+            fps_state_text = "VISIBLE" if settings.get_show_fps() else "HIDDEN"
+            fps_state_color = (100, 255, 120) if settings.get_show_fps() else (180, 180, 190)
+            fps_status_surface = status_font.render(fps_state_text, True, fps_state_color)
+            fps_status_rect = fps_status_surface.get_rect(center=(fps_gate_rect.centerx, fps_gate_rect.bottom + int(25 * scale)))
+            surface.blit(fps_status_surface, fps_status_rect)
 
             # Instructions at bottom
             hint_text = "Click Stargates to toggle  |  Drag slider to adjust volume"
@@ -1142,7 +1173,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                         main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
                         main_menu.screen_surface = screen
                     else:
-                        pygame.display.toggle_fullscreen()
+                        import display_manager; display_manager.toggle_fullscreen_mode(); screen = display_manager.screen; main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system); main_menu.screen_surface = screen
             
             action = main_menu.handle_event(event)
             if action == 'new_game':

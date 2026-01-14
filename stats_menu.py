@@ -237,6 +237,18 @@ def run_stats_menu(screen):
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                     running = False
+                elif event.key == pygame.K_UP:
+                    scroll_offset = max(0, scroll_offset - 60)
+                elif event.key == pygame.K_DOWN:
+                    scroll_offset = min(max_scroll, scroll_offset + 60)
+                elif event.key == pygame.K_PAGEUP:
+                    scroll_offset = max(0, scroll_offset - 200)
+                elif event.key == pygame.K_PAGEDOWN:
+                    scroll_offset = min(max_scroll, scroll_offset + 200)
+                elif event.key == pygame.K_HOME:
+                    scroll_offset = 0
+                elif event.key == pygame.K_END:
+                    scroll_offset = max_scroll
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if back_rect.collidepoint(event.pos):
                     running = False

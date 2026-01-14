@@ -26,6 +26,9 @@ class LanMessageType(str, Enum):
     READY_CHECK = "ready_check"
     STATUS = "status"
     TYPING = "typing"
+    DISCONNECT = "disconnect"
+    PLAY_AGAIN = "play_again"
+    KEEPALIVE = "keepalive"
 
 
 def build_message(message_type: LanMessageType, payload: Optional[Dict[str, Any]] = None, turn_token: Optional[str] = None) -> Dict[str, Any]:

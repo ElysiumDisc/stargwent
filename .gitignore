@@ -47,6 +47,11 @@ Desktop.ini
 *.log
 *.tmp
 
+# User Data Files (player progress, settings - not committed)
+game_settings.json
+player_decks.json
+player_unlocks.json
+
 # Testing & Coverage
 .pytest_cache/
 .coverage

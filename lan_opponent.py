@@ -127,7 +127,7 @@ class NetworkOpponent:
 
     def is_connected(self) -> bool:
         """Check if session is still active."""
-        return self.session and self.session.running
+        return self.session and self.session.is_connected()
 
     def close(self):
         """Close the network session."""

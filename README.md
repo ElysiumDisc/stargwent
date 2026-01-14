@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.3.1-blue)
+![Version](https://img.shields.io/badge/version-4.5.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.5.0: UNIVERSAL KEYBOARD CONTROLS** - Full keyboard navigation across all game screens! Arrow keys for card/menu navigation, F to play cards, G for faction power, Tab to cycle buttons. Cards now highlight with row-type colors (red=close, blue=ranged, green=siege). Enhanced pause menu with Options integration!
+- **⚡ NEW v4.4.0: DRAFT MODE SAVE & POST-GAME POLISH** - Draft mode now features Save & Continue options! After winning a match, choose to Continue Draft, Save & Exit, or Abandon. Post-game menu redesigned with Stargwent-styled buttons. Fixed critical card sharing bug and improved FPS with font/surface caching!
 - **⚡ NEW v4.3.1: ARCHITECTURE REFACTORING** - Split monolithic 6,000+ line `main.py` into clean, maintainable modules (`display_manager.py`, `game_config.py`, `render_engine.py`). Centralized configuration, improved testability, and eliminated code duplication while maintaining full backward compatibility!
 - **⚡ NEW v4.3.0: ASSET CACHING & PERFORMANCE OVERHAUL** - Implemented a global `ImageCache` system that stores high-resolution card assets in RAM, eliminating disk I/O stutters during resolution changes and menu transitions. Pre-calculated 1.08x hover images now provide instant, buttery-smooth card enlargement without the CPU overhead of per-frame scaling.
 - **⚡ NEW v4.2.0: MODERN DECK BUILDER ICONS** - Replaced text tabs with high-resolution circular icon buttons for card filtering. Added dedicated "Special" and "Neutral" tabs with distinct iconography. Refined visual polish with consistent icon scaling and selection glows.
@@ -88,7 +90,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **25+ Hero Animations** - Unique entry effects for legendary commanders
 - **⚡ NEW v1.9: Universal Leader Matchups** - One cinematic Stargate template replaces thousands of PNGs while preserving collision, Event Horizon effects, and lore quotes.
 - **⚡ NEW v1.9: Retro Neon Nameplates** - Leader names now render in a retro cyberpunk font with faction-colored glow + scanlines for every matchup.
-- **⚡ NEW v1.9: Seamless Fullscreen** - Toggle with F11/Alt+Enter or launch via `--fullscreen`; mode persists from menus through combat.
+- **⚡ NEW v1.9: Seamless Fullscreen** - Toggle with F11 or launch via `--fullscreen`; mode persists from menus through combat.
 - **⚡ NEW v1.9: RULE MENU COMPENDIUM** - In-game `RULE MENU` button that opens the fully formatted rulebook generated from live card data.
 - **Interactive Abilities** - Medical Evac and Ring Transport with full UI
 - **DHD Pass Button** - Authentic Stargate Dial Home Device with glowing animation
@@ -182,6 +184,37 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.5.0 (January 2026)
+**Universal Keyboard Controls & Row-Type Highlighting**
+
+- ✅ **Universal Keyboard Navigation** – The entire game is now fully playable with keyboard:
+  - **In-Game Combat**: LEFT/RIGHT to select cards in hand, UP/DOWN for row selection, F to play card to default row, G for faction power, Tab to cycle Pass/Faction Power buttons, SPACE to activate selected button
+  - **Deck Builder**: Tab to switch focus between card pool and deck list, LEFT/RIGHT to navigate card pool with auto-scroll, UP/DOWN to navigate deck or switch filter tabs, F/ENTER to add card, DELETE/BACKSPACE to remove, SPACE to preview
+  - **Stats Menu**: UP/DOWN arrows, PAGE UP/DOWN, HOME/END for scrolling
+  - **Draft Mode**: LEFT/RIGHT between choices, UP/DOWN for menu navigation, ENTER/SPACE to select
+  - **Mulligan Phase**: LEFT/RIGHT to select cards, SPACE/ENTER to toggle selection, F to confirm
+- ✅ **Row-Type Color Highlighting** – Cards now show their row type when hovered or keyboard-selected:
+  - **Close Combat**: Red border
+  - **Ranged**: Blue border
+  - **Siege**: Green border
+  - **Agile**: Yellow border
+  - **Weather/Special**: Light blue/gold border
+- ✅ **Enhanced Pause Menu** – ESC now shows consistent pause menu with Back, Options, Main Menu, and Quit buttons with hover effects
+- ✅ **Settings Menu Integration** – Options button in pause menu opens settings with Master, Music, and SFX volume sliders
+- ✅ **Standardized Fullscreen** – F11 is now the only fullscreen toggle (removed Alt+Enter for consistency)
+- ✅ **Keyboard Hints** – Visual hints show available keyboard controls during gameplay
+- ✅ **Button Selection Glow** – Pass and Faction Power buttons show cyan glow when keyboard-selected
+
+### Version 4.4.0 (January 2026)
+**Post-Game Menu, Draft Mode Save, Performance & Bug Fixes**
+
+- ✅ **Stargwent-Styled Post-Game Menu** – Game over screen now features polished Stargwent-style buttons with hover effects, glowing borders, and proper scaling. Buttons include REMATCH, MAIN MENU, and QUIT with distinct color schemes.
+- ✅ **Draft Mode Save & Continue** – When winning a draft match, players now see three options: CONTINUE DRAFT (proceed to next battle), SAVE & EXIT (save progress and return to menu), or ABANDON DRAFT (end the run early). Draft progress is automatically saved!
+- ✅ **Critical Card Bug Fix** – Fixed a major bug where cards were not being deep-copied when building decks. This caused shared state issues where playing a card (like Oma Desala) on one side would make the same card unplayable on the other side.
+- ✅ **Taller Game Rows** – Increased combat row heights from 10% to 11% of screen height for better card visibility. Card aspect ratio adjusted to 1:1.4 for slightly wider cards.
+- ✅ **Performance Optimizations** – Added font caching to avoid expensive font creation each frame. Added surface caching for common overlay surfaces. Switched from smoothscale to scale for faster image resizing. These changes improve FPS significantly.
+- ✅ **Weather Card Drag Highlighting** – Verified that weather cards properly highlight affected rows when dragged (already implemented in board_renderer.py).
 
 ### Version 4.3.1 (January 2026)
 **Architecture Refactoring & Code Health**
@@ -531,7 +564,7 @@ All abilities renamed and themed around Stargate lore:
 
 - ✅ **Retro Neon Matchup HUD** – Leader names now use a retro cyberpunk font with faction-colored glow, scanlines, and proper portrait scaling for every confrontation.
 - ✅ **Single Template Background** – `universal_leader_matchup_bg.png` replaces thousands of matchup PNGs; create_placeholders now generates the shared template and cleans up aliases automatically.
-- ✅ **Persistent Fullscreen** – Toggling fullscreen via F11/Alt+Enter (or launching with `python main.py --fullscreen` / `STARGWENT_FULLSCREEN=1`) keeps the entire experience in the chosen mode—from menus, to deck builder, to battle.
+- ✅ **Persistent Fullscreen** – Toggling fullscreen via F11 (or launching with `python main.py --fullscreen` / `STARGWENT_FULLSCREEN=1`) keeps the entire experience in the chosen mode—from menus, to deck builder, to battle.
 - ✅ **Card Reload Safety** – Switching display modes re-renders the board and reloads card assets so everything stays crisp in both windowed and fullscreen sessions.
 - ✅ **Leader Background Alias Fix** – Master Bra'tac now reuses `leader_bg_jaffa_bratac.png`, preventing mismatched filenames and keeping the deck builder happy.
 
@@ -592,7 +625,7 @@ All abilities renamed and themed around Stargate lore:
 - Pass when you want to stop (click DHD button!)
 - Round ends when both players pass
 - Player with highest power wins the round
-- Press SPACEBAR to use Faction Power (ONCE per game!)
+- Press G or click Faction Power button (ONCE per game!)
 
 **5. Victory & Rewards**
 - First to win 2 rounds wins the game
@@ -646,7 +679,7 @@ All abilities renamed and themed around Stargate lore:
 **Effect:** Destroys the highest strength card on each of the opponent's rows.
 **Visual:** Multiple fiery explosions on each row - white hot center → yellow → orange → red rings, followed by dark smoke debris particles.
 **Strategy:** Surgical strike against opponent's strongest units. Best used when opponent has powerful cards spread across multiple rows. **Save for critical moment - only usable ONCE per game!**
-**Activation:** Press **SPACEBAR** or click **ACTIVATE** button
+**Activation:** Press **G** or click **ACTIVATE** button (Tab to select, SPACE to confirm)
 
 ### 🐍 Goa'uld - "Sarcophagus Revival"
 **Effect:** Play two random non-Hero cards from your discard pile.
@@ -672,7 +705,7 @@ All abilities renamed and themed around Stargate lore:
 - **Visibility:** Both players can see each other's power availability
 - **Once Per Game:** Cannot be used again after activation - choose the perfect moment!
 - **Visual Feedback:** Golden pulsing border when available, grey "USED" when exhausted
-- **Hotkey:** Press **SPACEBAR** to activate (when available)
+- **Hotkey:** Press **G** to activate directly, or **Tab** to select + **SPACE** to confirm
 - **Location:** Bottom-right for player, top-right for opponent
 - **Cinematic:** 2-second full-screen effect with faction-specific visuals
 
@@ -1009,25 +1042,65 @@ All abilities renamed and themed around Stargate lore:
 
 ## 💡 Quick Reference
 
+### Mouse Controls
 | Action | Control |
 |--------|---------|
 | Select Card | Left click in hand |
 | Play Card | Left drag to row |
-| **Preview Card** | **Right click any card** |
+| Preview Card | Right click any card |
 | Pass Turn | Click DHD button (glowing red center) |
-| **Activate Faction Power** | **Press SPACEBAR or click ACTIVATE** |
-| **Debug Overlay** | **F3 (toggle zone boundaries)** |
-| Open LAN Chat | Press T (ESC to close; LAN matches only) |
+| Activate Faction Power | Click Faction Power button |
 | View Discard | Press D |
 | Inspect Leader | Right click leader portrait |
-| Drag Card (Deck Builder) | LEFT CLICK + DRAG |
-| Zoom Card (Deck Builder) | RIGHT CLICK |
+| Drag Card (Deck Builder) | Left click + drag |
+| Zoom Card (Deck Builder) | Right click |
+
+### Keyboard Controls (NEW in v4.5.0!)
+| Action | Control |
+|--------|---------|
+| **Navigate Hand** | **LEFT/RIGHT arrows** |
+| **Select Row** | **UP/DOWN arrows** |
+| **Play Card to Default Row** | **F key** |
+| **Activate Faction Power** | **G key** |
+| **Cycle Pass/Power Buttons** | **Tab key** |
+| **Activate Selected Button** | **SPACE or ENTER** |
+| **Preview Card** | **SPACE (on hovered card)** |
 | Fullscreen | F11 |
+| Pause Menu | ESC |
+| Debug Overlay | F3 |
+
+### Deck Builder Keyboard
+| Action | Control |
+|--------|---------|
+| Switch Pool/Deck Focus | Tab |
+| Navigate Card Pool | LEFT/RIGHT arrows |
+| Navigate Deck List | UP/DOWN arrows |
+| Switch Filter Tabs | UP/DOWN (when on pool) |
+| Add Card to Deck | F or ENTER |
+| Remove Card from Deck | DELETE or BACKSPACE |
+| Preview Card | SPACE |
+
+### Other Controls
+| Action | Control |
+|--------|---------|
+| Open LAN Chat | T (ESC to close) |
 | Restart | R (game over) |
-| Quit | ESC |
 | Mulligan | Click cards (2-5) + "Confirm" |
-| Browse Cards | Arrow keys / Mouse wheel |
 | Quick Select | 1/2/3 keys (rewards) |
+
+### LAN Multiplayer Controls
+| Action | Control |
+|--------|---------|
+| **Rematch (LAN)** | **P** (after game over) |
+| Disconnect | ESC (after game over) |
+| Open Chat | T |
+
+**LAN Rematch Flow:**
+1. After game ends, press **P** to request rematch
+2. Both players must click **PLAY AGAIN** to confirm
+3. Both players select new faction/leader/deck
+4. Decks are exchanged and new match begins
+5. Press **ESC** or click **DISCONNECT** to end session
 
 
 ### 📋 Planned

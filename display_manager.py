@@ -17,7 +17,6 @@ except:
     except:
         pass  # Not Windows or already set
 
-# Global display state
 screen = None
 FULLSCREEN = False
 SCREEN_WIDTH = 0
@@ -25,8 +24,8 @@ SCREEN_HEIGHT = 0
 SCALE_FACTOR = 1.0
 DESKTOP_WIDTH = 0
 DESKTOP_HEIGHT = 0
-TARGET_WIDTH = 3840
-TARGET_HEIGHT = 2160
+TARGET_WIDTH = 2560
+TARGET_HEIGHT = 1440
 WINDOWED_WIDTH = 0
 WINDOWED_HEIGHT = 0
 WINDOWED_SCALE_FACTOR = 1.0
@@ -74,19 +73,17 @@ def initialize_display():
     DESKTOP_WIDTH = ORIGINAL_DESKTOP_WIDTH
     DESKTOP_HEIGHT = ORIGINAL_DESKTOP_HEIGHT
 
-    # 2. Calculate Scaling
-    SCALE_X = (DESKTOP_WIDTH * 0.95) / TARGET_WIDTH
-    SCALE_Y = (DESKTOP_HEIGHT * 0.95) / TARGET_HEIGHT
-    SCALE_FACTOR = min(SCALE_X, SCALE_Y, 1.0)
-
-    # 3. Final Screen Size
-    SCREEN_WIDTH = int(TARGET_WIDTH * SCALE_FACTOR)
-    SCREEN_HEIGHT = int(TARGET_HEIGHT * SCALE_FACTOR)
+    # 2. Hardware Scaling Setup
+    # 1440p provides crisp detail while keeping blitting fast for 4K output
+    SCREEN_WIDTH = TARGET_WIDTH
+    SCREEN_HEIGHT = TARGET_HEIGHT
+    SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
 
     WINDOWED_WIDTH = SCREEN_WIDTH
     WINDOWED_HEIGHT = SCREEN_HEIGHT
     WINDOWED_SCALE_FACTOR = SCALE_FACTOR
-    WINDOWED_FLAGS = pygame.SHOWN | pygame.SCALED if SCALE_FACTOR < 1.0 else pygame.SHOWN
+    # Use SCALED flag for hardware upscaling
+    WINDOWED_FLAGS = pygame.SHOWN | pygame.SCALED
 
     # 4. Check for Fullscreen Flag
     DEFAULT_FULLSCREEN = (
@@ -112,25 +109,41 @@ def initialize_display():
     print("Card images loaded.")
 
 def set_display_mode(fullscreen_enabled, *, reload_cards=False):
-    """Centralized fullscreen toggling that keeps dimensions in sync."""
+    """Hardware-accelerated scaling using 1440p internal resolution."""
     global screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN
     FULLSCREEN = fullscreen_enabled
-    if fullscreen_enabled:
-        SCREEN_WIDTH = DESKTOP_WIDTH
-        SCREEN_HEIGHT = DESKTOP_HEIGHT
-        SCALE_FACTOR = min(DESKTOP_WIDTH / TARGET_WIDTH, DESKTOP_HEIGHT / TARGET_HEIGHT, 1.0)
-        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
-        pygame.display.set_caption("Stargwent - Fullscreen")
-    else:
-        SCREEN_WIDTH = WINDOWED_WIDTH
-        SCREEN_HEIGHT = WINDOWED_HEIGHT
-        SCALE_FACTOR = WINDOWED_SCALE_FACTOR
-        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), WINDOWED_FLAGS)
-        if WINDOWED_FLAGS & pygame.SCALED:
-            pygame.display.set_caption(f"Stargwent - Scaled to {SCREEN_WIDTH}x{SCREEN_HEIGHT} (from 4K)")
-        else:
-            pygame.display.set_caption("Stargwent - 4K (3840x2160)")
     
+    SCREEN_WIDTH = TARGET_WIDTH
+    SCREEN_HEIGHT = TARGET_HEIGHT
+    
+    if fullscreen_enabled:
+        # Use SCALED + FULLSCREEN for hardware-accelerated 4K output
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
+        pygame.display.set_caption("Stargwent - 4K (Hardware Scaled)")
+    else:
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
+        pygame.display.set_caption("Stargwent - 1440p (Windowed)")
+    
+    # Adjust SCALE_FACTOR for our 1440p base
+    SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
+    
+    # Update layout dimensions for new resolution
+    import game_config
+    game_config.recalculate_dimensions()
+
+    # Clear render caches on resolution change
+    try:
+        import render_engine
+        render_engine.clear_render_caches()
+    except ImportError:
+        pass  # render_engine not yet imported
+
+    try:
+        import board_renderer
+        board_renderer.clear_surface_cache()
+    except ImportError:
+        pass  # board_renderer not yet imported
+
     if reload_cards:
         reload_card_images()
 

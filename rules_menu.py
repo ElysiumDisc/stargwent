@@ -1705,11 +1705,11 @@ def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
             if event.type == pygame.QUIT:
                 return None
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT):
+                if event.key == pygame.K_F11:
                     if toggle_fullscreen_callback:
                         toggle_fullscreen_callback()
                     else:
-                        pygame.display.toggle_fullscreen()
+                        import display_manager; display_manager.toggle_fullscreen_mode()
                     screen = pygame.display.get_surface()
                     viewer.resize(screen.get_width(), screen.get_height())
                     continue

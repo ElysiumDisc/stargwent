@@ -5,6 +5,41 @@ import display_manager
 from pygame.math import Vector2
 from cards import get_card_back, ALL_CARDS, FACTION_TAURI
 
+# Performance caches to avoid recreating objects every frame
+_font_cache = {}
+_scaled_image_cache = {}
+_MAX_SCALED_CACHE_SIZE = 150  # Limit cache size to prevent memory issues
+
+
+def _get_cached_font(size, bold=False):
+    """Get or create a cached font to avoid expensive font creation each frame."""
+    key = (size, bold)
+    if key not in _font_cache:
+        _font_cache[key] = pygame.font.SysFont("Arial", size, bold=bold)
+    return _font_cache[key]
+
+
+def _get_cached_scaled_image(base_img, target_size, card_id=None):
+    """Get or create a cached scaled image to avoid expensive scaling each frame."""
+    img_id = id(base_img) if card_id is None else card_id
+    key = (img_id, target_size[0], target_size[1])
+
+    if key not in _scaled_image_cache:
+        if len(_scaled_image_cache) >= _MAX_SCALED_CACHE_SIZE:
+            # Clear half the cache when full
+            keys_to_remove = list(_scaled_image_cache.keys())[:_MAX_SCALED_CACHE_SIZE // 2]
+            for k in keys_to_remove:
+                del _scaled_image_cache[k]
+        _scaled_image_cache[key] = pygame.transform.scale(base_img, target_size)
+    return _scaled_image_cache[key]
+
+
+def clear_render_caches():
+    """Clear render caches - call on resolution change."""
+    global _font_cache, _scaled_image_cache
+    _font_cache.clear()
+    _scaled_image_cache.clear()
+
 def _draw_card_details(target_surface, card, rect):
     """Render card overlays (power pips and row icon)."""
     if card.row not in ["special", "weather"]:
@@ -15,74 +50,82 @@ def _draw_card_details(target_surface, card, rect):
         else:
             text_color = cfg.WHITE
 
-        power_text = cfg.POWER_FONT.render(str(card.displayed_power), True, text_color)
+        # Scale font based on card size (smaller for board cards) - use cached font
+        font_size = max(10, int(rect.height * 0.12))
+        power_font = _get_cached_font(font_size, bold=True)
+        power_text = power_font.render(str(card.displayed_power), True, text_color)
         power_rect = power_text.get_rect(
-            center=(rect.x + rect.width / 2, rect.y + rect.height - 20)
+            center=(rect.x + rect.width // 2, rect.y + rect.height - int(rect.height * 0.12))
         )
         pygame.draw.rect(
             target_surface,
-            (0, 0, 0, 150),
-            power_rect.inflate(4, 4)
+            (0, 0, 0, 180),
+            power_rect.inflate(3, 2),
+            border_radius=3
         )
         target_surface.blit(power_text, power_rect)
 
 def draw_card(surface, card, x, y, selected=False, hover_scale=1.0, tilt_angle=0.0,
-              alpha=255, render_details=True, update_rect=True):
-    """Draws a single card with optional scaling, tilt, and alpha adjustments."""
-    if hover_scale != 1.0:
-        scaled_width = int(cfg.CARD_WIDTH * hover_scale)
-        scaled_height = int(cfg.CARD_HEIGHT * hover_scale)
-        scaled_x = x - (scaled_width - cfg.CARD_WIDTH) // 2
-        scaled_y = y - (scaled_height - cfg.CARD_HEIGHT) // 2
-    else:
-        scaled_width = cfg.CARD_WIDTH
-        scaled_height = cfg.CARD_HEIGHT
-        scaled_x = x
-        scaled_y = y
+              alpha=255, render_details=True, update_rect=True,
+              target_width=None, target_height=None):
+    """Blits card surfaces, optionally scaling to target size."""
 
-    draw_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
+    # Target dimensions (default to board card size)
+    w = target_width if target_width else cfg.CARD_WIDTH
+    h = target_height if target_height else cfg.CARD_HEIGHT
+
+    # Get base image
+    if hover_scale > 1.05 and hasattr(card, 'hover_image'):
+        base_img = card.hover_image
+        # Apply hover scale to target dimensions
+        w = int(w * hover_scale)
+        h = int(h * hover_scale)
+    else:
+        base_img = card.image
+
+    # Scale image to target size if needed - use cached scaling for performance
+    img_size = base_img.get_size()
+    if img_size[0] != w or img_size[1] != h:
+        img = _get_cached_scaled_image(base_img, (w, h), getattr(card, 'id', None))
+    else:
+        img = base_img
+
+    # Center hover offset
+    if hover_scale > 1.05:
+        base_w = target_width if target_width else cfg.CARD_WIDTH
+        base_h = target_height if target_height else cfg.CARD_HEIGHT
+        draw_x = x - (w - base_w) // 2
+        draw_y = y - (h - base_h) // 2
+    else:
+        draw_x, draw_y = x, y
+
+    draw_rect = pygame.Rect(draw_x, draw_y, w, h)
     if update_rect:
         card.rect = draw_rect.copy()
 
-    scaled_image = pygame.transform.smoothscale(card.image, (scaled_width, scaled_height))
-
-    if hover_scale > 1.0 or selected:
-        shadow_offset = 6 if selected else 4
-        shadow_padding = shadow_offset * 2
-        shadow_surf = pygame.Surface(
-            (draw_rect.width + shadow_padding, draw_rect.height + shadow_padding),
-            pygame.SRCALPHA
-        )
-        shadow_alpha = 120 if hover_scale > 1.0 else 80
-        pygame.draw.rect(
-            shadow_surf,
-            (0, 0, 0, shadow_alpha),
-            shadow_surf.get_rect(),
-            border_radius=8
-        )
-        surface.blit(shadow_surf, (draw_rect.x + shadow_offset, draw_rect.y + shadow_offset))
-
-    needs_rotation = abs(tilt_angle) > 0.05 or alpha != 255
-    target_rect = draw_rect
-
-    if needs_rotation:
-        temp_surface = pygame.Surface((draw_rect.width, draw_rect.height), pygame.SRCALPHA)
-        temp_surface.blit(scaled_image, (0, 0))
+    # Fast path: No rotation or transparency
+    if abs(tilt_angle) < 0.01 and alpha == 255:
+        surface.blit(img, draw_rect)
         if render_details:
-            detail_rect = pygame.Rect(0, 0, draw_rect.width, draw_rect.height)
+            _draw_card_details(surface, card, draw_rect)
+    else:
+        # Slow path: Only used for specific animations
+        # Ensure we use high-quality base image
+        temp_surface = img.copy()
+        if render_details:
+            detail_rect = pygame.Rect(0, 0, w, h)
             _draw_card_details(temp_surface, card, detail_rect)
+        
+        # rotozoom is okay for a few cards, but avoid bulk usage
         rotated_surface = pygame.transform.rotozoom(temp_surface, tilt_angle, 1.0)
         if alpha != 255:
             rotated_surface.set_alpha(alpha)
-        target_rect = rotated_surface.get_rect(center=draw_rect.center)
-        surface.blit(rotated_surface, target_rect)
-    else:
-        surface.blit(scaled_image, draw_rect)
-        if render_details:
-            _draw_card_details(surface, card, draw_rect)
+        
+        final_rect = rotated_surface.get_rect(center=draw_rect.center)
+        surface.blit(rotated_surface, final_rect)
 
     if selected:
-        pygame.draw.rect(surface, (255, 255, 0), target_rect, width=3, border_radius=5)
+        pygame.draw.rect(surface, (255, 255, 0), draw_rect, width=3, border_radius=5)
 
 def _draw_drag_trail(surface, trail_entries):
     if not trail_entries:
@@ -157,8 +200,9 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         _draw_drag_trail(surface, drag_visuals.get("trail"))
 
     is_mulligan_mode = mulligan_selected is not None
-    card_w = cfg.MULLIGAN_CARD_WIDTH if is_mulligan_mode else cfg.CARD_WIDTH
-    card_h = cfg.MULLIGAN_CARD_HEIGHT if is_mulligan_mode else cfg.CARD_HEIGHT
+    # Use larger hand card dimensions for better visibility
+    card_w = cfg.MULLIGAN_CARD_WIDTH if is_mulligan_mode else cfg.HAND_CARD_WIDTH
+    card_h = cfg.MULLIGAN_CARD_HEIGHT if is_mulligan_mode else cfg.HAND_CARD_HEIGHT
     total_cards = len(player.hand)
     card_spacing = int(card_w * 0.125)
 
@@ -193,23 +237,34 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
             base_scale = 0.95 if accordion_active else 1.0
             card_scale = base_scale * (hover_scale if is_hovered else 1.0)
         edge_alpha = 205 if (accordion_active and (i == 0 or i == len(player.hand) - 1)) else 255
-        
-        phase_offset = i * 0.7
-        idle_float = math.sin(idle_time * 1.5 + phase_offset) * 3
-        idle_tilt = math.sin(idle_time * 1.2 + phase_offset + 0.5) * 1.5
-        
-        if is_hovered or is_selected:
-            idle_float = 0
-            idle_tilt = 0
-        
-        draw_y = card_y - (int(25 * display_manager.SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0) + idle_float
-        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha, tilt_angle=idle_tilt)
+
+        # Idle animation disabled for 1440p performance (was causing flickering)
+        idle_float = 0
+        idle_tilt = 0
+
+        draw_y = card_y - (int(35 * display_manager.SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0) + idle_float
+        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha, tilt_angle=idle_tilt,
+                  target_width=card_w, target_height=card_h)
         
         if is_mulligan_selected:
             pygame.draw.rect(surface, (100, 100, 255), card.rect, width=4, border_radius=5)
-        
+
+        # Row-type color highlighting for hovered/selected cards
+        if is_hovered or is_selected:
+            row_colors = {
+                "close": (220, 60, 60),      # Red
+                "ranged": (80, 140, 220),    # Blue
+                "siege": (60, 200, 60),      # Green
+                "agile": (220, 200, 60),     # Yellow (can go close or ranged)
+                "weather": (100, 180, 255),  # Light blue (Stargate theme)
+                "special": (255, 200, 80),   # Gold/yellow (Command/Horn)
+            }
+            border_color = row_colors.get(card.row, (150, 150, 150))
+            border_width = 4 if is_selected else 3
+            pygame.draw.rect(surface, border_color, card.rect.inflate(4, 4), width=border_width, border_radius=8)
+
         if is_selected and card.row in ["special", "weather"]:
-            hint_font = pygame.font.SysFont("Arial", 16, bold=True)
+            hint_font = _get_cached_font(16, bold=True)
             hint_text = hint_font.render("DRAG TO PLAY", True, (255, 255, 0))
             hint_rect = hint_text.get_rect(center=(card.rect.centerx, card.rect.top - 15))
             bg_rect = hint_rect.inflate(10, 4)
@@ -260,7 +315,9 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
             hover_scale=dynamic_scale,
             tilt_angle=tilt,
             render_details=True,
-            update_rect=False
+            update_rect=False,
+            target_width=card_w,
+            target_height=card_h
         )
 
 def draw_opponent_hand(surface, opponent):
@@ -282,63 +339,113 @@ def draw_opponent_hand(surface, opponent):
             continue
         card_x = card_positions[i]
         alpha = 205 if accordion_active and (i == 0 or i == total_cards - 1) else 255
-        
-        phase_offset = i * 0.7
-        idle_float = math.sin(idle_time * 1.5 + phase_offset) * 3
-        idle_tilt = math.sin(idle_time * 1.2 + phase_offset + 0.5) * 1.5
-        
+
+        # Idle animation disabled for 1440p performance
+        idle_float = 0
+        idle_tilt = 0
+
         draw_y = hand_y + idle_float
-        
+
         if opponent.hand_revealed:
             draw_card(surface, card, card_x, draw_y, render_details=True, update_rect=False, alpha=alpha, tilt_angle=idle_tilt)
             pygame.draw.rect(surface, (255, 215, 0), (card_x, int(draw_y), cfg.CARD_WIDTH, cfg.CARD_HEIGHT), 2, border_radius=8)
         else:
-            if idle_tilt != 0:
-                rotated_back = pygame.transform.rotozoom(card_back_image, idle_tilt, 1.0)
-                if alpha < 255:
-                    rotated_back.set_alpha(alpha)
-                rot_rect = rotated_back.get_rect(center=(card_x + cfg.CARD_WIDTH // 2, int(draw_y) + cfg.CARD_HEIGHT // 2))
-                surface.blit(rotated_back, rot_rect.topleft)
-            else:
-                temp_surface = card_back_image.copy()
-                if alpha < 255:
-                    temp_surface.set_alpha(alpha)
-                surface.blit(temp_surface, (card_x, int(draw_y)))
+            # No rotation needed since idle_tilt is 0
+            temp_surface = card_back_image.copy()
+            if alpha < 255:
+                temp_surface.set_alpha(alpha)
+            surface.blit(temp_surface, (card_x, int(draw_y)))
             pygame.draw.rect(surface, (100, 150, 200), (card_x, int(draw_y), cfg.CARD_WIDTH, cfg.CARD_HEIGHT), 2, border_radius=8)
     
     if opponent.hand_revealed and opponent.hand_reveal_timer > 0:
         timer_text = f"HAND REVEALED: {int(opponent.hand_reveal_timer)}s"
         timer_surf = cfg.UI_FONT.render(timer_text, True, (255, 215, 0))
-        timer_rect = timer_surf.get_rect(center=(display_manager.SCREEN_WIDTH // 2, hand_y - 25))
+        # Position between player and opponent close rows
+        # Opponent close row ends around 0.43, player close row starts around 0.51
+        # Middle between them is around 0.47 of screen height
+        y_position = int(display_manager.SCREEN_HEIGHT * 0.47)
+        timer_rect = timer_surf.get_rect(center=(display_manager.SCREEN_WIDTH // 2, y_position))
         bg_rect = timer_rect.inflate(20, 10)
         pygame.draw.rect(surface, (0, 0, 0, 180), bg_rect, border_radius=5)
         surface.blit(timer_surf, timer_rect)
 
-def draw_weather_slots(surface, game):
+def draw_weather_slots(surface, game, dragging_card=None):
+    """Draw weather slots with highlighting when dragging weather cards."""
     for row_name, slot_rect in cfg.WEATHER_SLOT_RECTS.items():
         is_active = game.weather_active.get(row_name)
+
+        # Check if we're dragging a weather card that affects this row
+        is_drag_target = False
+        if dragging_card and dragging_card.row == "weather":
+            ability = dragging_card.ability or ""
+            # Check if this weather affects this row
+            ability_lower = ability.lower()
+            row_lower = row_name.lower()
+
+            # More comprehensive check for weather effects
+            if ("all" in ability_lower or
+                row_lower in ability_lower or
+                ("close" in row_lower and "close" in ability_lower) or
+                ("ranged" in row_lower and "ranged" in ability_lower) or
+                ("siege" in row_lower and "siege" in ability_lower) or
+                ("any" in ability_lower) or
+                ("target" in ability_lower)):
+                is_drag_target = True
+
         slot_surface = pygame.Surface((slot_rect.width, slot_rect.height), pygame.SRCALPHA)
-        fill_alpha = 210 if is_active else 150
-        slot_surface.fill((25, 45, 70, fill_alpha))
-        border_color = (120, 190, 255) if is_active else (80, 120, 170)
-        pygame.draw.rect(slot_surface, border_color, slot_surface.get_rect(), width=3, border_radius=12)
+        if is_drag_target:
+            # Highlight when dragging weather card
+            fill_alpha = 240
+            slot_surface.fill((60, 100, 180, fill_alpha))
+            border_color = (150, 220, 255)
+            border_width = 4
+        elif is_active:
+            fill_alpha = 210
+            slot_surface.fill((25, 45, 70, fill_alpha))
+            border_color = (120, 190, 255)
+            border_width = 3
+        else:
+            fill_alpha = 150
+            slot_surface.fill((25, 45, 70, fill_alpha))
+            border_color = (80, 120, 170)
+            border_width = 2
+
+        pygame.draw.rect(slot_surface, border_color, slot_surface.get_rect(), width=border_width, border_radius=12)
         surface.blit(slot_surface, slot_rect.topleft)
-        
+
+        # Draw the weather card if present
         entry = game.weather_cards_on_board.get(row_name) if hasattr(game, "weather_cards_on_board") else None
         card = entry.get("card") if entry else None
         if card:
-            draw_card(surface, card, slot_rect.x, slot_rect.y, render_details=False, update_rect=False)
+            # Center card in slot
+            card_x = slot_rect.x + (slot_rect.width - cfg.CARD_WIDTH) // 2
+            card_y = slot_rect.y + (slot_rect.height - cfg.CARD_HEIGHT) // 2
+            draw_card(surface, card, card_x, card_y, render_details=False, update_rect=False)
 
-def draw_horn_slots(surface, game):
-    def render_slot(slot_rect, active, card, faction_color):
+def draw_horn_slots(surface, game, dragging_card=None):
+    def render_slot(slot_rect, active, card, faction_color, is_drag_target=False):
         slot_surface = pygame.Surface((slot_rect.width, slot_rect.height), pygame.SRCALPHA)
-        slot_surface.fill((30, 30, 40, 120))
+
+        # Determine fill color based on drag state
+        if is_drag_target:
+            fill_alpha = 240
+            slot_surface.fill((60, 100, 180, fill_alpha))  # Highlight color when dragging horn card
+        else:
+            fill_alpha = 120
+            slot_surface.fill((30, 30, 40, fill_alpha))
+
         pygame.draw.rect(slot_surface, (15, 15, 20, 200), slot_surface.get_rect().inflate(-6, -6), border_radius=10)
         surface.blit(slot_surface, slot_rect.topleft)
 
         pulse = (math.sin(pygame.time.get_ticks() / 250.0) + 1) * 0.5
         outline_color = faction_color if active else tuple(int(c * 0.7) for c in faction_color)
         outline_alpha = 220 if active else int(130 + 80 * pulse)
+
+        # Enhance outline if this is a drag target
+        if is_drag_target:
+            outline_alpha = 255
+            outline_color = (150, 220, 255)  # Bright blue for drag target
+
         outline_surface = pygame.Surface((slot_rect.width, slot_rect.height), pygame.SRCALPHA)
         pygame.draw.rect(outline_surface, (*outline_color, outline_alpha), outline_surface.get_rect(), width=3, border_radius=14)
         surface.blit(outline_surface, slot_rect.topleft)
@@ -346,48 +453,64 @@ def draw_horn_slots(surface, game):
         if card:
             draw_card(surface, card, slot_rect.x + (slot_rect.width - cfg.CARD_WIDTH) // 2,
                       slot_rect.centery - cfg.CARD_HEIGHT // 2, render_details=False, update_rect=False)
-        else:
-            horn_text = cfg.ROW_FONT.render("H", True, outline_color)
-            horn_rect = horn_text.get_rect(center=slot_rect.center)
-            surface.blit(horn_text, horn_rect)
-    
+        # No "H" text - slot is visually clear without it
+
     player_color = cfg.FACTION_GLOW_COLORS.get(game.player1.faction, (255, 215, 0))
     opponent_color = cfg.FACTION_GLOW_COLORS.get(game.player2.faction, (255, 215, 0))
 
+    # Check if we're dragging a Command Network card
+    is_horn_card_drag = dragging_card and dragging_card.row == "special" and "Command Network" in (dragging_card.ability or "")
+
     if hasattr(game.player1, "horn_slots"):
         for row_name, slot_rect in cfg.PLAYER_HORN_SLOT_RECTS.items():
+            # Check if this is a valid target for the dragged horn card
+            is_drag_target = is_horn_card_drag and game.player1.horn_slots.get(row_name) is None
             render_slot(slot_rect, game.player1.horn_effects.get(row_name, False),
-                        game.player1.horn_slots.get(row_name), player_color)
+                        game.player1.horn_slots.get(row_name), player_color, is_drag_target)
     if hasattr(game.player2, "horn_slots"):
         for row_name, slot_rect in cfg.OPPONENT_HORN_SLOT_RECTS.items():
+            # Check if this is a valid target for the dragged horn card
+            is_drag_target = is_horn_card_drag and game.player2.horn_slots.get(row_name) is None
             render_slot(slot_rect, game.player2.horn_effects.get(row_name, False),
-                        game.player2.horn_slots.get(row_name), opponent_color)
+                        game.player2.horn_slots.get(row_name), opponent_color, is_drag_target)
 
 def _render_sg1_score_box(tint, row_box, score, surface, is_player):
-    score_font = pygame.font.SysFont("Arial", max(24, int(28 * display_manager.SCALE_FACTOR)), bold=True)
+    # Scale font to fit the box height
+    font_size = max(18, int(row_box.height * 0.75))
+    score_font = _get_cached_font(font_size, bold=True)
+    
     box_surface = pygame.Surface((row_box.width, row_box.height), pygame.SRCALPHA)
     fill_alpha = 215 if is_player else 170
     box_surface.fill((*tint, fill_alpha))
     border_rect = box_surface.get_rect()
-    pygame.draw.rect(box_surface, (255, 255, 255, 45), border_rect, border_radius=18)
-    pygame.draw.rect(box_surface, (20, 30, 45, 180), border_rect.inflate(-4, -4), width=3, border_radius=14)
+    
+    # Scale corner radius based on size
+    radius = max(4, int(row_box.height * 0.3))
+    pygame.draw.rect(box_surface, (255, 255, 255, 45), border_rect, border_radius=radius)
+    pygame.draw.rect(box_surface, (20, 30, 45, 180), border_rect.inflate(-4, -4), width=2, border_radius=max(2, radius-2))
+    
     notch_color = (180, 220, 255, 160)
-    notch = 18
-    pygame.draw.line(box_surface, notch_color, (notch, 4), (border_rect.width - notch, 4), 3)
-    pygame.draw.line(box_surface, notch_color, (4, border_rect.height - 4), (border_rect.width - 4, border_rect.height - 4), 3)
-    pygame.draw.line(box_surface, notch_color, (4, border_rect.height - 4), (4, border_rect.height - 20), 3)
-    pygame.draw.line(box_surface, notch_color, (border_rect.width - 4, border_rect.height - 4), (border_rect.width - 4, 20), 3)
+    # Scaled notches
+    nh = max(2, int(row_box.height * 0.15))
+    nw = max(5, int(row_box.width * 0.15))
+    
+    pygame.draw.line(box_surface, notch_color, (nw, 2), (border_rect.width - nw, 2), 2)
+    pygame.draw.line(box_surface, notch_color, (2, border_rect.height - 2), (border_rect.width - 2, border_rect.height - 2), 2)
+    
     surface.blit(box_surface, row_box.topleft)
     score_color = cfg.WHITE if score > 0 else (200, 200, 200)
     score_text = score_font.render(str(score), True, score_color)
     score_rect = score_text.get_rect(center=row_box.center)
     surface.blit(score_text, score_rect)
 
-def draw_row_score_boxes(surface, game):
-    box_width = int(cfg.HUD_WIDTH * 0.32)
+def draw_row_score_boxes(surface, game, anchor_x_right=None):
+    # Sidebar anchoring logic
+    # Box scores are aligned to SIDEBAR_X + 20
+    box_x = cfg.SIDEBAR_X + 20
+    box_width = 220 # Roughly half the sidebar width
+
     row_height = cfg.PLAYER_ROW_RECTS["close"].height
-    box_height = max(30, int(row_height * 0.35))
-    box_x = cfg.HUD_LEFT + int(cfg.HUD_WIDTH * 0.03)
+    box_height = max(24, int(row_height * 0.40))
 
     for player, rects in [(game.player2, cfg.OPPONENT_ROW_RECTS), (game.player1, cfg.PLAYER_ROW_RECTS)]:
         for row_name, row_rect in rects.items():
@@ -398,7 +521,7 @@ def draw_row_score_boxes(surface, game):
             _render_sg1_score_box(tint, row_box, score, surface, player == game.player1)
 
 def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None):
-    history_font = pygame.font.SysFont("Arial", max(14, int(16 * display_manager.SCALE_FACTOR)))
+    history_font = _get_cached_font(max(14, int(16 * display_manager.SCALE_FACTOR)))
     panel_surface = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
     panel_surface.fill((10, 18, 32, 200))
     pygame.draw.rect(panel_surface, (80, 120, 180, 220), panel_surface.get_rect(), width=2, border_radius=12)
@@ -535,8 +658,9 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     column_center_x = column_left + column_width // 2
     spacing = max(8, min(12, int(10 * display_manager.SCALE_FACTOR)))
 
-    leader_width = cfg.CARD_WIDTH
-    leader_height = cfg.CARD_HEIGHT
+    # Leader portraits should be bigger for visibility (1.8x card size)
+    leader_width = int(cfg.CARD_WIDTH * 1.8)
+    leader_height = int(cfg.CARD_HEIGHT * 1.8)
 
     button_width = min(column_width - 4, max(int(cfg.CARD_WIDTH * 1.2), 120))
     button_height = max(int(cfg.CARD_HEIGHT * 0.28), 50)
@@ -604,12 +728,12 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     ability_surface.fill(bg_color)
     pygame.draw.rect(ability_surface, border_color, ability_surface.get_rect(), width=3, border_radius=8)
     
-    name_font = pygame.font.SysFont("Arial", max(12, int(14 * display_manager.SCALE_FACTOR)), bold=True)
+    name_font = _get_cached_font(max(12, int(14 * display_manager.SCALE_FACTOR)), bold=True)
     name_text = name_font.render(leader_ability_name.upper(), True, text_color)
     name_rect = name_text.get_rect(centerx=ability_rect.width // 2, top=6)
     ability_surface.blit(name_text, name_rect)
-    
-    status_font = pygame.font.SysFont("Arial", max(10, int(11 * display_manager.SCALE_FACTOR)), bold=True)
+
+    status_font = _get_cached_font(max(10, int(11 * display_manager.SCALE_FACTOR)), bold=True)
     status_surf = status_font.render(status_text, True, status_color)
     status_rect = status_surf.get_rect(centerx=ability_rect.width // 2, bottom=ability_rect.height - 5)
     ability_surface.blit(status_surf, status_rect)
@@ -624,8 +748,8 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
 
     # STATS ROW
     stats_rect = pygame.Rect(ability_rect.x, ability_rect.bottom + 4, ability_rect.width, stats_height)
-    stat_val_font = pygame.font.SysFont("Arial", max(14, int(16 * display_manager.SCALE_FACTOR)), bold=True)
-    stat_lbl_font = pygame.font.SysFont("Arial", max(8, int(9 * display_manager.SCALE_FACTOR)), bold=True)
+    stat_val_font = _get_cached_font(max(14, int(16 * display_manager.SCALE_FACTOR)), bold=True)
+    stat_lbl_font = _get_cached_font(max(8, int(9 * display_manager.SCALE_FACTOR)), bold=True)
     
     section_width = stats_rect.width / 3
     stats_data = [
@@ -709,7 +833,7 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     surface.blit(faction_surface, faction_rect.topleft)
 
     power_label_rect = pygame.Rect(faction_rect.x - 10, faction_rect.bottom + 2, faction_rect.width + 20, 16)
-    power_label_font = pygame.font.SysFont("Arial", max(9, int(10 * display_manager.SCALE_FACTOR)), bold=True)
+    power_label_font = _get_cached_font(max(9, int(10 * display_manager.SCALE_FACTOR)), bold=True)
     
     power_name = "FACTION"
     if player.faction_power:
@@ -727,7 +851,7 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
         score_surface = pygame.Surface((score_rect.width, score_rect.height), pygame.SRCALPHA)
         score_surface.fill((20, 30, 50, 210))
         pygame.draw.rect(score_surface, faction_color, score_surface.get_rect(), width=3, border_radius=10)
-        score_font = pygame.font.SysFont("Arial", max(20, int(24 * display_manager.SCALE_FACTOR)), bold=True)
+        score_font = _get_cached_font(max(20, int(24 * display_manager.SCALE_FACTOR)), bold=True)
         score_text = score_font.render(str(player.score), True, cfg.WHITE)
         score_surface.blit(score_text, score_text.get_rect(center=score_surface.get_rect().center))
         surface.blit(score_surface, score_rect.topleft)
@@ -774,7 +898,7 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
         surface.blit(special_surface, special_rect.topleft)
         
         special_label = special_info.get("label", "SPECIAL")
-        special_font = pygame.font.SysFont("Arial", max(8, int(9 * display_manager.SCALE_FACTOR)), bold=True)
+        special_font = _get_cached_font(max(8, int(9 * display_manager.SCALE_FACTOR)), bold=True)
         special_surf = special_font.render(special_label, True, ready_color)
         surface.blit(special_surf, special_surf.get_rect(centerx=special_rect.centerx, top=special_rect.bottom + 1))
         

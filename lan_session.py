@@ -137,6 +137,18 @@ class LanSession:
         """Check if the session is still connected."""
         return not self.stop_event.is_set() and self.sock is not None
 
+    def receive(self):
+        """
+        Retrieve a message from the inbox queue (non-blocking).
+
+        Returns:
+            Message dict if available, None otherwise
+        """
+        try:
+            return self.inbox.get_nowait()
+        except queue.Empty:
+            return None
+
     def send(self, message_type, payload=None):
         if self.stop_event.is_set() or not self.sock:
             return False

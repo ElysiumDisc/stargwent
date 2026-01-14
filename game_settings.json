@@ -1,5 +1,6 @@
 {
-  "master_volume": 0.20105263157894737,
+  "master_volume": 0.0,
   "music_volume": 0.7,
-  "sfx_volume": 0.7
+  "sfx_volume": 0.7,
+  "show_fps": true
 }

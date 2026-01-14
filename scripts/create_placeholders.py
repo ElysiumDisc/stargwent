@@ -1076,6 +1076,7 @@ def main():
     create_stats_menu_background()
     create_options_menu_background()
     create_draft_mode_background()
+    create_mulligan_background()
     create_custom_font()
     create_card_back_image()
     create_universal_matchup_background()
@@ -1087,7 +1088,7 @@ def main():
     num_leaders = sum(len(l) for l in leaders.values())
     num_ships = len(factions_for_ships)  # One ship per faction
     num_faction_bgs = len(FACTION_BACKGROUND_IDS)
-    num_other = 10  # board, menu, rule menu, deck bg, stats bg, options bg, draft bg, card back, universal matchup bg, lobby bg
+    num_other = 11  # board, menu, rule menu, deck bg, stats bg, options bg, draft bg, mulligan bg, card back, universal matchup bg, lobby bg
     # Leader backgrounds match leaders count
     leader_backgrounds = num_leaders
     
@@ -1101,7 +1102,7 @@ def main():
     print(f"  Universal Matchup Backgrounds: 1 (dynamic overlay handles text/names)")
     print(f"  Ships: {num_ships} (1 per faction)")
     print(f"  Faction Backgrounds: {num_faction_bgs}")
-    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, stats bg, options bg, draft bg, card back, universal matchup bg, lobby bg) + 1 font config")
+    print(f"  Other: {num_other} (board, menu, rule menu, deck bg, stats bg, options bg, draft bg, mulligan bg, card back, universal matchup bg, lobby bg) + 1 font config")
     print(f"  Total Images: {total_images}")
 
 
@@ -1544,6 +1545,110 @@ def create_lobby_background():
     pygame.image.save(surface, path)
     print(f"  ✓ {path}")
     return path
+
+def create_mulligan_background():
+    """Create background for the mulligan (card redraw) phase."""
+    path = os.path.join(ASSETS_DIR, "mulligan_bg.png")
+    if not should_create_file(path):
+        print(f"  ⊗ Skipped: mulligan_bg.png (already exists)")
+        return None
+
+    surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT))
+
+    # Deep blue-purple gradient (mysterious, transitional feel)
+    for y in range(BOARD_HEIGHT):
+        progress = y / BOARD_HEIGHT
+        r = int(15 + progress * 20)
+        g = int(20 + progress * 25)
+        b = int(50 + progress * 40)
+        pygame.draw.line(surface, (r, g, b), (0, y), (BOARD_WIDTH, y))
+
+    # Starfield background
+    for _ in range(600):
+        x = random.randint(0, BOARD_WIDTH)
+        y = random.randint(0, BOARD_HEIGHT)
+        size = random.randint(1, 3)
+        brightness = random.randint(80, 200)
+        pygame.draw.circle(surface, (brightness, brightness, brightness), (x, y), size)
+
+    # Subtle nebula clouds
+    for _ in range(8):
+        x = random.randint(-200, BOARD_WIDTH + 200)
+        y = random.randint(-200, BOARD_HEIGHT + 200)
+        size = random.randint(300, 600)
+        nebula_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        color_choice = random.choice([
+            (80, 60, 150, 35),   # Purple nebula
+            (60, 100, 180, 35),  # Blue nebula
+            (100, 80, 160, 35),  # Violet nebula
+        ])
+        pygame.draw.circle(nebula_surf, color_choice, (size, size), size)
+        surface.blit(nebula_surf, (x - size, y - size))
+
+    # Central focus area (where cards will be shown)
+    center_x, center_y = BOARD_WIDTH // 2, BOARD_HEIGHT // 2
+
+    # Glowing ring effect around center area
+    ring_surf = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    for radius in range(500, 300, -20):
+        alpha = max(0, 50 - (500 - radius) // 5)
+        pygame.draw.circle(ring_surf, (100, 150, 220, alpha), (center_x, center_y), radius, 3)
+    surface.blit(ring_surf, (0, 0))
+
+    # Horizontal divider line (subtle)
+    pygame.draw.line(surface, (60, 100, 160, 100), (200, center_y - 200), (BOARD_WIDTH - 200, center_y - 200), 2)
+
+    # Corner decorations (tech/ancient feel)
+    corner_size = 150
+    corner_color = (80, 130, 200)
+
+    # Top-left
+    pygame.draw.line(surface, corner_color, (50, 50), (50 + corner_size, 50), 3)
+    pygame.draw.line(surface, corner_color, (50, 50), (50, 50 + corner_size), 3)
+    pygame.draw.circle(surface, corner_color, (50, 50), 8)
+
+    # Top-right
+    pygame.draw.line(surface, corner_color, (BOARD_WIDTH - 50, 50), (BOARD_WIDTH - 50 - corner_size, 50), 3)
+    pygame.draw.line(surface, corner_color, (BOARD_WIDTH - 50, 50), (BOARD_WIDTH - 50, 50 + corner_size), 3)
+    pygame.draw.circle(surface, corner_color, (BOARD_WIDTH - 50, 50), 8)
+
+    # Bottom-left
+    pygame.draw.line(surface, corner_color, (50, BOARD_HEIGHT - 50), (50 + corner_size, BOARD_HEIGHT - 50), 3)
+    pygame.draw.line(surface, corner_color, (50, BOARD_HEIGHT - 50), (50, BOARD_HEIGHT - 50 - corner_size), 3)
+    pygame.draw.circle(surface, corner_color, (50, BOARD_HEIGHT - 50), 8)
+
+    # Bottom-right
+    pygame.draw.line(surface, corner_color, (BOARD_WIDTH - 50, BOARD_HEIGHT - 50), (BOARD_WIDTH - 50 - corner_size, BOARD_HEIGHT - 50), 3)
+    pygame.draw.line(surface, corner_color, (BOARD_WIDTH - 50, BOARD_HEIGHT - 50), (BOARD_WIDTH - 50, BOARD_HEIGHT - 50 - corner_size), 3)
+    pygame.draw.circle(surface, corner_color, (BOARD_WIDTH - 50, BOARD_HEIGHT - 50), 8)
+
+    # "MULLIGAN" watermark (very faint)
+    title_font = pygame.font.SysFont("Arial", 180, bold=True)
+    title_surf = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
+    title_text = title_font.render("REDRAW PHASE", True, (80, 120, 180, 20))
+    title_rect = title_text.get_rect(center=(center_x, center_y - 350))
+    title_surf.blit(title_text, title_rect)
+    surface.blit(title_surf, (0, 0))
+
+    # Floating card silhouettes in background
+    card_color = (60, 90, 140, 40)
+    for i in range(6):
+        x = random.randint(100, BOARD_WIDTH - 100)
+        y = random.randint(BOARD_HEIGHT // 2 + 100, BOARD_HEIGHT - 200)
+        rotation = random.randint(-15, 15)
+
+        card_surf = pygame.Surface((180, 260), pygame.SRCALPHA)
+        pygame.draw.rect(card_surf, card_color, (0, 0, 180, 260), border_radius=12)
+        pygame.draw.rect(card_surf, (100, 140, 200, 60), (0, 0, 180, 260), width=2, border_radius=12)
+
+        rotated = pygame.transform.rotate(card_surf, rotation)
+        rect = rotated.get_rect(center=(x, y))
+        surface.blit(rotated, rect)
+
+    pygame.image.save(surface, path)
+    print(f"  ✓ {path}")
+    return path
+
 
 def create_universal_matchup_background():
     """Create a single cinematic Stargate matchup background used by all leader pairs."""

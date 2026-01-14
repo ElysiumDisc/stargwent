@@ -23,7 +23,8 @@ from draft_mode import DraftRun
 # DEBUG MODE (v4.3.1)
 # ============================================================================
 # Set to True to enable FPS counter and performance profiling
-DEBUG_MODE = os.environ.get('STARGWENT_DEBUG', '').lower() in ('1', 'true', 'yes')
+from game_settings import get_settings
+DEBUG_MODE = os.environ.get('STARGWENT_DEBUG', '').lower() in ('1', 'true', 'yes') or get_settings().get_show_fps()
 # Toggle with F3 key during gameplay
 
 class UIState(Enum):
@@ -78,101 +79,11 @@ from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_rewar
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
 from power import FACTION_POWERS, FactionPowerEffect
 from deck_persistence import record_victory, record_defeat, check_leader_unlock, get_persistence
-
-# Round-based battle music (increases intensity each round)
-ROUND_BATTLE_MUSIC = {
-    1: os.path.join("assets", "audio", "battle_round1.ogg"),
-    2: os.path.join("assets", "audio", "battle_round2.ogg"),
-    3: os.path.join("assets", "audio", "battle_round3.ogg"),
-}
-_current_battle_music = None
-_current_music_round = None
-_next_music_allowed_at = 0
-_battle_music_cooldown_ms = 120000
-
-
-def _ensure_mixer_ready():
-    if pygame.mixer.get_init():
-        return True
-    try:
-        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
-        return True
-    except pygame.error as exc:
-        print(f"[audio] Unable to init mixer: {exc}")
-        return False
-
-
-def _play_battle_theme(round_number, *, force=False):
-    """Internal helper that plays the round track once if cooldown allows."""
-    global _current_battle_music, _next_music_allowed_at
-    if round_number is None:
-        return False
-    music_path = ROUND_BATTLE_MUSIC.get(round_number)
-    if not music_path:
-        return False
-    if not os.path.exists(music_path):
-        print(f"[audio] Battle music missing for round {round_number}: {music_path}")
-        return False
-    now = pygame.time.get_ticks()
-    if not force and now < _next_music_allowed_at:
-        return False
-    if not _ensure_mixer_ready():
-        return False
-    try:
-        from game_settings import get_settings
-        pygame.mixer.music.load(music_path)
-        # Get volume from settings
-        settings = get_settings()
-        volume = settings.get_effective_music_volume()
-        pygame.mixer.music.set_volume(volume)
-        pygame.mixer.music.play(-1)  # Loop the battle music
-        _current_battle_music = music_path
-        _next_music_allowed_at = now + _battle_music_cooldown_ms
-        print(f"[audio] Battle music playing for round {round_number}: {music_path} at volume {volume:.2f}")
-        return True
-    except pygame.error as exc:
-        print(f"[audio] Unable to play battle music ({music_path}): {exc}")
-        return False
-
-
-def set_battle_music_round(round_number, *, immediate=False):
-    """Select which round music should be considered for playback."""
-    global _current_music_round, _next_music_allowed_at
-    if round_number == _current_music_round:
-        if immediate:
-            _play_battle_theme(round_number, force=True)
-        return
-    stop_battle_music()
-    _current_music_round = round_number
-    _next_music_allowed_at = 0
-    if round_number:
-        _play_battle_theme(round_number, force=True)
-
-
-def update_battle_music():
-    """Call regularly to restart music respecting the cooldown."""
-    if not _current_music_round:
-        return
-    if not pygame.mixer.get_init():
-        return
-    if pygame.mixer.music.get_busy():
-        return
-    _play_battle_theme(_current_music_round)
-
-
-def stop_battle_music(fade_ms=800):
-    """Stop any playing battle theme and clear the round."""
-    global _current_battle_music, _current_music_round
-    if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
-        try:
-            pygame.mixer.music.fadeout(fade_ms)
-        except pygame.error:
-            pygame.mixer.music.stop()
-    if _current_battle_music:
-        print(f"[audio] Battle music stopped ({_current_battle_music})")
-    _current_battle_music = None
-    _current_music_round = None
-
+import battle_music
+import selection_overlays
+import transitions
+import board_renderer
+import game_setup
 
 # ============================================================================
 # MODULE IMPORTS & INITIALIZATION
@@ -215,12 +126,8 @@ pct_x = cfg.pct_x
 pct_y = cfg.pct_y
 rect_from_percent = cfg.rect_from_percent
 # Fonts
-UI_FONT = cfg.UI_FONT
-POWER_FONT = cfg.POWER_FONT
-SCORE_FONT = cfg.SCORE_FONT
 ROW_FONT = cfg.ROW_FONT
-# Colors
-WHITE = cfg.WHITE
+# Colors (all accessed via cfg module now)
 BLACK = cfg.BLACK
 GOLD = cfg.GOLD
 RED = cfg.RED
@@ -245,8 +152,9 @@ ROW_HEIGHT = max(1, pct_y(ROW_RANGES["player_close"][1] - ROW_RANGES["player_clo
 HAND_Y_OFFSET = SCREEN_HEIGHT - player_hand_area_y
 
 # Use pre-calculated rectangles from game_config
-PLAYER_ROW_RECTS = cfg.PLAYER_ROW_RECTS
-OPPONENT_ROW_RECTS = cfg.OPPONENT_ROW_RECTS
+# Use cfg versions directly to ensure resolution sync
+# cfg.PLAYER_ROW_RECTS = cfg.cfg.PLAYER_ROW_RECTS
+# cfg.OPPONENT_ROW_RECTS = cfg.cfg.OPPONENT_ROW_RECTS
 WEATHER_SLOT_RECTS = cfg.WEATHER_SLOT_RECTS
 PLAYER_HORN_SLOT_RECTS = cfg.PLAYER_HORN_SLOT_RECTS
 OPPONENT_HORN_SLOT_RECTS = cfg.OPPONENT_HORN_SLOT_RECTS
@@ -280,7 +188,7 @@ def get_row_color(row_name):
 
 def get_row_under_position(pos):
     """Return (row_name, rect) under the given screen position."""
-    for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+    for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
         for row_name, row_rect in rects.items():
             if row_rect.collidepoint(pos):
                 return row_name, row_rect
@@ -301,6 +209,59 @@ def get_weather_target_rows(card, hovered_row=None):
     return []
 
 
+def draw_stargwent_button(surface, rect, text, mouse_pos, font=None,
+                          base_color=(30, 45, 70), hover_color=(45, 70, 110),
+                          border_color=(70, 130, 200), hover_border=(100, 180, 255),
+                          text_color=(210, 230, 255)):
+    """Draw a Stargwent-styled button with hover effect.
+
+    Args:
+        surface: Pygame surface to draw on
+        rect: pygame.Rect for button position and size
+        text: Button text string
+        mouse_pos: Current mouse position tuple
+        font: Font to use (defaults to cfg.UI_FONT)
+        base_color: Button background color
+        hover_color: Button background color on hover
+        border_color: Border color
+        hover_border: Border color on hover
+        text_color: Text color
+
+    Returns:
+        bool: True if button is currently hovered
+    """
+    is_hovered = rect.collidepoint(mouse_pos)
+
+    # Draw button background with gradient effect
+    bg_color = hover_color if is_hovered else base_color
+    pygame.draw.rect(surface, bg_color, rect, border_radius=12)
+
+    # Draw inner glow on hover
+    if is_hovered:
+        inner_rect = rect.inflate(-4, -4)
+        glow_surface = pygame.Surface(inner_rect.size, pygame.SRCALPHA)
+        glow_surface.fill((100, 180, 255, 30))
+        surface.blit(glow_surface, inner_rect.topleft)
+
+    # Draw border
+    bd_color = hover_border if is_hovered else border_color
+    pygame.draw.rect(surface, bd_color, rect, width=2, border_radius=12)
+
+    # Draw text with optional shadow
+    use_font = font or cfg.UI_FONT
+    if is_hovered:
+        # Shadow for hover state
+        shadow = use_font.render(text, True, (0, 0, 0))
+        shadow_rect = shadow.get_rect(center=(rect.centerx + 2, rect.centery + 2))
+        surface.blit(shadow, shadow_rect)
+
+    btn_text = use_font.render(text, True, text_color if not is_hovered else (255, 255, 255))
+    text_rect = btn_text.get_rect(center=rect.center)
+    surface.blit(btn_text, text_rect)
+
+    return is_hovered
+
+
 def _draw_card_details(target_surface, card, rect):
     """Render card overlays (power pips and row icon)."""
     if card.row not in ["special", "weather"]:
@@ -310,9 +271,9 @@ def _draw_card_details(target_surface, card, rect):
         elif card.displayed_power < card.power:
             text_color = (255, 100, 100) # Red for curse/damage
         else:
-            text_color = WHITE # Default
+            text_color = cfg.WHITE # Default
 
-        power_text = POWER_FONT.render(str(card.displayed_power), True, text_color)
+        power_text = cfg.POWER_FONT.render(str(card.displayed_power), True, text_color)
         power_rect = power_text.get_rect(
             center=(rect.x + rect.width / 2, rect.y + rect.height - 20)
         )
@@ -567,1632 +528,44 @@ def get_opponent_hand_card_center(total_cards, index):
     card_x = positions[safe_index]
     return (card_x + CARD_WIDTH // 2, hand_y + CARD_HEIGHT // 2)
 
-def draw_weather_separator(surface, game):
-    """Draw the weather lane plus glowing turn divider strip."""
-    zone_rect = pygame.Rect(0, weather_y, SCREEN_WIDTH, WEATHER_ZONE_HEIGHT)
-    zone_surface = pygame.Surface(zone_rect.size, pygame.SRCALPHA)
-    zone_surface.fill((18, 28, 48, 220))
-    surface.blit(zone_surface, zone_rect.topleft)
-
-    pygame.draw.line(surface, (70, 90, 140), zone_rect.topleft, (zone_rect.right, zone_rect.top), 2)
-    pygame.draw.line(surface, (70, 90, 140), (zone_rect.left, zone_rect.bottom), (zone_rect.right, zone_rect.bottom), 2)
-
-    divider_height = min(WEATHER_ZONE_HEIGHT, pct_y(0.03))
-    divider_rect = pygame.Rect(
-        zone_rect.left,
-        zone_rect.bottom - divider_height,
-        zone_rect.width,
-        divider_height
-    )
-    divider_surface = pygame.Surface(divider_rect.size, pygame.SRCALPHA)
-    divider_surface.fill((255, 170, 60, 90))
-    pygame.draw.rect(divider_surface, (255, 210, 120, 200), divider_surface.get_rect(), width=3, border_radius=6)
-    surface.blit(divider_surface, divider_rect.topleft)
-
-    turn_text = "YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN"
-    turn_color = (120, 255, 160) if game.current_player == game.player1 else (255, 140, 140)
-    turn_font = pygame.font.SysFont("Arial", max(26, int(30 * SCALE_FACTOR)), bold=True)
-    turn_surface = turn_font.render(turn_text, True, turn_color)
-    turn_rect = turn_surface.get_rect(center=divider_rect.center)
-    surface.blit(turn_surface, turn_rect)
+# ============================================================================
+# TRANSITIONS
+# ============================================================================
 
 
-def draw_lane_labels(surface):
-    """Lane labels intentionally suppressed for cleaner UI."""
-    return
 
 
-def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_highlight=None,
-               drag_row_highlights=None):
-    """Draw the game board, including contextual drop highlights."""
-    draw_weather_separator(surface, game)
-    draw_lane_labels(surface)
-    draw_weather_slots(surface, game)
-    draw_horn_slots(surface, game)
-    
-    # Darken inactive lanes (Witcher 3 polish)
-    if game.player1.has_passed or game.current_player != game.player1:
-        for row_name, row_rect in PLAYER_ROW_RECTS.items():
-            dark_surface = pygame.Surface((row_rect.width, row_rect.height), pygame.SRCALPHA)
-            dark_surface.fill((0, 0, 0, 40))
-            surface.blit(dark_surface, row_rect.topleft)
-    
-    # Subtle glow on active player's lanes (Witcher 3 polish)
-    if game.current_player == game.player1 and not game.player1.has_passed:
-        glow_alpha = 30
-        for row_name, row_rect in PLAYER_ROW_RECTS.items():
-            glow_surface = pygame.Surface((row_rect.width, row_rect.height), pygame.SRCALPHA)
-            glow_surface.fill((100, 150, 255, glow_alpha))
-            surface.blit(glow_surface, row_rect.topleft)
-    
-    # Highlight valid target rows with semi-transparent fill and border
-    if selected_card and selected_card.row not in ["special", "weather"]:
-        valid_rows = []
-        is_spy = "Deep Cover Agent" in (selected_card.ability or "")
-        
-        target_rects = OPPONENT_ROW_RECTS if is_spy else PLAYER_ROW_RECTS
-        highlight_color = (255, 100, 100) if is_spy else (100, 255, 100)
-        fill_color = (255, 100, 100, 40) if is_spy else (100, 255, 100, 40)  # Semi-transparent fill
-
-        if selected_card.row == "agile":
-            valid_rows = ["close", "ranged"]
-        elif selected_card.row in ["close", "ranged", "siege"]:
-            valid_rows = [selected_card.row]
-
-        for r_name in valid_rows:
-            if r_name in target_rects:
-                # Draw semi-transparent fill
-                highlight_surface = pygame.Surface((target_rects[r_name].width, target_rects[r_name].height), pygame.SRCALPHA)
-                highlight_surface.fill(fill_color)
-                surface.blit(highlight_surface, (target_rects[r_name].x, target_rects[r_name].y))
-    
-    # Highlight general special targets (non-horn placement)
-    if dragging_card and dragging_card.row == "special":
-        ability_text = dragging_card.ability or ""
-        if "Command Network" not in ability_text:
-            fill_color = (255, 255, 255, 30)
-            for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
-                for rect in rects.values():
-                    highlight_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-                    highlight_surface.fill(fill_color)
-                    surface.blit(highlight_surface, rect.topleft)
-
-    if drag_row_highlights:
-        for highlight in drag_row_highlights:
-            rect = highlight["rect"]
-            color = highlight.get("color", (255, 255, 255))
-            alpha = highlight.get("alpha", 80)
-            highlight_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-            highlight_surface.fill((color[0], color[1], color[2], alpha))
-            surface.blit(highlight_surface, rect.topleft)
-            inflate_y = int(SCREEN_HEIGHT*0.006)
-            pygame.draw.rect(surface, color, rect.inflate(0, inflate_y), width=3, border_radius=6)
-
-    if drag_hover_highlight:
-        rect = drag_hover_highlight["rect"]
-        color = drag_hover_highlight["color"]
-        alpha = drag_hover_highlight.get("alpha", 80)
-        hover_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-        hover_surface.fill((color[0], color[1], color[2], alpha))
-        surface.blit(hover_surface, rect.topleft)
-        inflate_y = int(SCREEN_HEIGHT*0.006)
-        pygame.draw.rect(surface, color, rect.inflate(0, inflate_y), width=4, border_radius=6)
-
-    # --- Draw cards on board (centered in their rows) ---
-    row_map = {
-        game.player2: OPPONENT_ROW_RECTS,
-        game.player1: PLAYER_ROW_RECTS,
-    }
-
-    card_spacing = int(CARD_WIDTH * 0.125)  # Spacing between cards on board
-    for player, rects in row_map.items():
-        for row_name, row_rect in rects.items():
-            cards_in_row = player.board[row_name]
-            if not cards_in_row:
-                continue
-            
-            # Calculate total width and center cards
-            total_width = len(cards_in_row) * CARD_WIDTH + (len(cards_in_row) - 1) * card_spacing
-            available_width = PLAYFIELD_WIDTH
-            if total_width <= available_width:
-                start_x = PLAYFIELD_LEFT + (available_width - total_width) // 2
-            else:
-                start_x = PLAYFIELD_LEFT
-
-            for i, card in enumerate(cards_in_row):
-                x = start_x + i * (CARD_WIDTH + card_spacing)
-
-                # Center cards vertically within the row
-                card_draw_y = row_rect.centery - CARD_HEIGHT // 2
-                card.rect.topleft = (x, card_draw_y)
-                if getattr(card, "in_transit", False):
-                    continue
-                draw_card(surface, card, x, card_draw_y)
-    
-def draw_scores(surface, game, anim_manager=None, p1_score_x=0, p1_score_y=0, p2_score_x=0, p2_score_y=0, render_static=True):
-    """Draws the player scores and rounds won next to leader portraits."""
-    if anim_manager and anim_manager.score_animations:
-        anim_manager.draw_score_animations(surface, SCORE_FONT)
-        if not render_static:
-            return
-    elif not render_static:
-        return
-
-    p1_color = (100, 255, 100) if game.player1.score > game.player2.score else WHITE
-    p1_score_text = SCORE_FONT.render(f"Score: {game.player1.score}", True, p1_color)
-    surface.blit(p1_score_text, (p1_score_x, p1_score_y))
-    
-    p2_color = (100, 255, 100) if game.player2.score > game.player1.score else WHITE
-    p2_score_text = SCORE_FONT.render(f"Score: {game.player2.score}", True, p2_color)
-    surface.blit(p2_score_text, (p2_score_x, p2_score_y))
-
-    p1_rounds_text = UI_FONT.render(f"Rounds Won: {game.player1.rounds_won}", True, WHITE)
-    p2_rounds_text = UI_FONT.render(f"Rounds Won: {game.player2.rounds_won}", True, WHITE)
-    surface.blit(p1_rounds_text, (p1_score_x, p1_score_y + 55))
-    surface.blit(p2_rounds_text, (p2_score_x, p2_score_y + 55))
-
-def draw_pass_button(surface, game, button_rect=None):
-    """Draws the DHD-style pass button."""
-    if not button_rect:
-        return
-    target_rect = button_rect
-    center_x = target_rect.centerx
-    center_y = target_rect.centery
-    
-    # Base state
-    can_pass = game.current_player == game.player1 and not game.player1.has_passed
-    
-    # Outer DHD ring (scaled)
-    outer_radius = max(20, min(target_rect.width, target_rect.height) // 2)
-    inner_radius = max(10, int(outer_radius * 0.7))
-    
-    # Outer ring color (bronze/metallic)
-    outer_color = (120, 100, 80)
-    pygame.draw.circle(surface, outer_color, (center_x, center_y), outer_radius)
-    pygame.draw.circle(surface, (80, 70, 60), (center_x, center_y), outer_radius, width=max(1, int(3 * SCALE_FACTOR)))
-    
-    # DHD symbols around the ring (simplified chevrons) - scaled
-    num_symbols = 7
-    for i in range(num_symbols):
-        angle = (i * 360 / num_symbols) - 90  # Start from top
-        rad = math.radians(angle)
-        symbol_x = center_x + math.cos(rad) * (42 * SCALE_FACTOR)
-        symbol_y = center_y + math.sin(rad) * (42 * SCALE_FACTOR)
-        
-        # Small chevron-like triangle
-        symbol_color = (150, 130, 100) if can_pass else (80, 70, 60)
-        symbol_size = max(2, int(5 * SCALE_FACTOR))
-        pygame.draw.circle(surface, symbol_color, (int(symbol_x), int(symbol_y)), symbol_size)
-    
-    # Center button (home/dial button)
-    if can_pass:
-        # Glowing red when active
-        glow_time = pygame.time.get_ticks() / 500.0
-        glow_pulse = abs(math.sin(glow_time))
-        center_alpha = int(150 + glow_pulse * 105)
-        
-        # Outer glow
-        glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
-        pygame.draw.circle(glow_surf, (255, 50, 50, 80), (inner_radius * 1.5, inner_radius * 1.5), inner_radius + int(10 * SCALE_FACTOR))
-        surface.blit(glow_surf, (center_x - inner_radius * 1.5, center_y - inner_radius * 1.5))
-        
-        # Main button - glowing red
-        pygame.draw.circle(surface, (200, 40, 40), (center_x, center_y), inner_radius)
-        pygame.draw.circle(surface, (255, 100, 100), (center_x, center_y), max(1, inner_radius - int(5 * SCALE_FACTOR)))
-        pygame.draw.circle(surface, (255, 50, 50, center_alpha), (center_x, center_y), max(1, inner_radius - int(10 * SCALE_FACTOR)))
-        
-        # Center dot (button press point)
-        pygame.draw.circle(surface, (255, 200, 200), (center_x, center_y), max(2, int(8 * SCALE_FACTOR)))
-        pygame.draw.circle(surface, (255, 255, 255, 200), (center_x, center_y), max(1, int(4 * SCALE_FACTOR)))
-    else:
-        # Inactive - dark gray
-        pygame.draw.circle(surface, (60, 60, 70), (center_x, center_y), inner_radius)
-        pygame.draw.circle(surface, (80, 80, 90), (center_x, center_y), max(1, inner_radius - int(5 * SCALE_FACTOR)))
-        pygame.draw.circle(surface, (50, 50, 60), (center_x, center_y), max(1, inner_radius - int(10 * SCALE_FACTOR)))
-        pygame.draw.circle(surface, (70, 70, 80), (center_x, center_y), max(2, int(8 * SCALE_FACTOR)))
-    
-    # "PASS" text below DHD
-    text_color = (255, 200, 200) if can_pass else (120, 120, 120)
-    pass_text = UI_FONT.render("PASS", True, text_color)
-    text_rect = pass_text.get_rect(center=(center_x, center_y + outer_radius + int(20 * SCALE_FACTOR)))
-    
-    # Add shadow
-    if can_pass:
-        shadow = UI_FONT.render("PASS", True, (0, 0, 0, 100))
-        surface.blit(shadow, (text_rect.x + int(2 * SCALE_FACTOR), text_rect.y + int(2 * SCALE_FACTOR)))
-    
-    surface.blit(pass_text, text_rect)
 
 
-def draw_mulligan_button(surface, mulligan_selected):
-    """Draws the mulligan confirm button."""
-    num_selected = len(mulligan_selected)
-    
-    # Color based on validity (2-5 cards)
-    if num_selected >= 2 and num_selected <= 5:
-        color = (50, 200, 100)  # Green - valid
-    elif num_selected > 5:
-        color = (200, 50, 50)  # Red - too many
-    else:
-        color = (100, 100, 100)  # Gray - not enough
-    
-    pygame.draw.rect(surface, color, MULLIGAN_BUTTON_RECT, border_radius=5)
-    text = f"Redraw ({num_selected}/2-5)"
-    mulligan_text = UI_FONT.render(text, True, WHITE)
-    text_rect = mulligan_text.get_rect(center=MULLIGAN_BUTTON_RECT.center)
-    surface.blit(mulligan_text, text_rect)
-
-def draw_zpm_resource(surface, player, x, y):
-    """Draw ZPM resource indicators."""
-    zpm_spacing = int(SCREEN_WIDTH * 0.018)  # ~35px spacing
-    zpm_height = int(SCREEN_HEIGHT * 0.028)  # ~30px height
-    
-    for i in range(player.zpm_resource.max_zpms):
-        zpm_x = x + i * zpm_spacing
-        if i < player.zpm_resource.current_zpms:
-            color = (100, 200, 255)  # Active ZPM - cyan
-        else:
-            color = (50, 50, 70)  # Depleted ZPM - dark
-        
-        # Draw crystal shape
-        pygame.draw.polygon(surface, color, [
-            (zpm_x + 15, y),
-            (zpm_x + 25, y + 10),
-            (zpm_x + 20, y + zpm_height),
-            (zpm_x + 10, y + zpm_height),
-            (zpm_x + 5, y + 10),
-        ])
-        pygame.draw.polygon(surface, WHITE, [
-            (zpm_x + 15, y),
-            (zpm_x + 25, y + 10),
-            (zpm_x + 20, y + zpm_height),
-            (zpm_x + 10, y + zpm_height),
-            (zpm_x + 5, y + 10),
-        ], width=2)
-
-def draw_mission_objective(surface, player, x, y):
-    """Draw current mission objective."""
-    if player.current_mission and not player.current_mission.completed:
-        mission_text = UI_FONT.render("Mission:", True, (255, 255, 100))
-        surface.blit(mission_text, (x, y))
-        
-        desc_text = UI_FONT.render(player.current_mission.description, True, WHITE)
-        surface.blit(desc_text, (x, y + 20))
-        
-        reward_text = UI_FONT.render(f"Reward: {player.current_mission.reward_desc}", True, (100, 255, 100))
-        surface.blit(reward_text, (x, y + 40))
-    elif player.current_mission and player.current_mission.completed:
-        completed_text = UI_FONT.render("Mission Completed!", True, (100, 255, 100))
-        surface.blit(completed_text, (x, y))
-
-def create_card_sweep_animation(screen, game, screen_width, screen_height, direction="out"):
-    """
-    Animate all cards on board sweeping off screen.
-    direction: "out" = cards fly outward, "up" = cards fly up into hyperspace
-    """
-    clock = pygame.time.Clock()
-    
-    # Collect all card positions from both players' boards
-    card_snapshots = []
-    
-    for player in [game.player1, game.player2]:
-        for row_name in ["close", "ranged", "siege"]:
-            row_cards = player.board.get(row_name, [])
-            # Get approximate card positions based on row
-            if player == game.player1:
-                row_rect = PLAYER_ROW_RECTS.get(row_name)
-            else:
-                row_rect = OPPONENT_ROW_RECTS.get(row_name)
-            
-            if row_rect and row_cards:
-                card_spacing = CARD_WIDTH + 5
-                start_x = row_rect.x + 10
-                for i, card in enumerate(row_cards):
-                    card_x = start_x + i * card_spacing
-                    card_y = row_rect.y + (row_rect.height - CARD_HEIGHT) // 2
-                    
-                    # Calculate direction vector (outward from center or upward)
-                    center_x, center_y = screen_width // 2, screen_height // 2
-                    if direction == "out":
-                        dx = card_x - center_x
-                        dy = card_y - center_y
-                        dist = math.sqrt(dx*dx + dy*dy) or 1
-                        vx = (dx / dist) * random.uniform(15, 25)
-                        vy = (dy / dist) * random.uniform(15, 25)
-                    else:  # "up" - hyperspace jump
-                        vx = random.uniform(-2, 2)
-                        vy = random.uniform(-30, -20)
-                    
-                    card_snapshots.append({
-                        'image': card.image.copy() if card.image else None,
-                        'x': float(card_x),
-                        'y': float(card_y),
-                        'vx': vx,
-                        'vy': vy,
-                        'rotation': 0,
-                        'rot_speed': random.uniform(-8, 8),
-                        'alpha': 255,
-                        'scale': 1.0
-                    })
-    
-    # Animate cards flying off (30 frames = 0.5 seconds)
-    for frame in range(30):
-        progress = frame / 30.0
-        
-        # Draw dark background
-        screen.fill((5, 5, 15))
-        
-        # Update and draw each card
-        for card_data in card_snapshots:
-            if card_data['image'] is None:
-                continue
-                
-            # Update physics
-            card_data['x'] += card_data['vx']
-            card_data['y'] += card_data['vy']
-            card_data['rotation'] += card_data['rot_speed']
-            card_data['alpha'] = max(0, 255 - int(progress * 300))
-            card_data['scale'] = max(0.1, 1.0 - progress * 0.5)
-            
-            # Accelerate (hyperspace effect)
-            if direction == "up":
-                card_data['vy'] -= 2  # Accelerate upward
-            
-            # Draw card with rotation and alpha
-            if card_data['alpha'] > 0:
-                scaled_w = int(CARD_WIDTH * card_data['scale'])
-                scaled_h = int(CARD_HEIGHT * card_data['scale'])
-                if scaled_w > 0 and scaled_h > 0:
-                    scaled_img = pygame.transform.scale(card_data['image'], (scaled_w, scaled_h))
-                    rotated_img = pygame.transform.rotate(scaled_img, card_data['rotation'])
-                    rotated_img.set_alpha(card_data['alpha'])
-                    rect = rotated_img.get_rect(center=(int(card_data['x']), int(card_data['y'])))
-                    screen.blit(rotated_img, rect)
-        
-        pygame.display.flip()
-        clock.tick(60)
 
 
-def create_hyperspace_transition(screen, screen_width, screen_height, round_number, transition_text):
-    """
-    Improved hyperspace transition with persistent star streaks and radial blur effect.
-    """
-    clock = pygame.time.Clock()
-    transition_font = pygame.font.SysFont("Arial", 80, bold=True)
-    
-    # Pre-generate persistent star positions (not random each frame!)
-    num_stars = 120
-    stars = []
-    for _ in range(num_stars):
-        # Stars originate from center and streak outward (or vice versa)
-        angle = random.uniform(0, 2 * math.pi)
-        base_distance = random.uniform(50, max(screen_width, screen_height) * 0.8)
-        speed = random.uniform(8, 20)
-        brightness = random.randint(150, 255)
-        thickness = random.choice([1, 1, 2, 2, 3])
-        
-        stars.append({
-            'angle': angle,
-            'base_dist': base_distance,
-            'speed': speed,
-            'brightness': brightness,
-            'thickness': thickness,
-            'color_tint': random.choice([(150, 150, 255), (180, 180, 255), (200, 200, 255), (255, 255, 255)])
-        })
-    
-    center_x, center_y = screen_width // 2, screen_height // 2
-    
-    # Animation duration: 90 frames (1.5 seconds)
-    total_frames = 90
-    
-    for frame in range(total_frames):
-        progress = frame / total_frames
-        
-        # Dark space background with slight blue tint
-        screen.fill((2, 2, 12))
-        
-        # Draw radial blur / whoosh effect (concentric rings expanding from center)
-        if round_number == 2:
-            # Entering hyperspace - rings expand outward
-            for ring_idx in range(5):
-                ring_progress = (progress + ring_idx * 0.15) % 1.0
-                ring_radius = int(ring_progress * max(screen_width, screen_height))
-                ring_alpha = int((1 - ring_progress) * 80)
-                if ring_alpha > 0 and ring_radius > 0:
-                    ring_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-                    pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha), 
-                                      (center_x, center_y), ring_radius, width=3)
-                    screen.blit(ring_surf, (0, 0))
-        
-        elif round_number == 3:
-            # Emerging from hyperspace - rings contract inward
-            for ring_idx in range(5):
-                ring_progress = (1 - progress + ring_idx * 0.15) % 1.0
-                ring_radius = int(ring_progress * max(screen_width, screen_height))
-                ring_alpha = int(ring_progress * 60)
-                if ring_alpha > 0 and ring_radius > 0:
-                    ring_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-                    pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha),
-                                      (center_x, center_y), ring_radius, width=3)
-                    screen.blit(ring_surf, (0, 0))
-        
-        # Draw persistent star streaks
-        for star in stars:
-            if round_number == 2:
-                # Entering hyperspace - stars streak FROM center OUTWARD
-                # Streak length increases over time
-                streak_length = 20 + progress * 400
-                
-                # Star moves outward from center
-                current_dist = star['base_dist'] * (0.3 + progress * 1.5)
-                
-                # Calculate streak start and end points
-                start_dist = max(0, current_dist - streak_length * 0.3)
-                end_dist = current_dist + streak_length * 0.7
-                
-                start_x = center_x + math.cos(star['angle']) * start_dist
-                start_y = center_y + math.sin(star['angle']) * start_dist
-                end_x = center_x + math.cos(star['angle']) * end_dist
-                end_y = center_y + math.sin(star['angle']) * end_dist
-                
-            else:  # round_number == 3
-                # Emerging - stars streak FROM outside INWARD (decelerating)
-                streak_length = 400 * (1 - progress) + 20
-                
-                # Star moves inward toward center
-                current_dist = star['base_dist'] * (1.5 - progress * 1.2)
-                
-                start_dist = current_dist + streak_length * 0.7
-                end_dist = max(0, current_dist - streak_length * 0.3)
-                
-                start_x = center_x + math.cos(star['angle']) * start_dist
-                start_y = center_y + math.sin(star['angle']) * start_dist
-                end_x = center_x + math.cos(star['angle']) * end_dist
-                end_y = center_y + math.sin(star['angle']) * end_dist
-            
-            # Draw the star streak with gradient (brighter at head)
-            color = star['color_tint']
-            alpha = int(star['brightness'] * (0.5 + 0.5 * math.sin(progress * math.pi)))
-            
-            # Main streak
-            pygame.draw.line(screen, color, (int(start_x), int(start_y)), 
-                           (int(end_x), int(end_y)), star['thickness'])
-            
-            # Bright head of streak
-            if round_number == 2:
-                head_x, head_y = end_x, end_y
-            else:
-                head_x, head_y = start_x, start_y
-            pygame.draw.circle(screen, (255, 255, 255), (int(head_x), int(head_y)), star['thickness'] + 1)
-        
-        # Planet appearing (round 3 only, in second half)
-        if round_number == 3 and progress > 0.5:
-            planet_progress = (progress - 0.5) * 2
-            planet_alpha = int(planet_progress * 200)
-            planet_radius = int(screen_height * 0.18)
-            
-            planet_surf = pygame.Surface((planet_radius * 2 + 40, planet_radius * 2 + 40), pygame.SRCALPHA)
-            # Atmosphere glow
-            pygame.draw.circle(planet_surf, (60, 100, 180, planet_alpha // 3), 
-                             (planet_radius + 20, planet_radius + 20), planet_radius + 15)
-            # Planet body
-            pygame.draw.circle(planet_surf, (40, 80, 160, planet_alpha), 
-                             (planet_radius + 20, planet_radius + 20), planet_radius)
-            # Highlight
-            pygame.draw.circle(planet_surf, (80, 120, 200, planet_alpha), 
-                             (planet_radius + 10, planet_radius + 10), planet_radius // 2)
-            
-            screen.blit(planet_surf, (center_x - planet_radius - 20, 80))
-        
-        # Transition text with glow effect
-        text_alpha = int(255 * min(1, progress * 3) * min(1, (1 - progress) * 3))
-        
-        # Text glow
-        glow_surf = transition_font.render(transition_text, True, (50, 100, 200))
-        glow_surf.set_alpha(text_alpha // 2)
-        for offset in [(-3, -3), (3, -3), (-3, 3), (3, 3)]:
-            glow_rect = glow_surf.get_rect(center=(center_x + offset[0], center_y + offset[1]))
-            screen.blit(glow_surf, glow_rect)
-        
-        # Main text
-        text_surf = transition_font.render(transition_text, True, (150, 200, 255))
-        text_surf.set_alpha(text_alpha)
-        text_rect = text_surf.get_rect(center=(center_x, center_y))
-        screen.blit(text_surf, text_rect)
-        
-        pygame.display.flip()
-        clock.tick(60)
 
 
-def show_round_winner_announcement(screen, game, screen_width, screen_height):
-    """Show cinematic announcement of who won the round with detailed scoreboard and screen shake."""
-    # Get the round that just completed
-    completed_round = game.round_number - 1
-    
-    # Determine winner text
-    if game.round_winner == game.player1:
-        winner_text = f"YOU WIN ROUND {completed_round}!"
-        winner_color = (100, 255, 100)
-    elif game.round_winner == game.player2:
-        winner_text = f"OPPONENT WINS ROUND {completed_round}!"
-        winner_color = (255, 100, 100)
-    else:
-        winner_text = f"ROUND {completed_round} DRAW!"
-        winner_color = (255, 255, 100)
-    
-    # Get round history (who won each round so far)
-    # We need to track this - for now infer from rounds_won
-    round_results = []  # Will store who won each round
-    
-    # Reconstruct round results from current state
-    # This is a simplified version - ideally game.py should track round_history
-    p1_rounds = game.player1.rounds_won
-    p2_rounds = game.player2.rounds_won
-    total_rounds_played = completed_round
-    
-    # Build round results (this is an approximation)
-    for i in range(total_rounds_played):
-        if i == completed_round - 1:  # Current round just completed
-            if game.round_winner == game.player1:
-                round_results.append("p1")
-            elif game.round_winner == game.player2:
-                round_results.append("p2")
-            else:
-                round_results.append("draw")
-        else:
-            # For previous rounds, we have to guess based on total wins
-            # This is imperfect but works for display
-            round_results.append("unknown")
-    
-    # Fonts
-    title_font = pygame.font.SysFont("Arial", 72, bold=True)
-    score_font = pygame.font.SysFont("Arial", 48, bold=True)
-    round_font = pygame.font.SysFont("Arial", 36, bold=True)
-    label_font = pygame.font.SysFont("Arial", 32)
-    
-    clock = pygame.time.Clock()
-    duration = 3000  # 3 seconds
-    start_time = pygame.time.get_ticks()
-    
-    # Screen shake parameters
-    shake_intensity = 15  # Initial shake intensity
-    shake_decay = 0.92  # How fast shake decays
-    current_shake = shake_intensity
-    
-    # Create a render surface for shake effect
-    render_surface = pygame.Surface((screen_width, screen_height))
-    
-    while pygame.time.get_ticks() - start_time < duration:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
-                    return  # Skip animation
-        
-        elapsed = pygame.time.get_ticks() - start_time
-        progress = elapsed / duration
-        
-        # Calculate screen shake offset (strongest at start, decays over time)
-        if progress < 0.3:
-            shake_offset_x = random.uniform(-current_shake, current_shake)
-            shake_offset_y = random.uniform(-current_shake, current_shake)
-            current_shake *= shake_decay
-        else:
-            shake_offset_x = 0
-            shake_offset_y = 0
-        
-        # Render to intermediate surface
-        render_surface.fill((0, 0, 0))
-        
-        # Dark overlay
-        overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 220))
-        render_surface.blit(overlay, (0, 0))
-        
-        center_x = screen_width // 2
-        center_y = screen_height // 2
-        
-        # Impact flash effect (at very start)
-        if progress < 0.1:
-            flash_alpha = int((1 - progress / 0.1) * 150)
-            flash_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-            flash_surf.fill((*winner_color[:3], flash_alpha))
-            render_surface.blit(flash_surf, (0, 0))
-        
-        # Main winner text - slide in from top with slam effect
-        if progress < 0.15:
-            # Fast slam down
-            slam_progress = progress / 0.15
-            text_y_offset = int((1 - slam_progress) * -200)
-            text_scale = 1.0 + (1 - slam_progress) * 0.3  # Starts bigger, slams to normal
-        else:
-            text_y_offset = 0
-            text_scale = 1.0
-        
-        text_alpha = min(255, int(255 * progress * 3))
-        
-        # Render winner text with optional scale
-        if text_scale != 1.0:
-            scaled_font = pygame.font.SysFont("Arial", int(72 * text_scale), bold=True)
-            winner_surface = scaled_font.render(winner_text, True, winner_color)
-        else:
-            winner_surface = title_font.render(winner_text, True, winner_color)
-        
-        winner_surface.set_alpha(text_alpha)
-        winner_rect = winner_surface.get_rect(center=(center_x, 120 + text_y_offset))
-        render_surface.blit(winner_surface, winner_rect)
-        
-        # Scoreboard - fade in after title
-        if progress > 0.3:
-            board_alpha = min(255, int(255 * (progress - 0.3) * 2.5))
-            
-            # Scoreboard box
-            board_width = 700
-            board_height = 350
-            board_x = center_x - board_width // 2
-            board_y = center_y - 50
-            
-            board_surf = pygame.Surface((board_width, board_height), pygame.SRCALPHA)
-            board_surf.fill((20, 30, 50, 240))
-            pygame.draw.rect(board_surf, (255, 215, 0), board_surf.get_rect(), width=4, border_radius=15)
-            board_surf.set_alpha(board_alpha)
-            render_surface.blit(board_surf, (board_x, board_y))
-            
-            # Draw scoreboard content
-            y_offset = board_y + 30
-            
-            # Title
-            scoreboard_title = label_font.render("SCOREBOARD", True, (255, 215, 0))
-            scoreboard_title.set_alpha(board_alpha)
-            title_rect = scoreboard_title.get_rect(center=(center_x, y_offset))
-            render_surface.blit(scoreboard_title, title_rect)
-            
-            y_offset += 60
-            
-            # Column headers
-            col_header_font = pygame.font.SysFont("Arial", 28, bold=True)
-            player_label = col_header_font.render("PLAYER", True, (200, 200, 200))
-            round1_label = col_header_font.render("R1", True, (200, 200, 200))
-            round2_label = col_header_font.render("R2", True, (200, 200, 200))
-            round3_label = col_header_font.render("R3", True, (200, 200, 200))
-            total_label = col_header_font.render("TOTAL", True, (200, 200, 200))
-            
-            player_label.set_alpha(board_alpha)
-            round1_label.set_alpha(board_alpha)
-            round2_label.set_alpha(board_alpha)
-            round3_label.set_alpha(board_alpha)
-            total_label.set_alpha(board_alpha)
-            
-            render_surface.blit(player_label, (board_x + 50, y_offset))
-            render_surface.blit(round1_label, (board_x + 280, y_offset))
-            render_surface.blit(round2_label, (board_x + 380, y_offset))
-            render_surface.blit(round3_label, (board_x + 480, y_offset))
-            render_surface.blit(total_label, (board_x + 580, y_offset))
-            
-            y_offset += 50
-            
-            # Draw separator line
-            line_surf = pygame.Surface((board_width - 40, 3), pygame.SRCALPHA)
-            line_surf.fill((255, 215, 0, board_alpha))
-            render_surface.blit(line_surf, (board_x + 20, y_offset))
-            
-            y_offset += 20
-            
-            # Player 1 row
-            p1_name = score_font.render("YOU", True, (100, 255, 100))
-            p1_name.set_alpha(board_alpha)
-            render_surface.blit(p1_name, (board_x + 50, y_offset))
-            
-            # Round scores for Player 1
-            for round_num in range(1, 4):
-                round_x = board_x + 280 + (round_num - 1) * 100
-                
-                if round_num <= completed_round:
-                    # Check if player won this round
-                    won_round = False
-                    if round_num == completed_round and game.round_winner == game.player1:
-                        won_round = True
-                    elif round_num < completed_round:
-                        # For previous rounds, check if they contributed to rounds_won
-                        # This is approximate - ideally we'd track full history
-                        won_round = (round_num <= p1_rounds)
-                    
-                    if won_round:
-                        round_color = (100, 150, 255)  # Blue for won round
-                        round_score = score_font.render("1", True, round_color)
-                    else:
-                        round_color = (150, 150, 150)  # Light grey for lost/draw
-                        round_score = score_font.render("0", True, round_color)
-                else:
-                    # Future round
-                    round_color = (80, 80, 80)
-                    round_score = score_font.render("-", True, round_color)
-                
-                round_score.set_alpha(board_alpha)
-                score_rect = round_score.get_rect(center=(round_x + 20, y_offset + 25))
-                render_surface.blit(round_score, score_rect)
-            
-            # Total for Player 1
-            p1_total = score_font.render(str(game.player1.rounds_won), True, (255, 215, 0))
-            p1_total.set_alpha(board_alpha)
-            total_rect = p1_total.get_rect(center=(board_x + 600, y_offset + 25))
-            render_surface.blit(p1_total, total_rect)
-            
-            y_offset += 70
-            
-            # Player 2 row
-            p2_name = score_font.render("OPP", True, (255, 100, 100))
-            p2_name.set_alpha(board_alpha)
-            render_surface.blit(p2_name, (board_x + 50, y_offset))
-            
-            # Round scores for Player 2
-            for round_num in range(1, 4):
-                round_x = board_x + 280 + (round_num - 1) * 100
-                
-                if round_num <= completed_round:
-                    won_round = False
-                    if round_num == completed_round and game.round_winner == game.player2:
-                        won_round = True
-                    elif round_num < completed_round:
-                        won_round = (round_num <= p2_rounds)
-                    
-                    if won_round:
-                        round_color = (100, 150, 255)  # Blue for won round
-                        round_score = score_font.render("1", True, round_color)
-                    else:
-                        round_color = (150, 150, 150)  # Light grey for lost/draw
-                        round_score = score_font.render("0", True, round_color)
-                else:
-                    round_color = (80, 80, 80)
-                    round_score = score_font.render("-", True, round_color)
-                
-                round_score.set_alpha(board_alpha)
-                score_rect = round_score.get_rect(center=(round_x + 20, y_offset + 25))
-                render_surface.blit(round_score, score_rect)
-            
-            # Total for Player 2
-            p2_total = score_font.render(str(game.player2.rounds_won), True, (255, 215, 0))
-            p2_total.set_alpha(board_alpha)
-            total_rect = p2_total.get_rect(center=(board_x + 600, y_offset + 25))
-            render_surface.blit(p2_total, total_rect)
-        
-        # Skip instruction
-        if progress > 0.4:
-            skip_font = pygame.font.SysFont("Arial", 28)
-            skip_text = skip_font.render("Press SPACE to continue", True, (180, 180, 180))
-            skip_text.set_alpha(text_alpha)
-            skip_rect = skip_text.get_rect(center=(center_x, screen_height - 80))
-            render_surface.blit(skip_text, skip_rect)
-        
-        # Apply screen shake by blitting render_surface with offset
-        screen.blit(render_surface, (int(shake_offset_x), int(shake_offset_y)))
-        
-        pygame.display.flip()
-        clock.tick(60)
-
-def show_game_start_animation(screen, game, screen_width, screen_height):
-    """Show Stargate activation animation announcing who goes first."""
-    # Determine who goes first
-    if game.current_player == game.player1:
-        first_player_text = "YOU GO FIRST"
-        color = (100, 255, 100)
-    else:
-        first_player_text = "OPPONENT GOES FIRST"
-        color = (255, 100, 100)
-    
-    # Font
-    title_font = pygame.font.SysFont("Arial", 72, bold=True)
-    subtitle_font = pygame.font.SysFont("Arial", 36)
-    
-    clock = pygame.time.Clock()
-    
-    # Animation phases
-    duration = 2500  # 2.5 seconds
-    start_time = pygame.time.get_ticks()
-    
-    while pygame.time.get_ticks() - start_time < duration:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
-                    return  # Skip animation
-        
-        elapsed = pygame.time.get_ticks() - start_time
-        progress = elapsed / duration
-        
-        # Dark semi-transparent overlay
-        overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
-        screen.blit(overlay, (0, 0))
-        
-        # Pulsing circle effect (Stargate-like)
-        center_x = screen_width // 2
-        center_y = screen_height // 2
-        
-        # Multiple expanding circles
-        for i in range(3):
-            phase_offset = i * 0.3
-            circle_progress = (progress + phase_offset) % 1.0
-            radius = int(50 + circle_progress * 200)
-            alpha = int(255 * (1 - circle_progress))
-            
-            if alpha > 0:
-                circle_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(circle_surface, (100, 150, 255, alpha), (radius, radius), radius, width=3)
-                screen.blit(circle_surface, (center_x - radius, center_y - radius))
-        
-        # Central glow
-        glow_alpha = int(128 + 127 * abs(0.5 - progress))
-        pygame.draw.circle(screen, (100, 150, 255), (center_x, center_y), 40)
-        
-        # Text fade in
-        text_alpha = min(255, int(255 * progress * 2))
-        
-        # Main text
-        text_surface = title_font.render(first_player_text, True, color)
-        text_surface.set_alpha(text_alpha)
-        text_rect = text_surface.get_rect(center=(center_x, center_y - 100))
-        screen.blit(text_surface, text_rect)
-        
-        # Subtitle
-        if progress > 0.3:
-            subtitle = subtitle_font.render("Prepare your strategy...", True, (200, 200, 200))
-            subtitle.set_alpha(text_alpha)
-            subtitle_rect = subtitle.get_rect(center=(center_x, center_y + 100))
-            screen.blit(subtitle, subtitle_rect)
-        
-        # Skip instruction
-        if progress > 0.5:
-            skip_font = pygame.font.SysFont("Arial", 20)
-            skip_text = skip_font.render("Press SPACE to skip", True, (150, 150, 150))
-            skip_text.set_alpha(text_alpha)
-            skip_rect = skip_text.get_rect(center=(center_x, screen_height - 50))
-            screen.blit(skip_text, skip_rect)
-        
-        pygame.display.flip()
-        clock.tick(60)
     
     # Brief pause before game starts
     pygame.time.wait(300)
 
-def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=False):
-    """Draw clickable leader ability box with Stargate theme."""
-    if not player.leader:
-        return
-    
-    # Stargate-themed box (semi-transparent with border)
-    box_surface = pygame.Surface((width, height), pygame.SRCALPHA)
-    box_surface.fill((20, 40, 60, 200))  # Dark blue-ish with transparency
-    
-    # Golden border (Stargate style)
-    pygame.draw.rect(box_surface, (255, 215, 0), box_surface.get_rect(), width=3, border_radius=8)
-    
-    # Leader name
-    name_font = pygame.font.SysFont("Arial", 22, bold=True)
-    name_text = name_font.render(player.leader['name'], True, (255, 215, 0))
-    name_rect = name_text.get_rect(center=(width // 2, 20))
-    box_surface.blit(name_text, name_rect)
-    
-    # Ability description (wrapped)
-    ability_font = pygame.font.SysFont("Arial", 16)
-    words = player.leader['ability'].split(' ')
-    lines = []
-    current_line = ""
-    for word in words:
-        if ability_font.size(current_line + " " + word)[0] < width - 20:
-            current_line += " " + word
-        else:
-            lines.append(current_line.strip())
-            current_line = word
-    lines.append(current_line.strip())
-    
-    line_y = name_rect.bottom + 5
-    for i, line in enumerate(lines):
-        if line:
-            ability_text = ability_font.render(line, True, (200, 255, 200))
-            ability_rect = ability_text.get_rect(center=(width // 2, line_y + i * 15))
-            box_surface.blit(ability_text, ability_rect)
-
-    # Blit to main surface
-    surface.blit(box_surface, (x, y))
-    
-    return pygame.Rect(x, y, width, height)  # Return rect for click detection
-
 # draw_leader_portrait moved to render_engine.py
 
-def draw_leader_inspection_overlay(surface, player, screen_width, screen_height):
-    """Draw full-screen leader inspection overlay."""
-    if not player.leader:
-        return
-    
-    # Keep battlefield visible during leader inspection
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 0))
-    surface.blit(overlay, (0, 0))
-    
-    # Large leader portrait display
-    portrait_width = 400
-    portrait_height = 600
-    portrait_x = (screen_width - portrait_width) // 2
-    portrait_y = 60
-    
-    # Try to load and display leader image
-    leader_card_id = player.leader.get('card_id', None)
-    if leader_card_id:
-        leader_image_path = f"assets/{leader_card_id}_leader.png"
-        import os
-        try:
-            if os.path.exists(leader_image_path):
-                leader_img = pygame.image.load(leader_image_path).convert_alpha()
-                scaled_image = pygame.transform.scale(leader_img, (portrait_width, portrait_height))
-                surface.blit(scaled_image, (portrait_x, portrait_y))
-            elif leader_card_id in ALL_CARDS:
-                leader_card = ALL_CARDS[leader_card_id]
-                scaled_image = pygame.transform.scale(leader_card.image, (portrait_width, portrait_height))
-                surface.blit(scaled_image, (portrait_x, portrait_y))
-            else:
-                # Fallback rectangle
-                pygame.draw.rect(surface, (60, 60, 80), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height))
-        except:
-            # Fallback rectangle
-            pygame.draw.rect(surface, (60, 60, 80), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height))
-    
-    # Golden border
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height), width=5)
-    
-    # Leader name
-    name_font = pygame.font.Font(None, 48)
-    name_text = name_font.render(player.leader['name'], True, (255, 215, 0))
-    name_rect = name_text.get_rect(center=(screen_width // 2, portrait_y + portrait_height + 40))
-    surface.blit(name_text, name_rect)
-    
-    # Ability description box
-    ability_box_y = portrait_y + portrait_height + 80
-    ability_box_width = 600
-    ability_box_height = 120
-    ability_box_x = (screen_width - ability_box_width) // 2
-    
-    # Draw ability box
-    pygame.draw.rect(surface, (40, 40, 50), pygame.Rect(ability_box_x, ability_box_y, ability_box_width, ability_box_height))
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(ability_box_x, ability_box_y, ability_box_width, ability_box_height), width=3)
-    
-    # Ability title
-    ability_title_font = pygame.font.Font(None, 32)
-    ability_title = ability_title_font.render("LEADER ABILITY", True, (255, 215, 0))
-    title_rect = ability_title.get_rect(center=(screen_width // 2, ability_box_y + 20))
-    surface.blit(ability_title, title_rect)
-    
-    # Ability description (wrapped)
-    ability_font = pygame.font.Font(None, 28)
-    ability_desc = player.leader.get('ability_desc', 'Unknown ability')
-    
-    # Word wrap the description
-    words = ability_desc.split()
-    lines = []
-    current_line = ""
-    max_width = ability_box_width - 40
-    
-    for word in words:
-        test_line = current_line + word + " "
-        if ability_font.size(test_line)[0] <= max_width:
-            current_line = test_line
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word + " "
-    if current_line:
-        lines.append(current_line)
-    
-    # Draw lines
-    line_y = ability_box_y + 50
-    for line in lines[:3]:  # Max 3 lines
-        line_text = ability_font.render(line.strip(), True, (220, 220, 220))
-        line_rect = line_text.get_rect(center=(screen_width // 2, line_y))
-        surface.blit(line_text, line_rect)
-        line_y += 30
-    
-    # Instructions
-    instruction_font = pygame.font.Font(None, 28)
-    instruction = instruction_font.render("Press SPACE or Click to close", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 50))
-    surface.blit(instruction, instruction_rect)
 
-def draw_medic_selection_overlay(surface, game, screen_width, screen_height):
-    """Draw overlay for selecting a card to revive with medic ability."""
-    # Semi-transparent background
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
-    
-    # Title
-    title_font = pygame.font.Font(None, 56)
-    title_text = title_font.render("MEDIC: Choose a card to revive", True, (100, 255, 100))
-    title_rect = title_text.get_rect(center=(screen_width // 2, 60))
-    surface.blit(title_text, title_rect)
-    
-    # Get valid cards
-    valid_cards = game.get_medic_valid_cards(game.player1)
-    
-    if not valid_cards:
-        # No cards available
-        no_cards_text = UI_FONT.render("No cards available to revive", True, (255, 100, 100))
-        no_cards_rect = no_cards_text.get_rect(center=(screen_width // 2, screen_height // 2))
-        surface.blit(no_cards_text, no_cards_rect)
-        return []
-    
-    # Display cards in a grid
-    card_display_width = 160
-    card_display_height = 240
-    cards_per_row = 5
-    spacing = 20
-    start_y = 140
-    
-    card_rects = []
-    for i, card in enumerate(valid_cards):
-        row = i // cards_per_row
-        col = i % cards_per_row
-        
-        # Calculate position
-        total_row_width = cards_per_row * card_display_width + (cards_per_row - 1) * spacing
-        start_x = (screen_width - total_row_width) // 2
-        x = start_x + col * (card_display_width + spacing)
-        y = start_y + row * (card_display_height + spacing + 40)
-        
-        # Draw card
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (x, y))
-        
-        # Highlight border
-        card_rect = pygame.Rect(x, y, card_display_width, card_display_height)
-        pygame.draw.rect(surface, (100, 255, 100), card_rect, width=3)
-        
-        # Card name below
-        name_text = UI_FONT.render(card.name[:20], True, (255, 255, 255))
-        name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
-        surface.blit(name_text, name_rect)
-        
-        card_rects.append((card, card_rect))
-    
-    # Instructions
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to revive it", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
-    surface.blit(instruction, instruction_rect)
-    
-    return card_rects
 
-def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
-    """Draw overlay for selecting a card to return to hand with decoy ability."""
-    # Semi-transparent background
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
-    
-    # Title
-    title_font = pygame.font.Font(None, 56)
-    title_text = title_font.render("DECOY: Choose a card to return to your hand", True, (150, 200, 255))
-    title_rect = title_text.get_rect(center=(screen_width // 2, 60))
-    surface.blit(title_text, title_rect)
-    
-    # Subtitle
-    subtitle_font = pygame.font.Font(None, 32)
-    subtitle_text = subtitle_font.render("(You can take your own card or an opponent's card)", True, (200, 200, 200))
-    subtitle_rect = subtitle_text.get_rect(center=(screen_width // 2, 100))
-    surface.blit(subtitle_text, subtitle_rect)
-    
-    # Get valid cards (all non-Legendary Commander units on both boards)
-    valid_cards = game.get_decoy_valid_cards()
-    
-    if not valid_cards:
-        # No cards available
-        no_cards_text = UI_FONT.render("No cards available on the board", True, (255, 100, 100))
-        no_cards_rect = no_cards_text.get_rect(center=(screen_width // 2, screen_height // 2))
-        surface.blit(no_cards_text, no_cards_rect)
-        return []
-    
-    # Display cards in a grid
-    card_display_width = 140
-    card_display_height = 210
-    cards_per_row = 6
-    spacing = 15
-    start_y = 160
-    
-    card_rects = []
-    for i, card in enumerate(valid_cards):
-        row = i // cards_per_row
-        col = i % cards_per_row
-        
-        # Calculate position
-        total_row_width = cards_per_row * card_display_width + (cards_per_row - 1) * spacing
-        start_x = (screen_width - total_row_width) // 2
-        x = start_x + col * (card_display_width + spacing)
-        y = start_y + row * (card_display_height + spacing + 50)
-        
-        # Draw card
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (x, y))
-        
-        # Determine card owner
-        is_player_card = card in [c for row in game.player1.board.values() for c in row]
-        is_opponent_card = card in [c for row in game.player2.board.values() for c in row]
-        
-        # Highlight border - blue for own cards, red for opponent cards
-        card_rect = pygame.Rect(x, y, card_display_width, card_display_height)
-        if is_player_card:
-            pygame.draw.rect(surface, (100, 150, 255), card_rect, width=3)
-        elif is_opponent_card:
-            pygame.draw.rect(surface, (255, 100, 100), card_rect, width=3)
-        
-        # Owner label
-        owner_text = UI_FONT.render("YOUR CARD" if is_player_card else "OPP CARD", True, 
-                                    (100, 150, 255) if is_player_card else (255, 100, 100))
-        owner_rect = owner_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 10))
-        surface.blit(owner_text, owner_rect)
-        
-        # Card name below
-        name_text = UI_FONT.render(card.name[:15], True, (255, 255, 255))
-        name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 30))
-        surface.blit(name_text, name_rect)
-        
-        card_rects.append((card, card_rect))
-    
-    # Instructions
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to return it to your hand", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
-    surface.blit(instruction, instruction_rect)
-    
-    return card_rects
 
-def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
-    """Draw full-screen card inspection overlay when spacebar/right-click is pressed."""
-    # Semi-transparent dark overlay for focus
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 180))
-    surface.blit(overlay, (0, 0))
-    
-    # Large card display - 2x scale for crisp preview
-    # Base card is typically ~240x360, so 2x = 480x720
-    card_display_width = min(560, int(screen_width * 0.35))  # Larger but responsive
-    card_display_height = int(card_display_width * 1.5)  # Maintain aspect ratio
-    card_x = (screen_width - card_display_width) // 2
-    card_y = max(40, (screen_height - card_display_height - 180) // 2)  # Room for description
-    
-    # Draw card image (load original for better quality)
-    try:
-        # Load original image from file for crisp display
-        if hasattr(card, 'image_path') and os.path.exists(card.image_path):
-            original_image = pygame.image.load(card.image_path).convert_alpha()
-            large_card_image = pygame.transform.smoothscale(original_image, (card_display_width, card_display_height))
-        else:
-            # Fallback to scaled existing image
-            large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
-        surface.blit(large_card_image, (card_x, card_y))
-    except:
-        pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
-    
-    # Faction-colored glow effect
-    faction_colors = {
-        "Tau'ri": (100, 150, 255),
-        "Goa'uld": (255, 180, 50),
-        "Jaffa": (200, 150, 100),
-        "Lucian Alliance": (200, 80, 200),
-        "Asgard": (100, 255, 255),
-        "Neutral": (180, 180, 180),
-    }
-    glow_color = faction_colors.get(card.faction, (255, 215, 0))
-    
-    # Draw multiple borders for glow effect
-    for i in range(4):
-        border_rect = pygame.Rect(card_x - i * 2, card_y - i * 2, 
-                                  card_display_width + i * 4, card_display_height + i * 4)
-        alpha = 200 - i * 50
-        border_color = (*glow_color, alpha)
-        border_surf = pygame.Surface((border_rect.width, border_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(border_surf, border_color, border_surf.get_rect(), width=3, border_radius=8)
-        surface.blit(border_surf, border_rect.topleft)
-    
-    # Main golden border
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=4, border_radius=6)
-    
-    # Description box UNDER the card art
-    desc_box_y = card_y + card_display_height + 15
-    desc_box_height = min(160, screen_height - desc_box_y - 50)
-    desc_box_padding = 15
-    desc_box_width = card_display_width + 100  # Wider for more text
-    desc_box_x = (screen_width - desc_box_width) // 2
-    
-    # Ensure valid dimensions (at least 1x1)
-    desc_box_width = max(1, desc_box_width)
-    desc_box_height = max(1, desc_box_height)
-    
-    # Create semi-transparent description box
-    desc_surface = pygame.Surface((desc_box_width, desc_box_height), pygame.SRCALPHA)
-    desc_surface.fill((15, 25, 45, 240))
-    
-    # Border for description box
-    pygame.draw.rect(desc_surface, glow_color, desc_surface.get_rect(), width=3, border_radius=12)
-    
-    # Draw description text
-    desc_font = pygame.font.SysFont("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
-    small_font = pygame.font.SysFont("Arial", max(16, int(18 * SCALE_FACTOR)))
-    
-    # Card name at top
-    name_text = desc_font.render(card.name, True, (255, 215, 0))
-    name_rect = name_text.get_rect(center=(desc_box_width // 2, 22))
-    desc_surface.blit(name_text, name_rect)
-    
-    # Stats line with icons
-    power_str = f"Power: {card.power}"
-    row_str = f"Row: {card.row.capitalize()}"
-    faction_str = f"Faction: {card.faction}"
-    stats_text = small_font.render(f"{power_str}  |  {row_str}  |  {faction_str}", True, (200, 200, 220))
-    stats_rect = stats_text.get_rect(center=(desc_box_width // 2, 50))
-    desc_surface.blit(stats_text, stats_rect)
-    
-    # Ability/Description
-    if card.ability:
-        ability_title = small_font.render("Ability:", True, (150, 255, 150))
-        desc_surface.blit(ability_title, (desc_box_padding, 75))
-        
-        # Word wrap the ability text
-        ability_words = card.ability.split()
-        line = ""
-        line_y = 98
-        max_line_width = desc_box_width - (desc_box_padding * 2)
-        
-        for word in ability_words:
-            test_line = line + word + " "
-            if small_font.size(test_line)[0] < max_line_width:
-                line = test_line
-            else:
-                if line:
-                    ability_text = small_font.render(line.strip(), True, (220, 255, 220))
-                    desc_surface.blit(ability_text, (desc_box_padding, line_y))
-                    line_y += 22
-                line = word + " "
-        
-        # Draw remaining text
-        if line:
-            ability_text = small_font.render(line.strip(), True, (220, 255, 220))
-            desc_surface.blit(ability_text, (desc_box_padding, line_y))
-    else:
-        # No ability - show unit type
-        no_ability_text = small_font.render("Standard unit - no special ability", True, (180, 180, 180))
-        no_ability_rect = no_ability_text.get_rect(center=(desc_box_width // 2, 100))
-        desc_surface.blit(no_ability_text, no_ability_rect)
-    
-    # Blit description box to screen
-    surface.blit(desc_surface, (desc_box_x, desc_box_y))
-    
-    # Close instruction at bottom
-    close_font = pygame.font.SysFont("Arial", max(14, int(16 * SCALE_FACTOR)))
-    close_text = close_font.render("Click anywhere or press SPACE to close", True, (180, 180, 180))
-    close_rect = close_text.get_rect(center=(screen_width // 2, screen_height - 25))
-    surface.blit(close_text, close_rect)
 
-def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scroll_offset):
-    """Draw discard pile viewer overlay."""
-    # Semi-transparent background
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
-    
-    # Title
-    title_font = pygame.font.Font(None, 64)
-    title = title_font.render("DISCARD PILE", True, (255, 100, 100))
-    title_rect = title.get_rect(center=(screen_width // 2, 60))
-    surface.blit(title, title_rect)
-    
-    if not discard_pile:
-        empty_text = UI_FONT.render("Discard pile is empty", True, (150, 150, 150))
-        empty_rect = empty_text.get_rect(center=(screen_width // 2, screen_height // 2))
-        surface.blit(empty_text, empty_rect)
-        return
-    
-    # Draw cards in grid
-    card_width = 200
-    card_height = 300
-    cards_per_row = 6
-    spacing = 20
-    start_y = 140 + scroll_offset
-    
-    for i, card in enumerate(discard_pile):
-        row = i // cards_per_row
-        col = i % cards_per_row
-        
-        total_row_width = cards_per_row * card_width + (cards_per_row - 1) * spacing
-        start_x = (screen_width - total_row_width) // 2
-        x = start_x + col * (card_width + spacing)
-        y = start_y + row * (card_height + spacing + 40)
-        
-        # Only draw if on screen
-        if y > 60 and y < screen_height:
-            scaled_image = pygame.transform.scale(card.image, (card_width, card_height))
-            surface.blit(scaled_image, (x, y))
-            pygame.draw.rect(surface, (255, 100, 100), pygame.Rect(x, y, card_width, card_height), width=3)
-            
-            # Store rect for click detection
-            card.rect = pygame.Rect(x, y, card_width, card_height)
-            
-            # Card name
-            name_text = pygame.font.Font(None, 24).render(card.name[:25], True, (255, 255, 255))
-            name_rect = name_text.get_rect(center=(x + card_width // 2, y + card_height + 20))
-            surface.blit(name_text, name_rect)
-    
-    # Instructions
-    inst_font = pygame.font.Font(None, 32)
-    inst = inst_font.render("Scroll: Mouse Wheel | Right-Click: Inspect | Close: ESC or Click", True, (200, 200, 200))
-    inst_rect = inst.get_rect(center=(screen_width // 2, screen_height - 40))
-    surface.blit(inst, inst_rect)
 
-def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
-    """Jonas Quinn: Show cards drawn by opponent (not starting hand)."""
-    if not game.opponent_drawn_cards:
-        return
 
-    # Semi-transparent background
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 180))
-    surface.blit(overlay, (0, 0))
 
-    # Title
-    title_font = pygame.font.Font(None, 56)
-    cards_count = len(game.opponent_drawn_cards)
-    title_text = title_font.render(f"JONAS QUINN: Opponent Drew {cards_count} Card{'s' if cards_count > 1 else ''}", True, (100, 200, 255))
-    title_rect = title_text.get_rect(center=(screen_width // 2, 80))
-    surface.blit(title_text, title_rect)
 
-    # Show all drawn cards
-    card_display_width = 250
-    card_display_height = 375
-    spacing = 20
-    total_width = len(game.opponent_drawn_cards) * (card_display_width + spacing) - spacing
-    start_x = (screen_width - total_width) // 2
-    card_y = 200
 
-    for i, card in enumerate(game.opponent_drawn_cards):
-        card_x = start_x + i * (card_display_width + spacing)
 
-        # Draw card
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (card_x, card_y))
-        pygame.draw.rect(surface, (100, 200, 255), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=3)
 
-        # Card name below
-        detail_font = pygame.font.Font(None, 24)
-        name_text = detail_font.render(card.name, True, (200, 200, 200))
-        name_rect = name_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 20))
-        surface.blit(name_text, name_rect)
 
-        # Power and row
-        info_text = detail_font.render(f"{card.power}  •  {card.row.capitalize()}", True, (150, 150, 150))
-        info_rect = info_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 45))
-        surface.blit(info_text, info_rect)
 
-    # Close instruction
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click or Press SPACE to close", True, (150, 150, 150))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
-    surface.blit(instruction, instruction_rect)
 
-def draw_baal_clone_overlay(surface, game, screen_width, screen_height):
-    """Ba'al Clone: Select unit to clone."""
-    # Semi-transparent background
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
-    
-    # Title
-    title_font = pygame.font.Font(None, 56)
-    title_text = title_font.render("BA'AL CLONE: Choose Unit to Duplicate", True, (200, 50, 50))
-    title_rect = title_text.get_rect(center=(screen_width // 2, 60))
-    surface.blit(title_text, title_rect)
-    
-    # Get all player units
-    all_units = []
-    for row_cards in game.player1.board.values():
-        all_units.extend([c for c in row_cards if "Legendary Commander" not in (c.ability or "")])
-    
-    if not all_units:
-        no_units_text = UI_FONT.render("No units available to clone", True, (255, 100, 100))
-        no_units_rect = no_units_text.get_rect(center=(screen_width // 2, screen_height // 2))
-        surface.blit(no_units_text, no_units_rect)
-        return []
-    
-    # Display units in grid
-    card_display_width = 140
-    card_display_height = 210
-    cards_per_row = 6
-    spacing = 15
-    start_y = 140
-    
-    card_rects = []
-    for i, card in enumerate(all_units):
-        row = i // cards_per_row
-        col = i % cards_per_row
-        
-        total_row_width = cards_per_row * card_display_width + (cards_per_row - 1) * spacing
-        start_x = (screen_width - total_row_width) // 2
-        x = start_x + col * (card_display_width + spacing)
-        y = start_y + row * (card_display_height + spacing + 50)
-        
-        # Draw card
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (x, y))
-        
-        card_rect = pygame.Rect(x, y, card_display_width, card_display_height)
-        pygame.draw.rect(surface, (200, 50, 50), card_rect, width=3)
-        
-        # Power display
-        power_text = UI_FONT.render(f"Power: {card.displayed_power}", True, (255, 215, 0))
-        power_rect = power_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
-        surface.blit(power_text, power_rect)
-        
-        card_rects.append((card, card_rect))
-    
-    # Instructions
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a unit to clone it", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
-    surface.blit(instruction, instruction_rect)
-    
-    return card_rects
 
-def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height):
-    """Vala: Choose 1 of 3 cards."""
-    # Semi-transparent background
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
-    
-    # Title
-    title_font = pygame.font.Font(None, 56)
-    title_text = title_font.render("VALA MAL DORAN: Choose 1 Card to Keep", True, (150, 50, 150))
-    title_rect = title_text.get_rect(center=(screen_width // 2, 80))
-    surface.blit(title_text, title_rect)
-    
-    # Display 3 cards
-    card_display_width = 300
-    card_display_height = 450
-    spacing = 80
-    total_width = 3 * card_display_width + 2 * spacing
-    start_x = (screen_width - total_width) // 2
-    card_y = 200
-    
-    card_rects = []
-    for i, card in enumerate(vala_cards[:3]):
-        x = start_x + i * (card_display_width + spacing)
-        
-        # Draw card
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (x, card_y))
-        
-        card_rect = pygame.Rect(x, card_y, card_display_width, card_display_height)
-        pygame.draw.rect(surface, (150, 50, 150), card_rect, width=3)
-        
-        # Card name
-        name_text = UI_FONT.render(card.name[:20], True, (255, 255, 255))
-        name_rect = name_text.get_rect(center=(x + card_display_width // 2, card_y + card_display_height + 30))
-        surface.blit(name_text, name_rect)
-        
-        card_rects.append((card, card_rect))
-    
-    # Instructions
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to add it to your hand", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 80))
-    surface.blit(instruction, instruction_rect)
-    
-    return card_rects
 
-def draw_catherine_selection_overlay(surface, revealed_cards, screen_width, screen_height):
-    """Catherine Langford: Reveal top cards and choose one to draw immediately."""
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((10, 10, 30, 220))
-    surface.blit(overlay, (0, 0))
 
-    title_font = pygame.font.Font(None, 58)
-    title_text = title_font.render("CATHERINE LANGFORD — Ancient Knowledge", True, (235, 200, 120))
-    title_rect = title_text.get_rect(center=(screen_width // 2, 90))
-    surface.blit(title_text, title_rect)
 
-    subtitle_font = pygame.font.Font(None, 34)
-    subtitle_text = subtitle_font.render("Choose a card to draw immediately (others return to the deck bottom)", True, (230, 230, 230))
-    subtitle_rect = subtitle_text.get_rect(center=(screen_width // 2, 140))
-    surface.blit(subtitle_text, subtitle_rect)
 
-    card_display_width = 280
-    card_display_height = 420
-    spacing = 70
-    cards_to_show = revealed_cards[:3]
-    count = max(1, len(cards_to_show))
-    total_width = count * card_display_width + (count - 1) * spacing
-    start_x = (screen_width - total_width) // 2
-    card_y = 220
-
-    card_rects = []
-    for i, card in enumerate(cards_to_show):
-        x = start_x + i * (card_display_width + spacing)
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (x, card_y))
-        rect = pygame.Rect(x, card_y, card_display_width, card_display_height)
-        pygame.draw.rect(surface, (235, 200, 120), rect, width=4)
-        name_text = UI_FONT.render(card.name[:22], True, (255, 255, 255))
-        name_rect = name_text.get_rect(center=(x + card_display_width // 2, card_y + card_display_height + 28))
-        surface.blit(name_text, name_rect)
-        card_rects.append((card, rect))
-
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to draw it now (it will be added to your hand to play immediately)", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
-    surface.blit(instruction, instruction_rect)
-
-    return card_rects
-
-def draw_leader_choice_overlay(surface, ability_result, screen_width, screen_height):
-    """Generic leader ability card selection UI (Jonas Quinn, Ba'al, etc.)"""
-    ability_name = ability_result.get("ability", "Leader Ability")
-    revealed_cards = ability_result.get("revealed_cards", [])
-
-    # Title mapping
-    titles = {
-        "Eidetic Memory": ("JONAS QUINN — Eidetic Memory", "Choose a card to copy to your hand"),
-        "System Lord's Cunning": ("BA'AL — System Lord's Cunning", "Choose a card to resurrect from your discard pile")
-    }
-
-    title_text, subtitle_text = titles.get(ability_name, (ability_name, "Choose a card"))
-
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((10, 10, 30, 220))
-    surface.blit(overlay, (0, 0))
-
-    title_font = pygame.font.Font(None, 58)
-    title = title_font.render(title_text, True, (235, 200, 120))
-    title_rect = title.get_rect(center=(screen_width // 2, 90))
-    surface.blit(title, title_rect)
-
-    subtitle_font = pygame.font.Font(None, 34)
-    subtitle = subtitle_font.render(subtitle_text, True, (230, 230, 230))
-    subtitle_rect = subtitle.get_rect(center=(screen_width // 2, 140))
-    surface.blit(subtitle, subtitle_rect)
-
-    card_display_width = 240
-    card_display_height = 360
-    spacing = 40
-    max_per_row = 5
-
-    card_rects = []
-    for idx, card in enumerate(revealed_cards[:10]):  # Max 10 cards
-        row = idx // max_per_row
-        col = idx % max_per_row
-
-        cards_in_row = min(max_per_row, len(revealed_cards) - row * max_per_row)
-        total_width = cards_in_row * card_display_width + (cards_in_row - 1) * spacing
-        start_x = (screen_width - total_width) // 2
-
-        x = start_x + col * (card_display_width + spacing)
-        y = 220 + row * (card_display_height + 80)
-
-        scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
-        surface.blit(scaled_image, (x, y))
-        rect = pygame.Rect(x, y, card_display_width, card_display_height)
-        pygame.draw.rect(surface, (235, 200, 120), rect, width=4)
-
-        name_text = UI_FONT.render(card.name[:20], True, (255, 255, 255))
-        name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
-        surface.blit(name_text, name_rect)
-
-        card_rects.append((card, rect))
-
-    instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to select it", True, (200, 200, 200))
-    instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
-    surface.blit(instruction, instruction_rect)
-
-    return card_rects
 
 def run_game_with_context(screen, context):
     """
@@ -2292,126 +665,39 @@ def main(lan_game_data=None):
         lan_game_data: Optional dict with LAN game info to skip menu/deck builder.
                       Keys: 'game', 'player_faction', 'player_leader', 'ai_faction', 'ai_leader'
     """
-    global MULLIGAN_BUTTON_RECT, screen  # Update screen ref on fullscreen toggle
+    global screen, LAN_MODE, LAN_CONTEXT, DEBUG_MODE  # Update screen ref on fullscreen toggle
 
-    # If LAN game data provided, skip menu and deck builder
-    if lan_game_data:
-        game = lan_game_data['game']
-        player_faction = lan_game_data['player_faction']
-        player_leader = lan_game_data['player_leader']
-        ai_faction = lan_game_data['ai_faction']
-        ai_leader = lan_game_data['ai_leader']
-        # Player deck is already in game.player1.hand/deck
-        # AI deck is already in game.player2.hand/deck
-    else:
-        # Normal flow - show menu and deck builder
+    # Update layout for current resolution
+    import game_config as cfg
+    cfg.recalculate_dimensions()
 
-        # Initialize card unlock system
-        unlock_system = CardUnlockSystem()
-        deck_manager = DeckManager(unlock_system)
+    # Initialize unlock system
+    from unlocks import CardUnlockSystem
+    unlock_system = CardUnlockSystem()
 
-        # --- SHOW MAIN MENU FIRST ---
-        menu_result = run_main_menu(screen, unlock_system, toggle_fullscreen_mode)
-
-        if isinstance(menu_result, dict) and 'session' in menu_result:
-            from lan_game import run_lan_setup, run_lan_match
-            lan_context = run_lan_setup(
-                screen,
-                unlock_system,
-                menu_result['session'],
-                menu_result.get('role', 'host'),
-                toggle_fullscreen_callback=toggle_fullscreen_mode
-            )
-            if lan_context:
-                run_lan_match(screen, lan_context)
-            main()
-            return
-
-        is_draft_mode = False  # Track if this is a draft mode game
-
-        if menu_result == 'draft_mode':
-            # Launch Draft Mode
-            from draft_controller import launch_draft_mode
-            drafted_deck = launch_draft_mode(screen, unlock_system)
-
-            if drafted_deck is None:
-                # User exited draft mode - return to main menu
-                main()
-                return
-
-            # Use the drafted deck for the game
-            is_draft_mode = True
-            player_leader = drafted_deck['leader']
-            player_deck = drafted_deck['cards']
-            player_faction = player_leader.get('faction', 'Neutral')
-
-        elif menu_result == 'new_game':
-            # --- SHOW STARGATE OPENING ANIMATION ---
-            if not show_stargate_opening(screen):
-                # User closed window during animation
-                pygame.quit()
-                sys.exit()
-
-            # Sync display mode in case menu/rules toggled fullscreen
-            sync_fullscreen_from_surface()
-
-            # --- RUN DECK BUILDER FOR FACTION/LEADER SELECTION ---
-            deck_selection = run_deck_builder(
-                screen,
-                unlock_override=unlock_system.is_unlock_override_enabled(),
-                unlock_system=unlock_system,
-                toggle_fullscreen_callback=toggle_fullscreen_mode
-            )
-
-            if deck_selection is None:
-                # User cancelled - go back to main menu
-                main()
-                return
-
-            # Build player deck based on selection
-            player_faction = deck_selection['faction']
-            player_leader = dict(deck_selection['leader'])
-            player_leader.setdefault('faction', player_faction)
-            player_deck_ids = deck_selection['deck_ids']
-
-            # Check if player has a custom deck for this faction
-            deck_manager.load_decks()  # Reload in case the player saved new changes in the deck builder
-            custom_deck_data = deck_manager.get_deck(player_faction)
-            if custom_deck_data and custom_deck_data.get("cards"):
-                # Use custom deck
-                custom_card_ids = custom_deck_data["cards"]
-                # Filter out 'leader' key and invalid cards
-                player_deck = [ALL_CARDS[id] for id in custom_card_ids if id != 'leader' and id in ALL_CARDS]
-                # Shuffle custom deck
-                import random
-                random.shuffle(player_deck)
-            else:
-                # Use default faction deck
-                player_deck = [ALL_CARDS[id] for id in player_deck_ids]
-        else:
-            pygame.quit()
-            sys.exit()
-
-        # AI gets a random faction (different from player) and random leader
-        from cards import FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
-        from deck_builder import FACTION_LEADERS
-        available_ai_factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
-        available_ai_factions.remove(player_faction)
-        import random
-        ai_faction = random.choice(available_ai_factions)
-        ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))  # AI gets random leader
-        ai_leader.setdefault('faction', ai_faction)
-        ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
-        ai_deck = [ALL_CARDS[id] for id in ai_deck_ids]
-    
-    # Initialize Mulligan button near bottom-right (stays above player hand zone)
-    MULLIGAN_BUTTON_RECT = pygame.Rect(
-        SCREEN_WIDTH - int(300 * SCALE_FACTOR),
-        SCREEN_HEIGHT - int(160 * SCALE_FACTOR),  # Increased from 140
-        int(200 * SCALE_FACTOR),
-        int(50 * SCALE_FACTOR)
+    # Initialize game using new setup module
+    init_result = game_setup.initialize_game(
+        screen,
+        unlock_system=unlock_system, # Pass the initialized system
+        lan_mode=LAN_MODE,
+        lan_context=LAN_CONTEXT,
+        toggle_fullscreen_callback=toggle_fullscreen_mode,
+        lan_game_data=lan_game_data
     )
     
+    if not init_result:
+        pygame.quit()
+        sys.exit()
+        
+    game, ai_controller, network_proxy, menu_action = init_result
+    
+    # Update global LAN context if needed (for chat panel etc)
+    if menu_action == 'lan_game':
+        # game_setup doesn't set global LAN_MODE/CONTEXT in main.py, we do it here
+        if isinstance(ai_controller, NetworkController):
+            LAN_MODE = True
+            # We assume context is valid if we have a controller
+
     # --- Animation Manager ---
     from animations import AmbientBackgroundEffects
     anim_manager = AnimationManager()
@@ -2430,80 +716,126 @@ def main(lan_game_data=None):
         assets["board"] = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         assets["board"].fill((20, 20, 30))
 
-    # Create game with player's selections (skip if LAN - game already created)
-    if not lan_game_data:
-        # Reset LAN mode when starting a non-LAN game
-        global LAN_MODE
-        LAN_MODE = False
-        
-        game = Game(
-            player1_faction=player_faction,
-            player1_deck=player_deck,
-            player1_leader=player_leader,
-            player2_faction=ai_faction,
-            player2_deck=ai_deck,
-            player2_leader=ai_leader  # AI now has a leader
-        )
-        game.start_game()
+    # Load mulligan background
+    try:
+        assets["mulligan_bg"] = pygame.image.load("assets/mulligan_bg.png").convert()
+        assets["mulligan_bg"] = pygame.transform.smoothscale(assets["mulligan_bg"], (SCREEN_WIDTH, SCREEN_HEIGHT))
+    except pygame.error as e:
+        print(f"Warning: Could not load mulligan background. Using solid color. ({e})")
+        assets["mulligan_bg"] = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        assets["mulligan_bg"].fill((10, 15, 25))
 
-        # Initialize Faction Powers for both players
-        from power import FACTION_POWERS as FACTION_POWERS_FACTORY
-        if player_faction in FACTION_POWERS_FACTORY:
-            game.player1.faction_power = FACTION_POWERS_FACTORY[player_faction]
+    # Initialize Faction Powers for both players (if not already done by game_setup/game class)
+    # The Game class __init__ doesn't set faction_power instances, so we do it here
+    from power import FACTION_POWERS as FACTION_POWERS_FACTORY
+    if game.player1.faction in FACTION_POWERS_FACTORY and not game.player1.faction_power:
+        game.player1.faction_power = FACTION_POWERS_FACTORY[game.player1.faction]
 
-        if ai_faction in FACTION_POWERS_FACTORY:
-            # Create separate instance for AI
-            game.player2.faction_power = type(FACTION_POWERS_FACTORY[ai_faction])()
+    if game.player2.faction in FACTION_POWERS_FACTORY and not game.player2.faction_power:
+        # Create separate instance for AI
+        game.player2.faction_power = type(FACTION_POWERS_FACTORY[game.player2.faction])()
 
-    # Iris Defense is ONLY for Tau'ri faction - it blocks next card
-    # The iris_defense is the actual Iris mechanic, faction_power is the big ability
-    # All players already have iris_defense initialized in Player.__init__
-    # but only Tau'ri should be able to activate it
+    game.start_game()
 
+    # === MULLIGAN PHASE (Separate screen before main game) ===
+    mulligan_selected = []
+    mulligan_clock = pygame.time.Clock()
+    while game.game_state == "mulligan":
+        dt = mulligan_clock.tick(60)
+
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Check mulligan button click
+                if cfg.MULLIGAN_BUTTON_RECT.collidepoint(event.pos):
+                    num_selected = len(mulligan_selected)
+                    if num_selected >= 2 and num_selected <= 5:
+                        # Player mulligan
+                        game.mulligan(game.player1, mulligan_selected)
+                        mulligan_selected = []
+
+                        # AI mulligan
+                        if not LAN_MODE:
+                            from ai_opponent import AIStrategy
+                            ai_strategy = AIStrategy(game, game.player2)
+                            ai_cards = ai_strategy.decide_mulligan()
+                            game.mulligan(game.player2, ai_cards)
+
+                        # End mulligan phase
+                        game.end_mulligan_phase()
+                    else:
+                        print("Must select at least 2 cards for mulligan!")
+                else:
+                    # Check card clicks
+                    total_cards = len(game.player1.hand)
+                    card_w = cfg.MULLIGAN_CARD_WIDTH
+                    card_h = cfg.MULLIGAN_CARD_HEIGHT
+                    card_spacing = int(card_w * 0.125)
+                    total_width = total_cards * card_w + (total_cards - 1) * card_spacing
+                    start_x = (SCREEN_WIDTH - total_width) // 2 if total_width < SCREEN_WIDTH else cfg.HAND_REGION_LEFT
+                    card_y = SCREEN_HEIGHT // 2 - card_h // 2
+
+                    for i, card in enumerate(game.player1.hand):
+                        card_x = start_x + i * (card_w + card_spacing)
+                        card_rect = pygame.Rect(card_x, card_y, card_w, card_h)
+                        if card_rect.collidepoint(event.pos):
+                            if card in mulligan_selected:
+                                mulligan_selected.remove(card)
+                            else:
+                                mulligan_selected.append(card)
+                            break
+
+        # Draw mulligan screen with background
+        screen.blit(assets["mulligan_bg"], (0, 0))
+
+        # Title
+        title_text = cfg.SCORE_FONT.render("Mulligan Phase", True, cfg.WHITE)
+        screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, int(SCREEN_HEIGHT * 0.1)))
+
+        subtitle_text = cfg.UI_FONT.render("Select 2-5 cards to redraw, then click Redraw", True, cfg.WHITE)
+        screen.blit(subtitle_text, (SCREEN_WIDTH // 2 - subtitle_text.get_width() // 2, int(SCREEN_HEIGHT * 0.15)))
+
+        # Draw hand
+        from render_engine import draw_hand
+        draw_hand(screen, game.player1, None, mulligan_selected)
+
+        # Draw mulligan button
+        board_renderer.draw_mulligan_button(screen, mulligan_selected)
+
+        pygame.display.flip()
+
+    # === END MULLIGAN PHASE ===
 
     # Start space battle for first round
     ambient_effects.start_round(round_number=1)
 
-    # Show leader matchup animation (skip if LAN - already shown in lan_setup)
-    if not lan_game_data:
+    # Show leader matchup animation after mulligan
+    if not LAN_MODE:
         from leader_matchup import LeaderMatchupAnimation
-        matchup_anim = LeaderMatchupAnimation(player_leader, ai_leader, SCREEN_WIDTH, SCREEN_HEIGHT)
+        matchup_anim = LeaderMatchupAnimation(game.player1.leader, game.player2.leader, SCREEN_WIDTH, SCREEN_HEIGHT)
         clock_matchup = pygame.time.Clock()
         while not matchup_anim.finished:
-            dt = clock_matchup.tick(60)
+            dt_matchup = clock_matchup.tick(60)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                elif event.type == pygame.MOUSEWHEEL:
-                    if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
-                        history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
-                        history_manual_scroll = True
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_SPACE:
-                        matchup_anim.finished = True  # Allow skipping
+                        matchup_anim.finished = True
 
-            matchup_anim.update(dt)
+            matchup_anim.update(dt_matchup)
             matchup_anim.draw(screen)
             pygame.display.flip()
 
         # Show game start animation
-        show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+        transitions.show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
 
-    # Start round-based battle music (round 1)
-    set_battle_music_round(1, immediate=True)
-    
-    # Initialize controller (AI or Network depending on mode)
-    if LAN_MODE and LAN_CONTEXT:
-        # LAN multiplayer mode - use NetworkController
-        from lan_opponent import NetworkController, NetworkPlayerProxy
-        ai_controller = NetworkController(game, game.player2, LAN_CONTEXT.session, LAN_CONTEXT.role)
-        network_proxy = NetworkPlayerProxy(LAN_CONTEXT.session, LAN_CONTEXT.role, game)
-        print(f"[LAN] Running in {LAN_CONTEXT.role} mode with NetworkController")
-    else:
-        # Single player mode - use AIController (always hardest)
-        ai_controller = AIController(game, game.player2, difficulty="hard")
-        network_proxy = None
+    # Start battle music for Round 1
+    battle_music.set_battle_music_round(1, immediate=True)
 
     # Initialize chat panel for LAN mode
     lan_chat_panel = None
@@ -2512,8 +844,6 @@ def main(lan_game_data=None):
         
         # Callback: When chat message arrives/sent, push to Game History
         def push_chat_to_history(prefix, text, color):
-            # Only add to history if it's actual chat (avoid duplicates if we re-enabled system loop)
-            # But since we removed the system->chat loop, this is safe.
             owner = "player" if prefix == "You" else "ai"
             game.add_history_event("chat", f"{prefix}: {text}", owner, icon='"')
 
@@ -2525,7 +855,6 @@ def main(lan_game_data=None):
         )
         
         lan_chat_panel.add_message("System", f"Connected as {LAN_CONTEXT.role}. Type 'T' to chat!")
-        print("[LAN] Chat panel initialized")
 
     selected_card = None
     dragging_card = None
@@ -2541,11 +870,15 @@ def main(lan_game_data=None):
     card_hover_scale = 1.0
     target_hover_scale = 1.0
     hovered_card = None
+    keyboard_hand_cursor = -1  # -1 means no keyboard selection, 0+ is index in hand
+    keyboard_row_cursor = 0    # For selecting target row when playing a card
+    keyboard_mode_active = False  # True when using keyboard to play cards
+    keyboard_button_cursor = -1  # -1 = none, 0 = pass, 1 = faction power
     mulligan_selected = []
     mulligan_local_done = False
     mulligan_remote_done = not LAN_MODE
-    inspected_card = None  # Card being inspected with spacebar
-    inspected_leader = None  # Leader being inspected
+    inspected_card = None
+    inspected_leader = None
     player_leader_rect = None
     ai_leader_rect = None
     player_ability_rect = None
@@ -2555,26 +888,26 @@ def main(lan_game_data=None):
     ui_state = UIState.PLAYING
     
     # State Data Holders
-    medic_card_played = None  # The medic card that was just played
-    decoy_card_played = None  # The decoy card that was just played
-    ring_transport_animation = None  # Active ring transportation animation
-    ring_transport_selection = False  # Flag for Ring Transport (Decoy) selection mode
-    ring_transport_button_rect = None  # Ring button for click detection
-    decoy_drag_target = None  # Card being hovered over when dragging Ring Transport
-    decoy_valid_targets = []  # List of (card, rect) for valid decoy targets
-    iris_button_rect = None  # Iris button for click detection
-    previous_round = game.round_number  # Track round changes
-    previous_weather = {"close": False, "ranged": False, "siege": False}  # Track weather changes
+    medic_card_played = None
+    decoy_card_played = None
+    ring_transport_animation = None
+    ring_transport_selection = False
+    ring_transport_button_rect = None
+    decoy_drag_target = None
+    decoy_valid_targets = []
+    iris_button_rect = None
+    previous_round = game.round_number
+    previous_weather = {"close": False, "ranged": False, "siege": False}
     
     # Discard pile viewer data
-    discard_scroll = 0  # Scroll offset for discard viewer
-    discard_rect = None  # Assigned during draw phase
+    discard_scroll = 0
+    discard_rect = None
     
     # Leader ability selection data
-    vala_cards_to_choose = []  # The 3 cards Vala can choose from
-    catherine_cards_to_choose = []  # Cached revealed cards for Catherine
-    thor_selected_unit = None  # The unit Thor is moving
-    pending_leader_choice = None  # Generic leader ability card selection (Jonas Quinn, Ba'al, etc.)
+    vala_cards_to_choose = []
+    catherine_cards_to_choose = []
+    thor_selected_unit = None
+    pending_leader_choice = None
     
     # History/column state
     history_scroll_offset = 0
@@ -2596,12 +929,12 @@ def main(lan_game_data=None):
     hud_pass_button_size = max(80, int(SCREEN_HEIGHT * 0.04))
     HUD_PASS_BUTTON_RECT = pygame.Rect(
         HUD_LEFT + (HUD_WIDTH - hud_pass_button_size) // 2,
-        pct_y(0.94) - hud_pass_button_size // 2,
+        cfg.pct_y(0.94) - hud_pass_button_size // 2,
         hud_pass_button_size,
         hud_pass_button_size
     )
     
-    faction_power_effect = None  # Active Iris Power visual effect
+    faction_power_effect = None
     
     # Debug overlay toggle (F3 key)
     debug_overlay_enabled = False
@@ -2618,13 +951,30 @@ def main(lan_game_data=None):
 
     running = True
     fullscreen = display_manager.FULLSCREEN
-    
+
     while running:
+        # Check for game restart or main menu request
+        if getattr(game, 'restart_requested', False):
+            battle_music.stop_battle_music()
+            # Rematch: restart with same faction/leader setup
+            rematch_data = {
+                'player_faction': game.player1.faction,
+                'player_leader': game.player1.leader,
+                'ai_faction': game.player2.faction,
+                'ai_leader': game.player2.leader,
+            }
+            main(lan_game_data=rematch_data)
+            return
+        if getattr(game, 'main_menu_requested', False):
+            battle_music.stop_battle_music()
+            main()  # Return to main menu
+            return
+
         sync_fullscreen_from_surface()
         # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
         screen = display_manager.screen
-        dt = clock.tick(144)  # 144 FPS for buttery smooth animations and card movement
-        update_battle_music()
+        dt = clock.tick(144)
+        battle_music.update_battle_music()
 
         # Update hand reveal timers
         for p in [game.player1, game.player2]:
@@ -2650,7 +1000,6 @@ def main(lan_game_data=None):
                 font_large = pygame.font.SysFont("Arial", 60, bold=True)
                 font_small = pygame.font.SysFont("Arial", 30)
 
-                # Disconnect message
                 text1 = font_large.render("CONNECTION LOST", True, (255, 100, 100))
                 text2 = font_small.render("Your opponent has disconnected", True, (200, 200, 200))
                 text3 = font_small.render("Press any key to return to menu", True, (150, 150, 150))
@@ -2661,7 +1010,6 @@ def main(lan_game_data=None):
 
                 pygame.display.flip()
 
-                # Wait for key press
                 waiting = True
                 while waiting:
                     for event in pygame.event.get():
@@ -2671,22 +1019,19 @@ def main(lan_game_data=None):
                         elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
                             waiting = False
 
-                # Clean up and return to menu
                 LAN_CONTEXT.session.close()
-                stop_battle_music()
+                battle_music.stop_battle_music()
                 main()
                 return
 
         # Handle remote mulligan selections in LAN mode
         if LAN_MODE and LAN_CONTEXT and game.game_state == "mulligan" and not mulligan_remote_done:
-            # Timeout after 30 seconds to prevent infinite loops
-            mulligan_timeout = 30000  # 30 seconds in milliseconds
+            mulligan_timeout = 30000
             mulligan_start_time = pygame.time.get_ticks()
-            max_iterations = 1000  # Safety limit on iterations
+            max_iterations = 1000
             iteration_count = 0
 
             while iteration_count < max_iterations:
-                # Check timeout
                 if pygame.time.get_ticks() - mulligan_start_time > mulligan_timeout:
                     print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
                     mulligan_remote_done = True
@@ -2714,12 +1059,9 @@ def main(lan_game_data=None):
                     mulligan_remote_done = True
                     continue
 
-                # Not a mulligan message - put it back for game logic
                 LAN_CONTEXT.session.inbox.put(parsed)
                 break
 
-        if game.game_state == "mulligan" and mulligan_local_done and mulligan_remote_done:
-            game.end_mulligan_phase()
 
         if getattr(game, "history_dirty", False):
             if not history_manual_scroll:
@@ -2732,40 +1074,37 @@ def main(lan_game_data=None):
         # Check for round changes and reset space battle WITH COOL TRANSITION
         if game.round_number != previous_round:
             # Step 1: Cards sweep off the board (before showing winner)
-            if previous_round >= 1:  # Don't sweep on game start
-                create_card_sweep_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT, direction="up")
+            if previous_round >= 1:
+                transitions.create_card_sweep_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT, direction="up")
             
             # Step 2: Show round winner announcement with screen shake
             if hasattr(game, 'round_winner'):
-                show_round_winner_announcement(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+                transitions.show_round_winner_announcement(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
             
-            # Step 3: Hyperspace transition with persistent stars and radial blur
-            # Check if player lost both rounds (0-2 deficit going into round 3)
+            # Step 3: Hyperspace transition
             player_lost_both = (game.player1.rounds_won == 0 and game.player2.rounds_won == 2)
             
             if game.round_number == 2:
                 transition_text = "ENTERING HYPERSPACE..."
-                create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
+                transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
             elif game.round_number == 3:
                 if player_lost_both:
-                    # Player is about to lose - show black hole defeat transition
                     from animations import create_black_hole_defeat_transition
                     create_black_hole_defeat_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT)
                 else:
-                    # Normal round 3 - emerging near planet
                     transition_text = "EMERGING NEAR PLANET..."
-                    create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
+                    transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
             else:
                 transition_text = f"ROUND {game.round_number}"
-                create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
+                transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
             
             ambient_effects.end_round()
             ambient_effects.start_round(round_number=game.round_number)
             previous_round = game.round_number
 
             # Update battle music for new round (more intense each round)
-            set_battle_music_round(game.round_number, immediate=True)
-        
+            battle_music.set_battle_music_round(game.round_number, immediate=True)
+    
         # Check for weather changes and add row effects
         if game.weather_active != previous_weather:
             # Clear old weather effects
@@ -2778,23 +1117,23 @@ def main(lan_game_data=None):
                     weather_type = game.current_weather_types.get(row_name, "Ice Storm")
                     
                     if target_flag in ("player1", "both"):
-                        player_row_rect = PLAYER_ROW_RECTS.get(row_name)
+                        player_row_rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                         if player_row_rect:
                             anim_manager.add_row_weather(weather_type, player_row_rect, SCREEN_WIDTH)
                     if target_flag in ("player2", "both"):
-                        opponent_row_rect = OPPONENT_ROW_RECTS.get(row_name)
+                        opponent_row_rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                         if opponent_row_rect:
                             anim_manager.add_row_weather(weather_type, opponent_row_rect, SCREEN_WIDTH)
             
             # Handle Clear Weather - show it on all rows for the black hole effect
             if any(game.current_weather_types.get(row) == "Wormhole Stabilization" for row in ["close", "ranged", "siege"]):
                 # Show clear weather effect on middle row for dramatic center effect
-                middle_row_rect = PLAYER_ROW_RECTS.get("ranged")  # Use ranged as middle
+                middle_row_rect = cfg.PLAYER_ROW_RECTS.get("ranged")  # Use ranged as middle
                 if middle_row_rect:
                     anim_manager.add_row_weather("Wormhole Stabilization", middle_row_rect, SCREEN_WIDTH)
             
             previous_weather = game.weather_active.copy()
-
+    
         # AI leader ability - auto-activate when appropriate (e.g., Apophis weather strike)
         if (game.game_state == "playing"
                 and game.current_player == game.player2
@@ -2816,21 +1155,21 @@ def main(lan_game_data=None):
                     weather_target = game.weather_row_targets.get(row_name, "both")
                     weather_type = game.current_weather_types.get(row_name, "Ice Storm")
                     if weather_target in ("player1", "both"):
-                        rect = PLAYER_ROW_RECTS.get(row_name)
+                        rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                         if rect:
                             anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                     if weather_target in ("player2", "both"):
-                        rect = OPPONENT_ROW_RECTS.get(row_name)
+                        rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                         if rect:
                             anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
-
+    
         # Update animations
         anim_manager.update(dt)
-
+    
         # Check if Hathor's ability animation is complete
         if hasattr(game, 'hathor_steal_info') and game.hathor_steal_info:
             # Check if the animation is complete
@@ -2868,10 +1207,9 @@ def main(lan_game_data=None):
                     "color": get_row_color(dragging_card.row)
                 })
                 drag_trail_emit_ms = 45
-
-        # Update card hover scale smoothly
-        if abs(card_hover_scale - target_hover_scale) > 0.01:
-            card_hover_scale += (target_hover_scale - card_hover_scale) * 0.15
+    
+        # Update card hover scale (instant snap for 1440p performance)
+        card_hover_scale = target_hover_scale
         
         # Update Iris Power effect
         if faction_power_effect:
@@ -2893,7 +1231,7 @@ def main(lan_game_data=None):
         waiting_for_opponent = False
         if LAN_MODE and game.current_player != game.player1 and not game.game_over:
             waiting_for_opponent = True
-
+    
         # Event handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -2906,15 +1244,15 @@ def main(lan_game_data=None):
 
                 # F3 - Toggle debug overlay (zone boundaries + FPS counter)
                 if event.key == pygame.K_F3:
-                    global DEBUG_MODE
-                    debug_overlay_enabled = not debug_overlay_enabled
-                    DEBUG_MODE = debug_overlay_enabled  # Link to FPS counter
-                    print(f"🔍 Debug Overlay: {'ENABLED' if debug_overlay_enabled else 'DISABLED'}")
-                
+                    # Toggle debug/FPS
+                    DEBUG_MODE = not DEBUG_MODE
+                    get_settings().set_show_fps(DEBUG_MODE)
+                    print(f"Debug Mode: {DEBUG_MODE}")
+
                 # Debug: Print all key presses
                 elif event.key == pygame.K_F11:
                     print(f"🔑 DEBUG: F11 key detected (keycode: {event.key})")
-                
+
                 # ESC to toggle pause menu or close overlays
                 if event.key == pygame.K_ESCAPE:
                     if inspected_card or inspected_leader:
@@ -2935,8 +1273,8 @@ def main(lan_game_data=None):
                         else:
                             ui_state = UIState.PAUSED
                 
-                # Toggle fullscreen with F11 or Alt+Enter
-                elif event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and (event.mod & pygame.KMOD_ALT)):
+                # Toggle fullscreen with F11
+                elif event.key == pygame.K_F11:
                     print(f"🔑 Fullscreen toggle requested. Current state: {display_manager.FULLSCREEN}")
                     toggle_fullscreen_mode()
                     fullscreen = display_manager.FULLSCREEN
@@ -2949,7 +1287,7 @@ def main(lan_game_data=None):
                         hud_pass_button_size,
                         hud_pass_button_size
                     )
-                    MULLIGAN_BUTTON_RECT = pygame.Rect(
+                    cfg.MULLIGAN_BUTTON_RECT = pygame.Rect(
                         SCREEN_WIDTH - int(300 * SCALE_FACTOR),
                         SCREEN_HEIGHT - int(160 * SCALE_FACTOR),
                         int(200 * SCALE_FACTOR),
@@ -2960,12 +1298,56 @@ def main(lan_game_data=None):
                     print(f"✓ Fullscreen: {mode_label} - Resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
                     print(f"  Scale Factor: {SCALE_FACTOR:.2f}")
                 
-                # F key = Activate Faction Power
+                # F key = Play keyboard-selected or hovered card to its default row
                 elif event.key == pygame.K_f:
+                    if game.game_state == "playing" and game.current_player == game.player1 and ui_state == UIState.PLAYING:
+                        # Get card to play: keyboard-selected or hovered
+                        card_to_play = None
+                        if keyboard_mode_active and keyboard_hand_cursor >= 0 and keyboard_hand_cursor < len(game.player1.hand):
+                            card_to_play = game.player1.hand[keyboard_hand_cursor]
+                        elif hovered_card and hovered_card in game.player1.hand:
+                            card_to_play = hovered_card
+
+                        if card_to_play:
+                            # Determine default row
+                            if card_to_play.row in ("close", "ranged", "siege"):
+                                target_row = card_to_play.row
+                            elif card_to_play.row == "agile":
+                                target_row = "close"  # Default agile to close
+                            elif card_to_play.row == "weather":
+                                target_row = "close"  # Default weather to close row
+                            elif card_to_play.row == "special":
+                                # Special cards need specific handling
+                                if "Ring Transport" in (card_to_play.ability or ""):
+                                    target_row = None  # Skip - needs drag
+                                elif "Wormhole Stabilization" in (card_to_play.ability or ""):
+                                    target_row = "weather"
+                                elif "Command Network" in (card_to_play.ability or ""):
+                                    target_row = "close"  # Default horn to close
+                                else:
+                                    target_row = "special"
+                            else:
+                                target_row = card_to_play.row
+
+                            if target_row:
+                                game.play_card(card_to_play, target_row)
+                                row_rect = cfg.PLAYER_ROW_RECTS.get(target_row)
+                                if row_rect:
+                                    anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=800))
+                                if network_proxy:
+                                    network_proxy.send_play_card(card_to_play.id, target_row)
+                                # Reset keyboard cursor
+                                keyboard_hand_cursor = min(keyboard_hand_cursor, len(game.player1.hand) - 1)
+                                if len(game.player1.hand) == 0:
+                                    keyboard_hand_cursor = -1
+                                    keyboard_mode_active = False
+                                hovered_card = None
+
+                # G key = Activate Faction Power
+                elif event.key == pygame.K_g:
                     if game.game_state == "playing" and game.current_player == game.player1:
                         if game.player1.faction_power and game.player1.faction_power.is_available():
                             if game.player1.faction_power.activate(game, game.player1):
-                                # Trigger visual effect
                                 faction_power_effect = FactionPowerEffect(
                                     game.player1.faction,
                                     SCREEN_WIDTH // 2,
@@ -2978,26 +1360,83 @@ def main(lan_game_data=None):
                                     f"{game.player1.name} used {game.player1.faction_power.name}",
                                     "player"
                                 )
-                                # Send over network in LAN mode
                                 if network_proxy:
                                     network_proxy.send_faction_power(game.player1.faction_power.name)
-                                # Recalculate scores
                                 game.player1.calculate_score()
                                 game.player2.calculate_score()
-                                print(f"✓ Faction Power activated with F key: {game.player1.faction_power.name}")
+                                print(f"✓ Faction Power activated: {game.player1.faction_power.name}")
                 
                 # T key = Toggle LAN Chat Input
-                elif event.key == pygame.K_t or event.key == pygame.K_RETURN:
+                elif event.key == pygame.K_t:
                     if lan_chat_panel and not lan_chat_panel.active:
                         lan_chat_panel.active = True
-                        # Consume the key press so it doesn't type 't' into the box immediately
                         continue
-                    elif lan_chat_panel and lan_chat_panel.active and event.key == pygame.K_t:
-                         # Allow closing with T if empty? No, T is a letter. ESC closes.
+                    elif lan_chat_panel and lan_chat_panel.active:
                          pass
-                
-                # SPACEBAR = Alternative preview (same as right-click)
-                elif event.key == pygame.K_SPACE:
+
+                # Arrow keys for keyboard card navigation
+                elif event.key in (pygame.K_LEFT, pygame.K_RIGHT) and game.game_state == "playing" and game.current_player == game.player1 and ui_state == UIState.PLAYING:
+                    hand_size = len(game.player1.hand)
+                    if hand_size > 0:
+                        keyboard_mode_active = True
+                        keyboard_button_cursor = -1  # Reset button cursor when selecting cards
+                        if keyboard_hand_cursor < 0:
+                            keyboard_hand_cursor = 0
+                        elif event.key == pygame.K_LEFT:
+                            keyboard_hand_cursor = (keyboard_hand_cursor - 1) % hand_size
+                        else:
+                            keyboard_hand_cursor = (keyboard_hand_cursor + 1) % hand_size
+                        # Update hovered_card to show the keyboard-selected card
+                        if 0 <= keyboard_hand_cursor < hand_size:
+                            hovered_card = game.player1.hand[keyboard_hand_cursor]
+
+                # Tab key = Cycle through action buttons (Pass, Faction Power)
+                elif event.key == pygame.K_TAB and game.game_state == "playing" and game.current_player == game.player1 and ui_state == UIState.PLAYING:
+                    # Deactivate card selection mode, switch to button mode
+                    keyboard_mode_active = False
+                    keyboard_hand_cursor = -1
+                    hovered_card = None
+                    # Cycle: -1 -> 0 (pass) -> 1 (faction power) -> -1
+                    keyboard_button_cursor = (keyboard_button_cursor + 1) % 3 - 1  # -1, 0, 1, -1...
+                    if keyboard_button_cursor == -1:
+                        keyboard_button_cursor = 0  # Start at pass button
+
+                # UP/DOWN to select target row when a card is selected via keyboard
+                elif event.key in (pygame.K_UP, pygame.K_DOWN) and game.game_state == "playing" and game.current_player == game.player1 and ui_state == UIState.PLAYING:
+                    if keyboard_mode_active and keyboard_hand_cursor >= 0 and keyboard_hand_cursor < len(game.player1.hand):
+                        card = game.player1.hand[keyboard_hand_cursor]
+                        # Determine valid rows for this card
+                        if card.row == "close":
+                            valid_rows = ["close"]
+                        elif card.row == "ranged":
+                            valid_rows = ["ranged"]
+                        elif card.row == "siege":
+                            valid_rows = ["siege"]
+                        elif card.row == "agile":
+                            valid_rows = ["close", "ranged"]
+                        elif card.row == "weather":
+                            valid_rows = ["close", "ranged", "siege"]
+                        elif card.row == "special":
+                            valid_rows = ["close", "ranged", "siege"]  # For horn effects
+                        else:
+                            valid_rows = ["close", "ranged", "siege"]
+
+                        if len(valid_rows) > 1:
+                            if event.key == pygame.K_UP:
+                                keyboard_row_cursor = (keyboard_row_cursor - 1) % len(valid_rows)
+                            else:
+                                keyboard_row_cursor = (keyboard_row_cursor + 1) % len(valid_rows)
+                    elif keyboard_button_cursor >= 0:
+                        # Cycle between pass (0) and faction power (1)
+                        keyboard_button_cursor = 1 - keyboard_button_cursor
+
+                # SPACEBAR or ENTER = Play card via keyboard or close overlays
+                elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    # Skip if chat is active (RETURN opens chat)
+                    if lan_chat_panel and not lan_chat_panel.active and event.key == pygame.K_RETURN:
+                        lan_chat_panel.active = True
+                        continue
+
                     if inspected_card or inspected_leader:
                         # Close preview
                         inspected_card = None
@@ -3005,32 +1444,228 @@ def main(lan_game_data=None):
                     elif ui_state in (UIState.DISCARD_VIEW, UIState.JONAS_PEEK):
                         # Close overlays
                         if ui_state == UIState.JONAS_PEEK:
-                            # Clear the tracked cards after viewing
                             game.opponent_drawn_cards = []
                         ui_state = UIState.PLAYING
                         discard_scroll = 0
+                    elif keyboard_button_cursor >= 0 and game.game_state == "playing" and game.current_player == game.player1:
+                        # Activate keyboard-selected button
+                        if keyboard_button_cursor == 0:
+                            # Pass button
+                            game.pass_turn()
+                            if network_proxy:
+                                network_proxy.send_pass()
+                            keyboard_button_cursor = -1
+                        elif keyboard_button_cursor == 1:
+                            # Faction power button
+                            if game.player1.faction_power and game.player1.faction_power.is_available():
+                                if game.player1.faction_power.activate(game, game.player1):
+                                    faction_power_effect = FactionPowerEffect(
+                                        game.player1.faction,
+                                        SCREEN_WIDTH // 2,
+                                        SCREEN_HEIGHT // 2,
+                                        SCREEN_WIDTH,
+                                        SCREEN_HEIGHT
+                                    )
+                                    game.add_history_event(
+                                        "faction_power",
+                                        f"{game.player1.name} used {game.player1.faction_power.name}",
+                                        "player"
+                                    )
+                                    if network_proxy:
+                                        network_proxy.send_faction_power(game.player1.faction_power.name)
+                                    game.player1.calculate_score()
+                                    game.player2.calculate_score()
+                            keyboard_button_cursor = -1
+                    elif keyboard_mode_active and keyboard_hand_cursor >= 0 and game.game_state == "playing" and game.current_player == game.player1:
+                        # Play the keyboard-selected card
+                        if keyboard_hand_cursor < len(game.player1.hand):
+                            card = game.player1.hand[keyboard_hand_cursor]
+
+                            # Determine target row
+                            if card.row == "close":
+                                target_row = "close"
+                            elif card.row == "ranged":
+                                target_row = "ranged"
+                            elif card.row == "siege":
+                                target_row = "siege"
+                            elif card.row == "agile":
+                                valid_rows = ["close", "ranged"]
+                                target_row = valid_rows[keyboard_row_cursor % len(valid_rows)]
+                            elif card.row == "weather":
+                                valid_rows = ["close", "ranged", "siege"]
+                                target_row = valid_rows[keyboard_row_cursor % len(valid_rows)]
+                            elif card.row == "special":
+                                if "Command Network" in (card.ability or ""):
+                                    valid_rows = ["close", "ranged", "siege"]
+                                    target_row = valid_rows[keyboard_row_cursor % len(valid_rows)]
+                                elif "Wormhole Stabilization" in (card.ability or ""):
+                                    target_row = "weather"
+                                elif "Ring Transport" in (card.ability or ""):
+                                    target_row = None
+                                else:
+                                    target_row = "special"
+                            else:
+                                target_row = card.row
+
+                            if target_row:
+                                game.play_card(card, target_row)
+                                row_rect = cfg.PLAYER_ROW_RECTS.get(target_row)
+                                if row_rect:
+                                    anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=800))
+                                if network_proxy:
+                                    network_proxy.send_play_card(card.id, target_row)
+                                keyboard_hand_cursor = min(keyboard_hand_cursor, len(game.player1.hand) - 1)
+                                if len(game.player1.hand) == 0:
+                                    keyboard_hand_cursor = -1
+                                    keyboard_mode_active = False
+                                keyboard_row_cursor = 0
+                                hovered_card = None
+                    elif hovered_card and game.game_state == "playing":
+                        # Preview hovered card with spacebar
+                        inspected_card = hovered_card
                     elif selected_card and game.game_state == "playing":
-                        # Preview selected card
+                        # Preview selected card (legacy behavior)
                         inspected_card = selected_card
-                
+
+                # Keyboard navigation for mulligan phase
+                if game.game_state == "mulligan" and not mulligan_local_done:
+                    hand_size = len(game.player1.hand)
+                    if hand_size > 0:
+                        # LEFT/RIGHT to navigate cards
+                        if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                            keyboard_mode_active = True
+                            if keyboard_hand_cursor < 0:
+                                keyboard_hand_cursor = 0
+                            elif event.key == pygame.K_LEFT:
+                                keyboard_hand_cursor = (keyboard_hand_cursor - 1) % hand_size
+                            else:
+                                keyboard_hand_cursor = (keyboard_hand_cursor + 1) % hand_size
+                            if 0 <= keyboard_hand_cursor < hand_size:
+                                hovered_card = game.player1.hand[keyboard_hand_cursor]
+
+                        # SPACE to toggle selection
+                        elif event.key == pygame.K_SPACE and keyboard_hand_cursor >= 0 and keyboard_hand_cursor < hand_size:
+                            card = game.player1.hand[keyboard_hand_cursor]
+                            if card in mulligan_selected:
+                                mulligan_selected.remove(card)
+                            elif len(mulligan_selected) < 5:
+                                mulligan_selected.append(card)
+
+                        # ENTER to confirm mulligan
+                        elif event.key == pygame.K_RETURN:
+                            if 2 <= len(mulligan_selected) <= 5:
+                                selected_indices = [i for i, card in enumerate(game.player1.hand) if card in mulligan_selected]
+                                game.mulligan(game.player1, mulligan_selected)
+                                game.player_mulligan_count = len(selected_indices)
+                                mulligan_local_done = True
+                                mulligan_selected = []
+                                keyboard_hand_cursor = -1
+                                keyboard_mode_active = False
+
+                                if network_proxy:
+                                    network_proxy.send_mulligan(selected_indices)
+                                else:
+                                    from ai_opponent import AIStrategy
+                                    ai_strategy = AIStrategy(game, game.player2)
+                                    ai_cards = ai_strategy.decide_mulligan()
+                                    game.mulligan(game.player2, ai_cards)
+
                 # Game over screen - R to restart
                 if game.game_state == "game_over":
                     if event.key == pygame.K_r and not LAN_MODE:
-                        stop_battle_music()
+                        battle_music.stop_battle_music()
                         main()
                         return
+                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        # Handle game over screen button clicks
+                        # Calculate button positions (same as in drawing section)
+                        button_width = 200
+                        button_height = 50
+                        button_spacing = 20
+                        y_offset = 0  # This would need to match the actual y_offset from drawing
+                        start_y = SCREEN_HEIGHT // 2 + y_offset + 30
+
+                        # Check if draft mode to determine which buttons to use
+                        if hasattr(game, 'is_draft_match') and game.is_draft_match:
+                            # Check draft mode conditions
+                            persistence = get_persistence()
+                            active_run_data = persistence.get_active_draft_run()
+                            player_won = (game.winner == game.player1)
+
+                            if active_run_data:
+                                current_wins = active_run_data.get('wins', 0)
+                                if not (player_won and current_wins < DraftRun.MAX_WINS):  # Only show buttons if not continuing automatically
+                                    # Define draft mode game over buttons
+                                    rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                                    main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                                    quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                                    mouse_pos = pygame.mouse.get_pos()
+                                    if rematch_button.collidepoint(mouse_pos):
+                                        battle_music.stop_battle_music()
+                                        main()
+                                        return
+                                    elif main_menu_button.collidepoint(mouse_pos):
+                                        battle_music.stop_battle_music()
+                                        return  # This will exit the current main() call and return to the menu
+                                    elif quit_button.collidepoint(mouse_pos):
+                                        pygame.quit()
+                                        sys.exit()
+                            else:
+                                # No active draft run - show regular game over buttons
+                                rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                                main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                                quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                                mouse_pos = pygame.mouse.get_pos()
+                                if rematch_button.collidepoint(mouse_pos):
+                                    battle_music.stop_battle_music()
+                                    main()
+                                    return
+                                elif main_menu_button.collidepoint(mouse_pos):
+                                    battle_music.stop_battle_music()
+                                    return  # This will exit the current main() call and return to the menu
+                                elif quit_button.collidepoint(mouse_pos):
+                                    pygame.quit()
+                                    sys.exit()
+                        else:
+                            # Regular game - show game over buttons
+                            rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                            main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                            quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                            mouse_pos = pygame.mouse.get_pos()
+                            if rematch_button.collidepoint(mouse_pos):
+                                battle_music.stop_battle_music()
+                                main()
+                                return
+                            elif main_menu_button.collidepoint(mouse_pos):
+                                battle_music.stop_battle_music()
+                                return  # This will exit the current main() call and return to the menu
+                            elif quit_button.collidepoint(mouse_pos):
+                                pygame.quit()
+                                sys.exit()
                     elif event.key == pygame.K_p and LAN_MODE:
                         # Play again in LAN mode - go back to deck selection while staying connected
                         if network_proxy and network_proxy.session.is_connected():
                             # Send play again message to peer
                             network_proxy.session.send("play_again", {"request": True})
-                            stop_battle_music()
+                            battle_music.stop_battle_music()
                             # Return to LAN menu with existing session for rematch
                             from lan_menu import run_lan_rematch
                             result = run_lan_rematch(screen, network_proxy.session, network_proxy.role)
                             if result:
-                                # Restart game with new decks
-                                main()
+                                # Both players ready - run deck selection and start new game
+                                from lan_game import run_lan_setup
+                                from unlocks import CardUnlockSystem
+                                import main as main_module
+                                unlock_system = CardUnlockSystem()
+                                new_context = run_lan_setup(screen, unlock_system, result["session"], result["role"])
+                                if new_context:
+                                    # Set global LAN context via module and restart game
+                                    main_module.LAN_MODE = True
+                                    main_module.LAN_CONTEXT = new_context
+                                    main()
                             return
                     elif event.key == pygame.K_ESCAPE:
                         if LAN_MODE and network_proxy:
@@ -3042,17 +1677,17 @@ def main(lan_game_data=None):
                         run_space_shooter(screen)  # Shows ship selection screen
             elif event.type == pygame.MOUSEWHEEL:
                 if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
-                    history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * HISTORY_ENTRY_HEIGHT))
+                    history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * cfg.HISTORY_ENTRY_HEIGHT))
                     history_manual_scroll = True
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # LAN: Block game interactions if waiting for opponent
                 # Allow Right Click (3) for inspection and UI clicks if paused/chatting
                 if waiting_for_opponent and ui_state not in (UIState.PAUSED, UIState.LAN_CHAT) and event.button != 3:
                     continue
-
+    
                 if event.button in (4, 5):
                     if history_panel_rect and history_panel_rect.collidepoint(event.pos):
-                        delta = HISTORY_ENTRY_HEIGHT if event.button == 4 else -HISTORY_ENTRY_HEIGHT
+                        delta = cfg.HISTORY_ENTRY_HEIGHT if event.button == 4 else -cfg.HISTORY_ENTRY_HEIGHT
                         history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - delta))
                         history_manual_scroll = True
                     continue
@@ -3075,7 +1710,7 @@ def main(lan_game_data=None):
                                     
                                     # Find the target row position
                                     target_row = steal_info['to_player'].hathor_ability_pending['target_row']
-                                    target_row_rect = PLAYER_ROW_RECTS[target_row]
+                                    target_row_rect = cfg.PLAYER_ROW_RECTS[target_row]
                                     end_pos = (
                                         target_row_rect.centerx,
                                         target_row_rect.centery
@@ -3133,12 +1768,12 @@ def main(lan_game_data=None):
                                         weather_target = game.weather_row_targets.get(row_name, "both")
                                         weather_type = game.current_weather_types.get(row_name, "Ice Storm")
                                         if weather_target in ("player1", "both"):
-                                            rect = PLAYER_ROW_RECTS.get(row_name)
+                                            rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                                             if rect:
                                                 anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
                                                 anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                                         if weather_target in ("player2", "both"):
-                                            rect = OPPONENT_ROW_RECTS.get(row_name)
+                                            rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                                             if rect:
                                                 anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
                                                 anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
@@ -3162,7 +1797,7 @@ def main(lan_game_data=None):
                         popup_targets.append(("special", game.player1, player_special_button_rect, player_special_button_kind))
                     if ai_special_button_rect and ai_special_button_kind:
                         popup_targets.append(("special", game.player2, ai_special_button_rect, ai_special_button_kind))
-
+    
                     popup_triggered = False
                     for kind, owner, rect, special_kind in popup_targets:
                         if rect and rect.collidepoint(event.pos):
@@ -3173,7 +1808,7 @@ def main(lan_game_data=None):
                             break
                     if popup_triggered:
                         continue
-
+    
                     history_clicked = False
                     for entry, rect in history_entry_hitboxes:
                         if rect.collidepoint(event.pos):
@@ -3330,7 +1965,7 @@ def main(lan_game_data=None):
                 if game.game_state == "mulligan":
                     if mulligan_local_done:
                         continue
-
+    
                     # Select cards to mulligan (max 2)
                     for card in game.player1.hand:
                         if card.rect.collidepoint(event.pos):
@@ -3341,7 +1976,7 @@ def main(lan_game_data=None):
                             break
                     
                     # Confirm mulligan
-                    if MULLIGAN_BUTTON_RECT.collidepoint(event.pos):
+                    if cfg.MULLIGAN_BUTTON_RECT.collidepoint(event.pos):
                         # Enforce 2-5 card limit
                         if len(mulligan_selected) < 2:
                             # Show error message
@@ -3356,7 +1991,7 @@ def main(lan_game_data=None):
                         game.player_mulligan_count = len(selected_indices)
                         mulligan_local_done = True
                         mulligan_selected = []
-
+    
                         if network_proxy:
                             network_proxy.send_mulligan(selected_indices)
                         else:
@@ -3366,8 +2001,8 @@ def main(lan_game_data=None):
                             ai_cards = ai_strategy.decide_mulligan()
                             game.mulligan(game.player2, ai_cards)
                             mulligan_remote_done = True
-                            game.end_mulligan_phase()
-                
+                            # Don't end mulligan here - let the main loop handle it
+
                 # Playing phase - START DRAG
                 elif game.game_state == "playing":
                     if game.current_player == game.player1 and not game.player1.has_passed:
@@ -3382,11 +2017,11 @@ def main(lan_game_data=None):
                                                                              HUD_PASS_BUTTON_RECT.centery,
                                                                              duration=800))
                             game.pass_turn()
-
+    
                             # Send network action if in LAN mode
                             if network_proxy:
                                 network_proxy.send_pass()
-
+    
                             pass_clicked = True
                         if pass_clicked:
                             continue
@@ -3521,7 +2156,7 @@ def main(lan_game_data=None):
                                     break
                             # Fallback to full row targets if player drags over the battlefield
                             if target_row is None:
-                                for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                     for row_name, rect in rects.items():
                                         if rect.collidepoint(event.pos):
                                             target_row = row_name
@@ -3538,12 +2173,12 @@ def main(lan_game_data=None):
                                     effect_y = drop_rect.centery
                                     anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
                                     if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
-                                        for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                        for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                             row_rect = rects.get(target_row)
                                             if row_rect:
                                                 anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
                                 game.play_card(dragging_card, target_row)
-
+    
                                 # Send network action if in LAN mode
                                 if network_proxy:
                                     network_proxy.send_play_card(dragging_card.id, target_row)
@@ -3577,7 +2212,7 @@ def main(lan_game_data=None):
                                     decoy_valid_targets = []
                                     decoy_drag_target = None
                             else:
-                                for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                     for row_name, rect in rects.items():
                                         if rect.collidepoint(event.pos):
                                             game.play_card(dragging_card, row_name)
@@ -3592,9 +2227,9 @@ def main(lan_game_data=None):
                                                 for player, destroyed_row in game.last_scorch_positions:
                                                     # Determine which row rect to use
                                                     if player == game.player1:
-                                                        row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                                                        row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
                                                     else:
-                                                        row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                                                        row_rect = cfg.OPPONENT_ROW_RECTS.get(destroyed_row)
                                                     
                                                     if row_rect:
                                                         anim_manager.add_effect(NaquadahExplosionEffect(
@@ -3613,7 +2248,7 @@ def main(lan_game_data=None):
                                         break
                     else:
                         # Regular unit cards
-                        target_rows = OPPONENT_ROW_RECTS if is_spy else PLAYER_ROW_RECTS
+                        target_rows = cfg.OPPONENT_ROW_RECTS if is_spy else cfg.PLAYER_ROW_RECTS
                         
                         # Check which row the card was dropped on
                         for row_name, rect in target_rows.items():
@@ -3640,17 +2275,17 @@ def main(lan_game_data=None):
                                         decoy_drag_target = None
                                         break
                                     
-                                    # Calculate insertion index
+                                    # Calculate insertion index (Mid-Card Insertion)
                                     target_player = game.player2 if is_spy else game.player1
                                     row_cards = target_player.board[row_name]
                                     insert_index = len(row_cards)
                                     
-                                    # Find drop position relative to existing cards
+                                    # Find drop position relative to existing cards (Dynamic Slot Logic)
                                     if row_cards:
                                         mouse_x = event.pos[0]
                                         for i, card in enumerate(row_cards):
                                             if hasattr(card, 'rect'):
-                                                # If dropping to the left of a card's center, insert before it
+                                                # Use center of card as threshold for insertion
                                                 if mouse_x < card.rect.centerx:
                                                     insert_index = i
                                                     break
@@ -3664,9 +2299,9 @@ def main(lan_game_data=None):
                                         for player, destroyed_row in game.last_scorch_positions:
                                             # Determine which row rect to use
                                             if player == game.player1:
-                                                row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                                                row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
                                             else:
-                                                row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                                                row_rect = cfg.OPPONENT_ROW_RECTS.get(destroyed_row)
                                             
                                             if row_rect:
                                                 anim_manager.add_effect(NaquadahExplosionEffect(
@@ -3706,7 +2341,7 @@ def main(lan_game_data=None):
                                         # Default stargate effect if no special ability
                                         if not ability_triggered:
                                             anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y))
-
+    
                                     # Special card unique visuals
                                     if dragging_card.row == "special":
                                         add_special_card_effect(
@@ -3756,6 +2391,13 @@ def main(lan_game_data=None):
                     decoy_drag_target = None
             
             elif event.type == pygame.MOUSEMOTION:
+                # Reset keyboard mode when mouse is used significantly
+                rel_x, rel_y = getattr(event, "rel", (0, 0))
+                if abs(rel_x) > 5 or abs(rel_y) > 5:
+                    if keyboard_mode_active:
+                        keyboard_mode_active = False
+                        keyboard_hand_cursor = -1
+
                 # Update dragging position with smooth easing
                 if dragging_card:
                     drag_target_x = event.pos[0] + drag_offset[0]
@@ -3820,19 +2462,19 @@ def main(lan_game_data=None):
             if ai_result == "thinking_done":
                 # AI has finished thinking, get the decision
                 ai_board_before = {row: len(cards) for row, cards in game.player2.board.items()}
-
+    
                 # Check if faction power was available before AI decision
                 ai_power_available_before = (game.player2.faction_power and
                                              game.player2.faction_power.is_available())
-
+    
                 # Get AI decision without executing it yet
                 card_to_play, row_to_play = ai_controller.choose_move()
-
+    
                 # Check if AI used faction power
                 ai_power_available_after = (game.player2.faction_power and
                                             game.player2.faction_power.is_available())
                 ai_used_faction_power = ai_power_available_before and not ai_power_available_after
-
+    
                 if card_to_play:
                     # Store the decision
                     ai_card_to_play = card_to_play
@@ -3849,7 +2491,7 @@ def main(lan_game_data=None):
                         ai_turn_in_progress = False
                 else:
                     ai_selected_card_index = None
-
+    
                     # Check if AI used faction power - trigger animation!
                     if ai_used_faction_power:
                         # Create faction power effect animation
@@ -3861,20 +2503,20 @@ def main(lan_game_data=None):
                             SCREEN_HEIGHT
                         )
                         anim_manager.add_effect(faction_power_effect)
-
+    
                         # Add history event for AI faction power use
                         game.add_history_event(
                             "faction_power",
                             f"{game.player2.name} used {game.player2.faction_power.name}",
                             "ai"
                         )
-
+    
                         # Add Iris closing animation for Tau'ri Gate Shutdown
                         if game.player2.faction == FACTION_TAURI:
                             from animations import IrisClosingEffect
                             iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                             anim_manager.add_effect(iris_anim)
-
+    
                     # AI passes or uses power
                     ai_turn_anim.finish()
                     game.last_turn_actor = game.player2
@@ -3887,11 +2529,11 @@ def main(lan_game_data=None):
                     total_cards = len(game.player2.hand)
                     start_center = get_opponent_hand_card_center(total_cards, ai_selected_card_index)
                     ability = ai_card_to_play.ability or ""
-                    target_rects = PLAYER_ROW_RECTS if ("Deep Cover Agent" in ability or ai_card_to_play.row == "weather") else OPPONENT_ROW_RECTS
+                    target_rects = cfg.PLAYER_ROW_RECTS if ("Deep Cover Agent" in ability or ai_card_to_play.row == "weather") else cfg.OPPONENT_ROW_RECTS
                     target_rect = target_rects.get(ai_row_to_play)
                     if not target_rect:
                         # Fallback to any matching row rect
-                        target_rect = PLAYER_ROW_RECTS.get(ai_row_to_play) or OPPONENT_ROW_RECTS.get(ai_row_to_play)
+                        target_rect = cfg.PLAYER_ROW_RECTS.get(ai_row_to_play) or cfg.OPPONENT_ROW_RECTS.get(ai_row_to_play)
                     end_center = (target_rect.centerx, target_rect.centery) if target_rect else (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                     if ai_card_to_play.image:
                         anim_manager.add_effect(AICardPlayAnimation(ai_card_to_play.image, start_center, end_center))
@@ -3911,10 +2553,10 @@ def main(lan_game_data=None):
                         ambient_effects.add_ship(game.player2.faction, ai_card_to_play.name, is_player=False)
                     
                     # Trigger visual effect for the play
-                    target_rect = OPPONENT_ROW_RECTS.get(ai_row_to_play)
+                    target_rect = cfg.OPPONENT_ROW_RECTS.get(ai_row_to_play)
                     effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
                     effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
-
+    
                     weather_visual_applied = False
                     if ai_card_to_play.row == "weather":
                         weather_visual_applied = True
@@ -3924,19 +2566,19 @@ def main(lan_game_data=None):
                         else:
                             anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=500))
                             if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
-                                for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                                for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                     row_rect = rects.get(ai_row_to_play)
                                     if row_rect:
                                         anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
-
+    
                     # Check for Naquadah Overload
                     if not weather_visual_applied and "Naquadah Overload" in ability:
                         # Create blue explosions ONLY on rows where cards were destroyed
                         for player, destroyed_row in game.last_scorch_positions:
                             if player == game.player1:
-                                row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                                row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
                             else:
-                                row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                                row_rect = cfg.OPPONENT_ROW_RECTS.get(destroyed_row)
                             
                             if row_rect:
                                 anim_manager.add_effect(NaquadahExplosionEffect(
@@ -3959,12 +2601,12 @@ def main(lan_game_data=None):
                                 anim_manager.add_effect(ability_anim)
                                 ability_triggered = True
                                 break
-
+    
                         # Default stargate effect if no special ability
                         if not ability_triggered:
                             stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
                             anim_manager.add_effect(stargate_effect)
-
+    
                         # Special card unique visuals
                         if ai_card_to_play.row == "special":
                             add_special_card_effect(
@@ -3982,7 +2624,7 @@ def main(lan_game_data=None):
                 # Recalculate scores
                 game.player1.calculate_score()
                 game.player2.calculate_score()
-
+    
                 # Check if AI should use Iris Defense (before switching turn)
                 if (hasattr(ai_controller, 'strategy') and
                     ai_controller.strategy.should_use_iris_defense()):
@@ -3999,19 +2641,19 @@ def main(lan_game_data=None):
                         "ai",
                         icon="[#]"
                     )
-
+    
                 # Finish turn
                 ai_turn_anim.finish()
                 game.switch_turn()
                 ai_turn_in_progress = False
                 ai_selected_card_index = None
-
+    
         # LAN opponent turn handling
         elif game.current_player == game.player2 and game.game_state == "playing" and LAN_MODE:
             # Check if faction power was available before polling
             lan_power_available_before = (game.player2.faction_power and
                                           game.player2.faction_power.is_available())
-
+    
             # Poll for network message from opponent
             was_passed = game.player2.has_passed
             card_to_play, row_to_play = ai_controller.choose_move()
@@ -4019,7 +2661,7 @@ def main(lan_game_data=None):
             if not was_passed and game.player2.has_passed:
                 game.switch_turn()
                 continue
-
+    
             # Check if opponent used faction power
             lan_power_available_after = (game.player2.faction_power and
                                          game.player2.faction_power.is_available())
@@ -4033,7 +2675,7 @@ def main(lan_game_data=None):
                     SCREEN_HEIGHT
                 )
                 anim_manager.add_effect(faction_power_effect)
-
+    
                 # Add Iris closing animation for Tau'ri Gate Shutdown
                 if game.player2.faction == FACTION_TAURI:
                     from animations import IrisClosingEffect
@@ -4043,22 +2685,22 @@ def main(lan_game_data=None):
                 game.last_turn_actor = game.player2
                 game.switch_turn()
                 continue
-
+    
             if card_to_play and row_to_play:
                 # Opponent played a card - process it with animations
                 ability = card_to_play.ability or ""
-
+    
                 # Play the card
                 game.play_card(card_to_play, row_to_play)
-
+    
                 # Check if opponent played a siege card for space battle
                 if row_to_play == 'siege':
                     ambient_effects.add_ship(game.player2.faction, card_to_play.name, is_player=False)
-
+    
                 # Trigger visual effect for the play
-                target_rect = OPPONENT_ROW_RECTS.get(row_to_play)
+                target_rect = cfg.OPPONENT_ROW_RECTS.get(row_to_play)
                 if "Deep Cover Agent" in ability or card_to_play.row == "weather":
-                    target_rect = PLAYER_ROW_RECTS.get(row_to_play) or target_rect
+                    target_rect = cfg.PLAYER_ROW_RECTS.get(row_to_play) or target_rect
                 effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
                 effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
                 if card_to_play.row == "special":
@@ -4070,7 +2712,7 @@ def main(lan_game_data=None):
                         SCREEN_WIDTH,
                         SCREEN_HEIGHT
                     )
-
+    
                 weather_visual_applied = False
                 if card_to_play.row == "weather":
                     weather_visual_applied = True
@@ -4080,18 +2722,18 @@ def main(lan_game_data=None):
                     else:
                         anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=500))
                         if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
-                            for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                            for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                 row_rect = rects.get(row_to_play)
                                 if row_rect:
                                     anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
-
+    
                 # Check for Naquadah Overload
                 if not weather_visual_applied and "Naquadah Overload" in ability:
                     for player, destroyed_row in game.last_scorch_positions:
                         if player == game.player1:
-                            row_rect = PLAYER_ROW_RECTS.get(destroyed_row)
+                            row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
                         else:
-                            row_rect = OPPONENT_ROW_RECTS.get(destroyed_row)
+                            row_rect = cfg.OPPONENT_ROW_RECTS.get(destroyed_row)
                         if row_rect:
                             anim_manager.add_effect(NaquadahExplosionEffect(
                                 SCREEN_WIDTH // 2,
@@ -4113,23 +2755,23 @@ def main(lan_game_data=None):
                             anim_manager.add_effect(ability_anim)
                             ability_triggered = True
                             break
-
+    
                     # Default stargate effect if no special ability
                     if not ability_triggered:
                         stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
                         anim_manager.add_effect(stargate_effect)
-
+    
                 # Recalculate scores
                 game.player1.calculate_score()
                 game.player2.calculate_score()
-
+    
             # Note: If (None, None) returned, either opponent passed/used power (already handled),
             # or no message yet (keep polling next frame)
-
+    
         # Check for score changes and trigger animations
         prev_p1_before = prev_p1_score
         prev_p2_before = prev_p2_score
-
+    
         if game.player1.score != prev_p1_score:
             score_x = SCREEN_WIDTH - int(SCREEN_WIDTH * 0.052)
             p1_lead_gain = (prev_p1_before <= prev_p2_before) and (game.player1.score > game.player2.score)
@@ -4143,7 +2785,7 @@ def main(lan_game_data=None):
             anim_manager.add_score_animation('p2', prev_p2_score, game.player2.score,
                                             score_x, SCREEN_HEIGHT // 2 - 50, lead_burst=p2_lead_gain)
             prev_p2_score = game.player2.score
-
+    
         drag_hover_highlight = None
         drag_row_highlights = []
         if dragging_card and game.game_state == "playing":
@@ -4162,8 +2804,8 @@ def main(lan_game_data=None):
                 target_rows = get_weather_target_rows(dragging_card, hovered_row_name)
                 for row_name in target_rows:
                     color = get_row_color(row_name)
-                    player_rect = PLAYER_ROW_RECTS.get(row_name)
-                    opponent_rect = OPPONENT_ROW_RECTS.get(row_name)
+                    player_rect = cfg.PLAYER_ROW_RECTS.get(row_name)
+                    opponent_rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                     if player_rect:
                         drag_row_highlights.append({"rect": player_rect, "color": color, "alpha": 70})
                     if opponent_rect:
@@ -4176,7 +2818,7 @@ def main(lan_game_data=None):
                     if slot_rect.collidepoint(mouse_pos):
                         drag_hover_highlight = {"rect": slot_rect, "color": (255, 215, 0), "alpha": 140}
             elif dragging_card.row == "special":
-                for rects in (PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS):
+                for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                     for row_name, rect in rects.items():
                         if rect.collidepoint(mouse_pos):
                             drag_hover_highlight = {"rect": rect, "color": get_row_color(row_name), "alpha": 100}
@@ -4185,34 +2827,38 @@ def main(lan_game_data=None):
                         break
             else:
                 is_spy = "Deep Cover Agent" in ability
-                target_rects = OPPONENT_ROW_RECTS if is_spy else PLAYER_ROW_RECTS
+                target_rects = cfg.OPPONENT_ROW_RECTS if is_spy else cfg.PLAYER_ROW_RECTS
                 for row_name, rect in target_rects.items():
                     if rect.collidepoint(mouse_pos):
                         color = (255, 120, 120) if is_spy else get_row_color(row_name)
                         drag_hover_highlight = {"rect": rect, "color": color, "alpha": hover_alpha}
                         break
-
+    
         drag_visual_state = {
             "trail": drag_trail,
             "velocity": drag_velocity,
             "pickup_boost": drag_pickup_flash,
             "pulse": drag_pulse
         }
-
+    
         # --- Drawing ---
-        screen.blit(assets["board"], (0, 0))
+        # Use mulligan background during mulligan phase, otherwise board background
+        if game.game_state == "mulligan":
+            screen.blit(assets["mulligan_bg"], (0, 0))
+        else:
+            screen.blit(assets["board"], (0, 0))
         
         separator_color = (100, 150, 200, 150)
         separator_width = 3
         glow_color = (150, 200, 255, 80)
         x_start = PLAYFIELD_LEFT
         x_end = PLAYFIELD_LEFT + PLAYFIELD_WIDTH
-
-        for row_rect in list(OPPONENT_ROW_RECTS.values()) + list(PLAYER_ROW_RECTS.values()):
+    
+        for row_rect in list(cfg.OPPONENT_ROW_RECTS.values()) + list(cfg.PLAYER_ROW_RECTS.values()):
             y_pos = row_rect.bottom
-            if row_rect in OPPONENT_ROW_RECTS.values():
+            if row_rect in cfg.OPPONENT_ROW_RECTS.values():
                 y_pos += 8
-
+    
             pygame.draw.line(screen, glow_color, (x_start, y_pos - 2), (x_end, y_pos - 2), 1)
             pygame.draw.line(screen, glow_color, (x_start, y_pos - 1), (x_end, y_pos - 1), 1)
             pygame.draw.line(screen, separator_color, (x_start, y_pos), (x_end, y_pos), separator_width)
@@ -4224,9 +2870,9 @@ def main(lan_game_data=None):
         
         if game.game_state == "mulligan":
             # Draw mulligan UI
-            mulligan_title = SCORE_FONT.render("Select up to 2 cards to redraw", True, WHITE)
+            mulligan_title = cfg.SCORE_FONT.render("Select up to 2 cards to redraw", True, cfg.WHITE)
             screen.blit(mulligan_title, (SCREEN_WIDTH // 2 - mulligan_title.get_width() // 2, int(SCREEN_HEIGHT * 0.019)))
-            mulligan_subtitle = UI_FONT.render("Click cards to select/deselect, then click Redraw button", True, WHITE)
+            mulligan_subtitle = cfg.UI_FONT.render("Click cards to select/deselect, then click Redraw button", True, cfg.WHITE)
             screen.blit(mulligan_subtitle, (SCREEN_WIDTH // 2 - mulligan_subtitle.get_width() // 2, int(SCREEN_HEIGHT * 0.046)))
             draw_hand(
                 screen,
@@ -4237,15 +2883,15 @@ def main(lan_game_data=None):
                 hovered_card=hovered_card,
                 hover_scale=card_hover_scale
             )
-            draw_mulligan_button(screen, mulligan_selected)
+            board_renderer.draw_mulligan_button(screen, mulligan_selected)
             history_panel_rect = None
         elif game.game_state == "game_over":
             # Draw game over screen
-            game_over_text = SCORE_FONT.render("GAME OVER", True, WHITE)
+            game_over_text = cfg.SCORE_FONT.render("GAME OVER", True, cfg.WHITE)
             screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 100))
             
             if game.winner:
-                winner_text = SCORE_FONT.render(f"{game.winner.name} WINS!", True, (100, 255, 100))
+                winner_text = cfg.SCORE_FONT.render(f"{game.winner.name} WINS!", True, (100, 255, 100))
                 screen.blit(winner_text, (SCREEN_WIDTH // 2 - winner_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
                 
                 # Record game result and show rewards
@@ -4254,9 +2900,9 @@ def main(lan_game_data=None):
                     
                     # Record win/loss using persistence system
                     player_won = (game.winner == game.player1)
-
+    
                     # Update Draft Run Progress
-                    if is_draft_mode:
+                    if hasattr(game, 'is_draft_match') and game.is_draft_match:
                         persistence = get_persistence()
                         # Update the active run
                         active_run_data = persistence.get_active_draft_run()
@@ -4282,7 +2928,7 @@ def main(lan_game_data=None):
                                     persistence.record_draft_completion(
                                         leader_id=leader_id,
                                         leader_name=leader_name,
-                                        faction=player_faction,
+                                        faction=game.player1_faction,
                                         cards=player_deck,
                                         deck_power=deck_power,
                                         won=True,
@@ -4316,7 +2962,7 @@ def main(lan_game_data=None):
                                 persistence.record_draft_completion(
                                     leader_id=leader_id,
                                     leader_name=leader_name,
-                                    faction=player_faction,
+                                    faction=game.player1_faction,
                                     cards=player_deck,
                                     deck_power=deck_power,
                                     won=False,
@@ -4327,14 +2973,14 @@ def main(lan_game_data=None):
                             persistence.record_draft_completion(
                                 leader_id=player_leader.get('card_id', ''),
                                 leader_name=player_leader.get('name', 'Unknown'),
-                                faction=player_faction,
+                                faction=game.player1_faction,
                                 cards=player_deck,
                                 deck_power=sum(c.power for c in player_deck),
                                 won=player_won
                             )
-
+    
                     mode_label = "lan" if LAN_MODE else "ai"
-
+    
                     # Record rich stats summary once per game (BEFORE blocking UI)
                     try:
                         # Extract leader names robustly
@@ -4345,13 +2991,13 @@ def main(lan_game_data=None):
                             leader_name = leader_obj # Use ID if name unavailable
                         else:
                             leader_name = str(leader_obj) if leader_obj else 'Unknown'
-
+    
                         opp_leader_obj = game.player2.leader
                         if isinstance(opp_leader_obj, dict):
                             opponent_leader = opp_leader_obj.get('name', 'Unknown')
                         else:
                             opponent_leader = str(opp_leader_obj) if opp_leader_obj else 'Unknown'
-
+    
                         # Check if player lost round 1 (for comeback tracking)
                         round_history = getattr(game, "round_history", [])
                         lost_round_1 = len(round_history) > 0 and round_history[0].get("winner") == "player2"
@@ -4360,8 +3006,8 @@ def main(lan_game_data=None):
                         
                         summary = {
                             "won": player_won,
-                            "player_faction": player_faction,
-                            "opponent_faction": game.player2.faction,
+                            "player_faction": game.player1_faction,
+                            "opponent_faction": game.player2_faction,
                             "leader": leader_name,
                             "opponent_leader": opponent_leader,
                             "turns": getattr(game, "turn_count", 0),
@@ -4385,41 +3031,44 @@ def main(lan_game_data=None):
                         print(f"[stats] Unable to record summary: {exc}")
                         import traceback
                         traceback.print_exc()
-
+    
                     if player_won:
-                        record_victory(player_faction, mode_label)
-
+                        record_victory(game.player1_faction, mode_label)
+    
                         # FIRST: Check for leader unlock (every 3 consecutive wins)
                         persistence = get_persistence()
                         consecutive_wins = persistence.get_consecutive_wins()
-                        
+
                         if consecutive_wins > 0 and consecutive_wins % 3 == 0:
-                            # Show leader reward screen
-                            unlocked_leader = show_leader_reward_screen(screen, unlock_system, player_faction)
-                            if unlocked_leader:
-                                leader_name = unlocked_leader.get('name', 'Unknown Leader')
-                                game.unlock_message = UI_FONT.render(f"NEW LEADER UNLOCKED: {leader_name}!", True, (255, 215, 0))
-                                game.streak_message = UI_FONT.render(f"3 Win Streak! Leader unlocked!", True, (255, 150, 50))
+                            # Show leader reward screen - unless unlock all is enabled
+                            if not unlock_system.is_unlock_override_enabled():
+                                unlocked_leader = show_leader_reward_screen(screen, unlock_system, game.player1_faction)
+                                if unlocked_leader:
+                                    leader_name = unlocked_leader.get('name', 'Unknown Leader')
+                                    game.unlock_message = cfg.UI_FONT.render(f"NEW LEADER UNLOCKED: {leader_name}!", True, (255, 215, 0))
+                                    game.streak_message = cfg.UI_FONT.render(f"3 Win Streak! Leader unlocked!", True, (255, 150, 50))
                         
-                        # SECOND: Always show card reward screen (every win)
+                        # SECOND: Show card reward screen (every win) - unless unlock all is enabled
                         unlock_system.record_game_result(True)
-                        unlocked_card = show_card_reward_screen(screen, unlock_system, faction=player_faction)
-                        if unlocked_card:
-                            # Add unlocked card to player's deck
-                            persistence = get_persistence()
-                            persistence.unlock_card(unlocked_card)
-                            current_deck = persistence.get_deck(player_faction)
-                            current_cards = current_deck.get("cards", [])
-                            if unlocked_card not in current_cards:
-                                current_cards.append(unlocked_card)
-                                persistence.set_deck(player_faction, current_deck.get("leader", ""), current_cards)
-                                print(f"✓ Card {unlocked_card} added to {player_faction} deck")
-                            
-                            card_msg = UI_FONT.render(f"Unlocked: {UNLOCKABLE_CARDS[unlocked_card]['name']}!", True, (255, 215, 0))
-                            if hasattr(game, 'unlock_message'):
-                                game.unlock_message2 = card_msg
-                            else:
-                                game.unlock_message = card_msg
+                        # Only show reward screen if unlock all is not enabled
+                        if not unlock_system.is_unlock_override_enabled():
+                            unlocked_card = show_card_reward_screen(screen, unlock_system, faction=game.player1_faction)
+                            if unlocked_card:
+                                # Add unlocked card to player's deck
+                                persistence = get_persistence()
+                                persistence.unlock_card(unlocked_card)
+                                current_deck = persistence.get_deck(game.player1_faction)
+                                current_cards = current_deck.get("cards", [])
+                                if unlocked_card not in current_cards:
+                                    current_cards.append(unlocked_card)
+                                    persistence.set_deck(game.player1_faction, current_deck.get("leader", ""), current_cards)
+                                    print(f"✓ Card {unlocked_card} added to {game.player1_faction} deck")
+
+                                card_msg = cfg.UI_FONT.render(f"Unlocked: {UNLOCKABLE_CARDS[unlocked_card]['name']}!", True, (255, 215, 0))
+                                if hasattr(game, 'unlock_message'):
+                                    game.unlock_message2 = card_msg
+                                else:
+                                    game.unlock_message = card_msg
                         
                         # Show win streak progress
                         if not hasattr(game, 'streak_message'):
@@ -4429,12 +3078,12 @@ def main(lan_game_data=None):
                                 remaining = 3 - (streak % 3)
                                 if remaining == 3:
                                     remaining = 0  # Just got a leader unlock
-                                game.streak_message = UI_FONT.render(f"Win Streak: {streak}! ({remaining} more for leader unlock)", True, (100, 255, 100))
+                                game.streak_message = cfg.UI_FONT.render(f"Win Streak: {streak}! ({remaining} more for leader unlock)", True, (100, 255, 100))
                     else:
-                        record_defeat(player_faction, mode_label)
+                        record_defeat(game.player1_faction, mode_label)
                         unlock_system.record_game_result(False)
             
-            score_text = UI_FONT.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, WHITE)
+            score_text = cfg.UI_FONT.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, cfg.WHITE)
             screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2))
             
             # Show unlock messages if exist
@@ -4452,35 +3101,179 @@ def main(lan_game_data=None):
             if hasattr(game, 'draft_messages'):
                 for msg in game.draft_messages:
                     if isinstance(msg, str):
-                        msg_surf = UI_FONT.render(msg, True, (255, 200, 100))
+                        msg_surf = cfg.UI_FONT.render(msg, True, (255, 200, 100))
                     else:
                         msg_surf = msg
                     screen.blit(msg_surf, (SCREEN_WIDTH // 2 - msg_surf.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
                     y_offset += 35
-
+    
             if getattr(game, 'draft_victory', False):
                 egg_font = pygame.font.SysFont("Arial", 48, bold=True)
                 egg_text = egg_font.render("EASTER EGG UNLOCKED!", True, (255, 0, 255))
-                sub_text = UI_FONT.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
+                sub_text = cfg.UI_FONT.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
                 
                 screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 20))
                 screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 70))
                 y_offset += 100
             
-            # Show different options for LAN mode vs solo play
-            if LAN_MODE:
-                # LAN mode: offer Play Again or Disconnect
-                play_again_text = UI_FONT.render("Press P to PLAY AGAIN (new faction/leader) or ESC to DISCONNECT", True, (100, 200, 255))
-                screen.blit(play_again_text, (SCREEN_WIDTH // 2 - play_again_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
-            else:
-                restart_text = UI_FONT.render("Press R to restart or ESC to quit", True, WHITE)
-                screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 15))
-            history_panel_rect = None
-        else:
-            draw_board(screen, game, selected_card, dragging_card=dragging_card,
-                       drag_hover_highlight=drag_hover_highlight, drag_row_highlights=drag_row_highlights)
-            draw_scores(screen, game, anim_manager, render_static=False)
+            # Show different options based on game mode
+            if hasattr(game, 'is_draft_match') and game.is_draft_match:
+                # In draft mode, check if we should continue automatically
+                persistence = get_persistence()
+                active_run_data = persistence.get_active_draft_run()
 
+                # Check if player won
+                player_won = (game.winner == game.player1)
+
+                if active_run_data:
+                    current_wins = active_run_data.get('wins', 0)
+                    if player_won and current_wins < DraftRun.MAX_WINS:  # Player won and still in draft run
+                        # Show draft progress and options
+                        scale = display_manager.SCALE_FACTOR
+                        button_width = int(250 * scale)
+                        button_height = int(55 * scale)
+                        button_spacing = int(15 * scale)
+                        start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                        mouse_pos = pygame.mouse.get_pos()
+
+                        # Progress message
+                        progress_text = cfg.UI_FONT.render(f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", True, (100, 255, 100))
+                        screen.blit(progress_text, (SCREEN_WIDTH // 2 - progress_text.get_width() // 2, start_y - int(50 * scale)))
+
+                        # Define buttons
+                        continue_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                        save_exit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                        quit_draft_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                        # Draw Stargwent-styled buttons
+                        draw_stargwent_button(screen, continue_button, "CONTINUE DRAFT", mouse_pos,
+                                              base_color=(40, 60, 40), hover_color=(60, 90, 60),
+                                              border_color=(80, 180, 80), hover_border=(100, 255, 100))
+                        draw_stargwent_button(screen, save_exit_button, "SAVE & EXIT", mouse_pos,
+                                              base_color=(50, 50, 70), hover_color=(70, 70, 100),
+                                              border_color=(100, 100, 180), hover_border=(150, 150, 255))
+                        draw_stargwent_button(screen, quit_draft_button, "ABANDON DRAFT", mouse_pos,
+                                              base_color=(70, 40, 40), hover_color=(100, 50, 50),
+                                              border_color=(180, 80, 80), hover_border=(255, 100, 100))
+
+                        # Handle button clicks
+                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            if continue_button.collidepoint(mouse_pos):
+                                # Continue to next draft game
+                                battle_music.stop_battle_music()
+                                main()  # Restart the game for the next draft battle
+                                return
+                            elif save_exit_button.collidepoint(mouse_pos):
+                                # Save is automatic - just exit to main menu
+                                battle_music.stop_battle_music()
+                                game.main_menu_requested = True
+                            elif quit_draft_button.collidepoint(mouse_pos):
+                                # Abandon draft run
+                                persistence.clear_active_draft_run()
+                                battle_music.stop_battle_music()
+                                game.main_menu_requested = True
+                    else:
+                        # Draft completed (either won all rounds or lost) - show game over options
+                        scale = display_manager.SCALE_FACTOR
+                        button_width = int(250 * scale)
+                        button_height = int(55 * scale)
+                        button_spacing = int(20 * scale)
+                        start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                        mouse_pos = pygame.mouse.get_pos()
+
+                        # Define buttons - different for draft mode end
+                        new_draft_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                        main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                        quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                        # Draw Stargwent-styled buttons
+                        draw_stargwent_button(screen, new_draft_button, "NEW DRAFT", mouse_pos,
+                                              base_color=(40, 60, 40), hover_color=(60, 90, 60),
+                                              border_color=(80, 180, 80), hover_border=(100, 255, 100))
+                        draw_stargwent_button(screen, main_menu_button, "MAIN MENU", mouse_pos)
+                        draw_stargwent_button(screen, quit_button, "QUIT", mouse_pos,
+                                              base_color=(70, 40, 40), hover_color=(100, 50, 50),
+                                              border_color=(180, 80, 80), hover_border=(255, 100, 100))
+
+                        # Handle button clicks
+                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            if new_draft_button.collidepoint(mouse_pos):
+                                game.main_menu_requested = True  # Return to menu to start new draft
+                            elif main_menu_button.collidepoint(mouse_pos):
+                                game.main_menu_requested = True
+                            elif quit_button.collidepoint(mouse_pos):
+                                pygame.quit()
+                                sys.exit()
+                else:
+                    # No active draft run - show regular game over options
+                    scale = display_manager.SCALE_FACTOR
+                    button_width = int(250 * scale)
+                    button_height = int(55 * scale)
+                    button_spacing = int(20 * scale)
+                    start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                    mouse_pos = pygame.mouse.get_pos()
+
+                    # Define buttons
+                    rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                    main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                    quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                    # Draw Stargwent-styled buttons
+                    draw_stargwent_button(screen, rematch_button, "REMATCH", mouse_pos)
+                    draw_stargwent_button(screen, main_menu_button, "MAIN MENU", mouse_pos)
+                    draw_stargwent_button(screen, quit_button, "QUIT", mouse_pos,
+                                          base_color=(70, 40, 40), hover_color=(100, 50, 50),
+                                          border_color=(180, 80, 80), hover_border=(255, 100, 100))
+
+                    # Handle button clicks
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        if rematch_button.collidepoint(mouse_pos):
+                            game.restart_requested = True
+                        elif main_menu_button.collidepoint(mouse_pos):
+                            game.main_menu_requested = True
+                        elif quit_button.collidepoint(mouse_pos):
+                            pygame.quit()
+                            sys.exit()
+
+            else:
+                # Regular game - show game over options with Stargwent styling
+                scale = display_manager.SCALE_FACTOR
+                button_width = int(250 * scale)
+                button_height = int(55 * scale)
+                button_spacing = int(20 * scale)
+                start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                mouse_pos = pygame.mouse.get_pos()
+
+                # Define buttons
+                rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
+                main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
+                quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                # Draw Stargwent-styled buttons
+                draw_stargwent_button(screen, rematch_button, "REMATCH", mouse_pos)
+                draw_stargwent_button(screen, main_menu_button, "MAIN MENU", mouse_pos)
+                draw_stargwent_button(screen, quit_button, "QUIT", mouse_pos,
+                                      base_color=(70, 40, 40), hover_color=(100, 50, 50),
+                                      border_color=(180, 80, 80), hover_border=(255, 100, 100))
+
+                # Handle button clicks
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if rematch_button.collidepoint(mouse_pos):
+                        game.restart_requested = True
+                    elif main_menu_button.collidepoint(mouse_pos):
+                        game.main_menu_requested = True
+                    elif quit_button.collidepoint(mouse_pos):
+                        pygame.quit()
+                        sys.exit()
+            history_panel_rect = None
+        if ui_state != UIState.LEADER_MATCHUP and game.game_state != "game_over":
+            board_renderer.draw_board(screen, game, selected_card, dragging_card=dragging_card,
+                       drag_hover_highlight=drag_hover_highlight,
+                       drag_row_highlights=None)  # Add logic for drag row highlights if needed
+            board_renderer.draw_scores(screen, game, anim_manager, render_static=False)
+            
+            # Draw row scores using render_engine (special specialized boxes)
+    
             # Auto-start Hathor steal animation (LAN/AI) if pending and not started yet
             steal_info = getattr(game, "hathor_steal_info", None)
             if steal_info and not steal_info.get("animation_started"):
@@ -4488,7 +3281,7 @@ def main(lan_game_data=None):
                 target_row = steal_info.get("target_row", "close")
                 if card and hasattr(card, "rect"):
                     start_pos = (card.rect.centerx, card.rect.centery)
-                    target_rect = PLAYER_ROW_RECTS.get(target_row) or OPPONENT_ROW_RECTS.get(target_row)
+                    target_rect = cfg.PLAYER_ROW_RECTS.get(target_row) or cfg.OPPONENT_ROW_RECTS.get(target_row)
                     end_pos = (target_rect.centerx, target_rect.centery) if target_rect else (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                     h_anim = HathorStealAnimation(
                         card,
@@ -4498,14 +3291,19 @@ def main(lan_game_data=None):
                     )
                     anim_manager.add_animation(h_anim)
                     steal_info["animation_started"] = True
-
+    
+            # 1. Sidebar Positioning (No More Percentages)
+            panel_width = 220 # Narrower panel to fit next to scores
             history_rect = pygame.Rect(
-                HUD_LEFT + int(HUD_WIDTH * 0.42),
+                cfg.SIDEBAR_X + 260,
                 pct_y(0.12),
-                max(50, int(HUD_WIDTH * 0.55)),
+                panel_width,
                 pct_y(0.80) - pct_y(0.12)
             )
             history_panel_rect = history_rect
+    
+            # 2. Draw Score Boxes (Anchored to Sidebar start + padding)
+            draw_row_score_boxes(screen, game)
 
             # Always show game history in the HUD panel
             history_entry_hitboxes, history_scroll_limit = draw_history_panel(
@@ -4515,75 +3313,30 @@ def main(lan_game_data=None):
                 history_scroll_offset,
                 pygame.mouse.get_pos()
             )
-            
-            # LAN Chat Input (Integrated)
-            if lan_chat_panel:
-                if lan_chat_panel.active:
-                    # Draw input box below history panel
-                    input_height = 40
-                    input_rect = pygame.Rect(
-                        history_rect.x, 
-                        history_rect.bottom + 5, 
-                        history_rect.width, 
-                        input_height
-                    )
-                    
-                    # Draw background
-                    pygame.draw.rect(screen, (30, 35, 60), input_rect, border_radius=5)
-                    pygame.draw.rect(screen, (100, 200, 255), input_rect, 2, border_radius=5)
-                    
-                    # Draw text
-                    font_input = pygame.font.SysFont("Consolas", 18)
-                    input_text = lan_chat_panel.input_text
-                    
-                    # Cursor blink
-                    if (pygame.time.get_ticks() // 500) % 2 == 0:
-                        input_text += "|"
-                        
-                    surf = font_input.render(input_text, True, (255, 255, 255))
-                    
-                    # Clip if too long
-                    area_rect = pygame.Rect(input_rect.x + 5, input_rect.y + 10, input_rect.width - 10, input_rect.height - 20)
-                    screen.set_clip(area_rect)
-                    screen.blit(surf, (input_rect.x + 5, input_rect.y + 10))
-                    screen.set_clip(None)
-                    
-                    # Typing indicator if peer is typing
-                    if lan_chat_panel.peer_is_typing:
-                        # Draw indicator slightly above input (overlapping bottom of history)
-                        lan_chat_panel._draw_typing_indicator(screen, input_rect)
-
-                else:
-                    # Draw small hint
-                    hint_font = pygame.font.SysFont("Arial", 14)
-                    hint_text = hint_font.render("Press T or Enter to Chat", True, (150, 200, 255))
-                    screen.blit(hint_text, (history_rect.x, history_rect.bottom + 5))
-                    
-                    # Show typing indicator even if closed (as a notification)
-                    if lan_chat_panel.peer_is_typing:
-                        typing_rect = pygame.Rect(history_rect.x, history_rect.bottom + 25, history_rect.width, 40)
-                        lan_chat_panel._draw_typing_indicator(screen, typing_rect)
-
-            history_scroll_offset = max(0, min(history_scroll_offset, history_scroll_limit))
-            if history_manual_scroll and history_scroll_offset <= 0:
-                history_manual_scroll = False
-
-            draw_row_score_boxes(screen, game)
-
-            round_font = pygame.font.SysFont("Arial", max(28, int(30 * SCALE_FACTOR)), bold=True)
-            round_text = round_font.render(f"Round {game.round_number}", True, WHITE)
-            screen.blit(round_text, (HUD_LEFT + int(HUD_WIDTH * 0.1), pct_y(0.05)))
+    
+            # Round and Turn indicator in HUD (horizontal layout)
+            round_font = pygame.font.SysFont("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
+            round_text = round_font.render(f"Round {game.round_number}", True, cfg.WHITE)
             turn_color = (120, 255, 160) if game.current_player == game.player1 else (255, 140, 140)
-            turn_text = UI_FONT.render("YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN", True, turn_color)
-            screen.blit(turn_text, (HUD_LEFT + int(HUD_WIDTH * 0.1), pct_y(0.05) + round_text.get_height() + 6))
-
+            turn_text = round_font.render("YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN", True, turn_color)
+            # Draw on same line: "Round X - YOUR TURN"
+            hud_text_x = HUD_LEFT + int(HUD_WIDTH * 0.05)
+            hud_text_y = pct_y(0.04)
+            screen.blit(round_text, (hud_text_x, hud_text_y))
+            screen.blit(turn_text, (hud_text_x, hud_text_y + round_text.get_height() + 4))
+    
             command_bar_surface = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
             command_bar_surface.fill((10, 20, 35, 200))
             pygame.draw.line(command_bar_surface, (80, 120, 180), (0, 0), (SCREEN_WIDTH, 0), 2)
             screen.blit(command_bar_surface, (0, COMMAND_BAR_Y))
+    
+            board_renderer.draw_pass_button(screen, game, HUD_PASS_BUTTON_RECT)
 
-            draw_pass_button(screen, game, HUD_PASS_BUTTON_RECT)
-
+            # Draw keyboard highlight for Pass button
+            if keyboard_button_cursor == 0 and game.current_player == game.player1:
+                highlight_rect = HUD_PASS_BUTTON_RECT.inflate(12, 12)
+                pygame.draw.rect(screen, (255, 255, 100), highlight_rect, width=3, border_radius=highlight_rect.width // 2)
+    
             draw_hand(
                 screen,
                 game.player1,
@@ -4595,6 +3348,31 @@ def main(lan_game_data=None):
             )
             draw_opponent_hand(screen, game.player2)
 
+            # Draw keyboard navigation hint when active
+            if game.current_player == game.player1 and ui_state == UIState.PLAYING:
+                hint_font = pygame.font.SysFont("Arial", max(18, int(20 * SCALE_FACTOR)))
+                hint_text = None
+
+                if keyboard_mode_active and keyboard_hand_cursor >= 0:
+                    if keyboard_hand_cursor < len(game.player1.hand):
+                        card = game.player1.hand[keyboard_hand_cursor]
+                        if card.row in ("agile", "weather", "special"):
+                            hint_text = "←/→: Card | ↑/↓: Row | F: Play | TAB: Buttons"
+                        else:
+                            hint_text = "←/→: Card | F: Play | SPACE: Preview | TAB: Buttons"
+                elif keyboard_button_cursor >= 0:
+                    btn_name = "PASS" if keyboard_button_cursor == 0 else "FACTION POWER"
+                    hint_text = f"↑/↓: Switch | SPACE: {btn_name} | ←/→: Cards"
+
+                if hint_text:
+                    hint_surf = hint_font.render(hint_text, True, (180, 200, 220))
+                    hint_x = (SCREEN_WIDTH - hint_surf.get_width()) // 2
+                    hint_y = COMMAND_BAR_Y - hint_surf.get_height() - 8
+                    hint_bg = pygame.Surface((hint_surf.get_width() + 16, hint_surf.get_height() + 8), pygame.SRCALPHA)
+                    hint_bg.fill((20, 30, 50, 180))
+                    screen.blit(hint_bg, (hint_x - 8, hint_y - 4))
+                    screen.blit(hint_surf, (hint_x, hint_y))
+    
             mouse_pos = pygame.mouse.get_pos()
             ai_area = LEADER_TOP_RECT.copy()
             player_area = LEADER_BOTTOM_RECT.copy()
@@ -4614,7 +3392,7 @@ def main(lan_game_data=None):
                 faction_power_ready=bool(game.player1.faction_power and game.player1.faction_power.is_available()),
                 hover_pos=mouse_pos
             )
-
+    
             ai_leader_rect = ai_stack["leader_rect"]
             ai_ability_rect = ai_stack["ability_rect"]
             ai_faction_button_rect = ai_stack["faction_rect"]
@@ -4626,10 +3404,15 @@ def main(lan_game_data=None):
             player_special_button_rect = player_stack.get("special_rect")
             player_special_button_kind = player_stack.get("special_kind")
             discard_rect = player_stack.get("discard_rect") or discard_rect
-
+    
             iris_button_rect = player_special_button_rect if player_special_button_kind == "iris" else None
             ring_transport_button_rect = player_special_button_rect if player_special_button_kind == "rings" else None
 
+            # Draw keyboard highlight for Faction Power button
+            if keyboard_button_cursor == 1 and game.current_player == game.player1 and player_faction_button_rect:
+                highlight_rect = player_faction_button_rect.inflate(8, 8)
+                pygame.draw.rect(screen, (255, 255, 100), highlight_rect, width=3, border_radius=8)
+    
             if ai_turn_in_progress:
                 total_cards = len(game.player2.hand)
                 if total_cards > 0:
@@ -4639,22 +3422,23 @@ def main(lan_game_data=None):
                     right_edge = positions[-1] + CARD_WIDTH
                     opponent_hand_area = pygame.Rect(left_edge, opponent_hand_area_y,
                                                      right_edge - left_edge, CARD_HEIGHT)
-                    ai_turn_anim.draw(screen, UI_FONT, opponent_hand_area)
+                    ai_turn_anim.draw(screen, cfg.UI_FONT, opponent_hand_area)
         
-        # Draw animations and effects on top of everything
-        anim_manager.draw_effects(screen)
-        anim_manager.draw_weather(screen)
+        # Draw animations and effects on top of everything (but not during game_over)
+        if game.game_state != "game_over":
+            anim_manager.draw_effects(screen)
+            anim_manager.draw_weather(screen)
         
-        # Draw Iris Power effect (full-screen cinematic)
-        if faction_power_effect:
+        # Draw Iris Power effect (full-screen cinematic) - not during game_over
+        if faction_power_effect and game.game_state != "game_over":
             faction_power_effect.draw(screen)
-        
-        # Draw Ring Transportation animation
-        if ring_transport_animation:
+
+        # Draw Ring Transportation animation - not during game_over
+        if ring_transport_animation and game.game_state != "game_over":
             ring_transport_animation.draw(screen)
         
-        # Draw visual feedback for ring transport selection mode
-        if ring_transport_selection:
+        # Draw visual feedback for ring transport selection mode (not during game_over)
+        if ring_transport_selection and game.game_state != "game_over":
             # Dim the screen slightly
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 100))
@@ -4722,10 +3506,10 @@ def main(lan_game_data=None):
         
         # Draw card inspection overlay (on top of EVERYTHING)
         if inspected_card:
-            draw_card_inspection_overlay(screen, inspected_card, SCREEN_WIDTH, SCREEN_HEIGHT)
+            selection_overlays.draw_card_inspection_overlay(screen, inspected_card, SCREEN_WIDTH, SCREEN_HEIGHT)
         
         if inspected_leader:
-            draw_leader_inspection_overlay(screen, inspected_leader, SCREEN_WIDTH, SCREEN_HEIGHT)
+            selection_overlays.draw_leader_inspection_overlay(screen, inspected_leader, SCREEN_WIDTH, SCREEN_HEIGHT)
         
         # Medical Evac selection overlay
         medic_card_rects = []
@@ -4746,7 +3530,7 @@ def main(lan_game_data=None):
                 game.last_turn_actor = game.player1
                 game.switch_turn()
             else:
-                medic_card_rects = draw_medic_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+                medic_card_rects = selection_overlays.draw_medic_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
                 
                 # Handle clicks on medic cards
                 mouse_pos = pygame.mouse.get_pos()
@@ -4771,7 +3555,7 @@ def main(lan_game_data=None):
         # Ring Transport selection overlay
         decoy_card_rects = []
         if ui_state == UIState.DECOY_SELECT:
-            decoy_card_rects = draw_decoy_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+            decoy_card_rects = selection_overlays.draw_decoy_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             # Handle clicks on decoy cards
             mouse_pos = pygame.mouse.get_pos()
@@ -4795,8 +3579,8 @@ def main(lan_game_data=None):
         
         # Jonas Quinn peek overlay
         if ui_state == UIState.JONAS_PEEK:
-            draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-
+            selection_overlays.draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+    
             # Handle click to close
             if pygame.mouse.get_pressed()[0]:
                 ui_state = UIState.PLAYING
@@ -4807,15 +3591,22 @@ def main(lan_game_data=None):
         # Ba'al Clone selection overlay
         baal_card_rects = []
         if ui_state == UIState.BAAL_CLONE_SELECT:
-            baal_card_rects = draw_baal_clone_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+            baal_card_rects = selection_overlays.draw_baal_clone_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
                 for card, rect in baal_card_rects:
                     if rect.collidepoint(mouse_pos):
-                        # Clone this card
+                        # Clone this card - create proper independent copy
                         import copy
-                        cloned_card = copy.deepcopy(card)
+                        from cards import load_card_image
+                        cloned_card = copy.copy(card)
+                        # Create a new rect for the clone (avoid sharing the same rect object)
+                        cloned_card.rect = pygame.Rect(0, 0, cfg.CARD_WIDTH, cfg.CARD_HEIGHT)
+                        # ALWAYS load image fresh for cloned card to ensure it displays correctly
+                        load_card_image(cloned_card)
+                        # Clear animation flags
+                        cloned_card.in_transit = False
                         # Find which row the original is in
                         for row_name, row_cards in game.player1.board.items():
                             if card in row_cards:
@@ -4829,7 +3620,7 @@ def main(lan_game_data=None):
         # Vala selection overlay
         vala_card_rects = []
         if ui_state == UIState.VALA_SELECT:
-            vala_card_rects = draw_vala_selection_overlay(screen, vala_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
+            vala_card_rects = selection_overlays.draw_vala_selection_overlay(screen, vala_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
             
             mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
@@ -4846,11 +3637,11 @@ def main(lan_game_data=None):
                         vala_cards_to_choose = []
                         pygame.time.wait(200)
                         break
-
+    
         # Catherine Langford selection overlay
         catherine_card_rects = []
         if ui_state == UIState.CATHERINE_SELECT:
-            catherine_card_rects = draw_catherine_selection_overlay(screen, catherine_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
+            catherine_card_rects = selection_overlays.draw_catherine_selection_overlay(screen, catherine_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
             mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
                 for card, rect in catherine_card_rects:
@@ -4866,7 +3657,7 @@ def main(lan_game_data=None):
                         catherine_cards_to_choose = []
                         pygame.time.wait(200)
                         break
-
+    
         # Generic leader choice overlay (Jonas Quinn, Ba'al, etc.)
         leader_choice_rects = []
         if pending_leader_choice:
@@ -4874,7 +3665,7 @@ def main(lan_game_data=None):
             if ui_state != UIState.LEADER_CHOICE_SELECT:
                 ui_state = UIState.LEADER_CHOICE_SELECT
                 
-            leader_choice_rects = draw_leader_choice_overlay(screen, pending_leader_choice, SCREEN_WIDTH, SCREEN_HEIGHT)
+            leader_choice_rects = selection_overlays.draw_leader_choice_overlay(screen, pending_leader_choice, SCREEN_WIDTH, SCREEN_HEIGHT)
             mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
                 for card, rect in leader_choice_rects:
@@ -4898,7 +3689,7 @@ def main(lan_game_data=None):
                         ui_state = UIState.PLAYING
                         pygame.time.wait(200)
                         break
-
+    
         # Thor move mode - simple visual indicator
         if ui_state == UIState.THOR_MOVE_SELECT:
             # Draw indicator
@@ -4928,7 +3719,7 @@ def main(lan_game_data=None):
                             break
                 else:
                     # Second click: select destination row
-                    for row_name, rect in PLAYER_ROW_RECTS.items():
+                    for row_name, rect in cfg.PLAYER_ROW_RECTS.items():
                         if rect.collidepoint(mouse_pos):
                             # Move the unit
                             for source_row, row_cards in game.player1.board.items():
@@ -4944,8 +3735,8 @@ def main(lan_game_data=None):
         
         # Discard pile viewer overlay
         if ui_state == UIState.DISCARD_VIEW:
-            draw_discard_viewer(screen, game.player1.discard_pile, SCREEN_WIDTH, SCREEN_HEIGHT, discard_scroll)
-
+            selection_overlays.draw_discard_viewer(screen, game.player1.discard_pile, SCREEN_WIDTH, SCREEN_HEIGHT, discard_scroll)
+    
         # Context popup for leader column buttons
         if button_info_popup and ui_state != UIState.PAUSED and not inspected_card and not inspected_leader:
             expires_at = button_info_popup.get("expires_at")
@@ -4960,65 +3751,90 @@ def main(lan_game_data=None):
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
             screen.blit(overlay, (0, 0))
-            
+
             # Pause menu
             menu_width = 500
-            menu_height = 400
+            menu_height = 480
             menu_x = (SCREEN_WIDTH - menu_width) // 2
             menu_y = (SCREEN_HEIGHT - menu_height) // 2
-            
+
             # Menu background
             pygame.draw.rect(screen, (30, 30, 40), (menu_x, menu_y, menu_width, menu_height), border_radius=15)
             pygame.draw.rect(screen, (100, 150, 200), (menu_x, menu_y, menu_width, menu_height), 5, border_radius=15)
-            
+
             # Title
             pause_font = pygame.font.SysFont("Arial", 56, bold=True)
             title_text = pause_font.render("PAUSED", True, (200, 200, 200))
-            title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + 80))
+            title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + 70))
             screen.blit(title_text, title_rect)
-            
+
             # Buttons
             button_font = pygame.font.SysFont("Arial", 32, bold=True)
             button_width = 350
-            button_height = 60
+            button_height = 55
             button_x = (SCREEN_WIDTH - button_width) // 2
-            
+            button_spacing = 70
+            mouse_pos = pygame.mouse.get_pos()
+
             # Resume button
-            resume_button = pygame.Rect(button_x, menu_y + 160, button_width, button_height)
-            pygame.draw.rect(screen, (50, 180, 50), resume_button, border_radius=10)
-            resume_text = button_font.render("RESUME (ESC)", True, (255, 255, 255))
+            resume_button = pygame.Rect(button_x, menu_y + 140, button_width, button_height)
+            resume_hover = resume_button.collidepoint(mouse_pos)
+            pygame.draw.rect(screen, (70, 200, 70) if resume_hover else (50, 160, 50), resume_button, border_radius=10)
+            pygame.draw.rect(screen, (100, 255, 100) if resume_hover else (80, 180, 80), resume_button, 2, border_radius=10)
+            resume_text = button_font.render("RESUME", True, (255, 255, 255))
             resume_rect = resume_text.get_rect(center=resume_button.center)
             screen.blit(resume_text, resume_rect)
-            
+
+            # Options button
+            options_button = pygame.Rect(button_x, menu_y + 140 + button_spacing, button_width, button_height)
+            options_hover = options_button.collidepoint(mouse_pos)
+            pygame.draw.rect(screen, (80, 140, 200) if options_hover else (60, 100, 160), options_button, border_radius=10)
+            pygame.draw.rect(screen, (120, 180, 255) if options_hover else (80, 140, 200), options_button, 2, border_radius=10)
+            options_text = button_font.render("OPTIONS", True, (255, 255, 255))
+            options_rect = options_text.get_rect(center=options_button.center)
+            screen.blit(options_text, options_rect)
+
             # Main Menu button
-            main_menu_button = pygame.Rect(button_x, menu_y + 240, button_width, button_height)
-            pygame.draw.rect(screen, (180, 140, 50), main_menu_button, border_radius=10)
+            main_menu_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * 2, button_width, button_height)
+            main_menu_hover = main_menu_button.collidepoint(mouse_pos)
+            pygame.draw.rect(screen, (200, 160, 60) if main_menu_hover else (160, 120, 40), main_menu_button, border_radius=10)
+            pygame.draw.rect(screen, (255, 200, 100) if main_menu_hover else (180, 140, 60), main_menu_button, 2, border_radius=10)
             menu_text = button_font.render("MAIN MENU", True, (255, 255, 255))
             menu_rect = menu_text.get_rect(center=main_menu_button.center)
             screen.blit(menu_text, menu_rect)
-            
+
             # Quit button
-            quit_button = pygame.Rect(button_x, menu_y + 320, button_width, button_height)
-            pygame.draw.rect(screen, (180, 50, 50), quit_button, border_radius=10)
+            quit_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * 3, button_width, button_height)
+            quit_hover = quit_button.collidepoint(mouse_pos)
+            pygame.draw.rect(screen, (200, 70, 70) if quit_hover else (160, 50, 50), quit_button, border_radius=10)
+            pygame.draw.rect(screen, (255, 100, 100) if quit_hover else (180, 70, 70), quit_button, 2, border_radius=10)
             quit_text = button_font.render("QUIT GAME", True, (255, 255, 255))
             quit_rect = quit_text.get_rect(center=quit_button.center)
             screen.blit(quit_text, quit_rect)
-            
+
+            # Hint text
+            hint_font = pygame.font.SysFont("Arial", 18)
+            hint_text = hint_font.render("Press ESC to resume | F11 for fullscreen", True, (140, 140, 160))
+            hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + menu_height - 25))
+            screen.blit(hint_text, hint_rect)
+
             # Handle pause menu clicks
             if event and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_pos = event.pos
-                if resume_button.collidepoint(mouse_pos):
+                if resume_button.collidepoint(event.pos):
                     ui_state = UIState.PLAYING
-                elif main_menu_button.collidepoint(mouse_pos):
-                    # Return to main menu
-                    stop_battle_music()
+                elif options_button.collidepoint(event.pos):
+                    # Open settings menu
+                    from game_settings import run_settings_menu
+                    run_settings_menu(screen)
+                elif main_menu_button.collidepoint(event.pos):
+                    battle_music.stop_battle_music()
                     main()
                     return
-                elif quit_button.collidepoint(mouse_pos):
-                    stop_battle_music()
+                elif quit_button.collidepoint(event.pos):
+                    battle_music.stop_battle_music()
                     pygame.quit()
                     sys.exit()
-
+    
         # LAN: Waiting for Opponent Overlay
         if LAN_MODE and game.current_player != game.player1 and not game.game_over and ui_state == UIState.PLAYING:
             # Draw transparent overlay
@@ -5034,31 +3850,20 @@ def main(lan_game_data=None):
             # Draw text background
             pygame.draw.rect(screen, (0, 0, 0, 150), wait_rect.inflate(40, 20), border_radius=10)
             screen.blit(wait_text, wait_rect)
-
+    
         # Debug overlay: FPS counter and performance stats (v4.3.1)
         if DEBUG_MODE:
             current_fps = clock.get_fps()
             # FPS counter (top-left corner)
-            fps_text = UI_FONT.render(f"FPS: {current_fps:.1f}", True, (0, 255, 0))
+            fps_text = cfg.UI_FONT.render(f"FPS: {current_fps:.1f}", True, (0, 255, 0))
             fps_bg = pygame.Surface((fps_text.get_width() + 10, fps_text.get_height() + 6), pygame.SRCALPHA)
             fps_bg.fill((0, 0, 0, 180))
             screen.blit(fps_bg, (8, 8))
             screen.blit(fps_text, (13, 11))
 
-            # Animation pool stats (if available)
-            if hasattr(anim_manager, 'pool'):
-                pool_stats = anim_manager.pool.get_stats()
-                if pool_stats:
-                    y_offset = 35
-                    stats_text = UI_FONT.render(f"Pool: {sum(pool_stats.values())} cached", True, (255, 255, 0))
-                    stats_bg = pygame.Surface((stats_text.get_width() + 10, stats_text.get_height() + 6), pygame.SRCALPHA)
-                    stats_bg.fill((0, 0, 0, 180))
-                    screen.blit(stats_bg, (8, y_offset))
-                    screen.blit(stats_text, (13, y_offset + 3))
-
         pygame.display.flip()
-
-    stop_battle_music()
+    
+    battle_music.stop_battle_music()
     pygame.quit()
     sys.exit()
 
