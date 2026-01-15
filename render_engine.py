@@ -522,10 +522,30 @@ def draw_row_score_boxes(surface, game, anchor_x_right=None):
             _render_sg1_score_box(tint, row_box, score, surface, player == game.player1)
 
 def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None):
-    history_font = _get_cached_font(max(14, int(16 * display_manager.SCALE_FACTOR)))
+    # Use monospaced terminal font for MALP feed aesthetic
+    font_size = max(12, int(14 * display_manager.SCALE_FACTOR))
+    history_font = pygame.font.SysFont("Courier New", font_size)
+    header_font = pygame.font.SysFont("Courier New", max(10, int(11 * display_manager.SCALE_FACTOR)), bold=True)
+
     panel_surface = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
     panel_surface.fill((10, 18, 32, 200))
+
+    # Draw MALP-style scan-line grid overlay
+    grid_spacing = 8
+    for y in range(0, panel_rect.height, grid_spacing):
+        pygame.draw.line(panel_surface, (0, 100, 150, 30), (0, y), (panel_rect.width, y))
+    for x in range(0, panel_rect.width, grid_spacing * 4):
+        pygame.draw.line(panel_surface, (0, 80, 120, 20), (x, 0), (x, panel_rect.height))
+
     pygame.draw.rect(panel_surface, (80, 120, 180, 220), panel_surface.get_rect(), width=2, border_radius=12)
+
+    # Draw blinking "MALP FEED" indicator
+    blink = (pygame.time.get_ticks() // 500) % 2  # Blink every 500ms
+    if blink:
+        pygame.draw.circle(panel_surface, (255, 50, 50), (panel_rect.width - 12, 10), 4)
+    feed_text = header_font.render("MALP FEED", True, (100, 200, 150))
+    panel_surface.blit(feed_text, (panel_rect.width - 85, 4))
+
     surface.blit(panel_surface, panel_rect.topleft)
 
     padding = 10

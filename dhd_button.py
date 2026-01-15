@@ -27,10 +27,10 @@ class DHDButton:
         
         # Colors
         self.base_color = (40, 60, 100)
-        self.hover_color = (60, 90, 150)
-        self.selected_color = (80, 120, 180)
-        self.glow_color = (0, 255, 255)  # Cyan
-        self.edge_light_color = (150, 230, 255)
+        self.hover_color = (150, 50, 50)  # Red on hover
+        self.selected_color = (180, 60, 60)  # Brighter red when selected
+        self.glow_color = (255, 100, 100)  # Red glow
+        self.edge_light_color = (255, 150, 150)  # Red edge highlight
         
     def update(self, dt, is_hovered, is_selected):
         """Update button animation state."""

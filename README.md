@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.7.1-blue)
+![Version](https://img.shields.io/badge/version-4.8.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.8.0: STARGATE UI POLISH** - MALP Feed-styled history panel with scan-lines and terminal font! Iris Defense now shows metallic shutter overlay when active! DHD buttons and back buttons glow red on hover! Ring transport sound plays when entering mulligan phase!
 - **⚡ NEW v4.7.1: CODE ARCHITECTURE REFACTOR** - Type-safe Ability enum system replaces string-based checks! Centralized 50+ hardcoded values (animations, colors, fonts, timing) in game_config.py! Fixed Rule Compendium missing Jaffa/Lucian unlock sections!
 - **⚡ NEW v4.6.0: DHD BACK BUTTONS & NAVIGATION POLISH** - Replaced all "Back" buttons with circular DHD-style buttons! Holding arrow keys now continuously browses. SPACE previews cards (F plays). Wider chat/history panel with LAN chat input box!
 - **⚡ NEW v4.5.0: UNIVERSAL KEYBOARD CONTROLS** - Full keyboard navigation across all game screens! Arrow keys for card/menu navigation, F to play cards, G for faction power, Tab to cycle buttons. Cards now highlight with row-type colors (red=close, blue=ranged, green=siege). Enhanced pause menu with Options integration!
@@ -186,6 +187,22 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.8.0 (January 2026)
+**Stargate UI Polish & Visual Effects**
+
+- ✅ **MALP Feed History Panel** – Re-skinned the game history panel as a MALP (Mobile Analytic Laboratory Probe) tactical feed:
+  - Scan-line grid overlay with subtle cyan tint for that military monitor aesthetic
+  - Monospaced "Courier New" terminal font for authentic SGC feel
+  - Blinking red "MALP FEED" indicator in the top-right corner
+- ✅ **Iris Defense Visual Overlay** – When the Tau'ri Iris is activated, opponent rows now show:
+  - Metallic titanium shutter pattern with 6 interlocking blades
+  - "GATE SHIELD ACTIVE" text in amber across the ranged row
+  - Overlay persists until the Iris blocks an incoming card
+- ✅ **Red Hover Effects for DHD Buttons** – All DHD-style buttons now glow red on mouse hover:
+  - Main menu options: hover color, glow, and edge highlights turn red
+  - DHD back buttons: outer ring, chevron symbols, and center button turn red on hover
+- ✅ **Mulligan Phase Ring Sound** – The ring transport sound (ring.ogg) now plays when entering the mulligan phase, providing audio feedback for the "wormhole opening" moment
 
 ### Version 4.7.1 (January 2026)
 **Code Architecture & Bug Fixes**

@@ -741,6 +741,11 @@ def main(lan_game_data=None):
     # === MULLIGAN PHASE (Separate screen before main game) ===
     mulligan_selected = []
     mulligan_clock = pygame.time.Clock()
+
+    # Play ring transport sound when entering mulligan phase
+    from sound_manager import get_sound_manager
+    get_sound_manager().play_ring_transport_sound(volume=0.7)
+
     while game.game_state == "mulligan":
         dt = mulligan_clock.tick(60)
 
@@ -1983,6 +1988,7 @@ def main(lan_game_data=None):
                             # Show error message
                             print("Cannot mulligan more than 5 cards!")
                             continue
+
                         selected_indices = [i for i, card in enumerate(game.player1.hand) if card in mulligan_selected]
                         game.mulligan(game.player1, mulligan_selected)
                         game.player_mulligan_count = len(selected_indices)

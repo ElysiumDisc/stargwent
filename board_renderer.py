@@ -59,6 +59,36 @@ def draw_lane_labels(surface):
     return
 
 
+def _draw_iris_overlay(surface, row_rects):
+    """Draw metallic shutter overlay over opponent's play area when Iris is active."""
+    # Cache the font to avoid repeated creation
+    font = pygame.font.SysFont("Arial", max(14, int(16 * display_manager.SCALE_FACTOR)), bold=True)
+
+    for row_name, rect in row_rects.items():
+        # Semi-transparent metallic overlay
+        overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+
+        # Draw interlocking titanium blade pattern
+        blade_color = (100, 105, 115, 180)  # Metallic grey
+        highlight = (140, 145, 155, 100)
+
+        # Horizontal blades
+        num_blades = 6
+        blade_height = rect.height // num_blades
+        for i in range(num_blades):
+            y = i * blade_height
+            pygame.draw.rect(overlay, blade_color, (0, y, rect.width, blade_height - 2))
+            pygame.draw.line(overlay, highlight, (0, y), (rect.width, y), 2)
+
+        # "GATE SHIELD ACTIVE" text (only on middle row)
+        if row_name == "ranged":
+            text = font.render("GATE SHIELD ACTIVE", True, (255, 200, 100))
+            text_rect = text.get_rect(center=(rect.width // 2, rect.height // 2))
+            overlay.blit(text, text_rect)
+
+        surface.blit(overlay, rect.topleft)
+
+
 def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_highlight=None,
                drag_row_highlights=None):
     """Draw the game board, including contextual drop highlights."""
@@ -158,6 +188,10 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
         surface.blit(hover_surface, rect.topleft)
         inflate_y = int(display_manager.SCREEN_HEIGHT*0.006)
         pygame.draw.rect(surface, color, rect.inflate(0, inflate_y), width=4, border_radius=6)
+
+    # --- Draw Iris Defense overlay if active ---
+    if hasattr(game.player1, 'iris_defense') and game.player1.iris_defense.is_active():
+        _draw_iris_overlay(surface, cfg.OPPONENT_ROW_RECTS)
 
     # --- Draw cards on board (Dynamic Fan Layout with Gap) ---
     row_map = {
@@ -318,15 +352,25 @@ def draw_dhd_back_button(surface, x=30, y=30, size=80, label=None):
     """Draws a DHD-style back button. Returns the button rect for click detection."""
     center_x = x + size // 2
     center_y = y + size // 2
+    button_rect = pygame.Rect(x, y, size, size)
+
+    # Check if mouse is hovering over the button
+    mouse_pos = pygame.mouse.get_pos()
+    is_hovered = button_rect.collidepoint(mouse_pos)
 
     # Outer DHD ring (scaled)
     outer_radius = size // 2
     inner_radius = int(outer_radius * 0.65)
 
-    # Outer ring color (bronze/metallic)
-    outer_color = (100, 120, 140)
+    # Outer ring color (bronze/metallic, redder on hover)
+    if is_hovered:
+        outer_color = (140, 80, 80)
+        ring_border = (110, 50, 50)
+    else:
+        outer_color = (100, 120, 140)
+        ring_border = (70, 90, 110)
     pygame.draw.circle(surface, outer_color, (center_x, center_y), outer_radius)
-    pygame.draw.circle(surface, (70, 90, 110), (center_x, center_y), outer_radius, width=max(1, int(3 * display_manager.SCALE_FACTOR)))
+    pygame.draw.circle(surface, ring_border, (center_x, center_y), outer_radius, width=max(1, int(3 * display_manager.SCALE_FACTOR)))
 
     # DHD symbols around the ring (simplified chevrons)
     num_symbols = 7
@@ -337,32 +381,43 @@ def draw_dhd_back_button(surface, x=30, y=30, size=80, label=None):
         symbol_x = center_x + math.cos(rad) * symbol_dist
         symbol_y = center_y + math.sin(rad) * symbol_dist
 
-        # Small chevron-like dots - cyan/blue themed
-        symbol_color = (100, 180, 220)
+        # Small chevron-like dots - red on hover, cyan/blue otherwise
+        symbol_color = (255, 120, 120) if is_hovered else (100, 180, 220)
         symbol_size = max(2, int(size * 0.06))
         pygame.draw.circle(surface, symbol_color, (int(symbol_x), int(symbol_y)), symbol_size)
 
-    # Center button - glowing cyan/blue (always active)
+    # Center button - glowing red on hover, cyan/blue otherwise
     glow_time = pygame.time.get_ticks() / 600.0
     glow_pulse = abs(math.sin(glow_time))
 
     # Outer glow
     glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
     glow_alpha = int(60 + glow_pulse * 40)
-    pygame.draw.circle(glow_surf, (50, 150, 255, glow_alpha), (inner_radius * 1.5, inner_radius * 1.5), inner_radius + 8)
+    if is_hovered:
+        glow_color = (255, 80, 80, glow_alpha)
+    else:
+        glow_color = (50, 150, 255, glow_alpha)
+    pygame.draw.circle(glow_surf, glow_color, (inner_radius * 1.5, inner_radius * 1.5), inner_radius + 8)
     surface.blit(glow_surf, (center_x - inner_radius * 1.5, center_y - inner_radius * 1.5))
 
-    # Main button - glowing cyan/blue
-    pygame.draw.circle(surface, (40, 100, 160), (center_x, center_y), inner_radius)
-    pygame.draw.circle(surface, (60, 140, 200), (center_x, center_y), max(1, inner_radius - 4))
-    pygame.draw.circle(surface, (80, 180, 240), (center_x, center_y), max(1, inner_radius - 8))
-
-    # Center dot (button press point)
-    pygame.draw.circle(surface, (150, 220, 255), (center_x, center_y), max(2, int(size * 0.08)))
-    pygame.draw.circle(surface, (200, 240, 255), (center_x, center_y), max(1, int(size * 0.04)))
+    # Main button - glowing red on hover, cyan/blue otherwise
+    if is_hovered:
+        pygame.draw.circle(surface, (160, 40, 40), (center_x, center_y), inner_radius)
+        pygame.draw.circle(surface, (200, 60, 60), (center_x, center_y), max(1, inner_radius - 4))
+        pygame.draw.circle(surface, (240, 80, 80), (center_x, center_y), max(1, inner_radius - 8))
+        # Center dot
+        pygame.draw.circle(surface, (255, 150, 150), (center_x, center_y), max(2, int(size * 0.08)))
+        pygame.draw.circle(surface, (255, 200, 200), (center_x, center_y), max(1, int(size * 0.04)))
+    else:
+        pygame.draw.circle(surface, (40, 100, 160), (center_x, center_y), inner_radius)
+        pygame.draw.circle(surface, (60, 140, 200), (center_x, center_y), max(1, inner_radius - 4))
+        pygame.draw.circle(surface, (80, 180, 240), (center_x, center_y), max(1, inner_radius - 8))
+        # Center dot
+        pygame.draw.circle(surface, (150, 220, 255), (center_x, center_y), max(2, int(size * 0.08)))
+        pygame.draw.circle(surface, (200, 240, 255), (center_x, center_y), max(1, int(size * 0.04)))
 
     # Return clickable rect (just the circle, no label)
-    return pygame.Rect(x, y, size, size)
+    return button_rect
 
 
 def draw_mulligan_button(surface, mulligan_selected):
