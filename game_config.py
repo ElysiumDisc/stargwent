@@ -5,14 +5,90 @@ from cards import (
     FACTION_LUCIAN, FACTION_ASGARD
 )
 
-# Colors
+# ============================================================================
+# ANIMATION DURATIONS (milliseconds)
+# ============================================================================
+ANIM_INSTANT = 300           # Quick movements, basic transitions
+ANIM_SHORT = 400             # Short animations (fades, small effects)
+ANIM_CARD_FLIP = 500         # Card flip/reveal
+ANIM_MEDIUM = 600            # Score pops, card movements
+ANIM_CARD_PLAY = 650         # Card being played animation
+ANIM_STARGATE = 800          # Stargate activation effect
+ANIM_CARD_REVEAL = 900       # Card reveal, row animations
+ANIM_AMBIENT = 1000          # Ambient glows, loops
+ANIM_AI_PLAY = 1200          # AI card play (slower for readability)
+ANIM_MAJOR_EFFECT = 1500     # Major effects (explosions, big reveals)
+ANIM_PERSISTENT = 2500       # Long-running persistent effects
+
+# ============================================================================
+# TIMING & DELAYS (milliseconds)
+# ============================================================================
+TYPING_TIMEOUT = 2000        # Chat typing indicator timeout
+POPUP_DISPLAY_TIME = 5000    # Info popup display duration
+MULLIGAN_TIMEOUT = 30000     # Mulligan phase timeout
+KEY_REPEAT_DELAY = 300       # Keyboard repeat initial delay
+KEY_REPEAT_INTERVAL = 50     # Keyboard repeat interval
+
+# ============================================================================
+# FONT SIZES (base sizes, scaled by SCALE_FACTOR)
+# ============================================================================
+FONT_SIZE_TINY = 14          # Small labels, timestamps
+FONT_SIZE_SMALL = 16         # Body text, descriptions
+FONT_SIZE_MEDIUM = 20        # Titles, headings
+FONT_SIZE_CHAT = 22          # Chat messages
+FONT_SIZE_UI = 24            # UI elements, card names
+FONT_SIZE_TITLE = 28         # Section titles
+FONT_SIZE_SUBTITLE = 30      # Large subtitles
+FONT_SIZE_HEADER = 36        # Overlay headers
+FONT_SIZE_LARGE = 48         # Score displays
+FONT_SIZE_HUGE = 60          # Major announcements
+FONT_SIZE_GIANT = 72         # Victory/defeat screens
+
+# ============================================================================
+# UI COLORS - Extended Palette
+# ============================================================================
+# Basic Colors
 WHITE = (255, 255, 255)
-PLAYER_HAND_BG = (40, 40, 50, 150) # Semi-transparent
+PLAYER_HAND_BG = (40, 40, 50, 150)  # Semi-transparent
 BLACK = (0, 0, 0)
 GOLD = (255, 215, 0)
 RED = (255, 50, 50)
 GREEN = (50, 255, 50)
 BLUE = (50, 150, 255)
+
+# Highlight Colors (for selection, hover states)
+HIGHLIGHT_GREEN = (100, 255, 100)    # Medic selection, positive feedback
+HIGHLIGHT_RED = (255, 100, 100)      # Opponent cards, negative feedback
+HIGHLIGHT_BLUE = (100, 150, 255)     # Player cards, neutral selection
+HIGHLIGHT_CYAN = (100, 200, 255)     # Info highlights
+HIGHLIGHT_ORANGE = (255, 180, 50)    # Warnings, Goa'uld theme
+
+# Text Colors
+TEXT_LIGHT = (220, 220, 220)         # Primary text on dark backgrounds
+TEXT_DIM = (200, 200, 200)           # Secondary text, instructions
+TEXT_DIMMER = (180, 180, 180)        # Tertiary text, hints
+TEXT_MUTED = (150, 150, 150)         # Disabled/inactive text
+TEXT_TIMESTAMP = (100, 100, 120)     # Chat timestamps
+
+# UI Background Colors (RGBA)
+BG_OVERLAY_DARK = (0, 0, 0, 200)     # Dark overlays
+BG_OVERLAY_MEDIUM = (0, 0, 0, 180)   # Medium overlays
+BG_PANEL = (20, 40, 60, 200)         # Panel backgrounds
+BG_DESC_BOX = (15, 25, 45, 240)      # Description box backgrounds
+BG_BORDER = (80, 120, 160)           # Panel borders
+
+# Chevron/Stargate Colors
+CHEVRON_ACTIVE = (255, 160, 50)      # Active chevron amber
+
+# Faction Theme Colors (for UI, not glow)
+FACTION_UI_COLORS = {
+    "Tau'ri": (100, 150, 255),
+    "Goa'uld": (255, 180, 50),
+    "Jaffa": (200, 150, 100),
+    "Lucian Alliance": (200, 80, 200),
+    "Asgard": (100, 255, 255),
+    "Neutral": (180, 180, 180),
+}
 
 ROW_COLORS = {
     "close": (255, 100, 100),    # Red
@@ -34,6 +110,16 @@ FACTION_GLOW_COLORS = {
 def get_row_color(row_name):
     """Return the theme color for a given row type."""
     return ROW_COLORS.get(row_name, (200, 200, 255))
+
+def get_faction_ui_color(faction_name):
+    """Return the UI theme color for a faction."""
+    return FACTION_UI_COLORS.get(faction_name, GOLD)
+
+def scaled_font(base_size, bold=False, font_name="Arial"):
+    """Create a font scaled to current display resolution."""
+    sf = display_manager.SCALE_FACTOR
+    size = max(base_size, int(base_size * sf))
+    return pygame.font.SysFont(font_name, size, bold=bold)
 
 # Layout System
 COLUMN_RANGES = {

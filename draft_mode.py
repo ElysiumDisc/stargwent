@@ -22,6 +22,7 @@ import copy
 from typing import List, Dict, Optional, Tuple
 from cards import ALL_CARDS, Card
 from content_registry import LEADER_REGISTRY
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic
 
 
 class DraftPool:
@@ -291,7 +292,7 @@ class DraftRun:
         }
         
         # Check for Tactical Formation (tight bond) synergy
-        if "Tactical Formation" in (card.ability or ""):
+        if has_ability(card, Ability.TACTICAL_FORMATION):
             copies_in_deck = sum(1 for c in self.drafted_cards if c.name == card.name)
             if copies_in_deck > 0:
                 synergy['score'] += copies_in_deck * 3
@@ -299,7 +300,7 @@ class DraftRun:
                 synergy['has_copies'] = copies_in_deck
         
         # Check for Gate Reinforcement (muster) synergy
-        if "Gate Reinforcement" in (card.ability or ""):
+        if has_ability(card, Ability.GATE_REINFORCEMENT):
             copies_in_deck = sum(1 for c in self.drafted_cards if c.name == card.name)
             if copies_in_deck > 0:
                 synergy['score'] += copies_in_deck * 4
@@ -324,20 +325,20 @@ class DraftRun:
                 synergy['reasons'].append("+1 Row Balance")
         
         # Medic value increases with deck size
-        if "Medical Evac" in (card.ability or ""):
+        if is_medic(card):
             if len(self.drafted_cards) > 10:
                 synergy['score'] += 2
                 synergy['reasons'].append("+2 Medic Value")
         
         # Spy value early in draft (card advantage)
-        if "Deep Cover Agent" in (card.ability or ""):
+        if is_spy(card):
             if len(self.drafted_cards) < 15:
                 synergy['score'] += 2
                 synergy['reasons'].append("+2 Spy (Early Pick)")
         
         # Hero value
-        if "Legendary Commander" in (card.ability or ""):
-            hero_count = sum(1 for c in self.drafted_cards if "Legendary Commander" in (c.ability or ""))
+        if is_hero(card):
+            hero_count = sum(1 for c in self.drafted_cards if is_hero(c))
             if hero_count < 2:
                 synergy['score'] += 3
                 synergy['reasons'].append("+3 Hero Value")
@@ -401,11 +402,11 @@ class DraftRun:
             # Ability count
             if card.ability:
                 stats['ability_count'] += 1
-                if "Legendary Commander" in card.ability:
+                if is_hero(card):
                     stats['hero_count'] += 1
-                if "Deep Cover Agent" in card.ability:
+                if is_spy(card):
                     stats['spy_count'] += 1
-                if "Medical Evac" in card.ability:
+                if is_medic(card):
                     stats['medic_count'] += 1
 
         return stats

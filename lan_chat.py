@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from lan_session import LanSession
 from lan_protocol import LanMessageType, build_chat_message, parse_message
+import game_config as cfg
 
 
 class LanChatPanel:
@@ -25,7 +26,7 @@ class LanChatPanel:
         self.peer_is_typing = False
         self.local_is_typing = False
         self.last_local_input_time = 0
-        self.typing_timeout = 2000  # Send "stopped typing" after 2s of inactivity
+        self.typing_timeout = cfg.TYPING_TIMEOUT  # Send "stopped typing" after 2s of inactivity
 
     def _get_timestamp(self):
         """Get current time as HH:MM format."""
@@ -35,11 +36,11 @@ class LanChatPanel:
         if color is None:
             # Default colors based on prefix
             if prefix == "System":
-                color = (255, 215, 0)  # Gold for system
+                color = cfg.GOLD  # Gold for system
             elif prefix == "You":
-                color = (100, 255, 100) # Greenish for self
+                color = cfg.HIGHLIGHT_GREEN  # Greenish for self
             else:
-                color = (220, 220, 255) # White/Blue for others
+                color = cfg.TEXT_LIGHT  # White/Blue for others
 
         # If callback exists, delegate to it (e.g. to Game History)
         if self.on_message:
@@ -122,7 +123,7 @@ class LanChatPanel:
         base_y = input_rect.y - 25
         
         # 1. "Dialing..." text
-        text_surf = self.font_small.render("Incoming Wormhole...", True, (100, 200, 255))
+        text_surf = self.font_small.render("Incoming Wormhole...", True, cfg.HIGHLIGHT_CYAN)
         surface.blit(text_surf, (base_x, base_y))
         
         # 2. Animated Chevrons (>>>)
@@ -137,9 +138,9 @@ class LanChatPanel:
         for i in range(3):
             # Color: Bright Orange if active, Dim Red if inactive
             if i == active_chevron:
-                color = (255, 160, 50)  # Bright Amber
+                color = cfg.CHEVRON_ACTIVE  # Bright Amber
             else:
-                color = (80, 40, 30)    # Dim Rust
+                color = (80, 40, 30)  # Dim Rust
             
             # Draw Chevron shape (pointing right)
             cx = chevron_start_x + i * 15
@@ -154,16 +155,16 @@ class LanChatPanel:
 
     def draw(self, surface, rect: pygame.Rect, title: Optional[str] = None):
         pygame.draw.rect(surface, (25, 30, 50), rect)
-        pygame.draw.rect(surface, (80, 120, 160), rect, 2)
+        pygame.draw.rect(surface, cfg.BG_BORDER, rect, 2)
         if title:
-            title_surf = self.title_font.render(title, True, (220, 220, 220))
+            title_surf = self.title_font.render(title, True, cfg.TEXT_LIGHT)
             surface.blit(title_surf, (rect.x + 10, rect.y - 30))
         y = rect.y + 10
         for entry in self.chat_log:
             # Handle legacy string entries if any exist (though unlikely with fresh start)
             if isinstance(entry, str):
                 text = entry
-                color = (220, 220, 220)
+                color = cfg.TEXT_LIGHT
                 timestamp = ""
             else:
                 text = entry["text"]
@@ -172,7 +173,7 @@ class LanChatPanel:
             
             # Draw timestamp in dim color first
             if timestamp:
-                ts_color = (100, 100, 120)  # Dim gray for timestamp
+                ts_color = cfg.TEXT_TIMESTAMP  # Dim gray for timestamp
                 ts_surf = self.timestamp_font.render(f"[{timestamp}]", True, ts_color)
                 surface.blit(ts_surf, (rect.x + 8, y + 2))
                 text_x = rect.x + 55  # Offset for message after timestamp
@@ -191,7 +192,7 @@ class LanChatPanel:
             self._draw_typing_indicator(surface, input_rect)
             
         pygame.draw.rect(surface, (30, 35, 60), input_rect)
-        pygame.draw.rect(surface, (80, 120, 160), input_rect, 2)
+        pygame.draw.rect(surface, cfg.BG_BORDER, input_rect, 2)
         placeholder = self.input_text or "Type message..."
-        surf = self.font.render(placeholder, True, (200, 200, 200))
+        surf = self.font.render(placeholder, True, cfg.TEXT_DIM)
         surface.blit(surf, (input_rect.x + 8, input_rect.y + 8))

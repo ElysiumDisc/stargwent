@@ -1,9 +1,9 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 0,
-  "total_wins": 2,
-  "total_games": 3,
+  "consecutive_wins": 1,
+  "total_wins": 3,
+  "total_games": 4,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ori Warship": {
@@ -12,23 +12,23 @@
       "id": "ori_warship"
     },
     "Ancients Drone": {
-      "plays": 3,
-      "wins": 2,
+      "plays": 4,
+      "wins": 3,
       "id": "neutral_ancient_drone"
     },
     "Col. Jack O'Neill": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "tauri_oneill"
     },
     "BC-304 Heavy Cruiser": {
-      "plays": 4,
-      "wins": 4,
+      "plays": 5,
+      "wins": 5,
       "id": "tauri_bc304_2"
     },
     "Ice Planet Contingency": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "neutral_biting_frost_1"
     },
     "Nebula Field": {
@@ -42,8 +42,8 @@
       "id": "neutral_skellige_storm_1"
     },
     "Ancient Ship Destiny": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "destiny_ship"
     },
     "Zero Point Module": {
@@ -52,8 +52,8 @@
       "id": "zpm_power"
     },
     "City of Atlantis": {
-      "plays": 3,
-      "wins": 2,
+      "plays": 4,
+      "wins": 3,
       "id": "atlantis_city"
     },
     "Ancient Communication Device": {
@@ -62,8 +62,8 @@
       "id": "ancient_communication_stones"
     },
     "Oma Desala": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "neutral_oma_desala"
     },
     "Dr. Rodney McKay": {
@@ -77,8 +77,8 @@
       "id": "tauri_mitchell"
     },
     "Dr. Daniel Jackson": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "tauri_jackson"
     },
     "Dr. Janet Fraiser": {
@@ -102,18 +102,18 @@
       "id": "tauri_quinn"
     },
     "Liaison Vala Mal Doran": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "tauri_vala"
     },
     "Ascended Daniel Jackson": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "neutral_ascended_daniel"
     },
     "Micrometeorite Shower": {
-      "plays": 1,
-      "wins": 1,
+      "plays": 2,
+      "wins": 2,
       "id": "neutral_torrential_rain_1"
     },
     "Tok'ra Deep Cover Operative": {
@@ -127,30 +127,30 @@
       "id": "tauri_barrett"
     },
     "Gen. George Hammond": {
-      "plays": 1,
-      "wins": 1,
+      "plays": 2,
+      "wins": 2,
       "id": "tauri_hammond"
     }
   },
   "faction_wins": {
-    "Tau'ri": 2
+    "Tau'ri": 3
   },
   "max_streak": 2,
-  "ai_games": 3,
-  "ai_wins": 2,
+  "ai_games": 4,
+  "ai_wins": 3,
   "lan_games": 0,
   "lan_wins": 0,
   "leader_stats": {
     "Col. Jack O'Neill": {
-      "games": 3,
-      "wins": 2
+      "games": 4,
+      "wins": 3
     }
   },
   "matchups": {
     "Tau'ri": {
       "Asgard": {
-        "games": 1,
-        "wins": 1
+        "games": 2,
+        "wins": 2
       },
       "Lucian Alliance": {
         "games": 2,
@@ -161,22 +161,24 @@
   "last_results": [
     "W",
     "W",
-    "L"
+    "L",
+    "W"
   ],
   "turn_stats": {
-    "total": 210,
-    "games": 3,
+    "total": 265,
+    "games": 4,
     "min": 22,
     "max": 112,
     "history": [
       76,
       112,
-      22
+      22,
+      55
     ]
   },
   "mulligans": {
-    "total": 9,
-    "games": 3
+    "total": 12,
+    "games": 4
   },
   "ability_usage": {
     "medic": 2,
@@ -186,16 +188,16 @@
   },
   "lan_reliability": {},
   "round_stats": {
-    "sweeps_for": 0,
+    "sweeps_for": 1,
     "sweeps_against": 1,
     "close_wins": 2,
     "close_losses": 0,
     "comebacks": 2,
-    "first_turn_games": 3,
+    "first_turn_games": 4,
     "first_turn_wins": 1
   },
   "draft_stats": {
-    "runs_started": 38,
+    "runs_started": 48,
     "runs_completed": 0,
     "battles_won": 0,
     "battles_lost": 0,
@@ -212,12 +214,10 @@
   "active_draft_run": {
     "wins": 0,
     "losses": 0,
-    "phase": "draft",
-    "current_pick": 1,
-    "leader_id": "jaffa_tealc",
-    "card_ids": [
-      "goauld_serpent_guard_1"
-    ],
+    "phase": "leader_select",
+    "current_pick": 0,
+    "leader_id": null,
+    "card_ids": [],
     "cards_to_remove_count": 0
   }
 }

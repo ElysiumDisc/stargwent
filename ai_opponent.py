@@ -4,6 +4,7 @@ Implements strategic decision-making for competitive gameplay.
 """
 import random
 from typing import List, Tuple, Optional
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic
 
 class AIStrategy:
     """Strategic AI for playing Gwent."""
@@ -90,21 +91,21 @@ class AIStrategy:
             value = card.power
 
             # Heroes are premium
-            if "Legendary Commander" in (card.ability or ""):
+            if is_hero(card):
                 value += 5
 
             # Spies are valuable (card advantage)
-            if "Deep Cover Agent" in (card.ability or ""):
+            if is_spy(card):
                 value += 3
 
             # Synergy cards
-            if "Tactical Formation" in (card.ability or ""):
+            if has_ability(card, Ability.TACTICAL_FORMATION):
                 value += 2
-            if "Gate Reinforcement" in (card.ability or ""):
+            if has_ability(card, Ability.GATE_REINFORCEMENT):
                 value += 3
 
             # Medics are valuable if discard pile has targets
-            if "Medical Evac" in (card.ability or ""):
+            if is_medic(card):
                 if any(c.row in ["close", "ranged", "siege", "agile"] for c in self.ai_player.discard_pile):
                     value += 2
 
@@ -178,24 +179,24 @@ class AIStrategy:
         score = card.power
 
         # Heroes: Keep 1-2, mulligan extras
-        if "Legendary Commander" in (card.ability or ""):
+        if is_hero(card):
             hero_count = sum(1 for c in self.ai_player.hand
-                           if "Legendary Commander" in (c.ability or ""))
+                           if is_hero(c))
             if hero_count <= 2:
                 score += 8  # Keep first 2 heroes
             else:
                 score -= 5  # Mulligan 3rd+ hero
 
         # Spies: Always keep (card advantage is critical)
-        if "Deep Cover Agent" in (card.ability or ""):
+        if is_spy(card):
             score += 10
 
         # Gate Reinforcement: Very strong, always keep
-        if "Gate Reinforcement" in (card.ability or ""):
+        if has_ability(card, Ability.GATE_REINFORCEMENT):
             score += 8
 
         # Tactical Formation: Keep if we have copies
-        if "Tactical Formation" in (card.ability or ""):
+        if has_ability(card, Ability.TACTICAL_FORMATION):
             copies = sum(1 for c in self.ai_player.hand if c.name == card.name)
             if copies >= 2:
                 score += 6  # Keep, we have synergy
@@ -203,7 +204,7 @@ class AIStrategy:
                 score += 2  # Less valuable alone
 
         # Medics: Not useful early, can mulligan
-        if "Medical Evac" in (card.ability or ""):
+        if is_medic(card):
             score -= 2  # Slight penalty, not useful in Round 1
 
         # Weather cards: Keep 1, mulligan extras
@@ -244,7 +245,7 @@ class AIStrategy:
         for card in self.ai_player.hand:
             total_power += card.power
 
-            if "Legendary Commander" in (card.ability or ""):
+            if is_hero(card):
                 hero_count += 1
             elif card.row in ["close", "ranged", "siege", "agile"]:
                 unit_count += 1
@@ -254,7 +255,7 @@ class AIStrategy:
                 weather_count += 1
 
             # Check for synergies
-            if "Tactical Formation" in (card.ability or "") or "Gate Reinforcement" in (card.ability or ""):
+            if has_ability(card, Ability.TACTICAL_FORMATION) or has_ability(card, Ability.GATE_REINFORCEMENT):
                 copies = sum(1 for c in self.ai_player.hand if c.name == card.name)
                 if copies >= 2:
                     has_synergy = True
@@ -569,7 +570,7 @@ class AIStrategy:
         for row_name, row_cards in self.opponent.board.items():
             for card in row_cards:
                 # Skip Legendary Commanders and special cards
-                if "Legendary Commander" in (card.ability or "") or card.row in ["special", "weather"]:
+                if is_hero(card) or card.row in ["special", "weather"]:
                     continue
                 candidates.append(card)
 
@@ -585,19 +586,19 @@ class AIStrategy:
 
             # Valuable abilities make cards better targets
             if card.ability:
-                if "Tactical Formation" in card.ability:
+                if has_ability(card, Ability.TACTICAL_FORMATION):
                     # Check how many copies opponent has
                     copies = sum(1 for c in candidates if c.name == card.name)
                     if copies > 1:
                         score += copies * 3  # Breaking synergy is valuable
 
-                if "Gate Reinforcement" in card.ability:
+                if has_ability(card, Ability.GATE_REINFORCEMENT):
                     score += 5  # Very valuable ability
 
-                if "Medical Evac" in card.ability:
+                if is_medic(card):
                     score += 3
 
-                if "Deep Cover Agent" in card.ability:
+                if is_spy(card):
                     score += 2  # Spy already used, but still decent
 
             # Consider row synergy - steal from rows opponent is strong in
@@ -621,13 +622,13 @@ class AIStrategy:
         value = card.power * 2
 
         # Synergy bonus
-        if "Tactical Formation" in (card.ability or ""):
+        if has_ability(card, Ability.TACTICAL_FORMATION):
             # We might be able to use it with our own copies
             our_copies = sum(1 for c in self.ai_player.board.get(card.row, []) if c.name == card.name)
             value += our_copies * 3
 
         # Breaking opponent's synergy
-        if "Tactical Formation" in (card.ability or ""):
+        if has_ability(card, Ability.TACTICAL_FORMATION):
             opp_copies = sum(1 for c in self.opponent.board.get(card.row, []) if c.name == card.name)
             if opp_copies > 1:
                 value += opp_copies * 2
@@ -645,7 +646,7 @@ class AIStrategy:
         """Select the best card to revive from discard pile."""
         revivable = [
             c for c in self.ai_player.discard_pile
-            if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]
+            if not is_hero(c) and c.row in ["close", "ranged", "siege", "agile"]
         ]
 
         if not revivable:
@@ -660,7 +661,7 @@ class AIStrategy:
 
             # Prioritize cards with valuable abilities
             if card.ability:
-                if "Tactical Formation" in card.ability:
+                if has_ability(card, Ability.TACTICAL_FORMATION):
                     # Check if we have copies on board to synergize with
                     copies_on_board = sum(
                         1 for c in self.ai_player.board.get(card.row, [])
@@ -668,15 +669,15 @@ class AIStrategy:
                     )
                     score += copies_on_board * 5  # Great synergy
 
-                if "Gate Reinforcement" in card.ability:
+                if has_ability(card, Ability.GATE_REINFORCEMENT):
                     score += 8  # Will pull more cards
 
-                if "Medical Evac" in card.ability:
+                if is_medic(card):
                     # Another medic is valuable if we have more cards to revive
                     if len(revivable) > 3:
                         score += 5
 
-                if "Deep Cover Agent" in card.ability:
+                if is_spy(card):
                     # Already used as spy, less valuable now
                     score += 1
 
@@ -686,7 +687,7 @@ class AIStrategy:
 
             # Weather penalties
             if self.ai_player.weather_effects.get(card.row, False):
-                if "Legendary Commander" not in (card.ability or ""):
+                if not is_hero(card):
                     score -= card.power * 0.5  # Will be reduced to 1
 
             if score > best_score:
@@ -700,14 +701,14 @@ class AIStrategy:
         value = card.power * 1.5
 
         # Synergy bonuses
-        if "Tactical Formation" in (card.ability or ""):
+        if has_ability(card, Ability.TACTICAL_FORMATION):
             copies_on_board = sum(
                 1 for c in self.ai_player.board.get(card.row, [])
                 if c.name == card.name
             )
             value += copies_on_board * card.power  # Multiplicative synergy
 
-        if "Gate Reinforcement" in (card.ability or ""):
+        if has_ability(card, Ability.GATE_REINFORCEMENT):
             # Check deck for more copies
             copies_in_deck = sum(1 for c in self.ai_player.deck if c.name == card.name)
             value += copies_in_deck * card.power
@@ -718,7 +719,7 @@ class AIStrategy:
 
         # Weather penalty
         if self.ai_player.weather_effects.get(card.row, False):
-            if "Legendary Commander" not in (card.ability or ""):
+            if not is_hero(card):
                 value *= 0.3  # Heavy penalty
 
         return value
@@ -791,7 +792,7 @@ class AIStrategy:
                 score += card.power * 0.5
             
             # Consider synergy with existing cards (Tactical Formation)
-            if "Tactical Formation" in (card.ability or ""):
+            if has_ability(card, Ability.TACTICAL_FORMATION):
                 close_copies = sum(1 for c in self.ai_player.board.get("close", []) if c.name == card.name)
                 ranged_copies = sum(1 for c in self.ai_player.board.get("ranged", []) if c.name == card.name)
                 if row == "close" and close_copies > ranged_copies:
@@ -800,7 +801,7 @@ class AIStrategy:
                     score += ranged_copies * card.power
         
         # --- HERO LOGIC ---
-        if "Legendary Commander" in (card.ability or ""):
+        if is_hero(card):
             # Heroes are high value, save them!
             score += 10 # Intrinsic value
             
@@ -823,7 +824,7 @@ class AIStrategy:
                 score += 25
         
         # --- SPY LOGIC ---
-        if "Deep Cover Agent" in (card.ability or ""):
+        if is_spy(card):
             # Spies give points to enemy but draw cards
             # Play if we can afford the point loss, or desperate for cards
             card_diff = context['ai_cards_left'] - context['opponent_cards_left']
@@ -842,7 +843,7 @@ class AIStrategy:
         
         # --- SYNERGY LOGIC ---
         # Tactical Formation evaluation (tight bond equivalent)
-        if "Tactical Formation" in (card.ability or ""):
+        if has_ability(card, Ability.TACTICAL_FORMATION):
             # Check how many copies already on board
             copies_on_board = sum(
                 1 for c in self.ai_player.board.get(row, []) 
@@ -857,7 +858,7 @@ class AIStrategy:
                 score += 2 # Encourage starting the chain
         
         # Gate Reinforcement evaluation - auto-play all copies
-        if "Gate Reinforcement" in (card.ability or ""):
+        if has_ability(card, Ability.GATE_REINFORCEMENT):
             # Count copies in hand and deck
             copies = sum(
                 1 for c in self.ai_player.hand + self.ai_player.deck 
@@ -871,7 +872,7 @@ class AIStrategy:
                 score += 5
         
         # Medic evaluation
-        if "Medical Evac" in (card.ability or ""):
+        if is_medic(card):
             # Value based on best revival target
             best_revive = self.select_best_medic_target()
             if best_revive:
@@ -884,12 +885,12 @@ class AIStrategy:
         # Weather considerations
         if self.ai_player.weather_effects.get(row, False):
             # Weather is active on this row
-            if "Legendary Commander" not in (card.ability or ""):
+            if not is_hero(card):
                 score -= card.power * 0.8 # Card effectively worth 1
         
         # Horn considerations
         if self.ai_player.horn_effects.get(row, False):
-            if "Legendary Commander" not in (card.ability or ""):
+            if not is_hero(card):
                 score += card.power * 1.2 # Bonus points
         
         # --- TEMPO / ROUND STRATEGY ---
@@ -916,7 +917,7 @@ class AIStrategy:
             # If we have card advantage, press it? Or play weak cards to force them?
             if card.power < 6:
                 score += 5 # Play weak cards
-            if "Deep Cover Agent" in (card.ability or ""):
+            if is_spy(card):
                 score += 50 # ALWAYS spy here
         
         return score
@@ -956,14 +957,14 @@ class AIStrategy:
                 opp_power = self.count_non_hero_power(self.opponent, target_row)
                 opp_card_count = sum(
                     1 for c in self.opponent.board.get(target_row, [])
-                    if "Legendary Commander" not in (c.ability or "")
+                    if not is_hero(c)
                 )
                 
                 # Calculate self-damage (we also get affected)
                 our_power = self.count_non_hero_power(self.ai_player, target_row)
                 our_card_count = sum(
                     1 for c in self.ai_player.board.get(target_row, [])
-                    if "Legendary Commander" not in (c.ability or "")
+                    if not is_hero(c)
                 )
                 
                 # Net damage = enemy damage - our damage
@@ -995,9 +996,8 @@ class AIStrategy:
     def evaluate_special_play(self, card, context: dict) -> float:
         """Evaluate playing a special card with strategic timing."""
         score = 0.0
-        ability = card.ability or ""
-        
-        if "Naquadah Overload" in ability:
+
+        if has_ability(card, Ability.NAQUADAH_OVERLOAD):
             # Scorch: Destroy highest power non-hero cards
             opp_max = self.get_highest_non_hero_power(self.opponent)
             our_max = self.get_highest_non_hero_power(self.ai_player)
@@ -1005,12 +1005,12 @@ class AIStrategy:
             # Count how many cards would be destroyed on each side
             opp_destroyed = sum(
                 1 for row in self.opponent.board.values() for c in row
-                if c.displayed_power == opp_max and "Legendary Commander" not in (c.ability or "")
+                if c.displayed_power == opp_max and not is_hero(c)
             ) if opp_max > 0 else 0
             
             our_destroyed = sum(
                 1 for row in self.ai_player.board.values() for c in row
-                if c.displayed_power == opp_max and "Legendary Commander" not in (c.ability or "")
+                if c.displayed_power == opp_max and not is_hero(c)
             ) if opp_max > 0 else 0
             
             # Calculate net value (enemy loss - our loss)
@@ -1036,7 +1036,7 @@ class AIStrategy:
             if opp_max < 8 and not context['opponent_passed']:
                 score -= 5  # Wait for bigger targets
         
-        elif "Command Network" in ability:
+        elif has_ability(card, Ability.COMMAND_NETWORK):
             # Horn: Double non-hero power in a row
             best_row_score = 0
             best_row_potential = 0
@@ -1046,7 +1046,7 @@ class AIStrategy:
                     row_power = self.count_non_hero_power(self.ai_player, row_name)
                     card_count = sum(
                         1 for c in self.ai_player.board.get(row_name, [])
-                        if "Legendary Commander" not in (c.ability or "")
+                        if not is_hero(c)
                     )
                     
                     # Consider weather effects (if weather active, horn is less valuable)
@@ -1071,19 +1071,19 @@ class AIStrategy:
             if context['cards_on_board'] < 3 and context['ai_cards_left'] > 3:
                 score -= 5  # Wait to build board first
         
-        elif "Ring Transport" in ability:
+        elif has_ability(card, Ability.RING_TRANSPORT):
             # Decoy: Return a unit to hand - good for reusing abilities
             best_target_value = 0
             for row_cards in self.ai_player.board.values():
                 for c in row_cards:
-                    if "Legendary Commander" not in (c.ability or ""):
+                    if not is_hero(c):
                         target_value = c.power
                         # Bonus for cards with abilities
-                        if "Medical Evac" in (c.ability or ""):
+                        if is_medic(c):
                             target_value += 8  # Reuse medic
-                        if "Deep Cover Agent" in (c.ability or ""):
+                        if is_spy(c):
                             target_value += 10  # Reuse spy
-                        if "Gate Reinforcement" in (c.ability or ""):
+                        if has_ability(c, Ability.GATE_REINFORCEMENT):
                             target_value += 6
                         if best_target_value < target_value:
                             best_target_value = target_value
@@ -1116,7 +1116,7 @@ class AIStrategy:
         for row_name, is_weathered in player.weather_effects.items():
             if is_weathered:
                 for card in player.board.get(row_name, []):
-                    if "Legendary Commander" not in (card.ability or ""):
+                    if not is_hero(card):
                         damage += max(0, card.power - 1)
         return damage
     
@@ -1124,7 +1124,7 @@ class AIStrategy:
         """Count non-hero power in a row."""
         return sum(
             card.power for card in player.board.get(row, [])
-            if "Legendary Commander" not in (card.ability or "")
+            if not is_hero(card)
         )
     
     def get_highest_non_hero_power(self, player) -> int:
@@ -1132,7 +1132,7 @@ class AIStrategy:
         max_power = 0
         for row in player.board.values():
             for card in row:
-                if "Legendary Commander" not in (card.ability or "") and card.displayed_power > max_power:
+                if not is_hero(card) and card.displayed_power > max_power:
                     max_power = card.displayed_power
         return max_power
 

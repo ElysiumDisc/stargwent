@@ -4,6 +4,7 @@ import game_config as cfg
 import display_manager
 from pygame.math import Vector2
 from cards import get_card_back, ALL_CARDS, FACTION_TAURI
+from abilities import Ability, has_ability
 
 # Performance caches to avoid recreating objects every frame
 _font_cache = {}
@@ -459,7 +460,7 @@ def draw_horn_slots(surface, game, dragging_card=None):
     opponent_color = cfg.FACTION_GLOW_COLORS.get(game.player2.faction, (255, 215, 0))
 
     # Check if we're dragging a Command Network card
-    is_horn_card_drag = dragging_card and dragging_card.row == "special" and "Command Network" in (dragging_card.ability or "")
+    is_horn_card_drag = dragging_card and dragging_card.row == "special" and has_ability(dragging_card, Ability.COMMAND_NETWORK)
 
     if hasattr(game.player1, "horn_slots"):
         for row_name, slot_rect in cfg.PLAYER_HORN_SLOT_RECTS.items():

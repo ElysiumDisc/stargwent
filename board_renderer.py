@@ -12,6 +12,7 @@ from game_config import (
 from render_engine import (
     draw_card, draw_weather_slots, draw_horn_slots, _compute_hand_positions
 )
+from abilities import Ability, has_ability, is_spy
 
 # Surface cache for frequently-used overlay surfaces
 _surface_cache = {}
@@ -81,10 +82,10 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
     # Highlight valid target rows with semi-transparent fill and border
     if selected_card and selected_card.row not in ["special", "weather"]:
         valid_rows = []
-        is_spy = "Deep Cover Agent" in (selected_card.ability or "")
+        card_is_spy = is_spy(selected_card)
 
-        target_rects = cfg.OPPONENT_ROW_RECTS if is_spy else cfg.PLAYER_ROW_RECTS
-        fill_color = (255, 100, 100, 40) if is_spy else (100, 255, 100, 40)
+        target_rects = cfg.OPPONENT_ROW_RECTS if card_is_spy else cfg.PLAYER_ROW_RECTS
+        fill_color = (255, 100, 100, 40) if card_is_spy else (100, 255, 100, 40)
 
         if selected_card.row == "agile":
             valid_rows = ["close", "ranged"]
@@ -132,8 +133,7 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
 
     # Highlight general special targets (non-horn placement)
     if dragging_card and dragging_card.row == "special":
-        ability_text = dragging_card.ability or ""
-        if "Command Network" not in ability_text:
+        if not has_ability(dragging_card, Ability.COMMAND_NETWORK):
             fill_color = (255, 255, 255, 30)
             for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                 for rect in rects.values():

@@ -5,6 +5,7 @@ Each faction has a unique, once-per-round, cinematic ability
 import pygame
 import math
 import random
+from abilities import is_hero
 
 
 class FactionPower:
@@ -62,7 +63,7 @@ class TauriFactionPower(FactionPower):
                 continue
 
             # Find strongest non-Legendary Commander
-            non_hero_cards = [c for c in row_cards if "Legendary Commander" not in (c.ability or "")]
+            non_hero_cards = [c for c in row_cards if not is_hero(c)]
             if non_hero_cards:
                 strongest = max(non_hero_cards, key=lambda c: c.displayed_power)
                 opponent.board[row_name].remove(strongest)
@@ -98,7 +99,7 @@ class GoauldFactionPower(FactionPower):
         
         # Get valid cards from discard (non-Hero units)
         valid_cards = [c for c in player.discard_pile 
-                      if "Legendary Commander" not in (c.ability or "") 
+                      if not is_hero(c) 
                       and c.row in ["close", "ranged", "siege", "agile"]]
         
         if not valid_cards:
@@ -137,7 +138,7 @@ class LucianFactionPower(FactionPower):
             for row_name in ["close", "ranged", "siege"]:
                 row_cards = list(game_player.board[row_name])  # Copy list to avoid modification issues
                 for card in row_cards:
-                    if "Legendary Commander" not in (card.ability or ""):
+                    if not is_hero(card):
                         # Reduce BASE power by 5 (so it persists through calculate_score)
                         old_power = card.power
                         card.power = max(0, card.power - 5)

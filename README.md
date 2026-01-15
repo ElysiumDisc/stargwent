@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.6.0-blue)
+![Version](https://img.shields.io/badge/version-4.7.1-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,6 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
+- **⚡ NEW v4.7.1: CODE ARCHITECTURE REFACTOR** - Type-safe Ability enum system replaces string-based checks! Centralized 50+ hardcoded values (animations, colors, fonts, timing) in game_config.py! Fixed Rule Compendium missing Jaffa/Lucian unlock sections!
 - **⚡ NEW v4.6.0: DHD BACK BUTTONS & NAVIGATION POLISH** - Replaced all "Back" buttons with circular DHD-style buttons! Holding arrow keys now continuously browses. SPACE previews cards (F plays). Wider chat/history panel with LAN chat input box!
 - **⚡ NEW v4.5.0: UNIVERSAL KEYBOARD CONTROLS** - Full keyboard navigation across all game screens! Arrow keys for card/menu navigation, F to play cards, G for faction power, Tab to cycle buttons. Cards now highlight with row-type colors (red=close, blue=ranged, green=siege). Enhanced pause menu with Options integration!
 - **⚡ NEW v4.4.0: DRAFT MODE SAVE & POST-GAME POLISH** - Draft mode now features Save & Continue options! After winning a match, choose to Continue Draft, Save & Exit, or Abandon. Post-game menu redesigned with Stargwent-styled buttons. Fixed critical card sharing bug and improved FPS with font/surface caching!
@@ -185,6 +186,26 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.7.1 (January 2026)
+**Code Architecture & Bug Fixes**
+
+- ✅ **Ability System Refactor (String → Enum)** – Replaced fragile string-based ability checks with a type-safe enum system:
+  - New `abilities.py` module with `Ability` enum containing all 22 abilities
+  - Helper functions: `has_ability()`, `is_hero()`, `is_spy()`, `is_medic()`, `can_be_targeted()`
+  - Updated all ability checks across 9 files (game.py, main.py, ai_opponent.py, power.py, board_renderer.py, selection_overlays.py, deck_builder.py, render_engine.py, draft_mode.py)
+  - Eliminates typo bugs and enables IDE autocomplete for ability names
+- ✅ **Centralized Hardcoded Values** – Moved 50+ magic numbers into `game_config.py`:
+  - Animation durations: `ANIM_INSTANT` (300ms) → `ANIM_PERSISTENT` (2500ms)
+  - Timing constants: `TYPING_TIMEOUT`, `POPUP_DISPLAY_TIME`, `MULLIGAN_TIMEOUT`
+  - Font sizes: `FONT_SIZE_TINY` (14) → `FONT_SIZE_GIANT` (72)
+  - Extended UI colors: Highlight colors, text colors, background overlays
+  - Helper functions: `scaled_font()`, `get_faction_ui_color()`
+  - Updated selection_overlays.py, main.py, lan_chat.py to use centralized constants
+- ✅ **Rule Compendium Fix** – Fixed missing "Unlockable Collection" sections for Jaffa Rebellion and Lucian Alliance factions in Tab 9 (Full Card Glossary):
+  - Root cause: Faction names in `unlocks.py` didn't match full names used elsewhere ("Jaffa" vs "Jaffa Rebellion", "Lucian" vs "Lucian Alliance")
+  - Fixed faction names in UNLOCKABLE_CARDS dictionary
+  - Regenerated `rules_menu_spec.md` - all 6 factions now show their unlockable cards
 
 ### Version 4.6.0 (January 2026)
 **DHD Back Buttons & Navigation Polish**

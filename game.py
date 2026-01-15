@@ -4,6 +4,7 @@ import time
 import pygame
 import logging
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, Card
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic, can_be_targeted
 from sound_manager import get_sound_manager
 
 # Configure logging
@@ -71,20 +72,20 @@ class GoauldAbility(FactionAbility):
     def apply_to_score(self, player):
         """Called during score calculation."""
         # Check if player has any Legendary Commander on board
-        has_hero = False
+        board_has_hero = False
         for row in player.board.values():
             for card in row:
-                if "Legendary Commander" in (card.ability or ""):
-                    has_hero = True
+                if is_hero(card):
+                    board_has_hero = True
                     break
-            if has_hero:
+            if board_has_hero:
                 break
 
-        if has_hero:
+        if board_has_hero:
             # Add bonus to all non-Legendary Commander units
             for row in player.board.values():
                 for card in row:
-                    if "Legendary Commander" not in (card.ability or ""):
+                    if not is_hero(card):
                         card.displayed_power += BALANCE_CONFIG["goauld_command_bonus"]
 
 
@@ -99,7 +100,7 @@ class JaffaAbility(FactionAbility):
     def apply_to_score(self, player):
         """Called during score calculation."""
         for row_name, row_cards in player.board.items():
-            non_hero_units = [c for c in row_cards if "Legendary Commander" not in (c.ability or "")]
+            non_hero_units = [c for c in row_cards if not is_hero(c)]
             if len(non_hero_units) > 1:
                 bonus = min(BALANCE_CONFIG["jaffa_brotherhood_max"], len(non_hero_units) - 1)
                 for card in non_hero_units:
@@ -520,7 +521,7 @@ class Player:
             elif "Heimdall" in leader_name:
                 for row_cards in self.board.values():
                     for card in row_cards:
-                        if "Legendary Commander" in (card.ability or ""):
+                        if is_hero(card):
                             card.displayed_power += 3
             
             # NEW UNLOCKABLE LEADERS - Power Bonuses
@@ -536,7 +537,7 @@ class Player:
             elif "Ishta" in leader_name:
                 for row_cards in self.board.values():
                     for card in row_cards:
-                        if "Gate Reinforcement" in (card.ability or ""):
+                        if has_ability(card, Ability.GATE_REINFORCEMENT):
                             card.displayed_power += 2
             
             # Aegir: Draw 1 card when playing Siege units (handled in play_card())
@@ -586,7 +587,7 @@ class Player:
         for row_name, row_cards in self.board.items():
             bond_groups = {}
             for card in row_cards:
-                if "Tactical Formation" in (card.ability or ""):
+                if has_ability(card, Ability.TACTICAL_FORMATION):
                     if card.name not in bond_groups:
                         bond_groups[card.name] = []
                     bond_groups[card.name].append(card)
@@ -603,21 +604,21 @@ class Player:
         # Apply Inspiring Leadership adjacency bonus
         for row_name, row_cards in self.board.items():
             for idx, card in enumerate(row_cards):
-                if "Inspiring Leadership" in (card.ability or ""):
+                if has_ability(card, Ability.INSPIRING_LEADERSHIP):
                     if idx > 0:
                         left_card = row_cards[idx - 1]
-                        if "Legendary Commander" not in (left_card.ability or ""):
+                        if not is_hero(left_card):
                             left_card.displayed_power += 1
                     if idx < len(row_cards) - 1:
                         right_card = row_cards[idx + 1]
-                        if "Legendary Commander" not in (right_card.ability or ""):
+                        if not is_hero(right_card):
                             right_card.displayed_power += 1
 
         # Apply Commander's Horn (doubles non-Legendary Commander units)
         for row_name, row_cards in self.board.items():
             if self.horn_effects[row_name]:
                 for card in row_cards:
-                    if "Legendary Commander" not in (card.ability or ""):
+                    if not is_hero(card):
                         card.displayed_power *= 2
         
         # Apply ZPM Power (doubles ALL siege units for the round)
@@ -643,9 +644,9 @@ class Player:
         for row_name, row_cards in self.board.items():
             if self.weather_effects[row_name]:
                 for card in row_cards:
-                    if "Legendary Commander" in (card.ability or ""):
+                    if is_hero(card):
                         continue
-                    if "Survival Instinct" in (card.ability or ""):
+                    if has_ability(card, Ability.SURVIVAL_INSTINCT):
                         card.displayed_power = card.power + 2
                     else:
                         card.displayed_power = 1
@@ -829,9 +830,9 @@ class Game:
             desc += f" ({note})"
         
         # Select appropriate icon based on card type
-        if "Legendary Commander" in (card.ability or ""):
+        if is_hero(card):
             icon = "*"
-        elif "Deep Cover Agent" in (card.ability or ""):
+        elif is_spy(card):
             icon = "?"
         elif card.row == "weather":
             icon = "~"
@@ -1035,8 +1036,7 @@ class Game:
             # Handle special cards
             if card.row == "special":
                 # Check if this is a Command Network (horn) card
-                ability = card.ability or ""
-                if "Command Network" in ability:
+                if has_ability(card, Ability.COMMAND_NETWORK):
                     # Apply horn effect but don't discard the card - it stays in the horn slot
                     self.apply_special_effect(card, row_name)
                     self._log_card_play(player, card, row_name=row_name, note="Horn")
@@ -1072,10 +1072,10 @@ class Game:
 
             player = self.current_player
             target_player = self.current_player
-            is_spy = "Deep Cover Agent" in (card.ability or "")
-            
+            card_is_spy = is_spy(card)
+
             # Deep Cover Agent ability logic with Lucian faction bonus and Vulkar leader ability
-            if is_spy:
+            if card_is_spy:
                 if self.current_player == self.player1:
                     target_player = self.player2
                 else:
@@ -1097,11 +1097,10 @@ class Game:
                 target_player.board[row_name].append(card)
             
             # Log standard play
-            self._log_card_play(player, card, row_name=row_name, note="Spy" if is_spy else None)
+            self._log_card_play(player, card, row_name=row_name, note="Spy" if card_is_spy else None)
             
             # Narrate specific passive abilities on play
-            ability = card.ability or ""
-            if "Inspiring Leadership" in ability:
+            if has_ability(card, Ability.INSPIRING_LEADERSHIP):
                 self.add_history_event(
                     "ability",
                     f"{card.name} inspires adjacent units!",
@@ -1109,7 +1108,7 @@ class Game:
                     card_ref=card,
                     icon="💚"
                 )
-            if "System Lord's Curse" in ability:
+            if has_ability(card, Ability.SYSTEM_LORDS_CURSE):
                 self.add_history_event(
                     "ability",
                     f"{card.name} curses the enemy row!",
@@ -1120,7 +1119,7 @@ class Game:
 
             # === CARD PLAY AUDIO ===
             sound_manager = get_sound_manager()
-            if "Legendary Commander" in (card.ability or ""):
+            if is_hero(card):
                 # Legendary commanders get their unique voice snippet
                 sound_manager.play_commander_snippet(card.id, volume=0.7)
             elif card.id == "goauld_symbiote":
@@ -1193,40 +1192,40 @@ class Game:
                 opponent = self.player2 if player == self.player1 else self.player1
                 all_opponent_units = []
                 for row_cards in opponent.board.values():
-                    all_opponent_units.extend([c for c in row_cards if "Legendary Commander" not in (c.ability or "")])
+                    all_opponent_units.extend([c for c in row_cards if not is_hero(c)])
                 if all_opponent_units:
                     strongest = max(all_opponent_units, key=lambda c: c.displayed_power)
                     if strongest.displayed_power > 1:
                         strongest.power -= 1
                         # Add power to a random friendly unit
-                        friendly_units = [c for row in player.board.values() for c in row if "Legendary Commander" not in (c.ability or "")]
+                        friendly_units = [c for row in player.board.values() for c in row if not is_hero(c)]
                         if friendly_units:
                             self.rng.choice(friendly_units).power += 1
                         print(f"Loki stole 1 power from {strongest.name} (now {strongest.power})")
 
 
             # Trigger Gate Reinforcement ability
-            if "Gate Reinforcement" in (card.ability or ""):
+            if has_ability(card, Ability.GATE_REINFORCEMENT):
                 self.trigger_muster(card, target_player, row_name)
-            
+
             # Trigger Deploy Clones
-            if "Deploy Clones" in (card.ability or ""):
+            if has_ability(card, Ability.DEPLOY_CLONES):
                 self.trigger_summon_shield_maidens(target_player, row_name)
-            
+
             # Trigger Grant ZPM
-            if "Grant ZPM" in (card.ability or ""):
+            if has_ability(card, Ability.GRANT_ZPM):
                 self.trigger_grant_zpm(target_player)
-            
+
             # Trigger Activate Combat Protocol
-            if "Activate Combat Protocol" in (card.ability or ""):
+            if has_ability(card, Ability.ACTIVATE_COMBAT_PROTOCOL):
                 self.trigger_summon_avenger(target_player, row_name)
-            
+
             # Trigger Genetic Enhancement (transforms weakest units)
-            if "Genetic Enhancement" in (card.ability or ""):
+            if has_ability(card, Ability.GENETIC_ENHANCEMENT):
                 self.trigger_mardroeme(target_player)
-            
+
             # Trigger Medical Evac ability - Check if player should choose
-            if "Medical Evac" in (card.ability or ""):
+            if has_ability(card, Ability.MEDICAL_EVAC):
                 # If there are valid revive targets, the UI will handle selection.
                 # If none are available, treat as a normal play and end the turn.
                 if self.get_medic_valid_cards(player):
@@ -1295,19 +1294,19 @@ class Game:
             )
 
         # Life Force Drain siphons enemy strength and boosts the muster group
-        if "Life Force Drain" in (played_card.ability or ""):
+        if has_ability(played_card, Ability.LIFE_FORCE_DRAIN):
             self.trigger_life_force_drain(player, played_card, total_mustered)
-        
+
         # System Lord's Curse weakens the opposing row after the muster resolves
-        if "System Lord's Curse" in (played_card.ability or ""):
+        if has_ability(played_card, Ability.SYSTEM_LORDS_CURSE):
             self.trigger_system_lords_curse(player, row_name)
-        
+
         # Check for Vampire ability (life steal)
-        if "Vampire" in (played_card.ability or ""):
+        if has_ability(played_card, Ability.VAMPIRE):
             self.trigger_vampire(player, total_mustered)
-        
+
         # Check for Crone ability (weaken opponent)
-        if "Crone" in (played_card.ability or ""):
+        if has_ability(played_card, Ability.CRONE):
             self.trigger_crone(player, row_name)
     
     def trigger_vampire(self, player, num_cards):
@@ -1319,7 +1318,7 @@ class Game:
             drainable_units = []
             for row_cards in opponent.board.values():
                 for card in row_cards:
-                    if card.displayed_power > 1 and "Legendary Commander" not in (card.ability or ""):
+                    if card.displayed_power > 1 and not is_hero(card):
                         drainable_units.append(card)
             
             if drainable_units:
@@ -1335,7 +1334,7 @@ class Game:
         
         # Weaken all opponent units in same row
         for card in opponent.board.get(row_name, []):
-            if "Legendary Commander" not in (card.ability or ""):
+            if not is_hero(card):
                 new_power = max(1, card.power - 1)
                 card.power = new_power
                 card.displayed_power = new_power
@@ -1355,7 +1354,7 @@ class Game:
             drainable_units = []
             for row_cards in opponent.board.values():
                 for card in row_cards:
-                    if "Legendary Commander" in (card.ability or ""):
+                    if is_hero(card):
                         continue
                     if card.power > 1:
                         drainable_units.append(card)
@@ -1373,7 +1372,7 @@ class Game:
         """System Lord's Curse: weaken opposing units in the mirrored row by 1 (min 1)."""
         opponent = self.player2 if player == self.player1 else self.player1
         for card in opponent.board.get(row_name, []):
-            if "Legendary Commander" in (card.ability or ""):
+            if is_hero(card):
                 continue
             new_power = max(1, card.power - 1)
             card.power = new_power
@@ -1421,23 +1420,23 @@ class Game:
             # Find weakest non-Legendary Commander unit
             weakest = None
             for card in row_cards:
-                if "Legendary Commander" not in (card.ability or ""):
+                if not is_hero(card):
                     if weakest is None or card.displayed_power < weakest.displayed_power:
                         weakest = card
-            
+
             if weakest:
                 # Transform into berserker
                 weakest.power = 8
                 weakest.displayed_power = 8
                 if weakest.ability:
-                    if "Survival Instinct" not in weakest.ability:
+                    if not has_ability(weakest, Ability.SURVIVAL_INSTINCT):
                         weakest.ability += ", Survival Instinct"
                 else:
                     weakest.ability = "Survival Instinct"
     
     def trigger_medic(self, player, selected_card=None):
         """Revives a non-Legendary Commander unit card from discard pile."""
-        valid_cards = [c for c in player.discard_pile if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]]
+        valid_cards = [c for c in player.discard_pile if not is_hero(c) and c.row in ["close", "ranged", "siege", "agile"]]
         
         if not valid_cards:
             return None  # No valid cards to revive
@@ -1459,7 +1458,7 @@ class Game:
     
     def get_medic_valid_cards(self, player):
         """Get list of valid cards that can be revived by medic."""
-        return [c for c in player.discard_pile if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]]
+        return [c for c in player.discard_pile if not is_hero(c) and c.row in ["close", "ranged", "siege", "agile"]]
 
     def trigger_hathor_ability(self, player):
         """Trigger Hathor's ability to steal the lowest power card from opponent."""
@@ -1476,7 +1475,7 @@ class Game:
         for row_name, row_cards in opponent.board.items():
             for card in row_cards:
                 # Skip Legendary Commanders and special cards
-                if "Legendary Commander" in (card.ability or "") or card.row in ["special", "weather"]:
+                if is_hero(card) or card.row in ["special", "weather"]:
                     continue
 
                 if card.power < lowest_power:
@@ -1924,7 +1923,7 @@ class Game:
         # Get all non-Hero units from discard pile
         eligible_cards = [
             c for c in player.discard_pile
-            if "Legendary Commander" not in (c.ability or "") and c.row in ["close", "ranged", "siege", "agile"]
+            if not is_hero(c) and c.row in ["close", "ranged", "siege", "agile"]
         ]
 
         if not eligible_cards:
@@ -1992,9 +1991,7 @@ class Game:
 
     def apply_special_effect(self, card, row_name):
         """Applies special card effects."""
-        ability = card.ability or ""
-        
-        if "Command Network" in ability:
+        if has_ability(card, Ability.COMMAND_NETWORK):
             # Apply horn to specified row for current player
             if row_name in ["close", "ranged", "siege"]:
                 self.current_player.horn_effects[row_name] = True
@@ -2011,10 +2008,10 @@ class Game:
                     row=row_name
                 )
         
-        elif "Naquadah Overload" in ability:
+        elif has_ability(card, Ability.NAQUADAH_OVERLOAD):
             opponent = self.player2 if self.current_player == self.player1 else self.player1
             # Ancient Drone variant: destroy the lowest enemy unit only
-            if "Destroy lowest enemy unit" in ability:
+            if "Destroy lowest enemy unit" in (card.ability or ""):
                 destroyed_rows = self.destroy_lowest_enemy_unit(opponent)
                 self.last_scorch_positions = [(opponent, row) for row in destroyed_rows]
             # Merlin's Weapon (one-sided scorch)
@@ -2025,7 +2022,7 @@ class Game:
                 # Normal scorch - both sides
                 self.last_scorch_positions = self.apply_scorch()
         
-        elif "Ring Transport" in ability:
+        elif has_ability(card, Ability.RING_TRANSPORT):
             # Ring Transport is handled in main.py with UI selection
             # Just mark that decoy effect is pending
             pass
@@ -2123,7 +2120,7 @@ class Game:
         for player in [self.player1, self.player2]:
             for row_name, row_cards in player.board.items():
                 for card in row_cards:
-                    if "Legendary Commander" not in (card.ability or ""):
+                    if not is_hero(card):
                         valid_cards.append(card)
         return valid_cards
 
@@ -2135,7 +2132,7 @@ class Game:
         if not target_card:
             return False
 
-        if "Legendary Commander" in (target_card.ability or ""):
+        if is_hero(target_card):
             return False
 
         # Find which player owns the card and which row it's in
@@ -2208,7 +2205,7 @@ class Game:
         for player in [self.player1, self.player2]:
             for row_name, row_cards in player.board.items():
                 for card in row_cards:
-                    if "Legendary Commander" not in (card.ability or ""):
+                    if not is_hero(card):
                         all_units.append((card, player, row_name))
 
         if not all_units:
@@ -2269,7 +2266,7 @@ class Game:
         all_units = []
         for row_name, row_cards in target_player.board.items():
             for card in row_cards:
-                if "Legendary Commander" not in (card.ability or ""):
+                if not is_hero(card):
                     all_units.append((card, row_name))
 
         if not all_units:
@@ -2346,7 +2343,7 @@ class Game:
         eligible = []
         for row_name, row_cards in target_player.board.items():
             for card in row_cards:
-                if "Legendary Commander" in (card.ability or ""):
+                if is_hero(card):
                     continue
                 eligible.append((card, row_name))
         if not eligible:
@@ -2578,7 +2575,7 @@ class Game:
                 elif "Anateo" in leader_name and self.round_number > 1:
                     # Auto-trigger medic ability if discard has valid cards
                     valid_cards = [c for c in p.discard_pile
-                                  if "Legendary Commander" not in (c.ability or "")
+                                  if not is_hero(c)
                                   and c.row in ["close", "ranged", "siege", "agile"]]
                     if valid_cards:
                         # Revive highest power card

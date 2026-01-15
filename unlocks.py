@@ -144,7 +144,7 @@ UNLOCKABLE_CARDS = {
     # NEW CARDS - Strategic and Balanced
     "sodan_warrior": {
         "name": "Sodan Cloaked Warrior",
-        "faction": "Lucian",
+        "faction": "Lucian Alliance",
         "row": "close",
         "power": 6,
         "ability": "When played: Look at opponent's hand for 30s",
@@ -189,7 +189,7 @@ UNLOCKABLE_CARDS = {
     },
     "dakara_superweapon": {
         "name": "Dakara Superweapon",
-        "faction": "Jaffa",
+        "faction": "Jaffa Rebellion",
         "row": "siege",
         "power": 12,
         "ability": "Legendary Commander",

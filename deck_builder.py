@@ -10,6 +10,7 @@ from cards import (
     FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 )
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
+from abilities import is_hero
 from game_settings import get_settings
 import board_renderer
 
@@ -2300,7 +2301,7 @@ def build_faction_deck(faction, leader=None, *, unlock_system=None, unlock_overr
     neutral_card_ids = [
         card.id for card in ALL_CARDS.values()
         if card.faction == FACTION_NEUTRAL
-        and "Legendary Commander" not in (card.ability or "")
+        and not is_hero(card)
         and is_card_available(card.id, unlock_system, unlock_override)
     ]
     # Filter out Legendary Commander neutrals to keep balance, but allow all rows

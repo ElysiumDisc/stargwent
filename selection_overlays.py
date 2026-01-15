@@ -4,6 +4,7 @@ import game_config as cfg
 import display_manager
 from cards import ALL_CARDS
 from game_config import UI_FONT
+from abilities import is_hero
 
 def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=False):
     """Draw clickable leader ability box with Stargate theme."""
@@ -12,14 +13,14 @@ def draw_leader_ability_box(surface, player, x, y, width, height, is_opponent=Fa
     
     # Stargate-themed box (semi-transparent with border)
     box_surface = pygame.Surface((width, height), pygame.SRCALPHA)
-    box_surface.fill((20, 40, 60, 200))  # Dark blue-ish with transparency
+    box_surface.fill(cfg.BG_PANEL)  # Dark blue-ish with transparency
     
     # Golden border (Stargate style)
-    pygame.draw.rect(box_surface, (255, 215, 0), box_surface.get_rect(), width=3, border_radius=8)
+    pygame.draw.rect(box_surface, cfg.GOLD, box_surface.get_rect(), width=3, border_radius=8)
     
     # Leader name
     name_font = pygame.font.SysFont("Arial", 22, bold=True)
-    name_text = name_font.render(player.leader['name'], True, (255, 215, 0))
+    name_text = name_font.render(player.leader['name'], True, cfg.GOLD)
     name_rect = name_text.get_rect(center=(width // 2, 20))
     box_surface.blit(name_text, name_rect)
     
@@ -86,11 +87,11 @@ def draw_leader_inspection_overlay(surface, player, screen_width, screen_height)
             pygame.draw.rect(surface, (60, 60, 80), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height))
     
     # Golden border
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height), width=5)
+    pygame.draw.rect(surface, cfg.GOLD, pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height), width=5)
     
     # Leader name
     name_font = pygame.font.Font(None, 48)
-    name_text = name_font.render(player.leader['name'], True, (255, 215, 0))
+    name_text = name_font.render(player.leader['name'], True, cfg.GOLD)
     name_rect = name_text.get_rect(center=(screen_width // 2, portrait_y + portrait_height + 40))
     surface.blit(name_text, name_rect)
     
@@ -102,11 +103,11 @@ def draw_leader_inspection_overlay(surface, player, screen_width, screen_height)
     
     # Draw ability box
     pygame.draw.rect(surface, (40, 40, 50), pygame.Rect(ability_box_x, ability_box_y, ability_box_width, ability_box_height))
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(ability_box_x, ability_box_y, ability_box_width, ability_box_height), width=3)
+    pygame.draw.rect(surface, cfg.GOLD, pygame.Rect(ability_box_x, ability_box_y, ability_box_width, ability_box_height), width=3)
     
     # Ability title
     ability_title_font = pygame.font.Font(None, 32)
-    ability_title = ability_title_font.render("LEADER ABILITY", True, (255, 215, 0))
+    ability_title = ability_title_font.render("LEADER ABILITY", True, cfg.GOLD)
     title_rect = ability_title.get_rect(center=(screen_width // 2, ability_box_y + 20))
     surface.blit(ability_title, title_rect)
     
@@ -134,14 +135,14 @@ def draw_leader_inspection_overlay(surface, player, screen_width, screen_height)
     # Draw lines
     line_y = ability_box_y + 50
     for line in lines[:3]:  # Max 3 lines
-        line_text = ability_font.render(line.strip(), True, (220, 220, 220))
+        line_text = ability_font.render(line.strip(), True, cfg.TEXT_LIGHT)
         line_rect = line_text.get_rect(center=(screen_width // 2, line_y))
         surface.blit(line_text, line_rect)
         line_y += 30
     
     # Instructions
     instruction_font = pygame.font.Font(None, 28)
-    instruction = instruction_font.render("Press SPACE or Click to close", True, (200, 200, 200))
+    instruction = instruction_font.render("Press SPACE or Click to close", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 50))
     surface.blit(instruction, instruction_rect)
 
@@ -149,12 +150,12 @@ def draw_medic_selection_overlay(surface, game, screen_width, screen_height):
     """Draw overlay for selecting a card to revive with medic ability."""
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    overlay.fill(cfg.BG_OVERLAY_DARK)
     surface.blit(overlay, (0, 0))
     
     # Title
     title_font = pygame.font.Font(None, 56)
-    title_text = title_font.render("MEDIC: Choose a card to revive", True, (100, 255, 100))
+    title_text = title_font.render("MEDIC: Choose a card to revive", True, cfg.HIGHLIGHT_GREEN)
     title_rect = title_text.get_rect(center=(screen_width // 2, 60))
     surface.blit(title_text, title_rect)
     
@@ -163,7 +164,7 @@ def draw_medic_selection_overlay(surface, game, screen_width, screen_height):
     
     if not valid_cards:
         # No cards available
-        no_cards_text = cfg.UI_FONT.render("No cards available to revive", True, (255, 100, 100))
+        no_cards_text = cfg.UI_FONT.render("No cards available to revive", True, cfg.HIGHLIGHT_RED)
         no_cards_rect = no_cards_text.get_rect(center=(screen_width // 2, screen_height // 2))
         surface.blit(no_cards_text, no_cards_rect)
         return []
@@ -192,10 +193,10 @@ def draw_medic_selection_overlay(surface, game, screen_width, screen_height):
         
         # Highlight border
         card_rect = pygame.Rect(x, y, card_display_width, card_display_height)
-        pygame.draw.rect(surface, (100, 255, 100), card_rect, width=3)
+        pygame.draw.rect(surface, cfg.HIGHLIGHT_GREEN, card_rect, width=3)
         
         # Card name below
-        name_text = cfg.UI_FONT.render(card.name[:20], True, (255, 255, 255))
+        name_text = cfg.UI_FONT.render(card.name[:20], True, cfg.WHITE)
         name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
         surface.blit(name_text, name_rect)
         
@@ -203,7 +204,7 @@ def draw_medic_selection_overlay(surface, game, screen_width, screen_height):
     
     # Instructions
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to revive it", True, (200, 200, 200))
+    instruction = instruction_font.render("Click a card to revive it", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
     surface.blit(instruction, instruction_rect)
     
@@ -213,7 +214,7 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
     """Draw overlay for selecting a card to return to hand with decoy ability."""
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    overlay.fill(cfg.BG_OVERLAY_DARK)
     surface.blit(overlay, (0, 0))
     
     # Title
@@ -224,7 +225,7 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
     
     # Subtitle
     subtitle_font = pygame.font.Font(None, 32)
-    subtitle_text = subtitle_font.render("(You can take your own card or an opponent's card)", True, (200, 200, 200))
+    subtitle_text = subtitle_font.render("(You can take your own card or an opponent's card)", True, cfg.TEXT_DIM)
     subtitle_rect = subtitle_text.get_rect(center=(screen_width // 2, 100))
     surface.blit(subtitle_text, subtitle_rect)
     
@@ -233,7 +234,7 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
     
     if not valid_cards:
         # No cards available
-        no_cards_text = cfg.UI_FONT.render("No cards available on the board", True, (255, 100, 100))
+        no_cards_text = cfg.UI_FONT.render("No cards available on the board", True, cfg.HIGHLIGHT_RED)
         no_cards_rect = no_cards_text.get_rect(center=(screen_width // 2, screen_height // 2))
         surface.blit(no_cards_text, no_cards_rect)
         return []
@@ -267,18 +268,18 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
         # Highlight border - blue for own cards, red for opponent cards
         card_rect = pygame.Rect(x, y, card_display_width, card_display_height)
         if is_player_card:
-            pygame.draw.rect(surface, (100, 150, 255), card_rect, width=3)
+            pygame.draw.rect(surface, cfg.HIGHLIGHT_BLUE, card_rect, width=3)
         elif is_opponent_card:
-            pygame.draw.rect(surface, (255, 100, 100), card_rect, width=3)
+            pygame.draw.rect(surface, cfg.HIGHLIGHT_RED, card_rect, width=3)
         
         # Owner label
         owner_text = cfg.UI_FONT.render("YOUR CARD" if is_player_card else "OPP CARD", True, 
-                                    (100, 150, 255) if is_player_card else (255, 100, 100))
+                                    cfg.HIGHLIGHT_BLUE if is_player_card else cfg.HIGHLIGHT_RED)
         owner_rect = owner_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 10))
         surface.blit(owner_text, owner_rect)
         
         # Card name below
-        name_text = cfg.UI_FONT.render(card.name[:15], True, (255, 255, 255))
+        name_text = cfg.UI_FONT.render(card.name[:15], True, cfg.WHITE)
         name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 30))
         surface.blit(name_text, name_rect)
         
@@ -286,7 +287,7 @@ def draw_decoy_selection_overlay(surface, game, screen_width, screen_height):
     
     # Instructions
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to return it to your hand", True, (200, 200, 200))
+    instruction = instruction_font.render("Click a card to return it to your hand", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
     surface.blit(instruction, instruction_rect)
     
@@ -296,7 +297,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
     """Draw full-screen card inspection overlay when spacebar/right-click is pressed."""
     # Semi-transparent dark overlay for focus
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 180))
+    overlay.fill(cfg.BG_OVERLAY_MEDIUM)
     surface.blit(overlay, (0, 0))
     
     # Large card display - 2x scale for crisp preview
@@ -320,15 +321,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
         pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
     
     # Faction-colored glow effect
-    faction_colors = {
-        "Tau'ri": (100, 150, 255),
-        "Goa'uld": (255, 180, 50),
-        "Jaffa": (200, 150, 100),
-        "Lucian Alliance": (200, 80, 200),
-        "Asgard": (100, 255, 255),
-        "Neutral": (180, 180, 180),
-    }
-    glow_color = faction_colors.get(card.faction, (255, 215, 0))
+    glow_color = cfg.get_faction_ui_color(card.faction)
     
     # Draw multiple borders for glow effect
     for i in range(4):
@@ -341,7 +334,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
         surface.blit(border_surf, border_rect.topleft)
     
     # Main golden border
-    pygame.draw.rect(surface, (255, 215, 0), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=4, border_radius=6)
+    pygame.draw.rect(surface, cfg.GOLD, pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=4, border_radius=6)
     
     # Description box UNDER the card art
     desc_box_y = card_y + card_display_height + 15
@@ -366,7 +359,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
     small_font = pygame.font.SysFont("Arial", max(16, int(18 * display_manager.SCALE_FACTOR)))
     
     # Card name at top
-    name_text = desc_font.render(card.name, True, (255, 215, 0))
+    name_text = desc_font.render(card.name, True, cfg.GOLD)
     name_rect = name_text.get_rect(center=(desc_box_width // 2, 22))
     desc_surface.blit(name_text, name_rect)
     
@@ -406,7 +399,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
             desc_surface.blit(ability_text, (desc_box_padding, line_y))
     else:
         # No ability - show unit type
-        no_ability_text = small_font.render("Standard unit - no special ability", True, (180, 180, 180))
+        no_ability_text = small_font.render("Standard unit - no special ability", True, cfg.TEXT_DIMMER)
         no_ability_rect = no_ability_text.get_rect(center=(desc_box_width // 2, 100))
         desc_surface.blit(no_ability_text, no_ability_rect)
     
@@ -415,7 +408,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
     
     # Close instruction at bottom
     close_font = pygame.font.SysFont("Arial", max(14, int(16 * display_manager.SCALE_FACTOR)))
-    close_text = close_font.render("Click anywhere or press SPACE to close", True, (180, 180, 180))
+    close_text = close_font.render("Click anywhere or press SPACE to close", True, cfg.TEXT_DIMMER)
     close_rect = close_text.get_rect(center=(screen_width // 2, screen_height - 25))
     surface.blit(close_text, close_rect)
 
@@ -423,17 +416,17 @@ def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scro
     """Draw discard pile viewer overlay."""
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    overlay.fill(cfg.BG_OVERLAY_DARK)
     surface.blit(overlay, (0, 0))
     
     # Title
     title_font = pygame.font.Font(None, 64)
-    title = title_font.render("DISCARD PILE", True, (255, 100, 100))
+    title = title_font.render("DISCARD PILE", True, cfg.HIGHLIGHT_RED)
     title_rect = title.get_rect(center=(screen_width // 2, 60))
     surface.blit(title, title_rect)
     
     if not discard_pile:
-        empty_text = cfg.UI_FONT.render("Discard pile is empty", True, (150, 150, 150))
+        empty_text = cfg.UI_FONT.render("Discard pile is empty", True, cfg.TEXT_MUTED)
         empty_rect = empty_text.get_rect(center=(screen_width // 2, screen_height // 2))
         surface.blit(empty_text, empty_rect)
         return
@@ -458,19 +451,19 @@ def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scro
         if y > 60 and y < screen_height:
             scaled_image = pygame.transform.scale(card.image, (card_width, card_height))
             surface.blit(scaled_image, (x, y))
-            pygame.draw.rect(surface, (255, 100, 100), pygame.Rect(x, y, card_width, card_height), width=3)
+            pygame.draw.rect(surface, cfg.HIGHLIGHT_RED, pygame.Rect(x, y, card_width, card_height), width=3)
             
             # Store rect for click detection
             card.rect = pygame.Rect(x, y, card_width, card_height)
             
             # Card name
-            name_text = pygame.font.Font(None, 24).render(card.name[:25], True, (255, 255, 255))
+            name_text = pygame.font.Font(None, 24).render(card.name[:25], True, cfg.WHITE)
             name_rect = name_text.get_rect(center=(x + card_width // 2, y + card_height + 20))
             surface.blit(name_text, name_rect)
     
     # Instructions
     inst_font = pygame.font.Font(None, 32)
-    inst = inst_font.render("Scroll: Mouse Wheel | Right-Click: Inspect | Close: ESC or Click", True, (200, 200, 200))
+    inst = inst_font.render("Scroll: Mouse Wheel | Right-Click: Inspect | Close: ESC or Click", True, cfg.TEXT_DIM)
     inst_rect = inst.get_rect(center=(screen_width // 2, screen_height - 40))
     surface.blit(inst, inst_rect)
 
@@ -481,13 +474,13 @@ def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
 
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 180))
+    overlay.fill(cfg.BG_OVERLAY_MEDIUM)
     surface.blit(overlay, (0, 0))
 
     # Title
     title_font = pygame.font.Font(None, 56)
     cards_count = len(game.opponent_drawn_cards)
-    title_text = title_font.render(f"JONAS QUINN: Opponent Drew {cards_count} Card{'s' if cards_count > 1 else ''}", True, (100, 200, 255))
+    title_text = title_font.render(f"JONAS QUINN: Opponent Drew {cards_count} Card{'s' if cards_count > 1 else ''}", True, cfg.HIGHLIGHT_CYAN)
     title_rect = title_text.get_rect(center=(screen_width // 2, 80))
     surface.blit(title_text, title_rect)
 
@@ -505,22 +498,22 @@ def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
         # Draw card
         scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
         surface.blit(scaled_image, (card_x, card_y))
-        pygame.draw.rect(surface, (100, 200, 255), pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=3)
+        pygame.draw.rect(surface, cfg.HIGHLIGHT_CYAN, pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=3)
 
         # Card name below
         detail_font = pygame.font.Font(None, 24)
-        name_text = detail_font.render(card.name, True, (200, 200, 200))
+        name_text = detail_font.render(card.name, True, cfg.TEXT_DIM)
         name_rect = name_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 20))
         surface.blit(name_text, name_rect)
 
         # Power and row
-        info_text = detail_font.render(f"{card.power}  •  {card.row.capitalize()}", True, (150, 150, 150))
+        info_text = detail_font.render(f"{card.power}  •  {card.row.capitalize()}", True, cfg.TEXT_MUTED)
         info_rect = info_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 45))
         surface.blit(info_text, info_rect)
 
     # Close instruction
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click or Press SPACE to close", True, (150, 150, 150))
+    instruction = instruction_font.render("Click or Press SPACE to close", True, cfg.TEXT_MUTED)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
     surface.blit(instruction, instruction_rect)
 
@@ -528,7 +521,7 @@ def draw_baal_clone_overlay(surface, game, screen_width, screen_height):
     """Ba'al Clone: Select unit to clone."""
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    overlay.fill(cfg.BG_OVERLAY_DARK)
     surface.blit(overlay, (0, 0))
     
     # Title
@@ -540,10 +533,10 @@ def draw_baal_clone_overlay(surface, game, screen_width, screen_height):
     # Get all player units
     all_units = []
     for row_cards in game.player1.board.values():
-        all_units.extend([c for c in row_cards if "Legendary Commander" not in (c.ability or "")])
+        all_units.extend([c for c in row_cards if not is_hero(c)])
     
     if not all_units:
-        no_units_text = cfg.UI_FONT.render("No units available to clone", True, (255, 100, 100))
+        no_units_text = cfg.UI_FONT.render("No units available to clone", True, cfg.HIGHLIGHT_RED)
         no_units_rect = no_units_text.get_rect(center=(screen_width // 2, screen_height // 2))
         surface.blit(no_units_text, no_units_rect)
         return []
@@ -573,7 +566,7 @@ def draw_baal_clone_overlay(surface, game, screen_width, screen_height):
         pygame.draw.rect(surface, (200, 50, 50), card_rect, width=3)
         
         # Power display
-        power_text = cfg.UI_FONT.render(f"Power: {card.displayed_power}", True, (255, 215, 0))
+        power_text = cfg.UI_FONT.render(f"Power: {card.displayed_power}", True, cfg.GOLD)
         power_rect = power_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
         surface.blit(power_text, power_rect)
         
@@ -581,7 +574,7 @@ def draw_baal_clone_overlay(surface, game, screen_width, screen_height):
     
     # Instructions
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a unit to clone it", True, (200, 200, 200))
+    instruction = instruction_font.render("Click a unit to clone it", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
     surface.blit(instruction, instruction_rect)
     
@@ -591,7 +584,7 @@ def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height
     """Vala: Choose 1 of 3 cards."""
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    overlay.fill(cfg.BG_OVERLAY_DARK)
     surface.blit(overlay, (0, 0))
     
     # Title
@@ -620,7 +613,7 @@ def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height
         pygame.draw.rect(surface, (150, 50, 150), card_rect, width=3)
         
         # Card name
-        name_text = cfg.UI_FONT.render(card.name[:20], True, (255, 255, 255))
+        name_text = cfg.UI_FONT.render(card.name[:20], True, cfg.WHITE)
         name_rect = name_text.get_rect(center=(x + card_display_width // 2, card_y + card_display_height + 30))
         surface.blit(name_text, name_rect)
         
@@ -628,7 +621,7 @@ def draw_vala_selection_overlay(surface, vala_cards, screen_width, screen_height
     
     # Instructions
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to add it to your hand", True, (200, 200, 200))
+    instruction = instruction_font.render("Click a card to add it to your hand", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 80))
     surface.blit(instruction, instruction_rect)
     
@@ -666,13 +659,13 @@ def draw_catherine_selection_overlay(surface, revealed_cards, screen_width, scre
         surface.blit(scaled_image, (x, card_y))
         rect = pygame.Rect(x, card_y, card_display_width, card_display_height)
         pygame.draw.rect(surface, (235, 200, 120), rect, width=4)
-        name_text = cfg.UI_FONT.render(card.name[:22], True, (255, 255, 255))
+        name_text = cfg.UI_FONT.render(card.name[:22], True, cfg.WHITE)
         name_rect = name_text.get_rect(center=(x + card_display_width // 2, card_y + card_display_height + 28))
         surface.blit(name_text, name_rect)
         card_rects.append((card, rect))
 
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to draw it now (it will be added to your hand to play immediately)", True, (200, 200, 200))
+    instruction = instruction_font.render("Click a card to draw it now (it will be added to your hand to play immediately)", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
     surface.blit(instruction, instruction_rect)
 
@@ -727,14 +720,14 @@ def draw_leader_choice_overlay(surface, ability_result, screen_width, screen_hei
         rect = pygame.Rect(x, y, card_display_width, card_display_height)
         pygame.draw.rect(surface, (235, 200, 120), rect, width=4)
 
-        name_text = cfg.UI_FONT.render(card.name[:20], True, (255, 255, 255))
+        name_text = cfg.UI_FONT.render(card.name[:20], True, cfg.WHITE)
         name_rect = name_text.get_rect(center=(x + card_display_width // 2, y + card_display_height + 20))
         surface.blit(name_text, name_rect)
 
         card_rects.append((card, rect))
 
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click a card to select it", True, (200, 200, 200))
+    instruction = instruction_font.render("Click a card to select it", True, cfg.TEXT_DIM)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 70))
     surface.blit(instruction, instruction_rect)
 

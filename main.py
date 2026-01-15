@@ -18,6 +18,7 @@ from cards import (
 from ai_opponent import AIController
 from enum import Enum, auto
 from draft_mode import DraftRun
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic
 
 # ============================================================================
 # DEBUG MODE (v4.3.1)
@@ -344,7 +345,7 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         anim_manager.add_effect(DakaraShockwaveEffect(effect_x, effect_y, screen_width, screen_height))
         return True
     if "naquadah" in name_lower or "overload" in ability_lower:
-        anim_manager.add_effect(NaquadahExplosionEffect(effect_x, effect_y, duration=1500))
+        anim_manager.add_effect(NaquadahExplosionEffect(effect_x, effect_y, duration=cfg.ANIM_MAJOR_EFFECT))
         return True
     if "replicator swarm" in name_lower:
         anim_manager.add_effect(ReplicatorCrawlEffect(screen_width, screen_height))
@@ -440,7 +441,7 @@ def build_button_info_popup(kind, owner, anchor_rect, special_kind=None):
         "kind": kind,
         "special_kind": special_kind,
         "owner": owner,
-        "expires_at": pygame.time.get_ticks() + 5000,
+        "expires_at": pygame.time.get_ticks() + cfg.POPUP_DISPLAY_TIME,
     }
 
 
@@ -1000,9 +1001,9 @@ def main(lan_game_data=None):
                 font_large = pygame.font.SysFont("Arial", 60, bold=True)
                 font_small = pygame.font.SysFont("Arial", 30)
 
-                text1 = font_large.render("CONNECTION LOST", True, (255, 100, 100))
-                text2 = font_small.render("Your opponent has disconnected", True, (200, 200, 200))
-                text3 = font_small.render("Press any key to return to menu", True, (150, 150, 150))
+                text1 = font_large.render("CONNECTION LOST", True, cfg.HIGHLIGHT_RED)
+                text2 = font_small.render("Your opponent has disconnected", True, cfg.TEXT_DIM)
+                text3 = font_small.render("Press any key to return to menu", True, cfg.TEXT_MUTED)
 
                 screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, SCREEN_HEIGHT // 2 - 80))
                 screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, SCREEN_HEIGHT // 2))
@@ -1026,7 +1027,7 @@ def main(lan_game_data=None):
 
         # Handle remote mulligan selections in LAN mode
         if LAN_MODE and LAN_CONTEXT and game.game_state == "mulligan" and not mulligan_remote_done:
-            mulligan_timeout = 30000
+            mulligan_timeout = cfg.MULLIGAN_TIMEOUT
             mulligan_start_time = pygame.time.get_ticks()
             max_iterations = 1000
             iteration_count = 0
@@ -1157,13 +1158,13 @@ def main(lan_game_data=None):
                     if weather_target in ("player1", "both"):
                         rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                         if rect:
-                            anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                            anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                     if weather_target in ("player2", "both"):
                         rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                         if rect:
-                            anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                            anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
     
@@ -1318,11 +1319,11 @@ def main(lan_game_data=None):
                                 target_row = "close"  # Default weather to close row
                             elif card_to_play.row == "special":
                                 # Special cards need specific handling
-                                if "Ring Transport" in (card_to_play.ability or ""):
+                                if has_ability(card_to_play, Ability.RING_TRANSPORT):
                                     target_row = None  # Skip - needs drag
-                                elif "Wormhole Stabilization" in (card_to_play.ability or ""):
+                                elif has_ability(card_to_play, Ability.WORMHOLE_STABILIZATION):
                                     target_row = "weather"
-                                elif "Command Network" in (card_to_play.ability or ""):
+                                elif has_ability(card_to_play, Ability.COMMAND_NETWORK):
                                     target_row = "close"  # Default horn to close
                                 else:
                                     target_row = "special"
@@ -1333,7 +1334,7 @@ def main(lan_game_data=None):
                                 game.play_card(card_to_play, target_row)
                                 row_rect = cfg.PLAYER_ROW_RECTS.get(target_row)
                                 if row_rect:
-                                    anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=800))
+                                    anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=cfg.ANIM_STARGATE))
                                 if network_proxy:
                                     network_proxy.send_play_card(card_to_play.id, target_row)
                                 # Reset keyboard cursor
@@ -1766,12 +1767,12 @@ def main(lan_game_data=None):
                                         if weather_target in ("player1", "both"):
                                             rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                                             if rect:
-                                                anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                                                anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
                                                 anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                                         if weather_target in ("player2", "both"):
                                             rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                                             if rect:
-                                                anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=800))
+                                                anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
                                                 anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                                 else:
                                     if network_proxy:
@@ -2011,7 +2012,7 @@ def main(lan_game_data=None):
                             drag_pickup_flash = 0.0
                             anim_manager.add_effect(StargateActivationEffect(HUD_PASS_BUTTON_RECT.centerx,
                                                                              HUD_PASS_BUTTON_RECT.centery,
-                                                                             duration=800))
+                                                                             duration=cfg.ANIM_STARGATE))
                             game.pass_turn()
     
                             # Send network action if in LAN mode
@@ -2078,12 +2079,12 @@ def main(lan_game_data=None):
                                     if card.row == "special" and selected_card == card:
                                         # Second click = confirm and play
                                         # Check if this is a decoy card
-                                        if "Ring Transport" in (card.ability or ""):
+                                        if has_ability(card, Ability.RING_TRANSPORT):
                                             # This card is played by dragging and dropping, so do nothing on a double-click.
                                             pass
                                         else:
                                             # Check if this is Wormhole Stabilization (Clear Weather)
-                                            if "Wormhole Stabilization" in (card.ability or ""):
+                                            if has_ability(card, Ability.WORMHOLE_STABILIZATION):
                                                 black_hole_anim = ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                                                 anim_manager.add_effect(black_hole_anim)
                                             game.play_card(card, card.row)
@@ -2106,7 +2107,7 @@ def main(lan_game_data=None):
                                         drag_pickup_flash = 1.0
                                         drag_pulse = 0.0
                                         # Get valid decoy targets for Ring Transport
-                                        if "Ring Transport" in (card.ability or ""):
+                                        if has_ability(card, Ability.RING_TRANSPORT):
                                             decoy_valid_targets = []
                                             valid_cards = game.get_decoy_valid_cards()
                                             for valid_card in valid_cards:
@@ -2122,7 +2123,7 @@ def main(lan_game_data=None):
                                         drag_pickup_flash = 1.0
                                         drag_pulse = 0.0
                                         # Get valid decoy targets for Ring Transport on unit cards (e.g., Puddle Jumper)
-                                        if "Ring Transport" in (card.ability or ""):
+                                        if has_ability(card, Ability.RING_TRANSPORT):
                                             decoy_valid_targets = []
                                             valid_cards = game.get_decoy_valid_cards()
                                             for valid_card in valid_cards:
@@ -2135,7 +2136,7 @@ def main(lan_game_data=None):
                 # Drop card
                 if dragging_card and game.game_state == "playing":
                     played = False
-                    is_spy = "Deep Cover Agent" in (dragging_card.ability or "")
+                    card_is_spy = is_spy(dragging_card)
                     ability_text = dragging_card.ability or ""
                     ability_lower = ability_text.lower()
                     
@@ -2167,7 +2168,7 @@ def main(lan_game_data=None):
                                 else:
                                     effect_x = drop_rect.centerx
                                     effect_y = drop_rect.centery
-                                    anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
+                                    anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
                                     if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
                                         for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                             row_rect = rects.get(target_row)
@@ -2179,16 +2180,16 @@ def main(lan_game_data=None):
                                 if network_proxy:
                                     network_proxy.send_play_card(dragging_card.id, target_row)
                         else:
-                            if "Command Network" in ability_text:
+                            if has_ability(dragging_card, Ability.COMMAND_NETWORK):
                                 for row_name, slot_rect in PLAYER_HORN_SLOT_RECTS.items():
                                     if slot_rect.collidepoint(event.pos):
                                         game.play_card(dragging_card, row_name)
                                         played = True
                                         effect_x = slot_rect.centerx
                                         effect_y = slot_rect.centery
-                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
+                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
                                         break
-                            elif "Ring Transport" in ability_text:
+                            elif has_ability(dragging_card, Ability.RING_TRANSPORT):
                                 # Ring Transport - check if dropped on a valid card
                                 if decoy_drag_target:
                                     if game.play_ring_transport(dragging_card, decoy_drag_target):
@@ -2218,7 +2219,7 @@ def main(lan_game_data=None):
                                             effect_y = rect.centery
                                             
                                             # Check for Naquadah Overload explosions
-                                            if "Naquadah Overload" in ability_text:
+                                            if has_ability(dragging_card, Ability.NAQUADAH_OVERLOAD):
                                                 # Create blue explosions ONLY on rows where cards were destroyed
                                                 for player, destroyed_row in game.last_scorch_positions:
                                                     # Determine which row rect to use
@@ -2231,20 +2232,20 @@ def main(lan_game_data=None):
                                                         anim_manager.add_effect(NaquadahExplosionEffect(
                                                             SCREEN_WIDTH // 2,
                                                             row_rect.centery,
-                                                            duration=1500
+                                                            duration=cfg.ANIM_MAJOR_EFFECT
                                                         ))
                                                 game.last_scorch_positions = []
                                             
                                             # Trigger other special visuals
                                             if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT):
-                                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=800)
+                                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE)
                                                 anim_manager.add_effect(stargate_effect)
                                             break
                                     if played:
                                         break
                     else:
                         # Regular unit cards
-                        target_rows = cfg.OPPONENT_ROW_RECTS if is_spy else cfg.PLAYER_ROW_RECTS
+                        target_rows = cfg.OPPONENT_ROW_RECTS if card_is_spy else cfg.PLAYER_ROW_RECTS
                         
                         # Check which row the card was dropped on
                         for row_name, rect in target_rows.items():
@@ -2252,7 +2253,7 @@ def main(lan_game_data=None):
                                 if dragging_card.row == row_name or (dragging_card.row == "agile" and row_name in ["close", "ranged"]):
                                     
                                     # Check if this is a Ring Transport unit (e.g., Puddle Jumper) dropped on a valid target
-                                    if "Ring Transport" in (dragging_card.ability or "") and decoy_drag_target:
+                                    if has_ability(dragging_card, Ability.RING_TRANSPORT) and decoy_drag_target:
                                         if game.play_ring_transport(dragging_card, decoy_drag_target):
                                             # Show ring transport animation with golden rings
                                             from power import RingTransportAnimation
@@ -2272,7 +2273,7 @@ def main(lan_game_data=None):
                                         break
                                     
                                     # Calculate insertion index (Mid-Card Insertion)
-                                    target_player = game.player2 if is_spy else game.player1
+                                    target_player = game.player2 if card_is_spy else game.player1
                                     row_cards = target_player.board[row_name]
                                     insert_index = len(row_cards)
                                     
@@ -2287,7 +2288,7 @@ def main(lan_game_data=None):
                                                     break
                                     
                                     # --- NEW: Check card for specific animations ---
-                                    if "Naquadah Overload" in (dragging_card.ability or ""):
+                                    if has_ability(dragging_card, Ability.NAQUADAH_OVERLOAD):
                                         # Naquadah Overload: Play card first, then show explosions on affected rows
                                         game.play_card(dragging_card, row_name, index=insert_index)
                                         
@@ -2303,13 +2304,13 @@ def main(lan_game_data=None):
                                                 anim_manager.add_effect(NaquadahExplosionEffect(
                                                     SCREEN_WIDTH // 2,
                                                     row_rect.centery,
-                                                    duration=1500
+                                                    duration=cfg.ANIM_MAJOR_EFFECT
                                                 ))
                                         
                                         # Clear the positions for next time
                                         game.last_scorch_positions = []
                                         played = True
-                                    elif "Legendary Commander" in (dragging_card.ability or ""):
+                                    elif is_hero(dragging_card):
                                         # Legendary Commander card - use unique hero animation
                                         effect_x = rect.centerx
                                         effect_y = rect.centery
@@ -2354,7 +2355,7 @@ def main(lan_game_data=None):
                                         ambient_effects.add_ship(game.player1.faction, dragging_card.name, is_player=True)
                                     
                                     # Check if this is a medic card
-                                    if "Medical Evac" in (dragging_card.ability or ""):
+                                    if is_medic(dragging_card):
                                         valid_medic_cards = game.get_medic_valid_cards(game.player1)
                                         if valid_medic_cards:
                                             # Enter medic selection mode
@@ -2372,7 +2373,7 @@ def main(lan_game_data=None):
                                     effect_y = rect.centery
                                     if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT):
                                         # Default stargate effect if no special effect
-                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=800))
+                                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
                                     
                                     played = True
                                     break
@@ -2407,7 +2408,7 @@ def main(lan_game_data=None):
                     drag_velocity.y = drag_velocity.y * 0.7 + rel_y * 0.3
                     
                     # Update Ring Transport decoy target detection
-                    if "Ring Transport" in (dragging_card.ability or ""):
+                    if has_ability(dragging_card, Ability.RING_TRANSPORT):
                         decoy_drag_target = None
                         mouse_pos = event.pos
                         for card, rect in decoy_valid_targets:
@@ -2525,7 +2526,7 @@ def main(lan_game_data=None):
                     total_cards = len(game.player2.hand)
                     start_center = get_opponent_hand_card_center(total_cards, ai_selected_card_index)
                     ability = ai_card_to_play.ability or ""
-                    target_rects = cfg.PLAYER_ROW_RECTS if ("Deep Cover Agent" in ability or ai_card_to_play.row == "weather") else cfg.OPPONENT_ROW_RECTS
+                    target_rects = cfg.PLAYER_ROW_RECTS if (is_spy(ai_card_to_play) or ai_card_to_play.row == "weather") else cfg.OPPONENT_ROW_RECTS
                     target_rect = target_rects.get(ai_row_to_play)
                     if not target_rect:
                         # Fallback to any matching row rect
@@ -2560,7 +2561,7 @@ def main(lan_game_data=None):
                         if "wormhole stabilization" in ability_lower:
                             anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
                         else:
-                            anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=500))
+                            anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP))
                             if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
                                 for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                     row_rect = rects.get(ai_row_to_play)
@@ -2568,7 +2569,7 @@ def main(lan_game_data=None):
                                         anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
     
                     # Check for Naquadah Overload
-                    if not weather_visual_applied and "Naquadah Overload" in ability:
+                    if not weather_visual_applied and has_ability(ai_card_to_play, Ability.NAQUADAH_OVERLOAD):
                         # Create blue explosions ONLY on rows where cards were destroyed
                         for player, destroyed_row in game.last_scorch_positions:
                             if player == game.player1:
@@ -2580,10 +2581,10 @@ def main(lan_game_data=None):
                                 anim_manager.add_effect(NaquadahExplosionEffect(
                                     SCREEN_WIDTH // 2,
                                     row_rect.centery,
-                                    duration=1500
+                                    duration=cfg.ANIM_MAJOR_EFFECT
                                 ))
                         game.last_scorch_positions = []
-                    elif not weather_visual_applied and "Legendary Commander" in ability:
+                    elif not weather_visual_applied and is_hero(ai_card_to_play):
                         hero_anim = create_hero_animation(ai_card_to_play.name, effect_x, effect_y)
                         anim_manager.add_effect(hero_anim)
                         anim_manager.add_effect(LegendaryLightningEffect(ai_card_to_play))
@@ -2600,7 +2601,7 @@ def main(lan_game_data=None):
     
                         # Default stargate effect if no special ability
                         if not ability_triggered:
-                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
+                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP)
                             anim_manager.add_effect(stargate_effect)
     
                         # Special card unique visuals
@@ -2695,7 +2696,7 @@ def main(lan_game_data=None):
     
                 # Trigger visual effect for the play
                 target_rect = cfg.OPPONENT_ROW_RECTS.get(row_to_play)
-                if "Deep Cover Agent" in ability or card_to_play.row == "weather":
+                if is_spy(card_to_play) or card_to_play.row == "weather":
                     target_rect = cfg.PLAYER_ROW_RECTS.get(row_to_play) or target_rect
                 effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
                 effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
@@ -2716,7 +2717,7 @@ def main(lan_game_data=None):
                     if "wormhole stabilization" in ability_lower:
                         anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
                     else:
-                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=500))
+                        anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP))
                         if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
                             for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                 row_rect = rects.get(row_to_play)
@@ -2724,7 +2725,7 @@ def main(lan_game_data=None):
                                     anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
     
                 # Check for Naquadah Overload
-                if not weather_visual_applied and "Naquadah Overload" in ability:
+                if not weather_visual_applied and has_ability(card_to_play, Ability.NAQUADAH_OVERLOAD):
                     for player, destroyed_row in game.last_scorch_positions:
                         if player == game.player1:
                             row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
@@ -2734,10 +2735,10 @@ def main(lan_game_data=None):
                             anim_manager.add_effect(NaquadahExplosionEffect(
                                 SCREEN_WIDTH // 2,
                                 row_rect.centery,
-                                duration=1500
+                                duration=cfg.ANIM_MAJOR_EFFECT
                             ))
                     game.last_scorch_positions = []
-                elif not weather_visual_applied and "Legendary Commander" in ability:
+                elif not weather_visual_applied and is_hero(card_to_play):
                     hero_anim = create_hero_animation(card_to_play.name, effect_x, effect_y)
                     anim_manager.add_effect(hero_anim)
                     anim_manager.add_effect(LegendaryLightningEffect(card_to_play))
@@ -2754,7 +2755,7 @@ def main(lan_game_data=None):
     
                     # Default stargate effect if no special ability
                     if not ability_triggered:
-                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=500)
+                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP)
                         anim_manager.add_effect(stargate_effect)
     
                 # Recalculate scores
@@ -2808,7 +2809,7 @@ def main(lan_game_data=None):
                         drag_row_highlights.append({"rect": opponent_rect, "color": color, "alpha": 70})
                 if not slot_hover and hovered_rect:
                     drag_hover_highlight = {"rect": hovered_rect, "color": get_row_color(hovered_row_name or "weather"), "alpha": 120}
-            elif dragging_card.row == "special" and "Command Network" in ability:
+            elif dragging_card.row == "special" and has_ability(dragging_card, Ability.COMMAND_NETWORK):
                 for row_name, slot_rect in PLAYER_HORN_SLOT_RECTS.items():
                     drag_row_highlights.append({"rect": slot_rect, "color": (255, 215, 0), "alpha": 80})
                     if slot_rect.collidepoint(mouse_pos):
@@ -2822,11 +2823,11 @@ def main(lan_game_data=None):
                     if drag_hover_highlight:
                         break
             else:
-                is_spy = "Deep Cover Agent" in ability
-                target_rects = cfg.OPPONENT_ROW_RECTS if is_spy else cfg.PLAYER_ROW_RECTS
+                dragging_is_spy = is_spy(dragging_card)
+                target_rects = cfg.OPPONENT_ROW_RECTS if dragging_is_spy else cfg.PLAYER_ROW_RECTS
                 for row_name, rect in target_rects.items():
                     if rect.collidepoint(mouse_pos):
-                        color = (255, 120, 120) if is_spy else get_row_color(row_name)
+                        color = (255, 120, 120) if dragging_is_spy else get_row_color(row_name)
                         drag_hover_highlight = {"rect": rect, "color": color, "alpha": hover_alpha}
                         break
     
@@ -2883,7 +2884,7 @@ def main(lan_game_data=None):
             screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 100))
             
             if game.winner:
-                winner_text = cfg.SCORE_FONT.render(f"{game.winner.name} WINS!", True, (100, 255, 100))
+                winner_text = cfg.SCORE_FONT.render(f"{game.winner.name} WINS!", True, cfg.HIGHLIGHT_GREEN)
                 screen.blit(winner_text, (SCREEN_WIDTH // 2 - winner_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
                 
                 # Record game result and show rewards
@@ -3037,8 +3038,8 @@ def main(lan_game_data=None):
                                 unlocked_leader = show_leader_reward_screen(screen, unlock_system, game.player1_faction)
                                 if unlocked_leader:
                                     leader_name = unlocked_leader.get('name', 'Unknown Leader')
-                                    game.unlock_message = cfg.UI_FONT.render(f"NEW LEADER UNLOCKED: {leader_name}!", True, (255, 215, 0))
-                                    game.streak_message = cfg.UI_FONT.render(f"3 Win Streak! Leader unlocked!", True, (255, 150, 50))
+                                    game.unlock_message = cfg.UI_FONT.render(f"NEW LEADER UNLOCKED: {leader_name}!", True, cfg.GOLD)
+                                    game.streak_message = cfg.UI_FONT.render(f"3 Win Streak! Leader unlocked!", True, cfg.HIGHLIGHT_ORANGE)
                         
                         # SECOND: Show card reward screen (every win) - unless unlock all is enabled
                         unlock_system.record_game_result(True)
@@ -3056,7 +3057,7 @@ def main(lan_game_data=None):
                                     persistence.set_deck(game.player1_faction, current_deck.get("leader", ""), current_cards)
                                     print(f"✓ Card {unlocked_card} added to {game.player1_faction} deck")
 
-                                card_msg = cfg.UI_FONT.render(f"Unlocked: {UNLOCKABLE_CARDS[unlocked_card]['name']}!", True, (255, 215, 0))
+                                card_msg = cfg.UI_FONT.render(f"Unlocked: {UNLOCKABLE_CARDS[unlocked_card]['name']}!", True, cfg.GOLD)
                                 if hasattr(game, 'unlock_message'):
                                     game.unlock_message2 = card_msg
                                 else:
@@ -3070,7 +3071,7 @@ def main(lan_game_data=None):
                                 remaining = 3 - (streak % 3)
                                 if remaining == 3:
                                     remaining = 0  # Just got a leader unlock
-                                game.streak_message = cfg.UI_FONT.render(f"Win Streak: {streak}! ({remaining} more for leader unlock)", True, (100, 255, 100))
+                                game.streak_message = cfg.UI_FONT.render(f"Win Streak: {streak}! ({remaining} more for leader unlock)", True, cfg.HIGHLIGHT_GREEN)
                     else:
                         record_defeat(game.player1_faction, mode_label)
                         unlock_system.record_game_result(False)
@@ -3093,7 +3094,7 @@ def main(lan_game_data=None):
             if hasattr(game, 'draft_messages'):
                 for msg in game.draft_messages:
                     if isinstance(msg, str):
-                        msg_surf = cfg.UI_FONT.render(msg, True, (255, 200, 100))
+                        msg_surf = cfg.UI_FONT.render(msg, True, cfg.HIGHLIGHT_ORANGE)
                     else:
                         msg_surf = msg
                     screen.blit(msg_surf, (SCREEN_WIDTH // 2 - msg_surf.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
@@ -3129,7 +3130,7 @@ def main(lan_game_data=None):
                         mouse_pos = pygame.mouse.get_pos()
 
                         # Progress message
-                        progress_text = cfg.UI_FONT.render(f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", True, (100, 255, 100))
+                        progress_text = cfg.UI_FONT.render(f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", True, cfg.HIGHLIGHT_GREEN)
                         screen.blit(progress_text, (SCREEN_WIDTH // 2 - progress_text.get_width() // 2, start_y - int(50 * scale)))
 
                         # Define buttons
@@ -3328,7 +3329,7 @@ def main(lan_game_data=None):
 
                     # Draw typing indicator if peer is typing
                     if lan_chat_panel.peer_is_typing:
-                        typing_text = chat_font.render("Peer is typing...", True, (100, 200, 255))
+                        typing_text = chat_font.render("Peer is typing...", True, cfg.HIGHLIGHT_CYAN)
                         screen.blit(typing_text, (input_rect.x, input_rect.y - 22))
                 else:
                     # Show hint to open chat
@@ -3467,7 +3468,7 @@ def main(lan_game_data=None):
             
             # Draw instruction text
             hint_font = pygame.font.Font(None, 48)
-            hint_text = hint_font.render("Click a CLOSE COMBAT unit to return to hand", True, (255, 200, 100))
+            hint_text = hint_font.render("Click a CLOSE COMBAT unit to return to hand", True, cfg.HIGHLIGHT_ORANGE)
             hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, 100))
             
             # Draw text shadow
@@ -3486,7 +3487,7 @@ def main(lan_game_data=None):
                     screen.blit(glow_surf, (card.rect.x - 10, card.rect.y - 10))
         
         # Draw visual feedback when dragging Ring Transport over valid targets
-        if dragging_card and "Ring Transport" in (dragging_card.ability or ""):
+        if dragging_card and has_ability(dragging_card, Ability.RING_TRANSPORT):
             # Highlight valid targets
             for card, rect in decoy_valid_targets:
                 # Golden glow around valid cards
@@ -3785,7 +3786,7 @@ def main(lan_game_data=None):
 
             # Title
             pause_font = pygame.font.SysFont("Arial", 56, bold=True)
-            title_text = pause_font.render("PAUSED", True, (200, 200, 200))
+            title_text = pause_font.render("PAUSED", True, cfg.TEXT_DIM)
             title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + 70))
             screen.blit(title_text, title_rect)
 
