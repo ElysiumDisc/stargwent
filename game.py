@@ -2029,7 +2029,7 @@ class Game:
         
         # === NEW SPECIAL CARD ABILITIES ===
         
-        elif "Thor's Hammer" in card.name or "Remove all Goa'uld" in ability:
+        elif "Thor's Hammer" in card.name or "Remove all Goa'uld" in (card.ability or ""):
             # Remove all Goa'uld faction units from both boards
             removed_count = 0
             for player in [self.player1, self.player2]:
@@ -2046,7 +2046,7 @@ class Game:
                     icon="🔨"
                 )
 
-        elif "Zero Point Module" in card.name or "ZPM" in card.name or "Double all your siege" in ability:
+        elif "Zero Point Module" in card.name or "ZPM" in card.name or "Double all your siege" in (card.ability or ""):
             # Set ZPM flag - doubling happens in calculate_score()
             self.current_player.zpm_active = True
             siege_count = len(self.current_player.board.get("siege", []))
@@ -2058,7 +2058,7 @@ class Game:
                     icon="⚡"
                 )
 
-        elif "Communication Device" in card.name or "Reveal opponent's hand" in ability:
+        elif "Communication Device" in card.name or "Reveal opponent's hand" in (card.ability or ""):
             # Set a flag to reveal opponent's hand for 30 seconds
             opponent = self.player2 if self.current_player == self.player1 else self.player1
             opponent.hand_revealed = True
@@ -2071,7 +2071,7 @@ class Game:
             )
             # Will be displayed in UI
         
-        elif "Sodan" in card.name and "Look at opponent's hand" in ability:
+        elif "Sodan" in card.name and "Look at opponent's hand" in (card.ability or ""):
             # Similar to Communication Device but for when unit is played
             opponent = self.player2 if self.current_player == self.player1 else self.player1
             opponent.hand_revealed = True
