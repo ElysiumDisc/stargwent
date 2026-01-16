@@ -239,7 +239,93 @@ def build_ability_info():
             "timing": "Instant effect when played. Card is discarded after use.",
             "synergy": "Counter Lord Yu's reveal, escape Communication Device intel, or mulligan a bad hand mid-game.",
         },
+        # Aliases for Quantum Mirror (matches the card ability text after comma-split)
+        "Shuffle your hand into deck": {
+            "effect": "Shuffle your entire hand into your deck, then draw the same number of cards. Clears any active hand reveal on you.",
+            "timing": "Instant effect when played. Card is discarded after use.",
+            "synergy": "Counter Lord Yu's reveal, escape Communication Device intel, or mulligan a bad hand mid-game.",
+        },
+        "draw same number of cards. Ends hand reveal.": {
+            "effect": "Shuffle your entire hand into your deck, then draw the same number of cards. Clears any active hand reveal on you.",
+            "timing": "Instant effect when played. Card is discarded after use.",
+            "synergy": "Counter Lord Yu's reveal, escape Communication Device intel, or mulligan a bad hand mid-game.",
+        },
     }
+
+
+def get_all_card_abilities(card_catalog: dict) -> set[str]:
+    """Extract all unique ability names from the card catalog."""
+    abilities = set()
+    for faction_cards in card_catalog.values():
+        for card in faction_cards:
+            ability_field = card.get("ability") or ""
+            for part in ability_field.split(","):
+                part = part.strip()
+                if part:
+                    abilities.add(part)
+    return abilities
+
+
+def find_undocumented_abilities(card_catalog: dict, ability_info: dict) -> list[str]:
+    """Find abilities in cards that don't have documentation."""
+    all_abilities = get_all_card_abilities(card_catalog)
+    documented = set(ability_info.keys())
+
+    undocumented = []
+    for ability in all_abilities:
+        # Check if ability matches any documented key (partial match)
+        is_documented = any(key in ability or ability in key for key in documented)
+        if not is_documented:
+            undocumented.append(ability)
+
+    return sorted(undocumented)
+
+
+def prompt_for_ability_docs(undocumented: list[str]) -> dict:
+    """Interactively prompt user for ability documentation."""
+    new_entries = {}
+
+    print(f"\n{'='*60}")
+    print("UNDOCUMENTED ABILITIES DETECTED")
+    print(f"{'='*60}")
+    for i, ability in enumerate(undocumented, 1):
+        print(f"  {i}. {ability}")
+
+    response = input("\nAdd documentation for these abilities? [Y/n]: ").strip().lower()
+    if response == 'n':
+        return {}
+
+    for ability in undocumented:
+        print(f"\n--- Documenting: {ability} ---")
+        effect = input("  Effect (what it does): ").strip()
+        timing = input("  Timing (when it triggers): ").strip()
+        synergy = input("  Synergy (combos/strategies): ").strip()
+
+        if effect:  # Only add if user provided something
+            new_entries[ability] = {
+                "effect": effect or "See in-game tooltip.",
+                "timing": timing or "Refer to ability description.",
+                "synergy": synergy or "Use with faction tools that amplify this keyword.",
+            }
+
+    return new_entries
+
+
+def generate_ability_code(new_entries: dict) -> str:
+    """Generate Python code to add to build_ability_info()."""
+    if not new_entries:
+        return ""
+
+    lines = ["\n# === ADD TO build_ability_info() ==="]
+    for ability, info in new_entries.items():
+        lines.append(f'        "{ability}": {{')
+        lines.append(f'            "effect": "{info["effect"]}",')
+        lines.append(f'            "timing": "{info["timing"]}",')
+        lines.append(f'            "synergy": "{info["synergy"]}",')
+        lines.append("        },")
+    lines.append("# === END ===\n")
+
+    return "\n".join(lines)
 
 
 DEFAULT_ABILITY = {
@@ -564,10 +650,11 @@ def format_leader_bio(name: str, faction: str, notes: dict) -> str:
     hook = notes.get(name, {}).get("synergy", "Compliments faction gameplan.")
     return f"- **{name}** ({faction}) — {bio} Playstyle tip: {hook}"
 
-def build_spec() -> str:
+def build_spec(ability_info: dict | None = None) -> str:
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     combos, combo_lookup = build_combo_lookup()
-    ability_info = build_ability_info()
+    if ability_info is None:
+        ability_info = build_ability_info()
     leader_notes = build_leader_notes()
 
     card_catalog = load_json(CARD_CATALOG_PATH)
@@ -839,7 +926,25 @@ def build_spec() -> str:
     return "\n".join(parts) + "\n"
 
 def main():
-    spec_text = build_spec()
+    ability_info = build_ability_info()
+    card_catalog = load_json(CARD_CATALOG_PATH)
+
+    # Check for undocumented abilities
+    undocumented = find_undocumented_abilities(card_catalog, ability_info)
+
+    if undocumented:
+        new_entries = prompt_for_ability_docs(undocumented)
+        if new_entries:
+            # Merge into ability_info for this run
+            ability_info.update(new_entries)
+
+            # Show code to add permanently
+            code = generate_ability_code(new_entries)
+            print(code)
+            print("Copy the above into build_ability_info() to make it permanent.\n")
+
+    # Continue with normal spec generation
+    spec_text = build_spec(ability_info)
     SPEC_PATH.parent.mkdir(parents=True, exist_ok=True)
     SPEC_PATH.write_text(spec_text)
     print(f"Wrote {SPEC_PATH.relative_to(ROOT)} ({len(spec_text)} characters)")

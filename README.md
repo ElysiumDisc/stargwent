@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.8.3-blue)
+![Version](https://img.shields.io/badge/version-4.9.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -44,6 +44,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - [🏗️ Project Structure](#️-project-structure)
 - [🔧 Technical Details](#-technical-details)
 - [🛠 Build & Packaging](#-build--packaging)
+- [📜 Rules Spec Generator](#-rules-spec-generator-auto-detection)
+- [🛠️ Content Manager](#️-content-manager-developer-tool)
 - [📝 License & Credits](#-license--credits)
 
 ---
@@ -187,6 +189,31 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.9.0 (January 2026)
+**Content Manager Developer Tool**
+
+- ✅ **Content Manager Script** – New comprehensive developer tool (`scripts/content_manager.py`) for adding game content:
+  - **Add Cards**: Interactive wizard to add new cards with automatic updates to `cards.py`, `unlocks.py`, docs, and placeholder image generation
+  - **Add Leaders**: Full leader creation with registry updates, color overrides, banner names, and portrait generation
+  - **Add Factions**: Complete faction wizard collecting all required data (colors, powers, leaders, cards) and updating 6+ files
+  - **Ability Manager**: Add/edit card abilities, leader abilities, and faction powers with proper enum updates
+  - **Placeholder Generation**: Generate missing card images and leader portraits with skip/overwrite options
+  - **Documentation Regeneration**: Rebuild card_catalog.json, leader_catalog.json, and rules_menu_spec.md
+  - **Asset Checker**: Scan for missing card images, leader portraits, and orphaned assets
+  - **Balance Analyzer**: Analyze power distribution, ability frequency, and faction balance
+  - **Save Manager**: Backup/restore player saves (unlocks, decks, stats) with timestamped folders
+  - **Deck Import/Export**: Share decks via JSON or text format with validation
+- ✅ **Safety Features** – Robust protection against breaking the game:
+  - Timestamped backup folders created before any modification
+  - Step-by-step approval prompts showing exact code to be added
+  - Python syntax validation and import testing after changes
+  - Automatic rollback on any error
+  - Session logging to `scripts/content_manager.log`
+- ✅ **Integration** – Works with existing scripts:
+  - Calls `create_placeholders.py` for image generation
+  - Calls `generate_rules_spec.py` for documentation
+  - Validates against `abilities.py` enum values
 
 ### Version 4.8.3 (January 2026)
 **New Card: Quantum Mirror**
@@ -1123,6 +1150,169 @@ All abilities renamed and themed around Stargate lore:
    * `FACTION_BACKGROUND_IDS`: You need to tell it what filename to use for the faction selection screen.
    * Imports: You will need to add the new FACTION_NAME constant to the import line at the top of the script.
 
+---
+
+## 📜 Rules Spec Generator (Auto-Detection)
+
+The `scripts/generate_rules_spec.py` script generates the comprehensive rules documentation and **automatically detects new cards with undocumented abilities**.
+
+### What It Does
+
+When you run `python scripts/generate_rules_spec.py`, the script:
+
+1. **Scans all cards** in `docs/card_catalog.json` and extracts every ability name
+2. **Compares against documented abilities** in the `build_ability_info()` function
+3. **Detects undocumented abilities** - any ability in the cards that doesn't have matching documentation
+4. **Prompts you interactively** if undocumented abilities are found:
+   - Lists all undocumented abilities
+   - Asks "Add documentation for these abilities? [Y/n]"
+   - For each ability you agree to document, prompts for: effect, timing, synergy
+5. **Generates a code snippet** you can copy into the script to make the documentation permanent
+6. **Uses the new docs** for the current spec generation run
+
+### Example Session
+
+```
+$ python scripts/generate_rules_spec.py
+
+============================================================
+UNDOCUMENTED ABILITIES DETECTED
+============================================================
+  1. New Ability Name
+
+Add documentation for these abilities? [Y/n]: y
+
+--- Documenting: New Ability Name ---
+  Effect (what it does): Deals 5 damage to all enemies
+  Timing (when it triggers): On play
+  Synergy (combos/strategies): Works well with survival instinct units
+
+# === ADD TO build_ability_info() ===
+        "New Ability Name": {
+            "effect": "Deals 5 damage to all enemies",
+            "timing": "On play",
+            "synergy": "Works well with survival instinct units",
+        },
+# === END ===
+
+Copy the above into build_ability_info() to make it permanent.
+
+Wrote docs/rules_menu_spec.md (132145 characters)
+```
+
+### When All Abilities Are Documented
+
+If all abilities are already documented, the script skips the prompts and generates the spec directly:
+
+```
+$ python scripts/generate_rules_spec.py
+Wrote docs/rules_menu_spec.md (132145 characters)
+```
+
+---
+
+## 🛠️ Content Manager (Developer Tool)
+
+The `scripts/content_manager.py` script is a comprehensive developer tool for adding new content to Stargwent.
+
+### Usage
+
+```bash
+python scripts/content_manager.py
+```
+
+### Main Menu
+
+```
+╔══════════════════════════════════════════════╗
+║       STARGWENT CONTENT MANAGER              ║
+╠══════════════════════════════════════════════╣
+║  === DEVELOPER TOOLS ===                     ║
+║  1. Add a new CARD                           ║
+║  2. Add a new LEADER                         ║
+║  3. Add a new FACTION (comprehensive)        ║
+║  4. Add/Edit ABILITY                         ║
+║  5. Generate placeholder images              ║
+║  6. Regenerate all documentation             ║
+║  7. Asset Checker (find missing images)      ║
+║  8. Balance Analyzer (power stats)           ║
+║                                              ║
+║  === USER TOOLS ===                          ║
+║  9. Save Manager (backup/restore saves)      ║
+║  10. Deck Import/Export (share decks)        ║
+║                                              ║
+║  0. Exit                                     ║
+╚══════════════════════════════════════════════╝
+```
+
+### Features
+
+| Option | Description |
+|--------|-------------|
+| **1. Add Card** | Interactive wizard to add a new card with automatic file updates |
+| **2. Add Leader** | Create new leader with registry, colors, and portrait generation |
+| **3. Add Faction** | Complete faction creation (colors, powers, leaders, starter cards) |
+| **4. Ability Manager** | Add/edit card abilities, leader abilities, or faction powers |
+| **5. Placeholders** | Generate missing card images and leader portraits |
+| **6. Regenerate Docs** | Rebuild card_catalog.json, leader_catalog.json, rules_menu_spec.md |
+| **7. Asset Checker** | Find missing images, orphaned assets, size validation |
+| **8. Balance Analyzer** | Power distribution, ability frequency, faction balance stats |
+| **9. Save Manager** | Backup/restore player_unlocks.json, player_decks.json, player_stats.json |
+| **10. Deck Import/Export** | Share decks via JSON or text format |
+
+### Safety Features
+
+The Content Manager includes robust safety features to prevent breaking the game:
+
+1. **Timestamped Backups** - All files are backed up to `backup/YYYY-MM-DD_HHMMSS/` before modification
+2. **Step-by-Step Approval** - You see exact code and confirm each file change
+3. **Syntax Validation** - Python files are compiled and import-tested after changes
+4. **Automatic Rollback** - Any error triggers immediate restore from backup
+5. **Session Logging** - All changes logged to `scripts/content_manager.log`
+
+### Example: Adding a Card
+
+```
+Choice: 1
+
+=== ADD NEW CARD ===
+Card ID: tauri_scientist
+Card Name: SGC Scientist
+Faction: Tau'ri
+Power: 3
+Row: ranged
+Ability: Deep Cover Agent
+Is unlockable? [y/N]: n
+
+=== STEP 1: cards.py ===
+Creating backup: backup/2026-01-16_143205/cards.py
+
+The following code will be added:
+
+    "tauri_scientist": Card("tauri_scientist", "SGC Scientist", FACTION_TAURI, 3, "ranged", "Deep Cover Agent"),
+
+Add this entry? [Y/n]: y
+[OK] cards.py updated
+
+=== VERIFICATION ===
+Testing imports... OK
+
+Done! Card "SGC Scientist" ready to use.
+```
+
+### Restoring From Backup
+
+If something goes wrong, restore from the backup folder:
+
+```bash
+# Find your session folder
+ls backup/
+
+# Restore all files from that session
+cp backup/2026-01-16_143205/* ./
+```
+
+---
 
 ## 💡 Quick Reference
 
