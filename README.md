@@ -1383,6 +1383,7 @@ cp backup/2026-01-16_143205/* ./
 - Achievement system
 - More factions (Wraith, Ori, Atlantis)
 - Custom card creation tools
+- AI-generated content (card art, abilities, flavor text)
 - Internet matchmaking (beyond LAN/VPN)
 
 
