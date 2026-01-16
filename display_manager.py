@@ -76,11 +76,20 @@ def initialize_display():
     DESKTOP_WIDTH = ORIGINAL_DESKTOP_WIDTH
     DESKTOP_HEIGHT = ORIGINAL_DESKTOP_HEIGHT
 
-    # 2. Hardware Scaling Setup
-    # 1440p provides crisp detail while keeping blitting fast for 4K output
-    SCREEN_WIDTH = TARGET_WIDTH
-    SCREEN_HEIGHT = TARGET_HEIGHT
+    # 2. Adaptive Resolution - render at desktop resolution if smaller than 1440p
+    if DESKTOP_WIDTH < TARGET_WIDTH or DESKTOP_HEIGHT < TARGET_HEIGHT:
+        # Desktop smaller than 1440p - render at native desktop resolution
+        SCREEN_WIDTH = DESKTOP_WIDTH
+        SCREEN_HEIGHT = DESKTOP_HEIGHT
+        print(f"📐 Rendering at native resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+    else:
+        # Desktop 1440p or larger - render at 1440p, let hardware scale up
+        SCREEN_WIDTH = TARGET_WIDTH
+        SCREEN_HEIGHT = TARGET_HEIGHT
+        print(f"📐 Rendering at 1440p: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+
     SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
+    print(f"   → Scale Factor: {SCALE_FACTOR:.3f}x")
 
     WINDOWED_WIDTH = SCREEN_WIDTH
     WINDOWED_HEIGHT = SCREEN_HEIGHT
@@ -115,9 +124,9 @@ def set_display_mode(fullscreen_enabled, *, reload_cards=False):
     """Hardware-accelerated scaling using 1440p internal resolution."""
     global screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN
     FULLSCREEN = fullscreen_enabled
-    
-    SCREEN_WIDTH = TARGET_WIDTH
-    SCREEN_HEIGHT = TARGET_HEIGHT
+
+    # Don't override SCREEN_WIDTH/HEIGHT - they're already set by initialize_display()
+    # with adaptive resolution logic (native res if < 1440p, else 1440p)
     
     if fullscreen_enabled:
         # Use SCALED + FULLSCREEN for hardware-accelerated 4K output
