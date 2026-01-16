@@ -1752,6 +1752,14 @@
       "power": 0,
       "row": "weather",
       "ability": "Wormhole Stabilization"
+    },
+    {
+      "card_id": "neutral_quantum_mirror",
+      "name": "Quantum Mirror",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Shuffle your hand into deck, draw same number of cards. Ends hand reveal."
     }
   ]
 }
