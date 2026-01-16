@@ -468,9 +468,11 @@ def draw_discard_viewer(surface, discard_pile, screen_width, screen_height, scro
     surface.blit(inst, inst_rect)
 
 def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
-    """Jonas Quinn: Show cards drawn by opponent (not starting hand)."""
+    """Jonas Quinn: Show cards drawn by opponent - click one to copy to hand."""
+    card_rects = []
+
     if not game.opponent_drawn_cards:
-        return
+        return card_rects
 
     # Semi-transparent background
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
@@ -480,9 +482,15 @@ def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
     # Title
     title_font = pygame.font.Font(None, 56)
     cards_count = len(game.opponent_drawn_cards)
-    title_text = title_font.render(f"JONAS QUINN: Opponent Drew {cards_count} Card{'s' if cards_count > 1 else ''}", True, cfg.HIGHLIGHT_CYAN)
+    title_text = title_font.render(f"JONAS QUINN — Eidetic Memory", True, cfg.HIGHLIGHT_CYAN)
     title_rect = title_text.get_rect(center=(screen_width // 2, 80))
     surface.blit(title_text, title_rect)
+
+    # Subtitle
+    subtitle_font = pygame.font.Font(None, 36)
+    subtitle_text = subtitle_font.render(f"Opponent drew {cards_count} card{'s' if cards_count > 1 else ''} — Click one to copy to your hand!", True, cfg.TEXT_DIM)
+    subtitle_rect = subtitle_text.get_rect(center=(screen_width // 2, 130))
+    surface.blit(subtitle_text, subtitle_rect)
 
     # Show all drawn cards
     card_display_width = 250
@@ -494,11 +502,12 @@ def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
 
     for i, card in enumerate(game.opponent_drawn_cards):
         card_x = start_x + i * (card_display_width + spacing)
+        rect = pygame.Rect(card_x, card_y, card_display_width, card_display_height)
 
         # Draw card
         scaled_image = pygame.transform.scale(card.image, (card_display_width, card_display_height))
         surface.blit(scaled_image, (card_x, card_y))
-        pygame.draw.rect(surface, cfg.HIGHLIGHT_CYAN, pygame.Rect(card_x, card_y, card_display_width, card_display_height), width=3)
+        pygame.draw.rect(surface, cfg.HIGHLIGHT_CYAN, rect, width=3)
 
         # Card name below
         detail_font = pygame.font.Font(None, 24)
@@ -511,11 +520,16 @@ def draw_jonas_peek_overlay(surface, game, screen_width, screen_height):
         info_rect = info_text.get_rect(center=(card_x + card_display_width // 2, card_y + card_display_height + 45))
         surface.blit(info_text, info_rect)
 
-    # Close instruction
+        # Store rect for click detection
+        card_rects.append((card, rect))
+
+    # Instruction
     instruction_font = pygame.font.Font(None, 32)
-    instruction = instruction_font.render("Click or Press SPACE to close", True, cfg.TEXT_MUTED)
+    instruction = instruction_font.render("Click a card to copy it to your hand", True, cfg.TEXT_MUTED)
     instruction_rect = instruction.get_rect(center=(screen_width // 2, screen_height - 60))
     surface.blit(instruction, instruction_rect)
+
+    return card_rects
 
 def draw_baal_clone_overlay(surface, game, screen_width, screen_height):
     """Ba'al Clone: Select unit to clone."""

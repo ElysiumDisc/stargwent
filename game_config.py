@@ -21,6 +21,24 @@ ANIM_MAJOR_EFFECT = 1500     # Major effects (explosions, big reveals)
 ANIM_PERSISTENT = 2500       # Long-running persistent effects
 
 # ============================================================================
+# HAND CARD INTERACTION PARAMETERS
+# ============================================================================
+HAND_CARD_HOVER_LIFT = 35    # Pixels to lift card on hover (base, scaled)
+DRAG_LIFT_MULTIPLIER = 0.35  # Multiplier for drag speed -> lift effect
+INACTIVE_LANE_ALPHA = 40     # Alpha transparency for inactive lanes (0-255)
+PASS_BUTTON_PULSE_RATE = 500 # Milliseconds for pass button glow pulse cycle
+
+# ============================================================================
+# PARTICLE & EFFECT DEFAULTS
+# ============================================================================
+PARTICLE_COUNT_DEFAULTS = {
+    "stargate": 30,          # Stargate activation particles
+    "ability_burst": 20,     # Ability trigger burst particles
+    "card_reveal": 15,       # Card reveal sparkle particles
+    "score_pop": 12,         # Score change celebration particles
+}
+
+# ============================================================================
 # TIMING & DELAYS (milliseconds)
 # ============================================================================
 TYPING_TIMEOUT = 2000        # Chat typing indicator timeout

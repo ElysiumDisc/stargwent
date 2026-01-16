@@ -100,7 +100,7 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
     # Darken inactive lanes (Witcher 3 polish)
     if game.player1.has_passed or game.current_player != game.player1:
         for row_name, row_rect in cfg.PLAYER_ROW_RECTS.items():
-            dark_surface = _get_cached_surface(row_rect.width, row_rect.height, (0, 0, 0, 40))
+            dark_surface = _get_cached_surface(row_rect.width, row_rect.height, (0, 0, 0, cfg.INACTIVE_LANE_ALPHA))
             surface.blit(dark_surface, row_rect.topleft)
 
     # Subtle glow on active player's lanes (Witcher 3 polish)
@@ -311,7 +311,7 @@ def draw_pass_button(surface, game, button_rect=None):
     # Center button (home/dial button)
     if can_pass:
         # Glowing red when active
-        glow_time = pygame.time.get_ticks() / 500.0
+        glow_time = pygame.time.get_ticks() / cfg.PASS_BUTTON_PULSE_RATE
         glow_pulse = abs(math.sin(glow_time))
         center_alpha = int(150 + glow_pulse * 105)
         

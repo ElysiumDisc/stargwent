@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.8.1-blue)
+![Version](https://img.shields.io/badge/version-4.8.2-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -187,6 +187,20 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.8.2 (January 2026)
+**Jonas Quinn "Eidetic Memory" Bug Fix**
+
+- ✅ **Jonas Quinn Card Selection Fixed** – Clicking on cards in the Jonas Quinn overlay now properly copies the selected card to your hand:
+  - Fixed `draw_jonas_peek_overlay` to return card rects for click detection
+  - Changed overlay from view-only to interactive selection (click card to copy)
+  - Updated instruction text from "Click to close" to "Click a card to copy it to your hand"
+- ✅ **AI Ability Spam Prevention** – Fixed AI leader ability checks running every frame:
+  - Added `ai_ability_tried` flag to limit ability checks to once per AI turn
+  - Flag resets when player's turn begins
+- ✅ **AI Jonas Quinn Support** – AI opponents with Jonas Quinn leader now properly use the Eidetic Memory ability:
+  - Tracks player's drawn cards (`player1_drawn_cards`) when AI has Jonas Quinn
+  - AI auto-selects highest power card from player's draws
 
 ### Version 4.8.0 (January 2026)
 **Stargate UI Polish & Visual Effects**

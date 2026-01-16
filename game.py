@@ -714,13 +714,26 @@ class Player:
 
 class Game:
     """Manages the overall game state and logic."""
+
+    def _get_leader_display_name(self, leader, faction, fallback):
+        """Get display name from leader, with fallback options."""
+        if leader and isinstance(leader, dict):
+            name = leader.get('name', '')
+            if name:
+                return name
+        if faction:
+            return f"{faction} Commander"
+        return fallback
+
     def __init__(self, player1_faction=FACTION_TAURI, player1_deck=None, player1_leader=None,
                  player2_faction=FACTION_GOAULD, player2_deck=None, player2_leader=None, seed=None):
         self.seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = random.Random(self.seed)
 
-        self.player1 = Player("Player 1", player1_faction, player1_deck, player1_leader, rng=self.rng)
-        self.player2 = Player("Player 2", player2_faction, player2_deck, player2_leader, rng=self.rng)
+        player1_name = self._get_leader_display_name(player1_leader, player1_faction, "Player 1")
+        player2_name = self._get_leader_display_name(player2_leader, player2_faction, "Player 2")
+        self.player1 = Player(player1_name, player1_faction, player1_deck, player1_leader, rng=self.rng)
+        self.player2 = Player(player2_name, player2_faction, player2_deck, player2_leader, rng=self.rng)
 
         # Store faction info for stats tracking
         self.player1_faction = player1_faction
@@ -755,7 +768,8 @@ class Game:
         self.last_turn_actor = None
 
         # Jonas Quinn ability tracking - cards drawn by opponent AFTER mulligan
-        self.opponent_drawn_cards = []  # Cards drawn by player2 during gameplay
+        self.opponent_drawn_cards = []  # Cards drawn by player2 during gameplay (for player1's Jonas)
+        self.player1_drawn_cards = []  # Cards drawn by player1 during gameplay (for AI Jonas)
 
     def _owner_label(self, player):
         return "player" if player == self.player1 else "ai"
@@ -1957,7 +1971,13 @@ class Game:
     def _activate_jonas_memory(self, player):
         """Jonas Quinn: Look at cards opponent drew, copy one to hand (once per game)."""
         # Get cards that opponent drew during the game
-        if not self.opponent_drawn_cards:
+        # Use correct list based on which player is using the ability
+        if player == self.player1:
+            drawn_cards = self.opponent_drawn_cards  # Player2's draws
+        else:
+            drawn_cards = self.player1_drawn_cards  # Player1's draws
+
+        if not drawn_cards:
             self.add_history_event(
                 "ability",
                 f"{player.name} (Jonas Quinn) tried to use Eidetic Memory, but opponent hasn't drawn cards yet!",
@@ -1967,7 +1987,7 @@ class Game:
             return None
 
         # Show up to 5 random cards from what opponent drew
-        revealed_cards = self.rng.sample(self.opponent_drawn_cards, min(5, len(self.opponent_drawn_cards)))
+        revealed_cards = self.rng.sample(drawn_cards, min(5, len(drawn_cards)))
 
         return {
             "ability": "Eidetic Memory",
@@ -1987,6 +2007,9 @@ class Game:
             card_ref=memorized_card,
             icon="🧠"
         )
+        # Mark leader ability as used after successful completion
+        self.leader_ability_used[player] = True
+        self.calculate_scores_and_log()
         return True
 
     def apply_special_effect(self, card, row_name):
@@ -2593,10 +2616,17 @@ class Game:
             # Draw base cards for the round
             # Track opponent draws for Jonas Quinn (only after mulligan)
             if self.game_state == "playing" and p == self.player2:
-                # Jonas Quinn: Track cards drawn by opponent
+                # Player1's Jonas Quinn: Track cards drawn by player2
                 if self.player1.leader and "Jonas" in self.player1.leader.get('name', ''):
                     drawn = p.draw_cards(base_draw, track_for_jonas=True)
                     self.opponent_drawn_cards.extend(drawn)
+                else:
+                    p.draw_cards(base_draw)
+            elif self.game_state == "playing" and p == self.player1:
+                # AI Jonas Quinn: Track cards drawn by player1
+                if self.player2.leader and "Jonas" in self.player2.leader.get('name', ''):
+                    drawn = p.draw_cards(base_draw, track_for_jonas=True)
+                    self.player1_drawn_cards.extend(drawn)
                 else:
                     p.draw_cards(base_draw)
             else:
@@ -2611,6 +2641,16 @@ class Game:
                         if p.faction == FACTION_TAURI and self.round_number > 1:
                             drawn = p.draw_cards(1, track_for_jonas=True)
                             self.opponent_drawn_cards.extend(drawn)
+                        else:
+                            p.faction_ability.apply_round_start(self, p)
+                    else:
+                        p.faction_ability.apply_round_start(self, p)
+                elif self.game_state == "playing" and p == self.player1:
+                    # AI Jonas Quinn: Track player1's faction ability draws
+                    if self.player2.leader and "Jonas" in self.player2.leader.get('name', ''):
+                        if p.faction == FACTION_TAURI and self.round_number > 1:
+                            drawn = p.draw_cards(1, track_for_jonas=True)
+                            self.player1_drawn_cards.extend(drawn)
                         else:
                             p.faction_ability.apply_round_start(self, p)
                     else:

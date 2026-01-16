@@ -762,8 +762,8 @@ class DeckBuilderUI:
                         self._ensure_leader_visible(idx)
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                         return
-                review_rect = self._leader_button_display_rect(self.review_deck_button)
-                if self.selected_leader and review_rect.collidepoint(mouse_pos):
+                # Review Deck button - FIXED position, no scroll offset
+                if self.selected_leader and self.review_deck_button.collidepoint(mouse_pos):
                     stop_faction_theme()  # Stop music when entering deck review
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
@@ -774,8 +774,8 @@ class DeckBuilderUI:
                     self.deck_scroll_offset = 0
                     self.pool_scroll_offset = 0
                     return
-                continue_rect = self._leader_button_display_rect(self.continue_button)
-                if self.selected_leader and continue_rect.collidepoint(mouse_pos):
+                # Continue/START GAME button - FIXED position, no scroll offset
+                if self.selected_leader and self.continue_button.collidepoint(mouse_pos):
                     stop_faction_theme()  # Stop music when completing
                     save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
                     print(f"✓ Leader choice saved: {self.selected_faction} -> {self.selected_leader['name']}")
@@ -1221,9 +1221,8 @@ class DeckBuilderUI:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
                         return
 
-                # Review deck button
-                review_rect = self._leader_button_display_rect(self.review_deck_button)
-                if self.selected_leader and review_rect.collidepoint(mouse_pos):
+                # Review deck button - FIXED position, no scroll offset
+                if self.selected_leader and self.review_deck_button.collidepoint(mouse_pos):
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
                         self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
@@ -1234,10 +1233,9 @@ class DeckBuilderUI:
                     self.deck_scroll_offset = 0
                     self.pool_scroll_offset = 0
                     return
-                
-                # Continue button (if leader selected)
-                continue_rect = self._leader_button_display_rect(self.continue_button)
-                if self.selected_leader and continue_rect.collidepoint(mouse_pos):
+
+                # Continue button (if leader selected) - FIXED position, no scroll offset
+                if self.selected_leader and self.continue_button.collidepoint(mouse_pos):
                     # Save the selected leader before completing
                     save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
                     print(f"✓ Leader choice saved: {self.selected_faction} -> {self.selected_leader['name']}")
@@ -1561,19 +1559,17 @@ class DeckBuilderUI:
         # Back button (DHD style)
         self.back_button = board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
-        # Review Deck button (if leader selected)
+        # Review Deck button (if leader selected) - FIXED position, no scroll
         if self.selected_leader:
-            review_rect = self._leader_button_display_rect(self.review_deck_button)
-            pygame.draw.rect(surface, (100, 100, 200), review_rect, border_radius=10)
+            pygame.draw.rect(surface, (100, 100, 200), self.review_deck_button, border_radius=10)
             review_text = self.button_font.render("Review Deck", True, self.text_color)
-            surface.blit(review_text, review_text.get_rect(center=review_rect.center))
-        
-        # Continue button (if leader selected)
+            surface.blit(review_text, review_text.get_rect(center=self.review_deck_button.center))
+
+        # Continue button (if leader selected) - FIXED position, no scroll
         if self.selected_leader:
-            continue_rect = self._leader_button_display_rect(self.continue_button)
-            pygame.draw.rect(surface, (50, 200, 50), continue_rect, border_radius=10)
+            pygame.draw.rect(surface, (50, 200, 50), self.continue_button, border_radius=10)
             continue_text = self.button_font.render("START GAME", True, self.text_color)
-            surface.blit(continue_text, continue_text.get_rect(center=continue_rect.center))
+            surface.blit(continue_text, continue_text.get_rect(center=self.continue_button.center))
     
     def draw_filter_buttons(self, surface, x, y):
         """Draw keyword filter buttons."""

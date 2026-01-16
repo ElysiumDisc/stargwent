@@ -1,6 +1,7 @@
 import pygame
 import math
 import random
+import os
 import game_config as cfg
 from game_config import (
     UI_FONT, 
@@ -252,12 +253,12 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
     # Get the round that just completed
     completed_round = game.round_number - 1
     
-    # Determine winner text
+    # Determine winner text - use leader names
     if game.round_winner == game.player1:
-        winner_text = f"YOU WIN ROUND {completed_round}!"
+        winner_text = f"{game.player1.name.upper()} WINS ROUND {completed_round}!"
         winner_color = (100, 255, 100)
     elif game.round_winner == game.player2:
-        winner_text = f"OPPONENT WINS ROUND {completed_round}!"
+        winner_text = f"{game.player2.name.upper()} WINS ROUND {completed_round}!"
         winner_color = (255, 100, 100)
     else:
         winner_text = f"ROUND {completed_round} DRAW!"
@@ -422,8 +423,9 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
             
             y_offset += 20
             
-            # Player 1 row
-            p1_name = score_font.render("YOU", True, (100, 255, 100))
+            # Player 1 row - use truncated leader name
+            p1_display = game.player1.name[:12] if len(game.player1.name) > 12 else game.player1.name
+            p1_name = score_font.render(p1_display.upper(), True, (100, 255, 100))
             p1_name.set_alpha(board_alpha)
             render_surface.blit(p1_name, (board_x + 50, y_offset))
             
@@ -464,8 +466,9 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
             
             y_offset += 70
             
-            # Player 2 row
-            p2_name = score_font.render("OPP", True, (255, 100, 100))
+            # Player 2 row - use truncated leader name
+            p2_display = game.player2.name[:12] if len(game.player2.name) > 12 else game.player2.name
+            p2_name = score_font.render(p2_display.upper(), True, (255, 100, 100))
             p2_name.set_alpha(board_alpha)
             render_surface.blit(p2_name, (board_x + 50, y_offset))
             
@@ -593,6 +596,282 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
             skip_text.set_alpha(text_alpha)
             skip_rect = skip_text.get_rect(center=(center_x, screen_height - 50))
             screen.blit(skip_text, skip_rect)
-        
+
         pygame.display.flip()
         clock.tick(60)
+
+
+class GameOverAnimation:
+    """
+    Displays game over animation with winner and loser leader cards.
+    Winner stands upright with golden glow, loser topples over.
+    High-quality rendering with proper scaling support.
+    """
+
+    # Base dimensions at 2560x1440 (will be scaled)
+    BASE_CARD_WIDTH = 180
+    BASE_CARD_HEIGHT = 270
+    DURATION = 4.0  # 4 seconds total
+    TOPPLE_START = 0.3  # Topple starts at 30% progress
+    TOPPLE_END = 0.8    # Topple completes at 80%
+
+    def __init__(self, game, screen_width, screen_height):
+        import display_manager
+        self.game = game
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.start_time = None
+        self.finished = False
+
+        # Get scale factor for proper sizing
+        self.scale = display_manager.SCALE_FACTOR
+
+        # Calculate scaled dimensions
+        self.card_width = int(self.BASE_CARD_WIDTH * self.scale)
+        self.card_height = int(self.BASE_CARD_HEIGHT * self.scale)
+
+        # Determine winner and loser
+        self.winner = game.winner
+        self.loser = game.player2 if game.winner == game.player1 else game.player1
+
+        # Load leader images at high resolution then scale down for quality
+        self.winner_image = self._load_leader_image(self.winner)
+        self.loser_image = self._load_leader_image(self.loser)
+        # Keep a pristine copy for rotation (avoids cumulative quality loss)
+        self.loser_image_original = self.loser_image.copy() if self.loser_image else None
+
+        # Card positions (winner left, loser right) - centered vertically with offset
+        center_y = int(screen_height * 0.42)  # Slightly above center
+        spacing = int(200 * self.scale)
+        self.winner_pos = (screen_width // 2 - spacing - self.card_width // 2, center_y - self.card_height // 2)
+        self.loser_pos = (screen_width // 2 + spacing - self.card_width // 2, center_y - self.card_height // 2)
+
+        # Scaled fonts with minimum sizes for readability
+        self.name_font = pygame.font.SysFont("Arial", max(20, int(28 * self.scale)), bold=True)
+        self.label_font = pygame.font.SysFont("Arial", max(18, int(24 * self.scale)), bold=True)
+
+        # Pre-calculate scaled values for drawing
+        self.border_width = max(3, int(5 * self.scale))
+        self.glow_base_radius = int(25 * self.scale)
+        self.border_radius = max(6, int(10 * self.scale))
+        self.name_offset_y = int(30 * self.scale)
+        self.label_offset_y = int(25 * self.scale)
+        self.drift_max = int(40 * self.scale)
+
+    def _load_leader_image(self, player):
+        """Load leader image for a player at high quality, with fallbacks."""
+        if not player or not player.leader:
+            return self._create_fallback_image(player)
+
+        leader_card_id = player.leader.get('card_id')
+
+        if leader_card_id:
+            # Try loading the _leader.png variant first (higher quality portrait)
+            leader_image_path = os.path.join("assets", f"{leader_card_id}_leader.png")
+            if os.path.exists(leader_image_path):
+                try:
+                    # Load at full resolution
+                    original = pygame.image.load(leader_image_path).convert_alpha()
+                    # Use smoothscale for high-quality downscaling
+                    return pygame.transform.smoothscale(original, (self.card_width, self.card_height))
+                except Exception:
+                    pass
+
+            # Fallback to regular card image
+            from cards import ALL_CARDS
+            if leader_card_id in ALL_CARDS:
+                leader_card = ALL_CARDS[leader_card_id]
+                if hasattr(leader_card, 'image_path') and os.path.exists(leader_card.image_path):
+                    try:
+                        original = pygame.image.load(leader_card.image_path).convert_alpha()
+                        return pygame.transform.smoothscale(original, (self.card_width, self.card_height))
+                    except Exception:
+                        pass
+                if leader_card.image:
+                    return pygame.transform.smoothscale(leader_card.image, (self.card_width, self.card_height))
+
+        return self._create_fallback_image(player)
+
+    def _create_fallback_image(self, player):
+        """Create a fallback colored rectangle with gradient if no image available."""
+        surface = pygame.Surface((self.card_width, self.card_height), pygame.SRCALPHA)
+
+        # Determine color based on faction
+        if player and player.faction == "Tau'ri":
+            base_color = (40, 80, 120)
+            highlight = (60, 120, 180)
+        elif player and player.faction == "Goa'uld":
+            base_color = (120, 80, 40)
+            highlight = (180, 120, 60)
+        else:
+            base_color = (80, 80, 80)
+            highlight = (120, 120, 120)
+
+        # Draw gradient background
+        for y in range(self.card_height):
+            ratio = y / self.card_height
+            r = int(base_color[0] + (highlight[0] - base_color[0]) * ratio * 0.5)
+            g = int(base_color[1] + (highlight[1] - base_color[1]) * ratio * 0.5)
+            b = int(base_color[2] + (highlight[2] - base_color[2]) * ratio * 0.5)
+            pygame.draw.line(surface, (r, g, b, 255), (0, y), (self.card_width, y))
+
+        # Draw border
+        pygame.draw.rect(surface, (180, 180, 180), surface.get_rect(), max(2, int(3 * self.scale)), border_radius=self.border_radius)
+        return surface
+
+    def _ease_in_cubic(self, t):
+        """Ease-in cubic function for acceleration."""
+        return t * t * t
+
+    def update(self):
+        """Update animation state. Returns True if animation is complete."""
+        if self.start_time is None:
+            self.start_time = pygame.time.get_ticks()
+
+        elapsed = (pygame.time.get_ticks() - self.start_time) / 1000.0
+        if elapsed >= self.DURATION:
+            self.finished = True
+
+        return self.finished
+
+    def draw(self, screen):
+        """Draw the game over animation with high-quality rendering."""
+        if self.start_time is None:
+            self.start_time = pygame.time.get_ticks()
+
+        elapsed = (pygame.time.get_ticks() - self.start_time) / 1000.0
+        progress = min(1.0, elapsed / self.DURATION)
+
+        # Calculate topple progress (0 to 1 within the topple window)
+        if progress < self.TOPPLE_START:
+            topple_progress = 0.0
+        elif progress > self.TOPPLE_END:
+            topple_progress = 1.0
+        else:
+            raw_progress = (progress - self.TOPPLE_START) / (self.TOPPLE_END - self.TOPPLE_START)
+            topple_progress = self._ease_in_cubic(raw_progress)
+
+        # --- Draw Winner Card (left side, upright with golden glow) ---
+        winner_x, winner_y = self.winner_pos
+
+        # Golden glow effect (pulsing) - multi-layered for smooth appearance
+        glow_intensity = 0.7 + 0.3 * math.sin(elapsed * 3)
+        for i in range(3):
+            layer_radius = int(self.glow_base_radius * glow_intensity * (1 + i * 0.5))
+            glow_surface = pygame.Surface(
+                (self.card_width + layer_radius * 2, self.card_height + layer_radius * 2),
+                pygame.SRCALPHA
+            )
+            glow_alpha = int(60 * glow_intensity / (i + 1))
+            pygame.draw.rect(
+                glow_surface,
+                (255, 215, 0, glow_alpha),
+                (layer_radius // 2, layer_radius // 2, self.card_width + layer_radius, self.card_height + layer_radius),
+                border_radius=self.border_radius + i * 2
+            )
+            screen.blit(glow_surface, (winner_x - layer_radius, winner_y - layer_radius))
+
+        # Winner card
+        if self.winner_image:
+            screen.blit(self.winner_image, (winner_x, winner_y))
+
+        # Golden border for winner (crisp)
+        pygame.draw.rect(
+            screen,
+            (255, 215, 0),
+            (winner_x - self.border_width, winner_y - self.border_width,
+             self.card_width + self.border_width * 2, self.card_height + self.border_width * 2),
+            self.border_width,
+            border_radius=self.border_radius
+        )
+
+        # Winner name below card
+        winner_name = self.winner.name if self.winner else "Winner"
+        winner_name_surf = self.name_font.render(winner_name, True, (255, 215, 0))
+        winner_name_rect = winner_name_surf.get_rect(
+            center=(winner_x + self.card_width // 2, winner_y + self.card_height + self.name_offset_y)
+        )
+        screen.blit(winner_name_surf, winner_name_rect)
+
+        # "VICTOR" label above card
+        victor_surf = self.label_font.render("VICTOR", True, (100, 255, 100))
+        victor_rect = victor_surf.get_rect(
+            center=(winner_x + self.card_width // 2, winner_y - self.label_offset_y)
+        )
+        screen.blit(victor_surf, victor_rect)
+
+        # --- Draw Loser Card (right side, topples over) ---
+        loser_x, loser_y = self.loser_pos
+
+        # Calculate rotation and position offset for toppling
+        rotation_angle = 90 * topple_progress  # Rotate 90 degrees clockwise
+        y_drift = self.drift_max * topple_progress  # Drift down slightly
+        alpha = int(255 - 128 * topple_progress)  # Fade to ~50% alpha
+
+        if self.loser_image_original:
+            # Start from original image to avoid quality degradation
+            loser_display = self.loser_image_original.copy()
+
+            # Apply red tint overlay to loser
+            red_overlay = pygame.Surface((self.card_width, self.card_height), pygame.SRCALPHA)
+            red_overlay.fill((255, 0, 0, int(60 * topple_progress)))
+            loser_display.blit(red_overlay, (0, 0))
+
+            # Use rotozoom for smoother rotation (anti-aliased)
+            if rotation_angle > 0.5:
+                loser_display = pygame.transform.rotozoom(loser_display, -rotation_angle, 1.0)
+
+            # Apply alpha
+            loser_display.set_alpha(alpha)
+
+            # Calculate position for rotation around bottom-center pivot
+            if rotation_angle > 0.5:
+                rotated_rect = loser_display.get_rect()
+                # Pivot at bottom center of original card position
+                pivot_x = loser_x + self.card_width // 2
+                pivot_y = loser_y + self.card_height
+
+                angle_rad = math.radians(rotation_angle)
+                # Offset to simulate falling to the right
+                offset_x = (self.card_height / 2) * math.sin(angle_rad)
+                offset_y = (self.card_height / 2) * (1 - math.cos(angle_rad))
+                final_x = pivot_x - rotated_rect.width // 2 + offset_x
+                final_y = pivot_y - rotated_rect.height + offset_y + y_drift
+            else:
+                final_x = loser_x
+                final_y = loser_y + y_drift
+
+            screen.blit(loser_display, (final_x, final_y))
+
+        # Red border for loser (fades as card falls)
+        if topple_progress < 0.85:
+            border_alpha = int(255 * (1 - topple_progress * 1.1))
+            border_surf = pygame.Surface(
+                (self.card_width + self.border_width * 2, self.card_height + self.border_width * 2),
+                pygame.SRCALPHA
+            )
+            pygame.draw.rect(
+                border_surf,
+                (255, 80, 80, max(0, border_alpha)),
+                border_surf.get_rect(),
+                self.border_width,
+                border_radius=self.border_radius
+            )
+            screen.blit(border_surf, (loser_x - self.border_width, loser_y - self.border_width + y_drift))
+
+        # Loser name below card (fades with card)
+        loser_name = self.loser.name if self.loser else "Defeated"
+        loser_name_surf = self.name_font.render(loser_name, True, (255, 100, 100))
+        loser_name_surf.set_alpha(alpha)
+        loser_name_rect = loser_name_surf.get_rect(
+            center=(loser_x + self.card_width // 2, loser_y + self.card_height + self.name_offset_y + y_drift)
+        )
+        screen.blit(loser_name_surf, loser_name_rect)
+
+        # "DEFEATED" label above card
+        defeated_surf = self.label_font.render("DEFEATED", True, (255, 80, 80))
+        defeated_surf.set_alpha(alpha)
+        defeated_rect = defeated_surf.get_rect(
+            center=(loser_x + self.card_width // 2, loser_y - self.label_offset_y)
+        )
+        screen.blit(defeated_surf, defeated_rect)

@@ -243,7 +243,7 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         idle_float = 0
         idle_tilt = 0
 
-        draw_y = card_y - (int(35 * display_manager.SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0) + idle_float
+        draw_y = card_y - (int(cfg.HAND_CARD_HOVER_LIFT * display_manager.SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0) + idle_float
         draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha, tilt_angle=idle_tilt,
                   target_width=card_w, target_height=card_h)
         
@@ -277,7 +277,7 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         pickup_boost = drag_visuals.get("pickup_boost", 0.0) if drag_visuals else 0.0
         pulse = drag_visuals.get("pulse", 0.0) if drag_visuals else 0.0
         speed = velocity.length()
-        lift = min(18, 6 + speed * 0.35 + pickup_boost * 18)
+        lift = min(18, 6 + speed * cfg.DRAG_LIFT_MULTIPLIER + pickup_boost * 18)
         wobble = math.sin(pulse * 1.2) * 2
         tilt = max(-12, min(12, -velocity.x * 1.2))
         tilt += math.sin(pulse * 1.5) * 1.5
@@ -580,12 +580,14 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
         formatted_entries.append((entry, entry_height, wrapped_lines))
         content_height += entry_height
 
-    max_scroll = max(0, content_height + padding - panel_rect.height)
+    # Allow extra scroll room so older messages can be viewed comfortably (not just at the top edge)
+    extra_scroll_room = panel_rect.height // 2
+    max_scroll = max(0, content_height + padding - panel_rect.height + extra_scroll_room)
     scroll = max(0, min(scroll_offset, max_scroll))
 
     hitboxes = []
     surface.set_clip(panel_rect)
-    y_cursor = panel_rect.bottom - padding - scroll
+    y_cursor = panel_rect.bottom - padding + scroll
     player_color = cfg.FACTION_GLOW_COLORS.get(game.player1.faction, (100, 200, 255))
     ai_color = cfg.FACTION_GLOW_COLORS.get(game.player2.faction, (255, 120, 120))
 

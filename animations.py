@@ -374,6 +374,276 @@ class CardFlipAnimation(Animation):
         return pygame.transform.scale(image, (width, height))
 
 
+class CardRevealAnimation(Animation):
+    """Card reveal animation with flip effect and sparkle particles for drawn cards."""
+    def __init__(self, card, start_pos, end_pos, duration=500, on_complete=None):
+        super().__init__(duration)
+        self.card = card
+        self.start_x, self.start_y = start_pos
+        self.end_x, self.end_y = end_pos
+        self.current_x = self.start_x
+        self.current_y = self.start_y
+        self.scale_x = 0.0  # Start flipped (showing back)
+        self.scale_y = 1.0
+        self.alpha = 255
+        self.on_complete = on_complete
+        self.sparkles = []
+        self.revealed = False  # Track when card face is shown
+
+        # Create sparkle particles
+        for _ in range(15):
+            self.sparkles.append({
+                'x': start_pos[0],
+                'y': start_pos[1],
+                'vx': random.uniform(-3, 3),
+                'vy': random.uniform(-4, -1),
+                'size': random.randint(2, 5),
+                'life': 1.0,
+                'color': (200, 220, 255),
+                'delay': random.uniform(0, 0.3)  # Stagger sparkle appearance
+            })
+
+    def update(self, dt):
+        if not self.card:
+            if self.on_complete:
+                self.on_complete()
+                self.on_complete = None
+            return False
+
+        active = super().update(dt)
+        progress = self.get_progress()
+
+        # Eased movement toward hand position
+        eased = self.ease_out_cubic(progress)
+        self.current_x = self.start_x + (self.end_x - self.start_x) * eased
+        self.current_y = self.start_y + (self.end_y - self.start_y) * eased
+
+        # Flip animation: scale from 0 to 1 (card rotates in)
+        if progress < 0.5:
+            # First half: show card back, scale shrinking
+            self.scale_x = 1.0 - (progress * 2)
+            self.revealed = False
+        else:
+            # Second half: show card face, scale growing
+            self.scale_x = (progress - 0.5) * 2
+            self.revealed = True
+
+        # Slight bounce in Y scale during flip
+        self.scale_y = 1.0 + math.sin(progress * math.pi) * 0.1
+
+        # Update sparkles
+        for sparkle in self.sparkles:
+            if progress > sparkle['delay']:
+                sparkle['x'] += sparkle['vx']
+                sparkle['y'] += sparkle['vy']
+                sparkle['vy'] += 0.15  # Gravity
+                sparkle['life'] -= dt / 400.0
+
+        # Remove dead sparkles
+        self.sparkles = [s for s in self.sparkles if s['life'] > 0]
+
+        if self.finished and self.on_complete:
+            self.on_complete()
+            self.on_complete = None
+
+        return active
+
+    def ease_out_cubic(self, t):
+        return 1 - pow(1 - t, 3)
+
+    def draw(self, surface):
+        if not self.card or self.finished:
+            return
+
+        # Draw sparkles
+        for sparkle in self.sparkles:
+            if sparkle['life'] > 0:
+                alpha = int(255 * sparkle['life'])
+                size = max(1, int(sparkle['size'] * sparkle['life']))
+                sparkle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                pygame.draw.circle(sparkle_surf, (*sparkle['color'], alpha), (size, size), size)
+                surface.blit(sparkle_surf, (int(sparkle['x'] - size), int(sparkle['y'] - size)))
+
+        # Draw the card with flip effect
+        if self.card.image and self.scale_x > 0.05:
+            width = int(self.card.image.get_width() * self.scale_x)
+            height = int(self.card.image.get_height() * self.scale_y)
+            if width > 0 and height > 0:
+                # Use card back image for first half, card face for second half
+                if self.revealed and self.card.image:
+                    scaled_card = pygame.transform.scale(self.card.image, (width, height))
+                else:
+                    # Create a simple card back
+                    scaled_card = pygame.Surface((width, height), pygame.SRCALPHA)
+                    scaled_card.fill((40, 60, 100))
+                    pygame.draw.rect(scaled_card, (80, 120, 180), scaled_card.get_rect(), width=3)
+
+                scaled_card.set_alpha(self.alpha)
+                rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
+                surface.blit(scaled_card, rect)
+
+
+class AbilityBurstEffect:
+    """Visual burst/glow effect when card abilities trigger."""
+    def __init__(self, x, y, color=(100, 200, 255), duration=600, ability_name=""):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+        self.ability_name = ability_name
+        self.particles = []
+        self.ring_radius = 0
+        self.max_ring_radius = 80
+
+        # Determine color based on ability type
+        ability_lower = ability_name.lower() if ability_name else ""
+        if "medic" in ability_lower or "evac" in ability_lower or "heal" in ability_lower:
+            self.color = (100, 255, 150)  # Green for healing
+        elif "spy" in ability_lower or "ring" in ability_lower or "transport" in ability_lower:
+            self.color = (255, 180, 80)   # Orange for transport
+        elif "decoy" in ability_lower or "recall" in ability_lower:
+            self.color = (180, 100, 255)  # Purple for recall
+        elif "bond" in ability_lower or "muster" in ability_lower:
+            self.color = (255, 220, 100)  # Gold for bond/muster
+        elif "scorch" in ability_lower or "naquadah" in ability_lower:
+            self.color = (255, 80, 80)    # Red for damage
+
+        # Create burst particles
+        for _ in range(20):
+            angle = random.uniform(0, math.tau)
+            speed = random.uniform(2, 6)
+            self.particles.append({
+                'x': x,
+                'y': y,
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'size': random.randint(3, 7),
+                'life': 1.0,
+                'color': self.color
+            })
+
+    def update(self, dt):
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+
+        progress = self.elapsed / self.duration
+
+        # Expand ring
+        self.ring_radius = self.max_ring_radius * self.ease_out_cubic(min(progress * 1.5, 1.0))
+
+        # Update particles
+        for particle in self.particles[:]:
+            particle['x'] += particle['vx'] * (dt / 16.0)
+            particle['y'] += particle['vy'] * (dt / 16.0)
+            particle['vx'] *= 0.96
+            particle['vy'] *= 0.96
+            particle['life'] -= dt / self.duration
+            if particle['life'] <= 0:
+                self.particles.remove(particle)
+
+        return True
+
+    def ease_out_cubic(self, t):
+        return 1 - pow(1 - t, 3)
+
+    def draw(self, surface):
+        if self.finished:
+            return
+
+        progress = self.elapsed / self.duration
+        alpha = int((1 - progress) * 200)
+
+        # Draw expanding ring
+        if self.ring_radius > 0 and alpha > 0:
+            ring_surf = pygame.Surface((self.max_ring_radius * 2 + 20, self.max_ring_radius * 2 + 20), pygame.SRCALPHA)
+            center = self.max_ring_radius + 10
+
+            # Outer glow ring
+            glow_color = (*self.color, alpha // 3)
+            pygame.draw.circle(ring_surf, glow_color, (center, center), int(self.ring_radius + 5), width=8)
+
+            # Inner bright ring
+            ring_color = (*self.color, alpha)
+            pygame.draw.circle(ring_surf, ring_color, (center, center), int(self.ring_radius), width=3)
+
+            surface.blit(ring_surf, (self.x - center, self.y - center))
+
+        # Draw central flash (bright at start, fades quickly)
+        if progress < 0.2:
+            flash_alpha = int((1 - progress / 0.2) * 255)
+            flash_size = int(30 + progress * 40)
+            flash_surf = pygame.Surface((flash_size * 2, flash_size * 2), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 255, 255, flash_alpha), (flash_size, flash_size), flash_size)
+            surface.blit(flash_surf, (self.x - flash_size, self.y - flash_size))
+
+        # Draw particles
+        for particle in self.particles:
+            if particle['life'] > 0:
+                p_alpha = int(255 * particle['life'])
+                size = max(1, int(particle['size'] * particle['life']))
+
+                particle_surf = pygame.Surface((size * 3, size * 3), pygame.SRCALPHA)
+                # Glow
+                glow_color = (*particle['color'], p_alpha // 2)
+                pygame.draw.circle(particle_surf, glow_color, (size * 1.5, size * 1.5), int(size * 1.5))
+                # Core
+                core_color = (*particle['color'], p_alpha)
+                pygame.draw.circle(particle_surf, core_color, (size * 1.5, size * 1.5), size)
+
+                surface.blit(particle_surf, (int(particle['x'] - size * 1.5), int(particle['y'] - size * 1.5)))
+
+
+class RowScoreAnimation(Animation):
+    """Animated score counter for row score changes."""
+    def __init__(self, old_value, new_value, x, y, duration=400, color=None):
+        super().__init__(duration)
+        self.old_value = old_value
+        self.new_value = new_value
+        self.current_value = old_value
+        self.x = x
+        self.y = y
+        self.scale = 1.0
+        self.offset_y = 0
+
+        # Determine color based on change direction
+        if color:
+            self.color = color
+        elif new_value > old_value:
+            self.color = (100, 255, 100)  # Green for increase
+        elif new_value < old_value:
+            self.color = (255, 100, 100)  # Red for decrease
+        else:
+            self.color = (255, 255, 255)  # White for no change
+
+    def update(self, dt):
+        super().update(dt)
+        progress = self.get_progress()
+
+        # Smooth counting animation
+        self.current_value = int(self.old_value + (self.new_value - self.old_value) * self.ease_out_cubic(progress))
+
+        # Pop effect
+        if progress < 0.3:
+            self.scale = 1.0 + (progress / 0.3) * 0.3
+        else:
+            self.scale = 1.3 - ((progress - 0.3) / 0.7) * 0.3
+
+        # Slight bounce
+        self.offset_y = -math.sin(progress * math.pi) * 8
+
+        return not self.finished
+
+    def ease_out_cubic(self, t):
+        return 1 - pow(1 - t, 3)
+
+    def get_display_value(self):
+        return self.current_value
+
+
 class GlowAnimation(Animation):
     """Pulsing glow effect."""
     def __init__(self, color=(100, 200, 255), duration=1000, loop=True):

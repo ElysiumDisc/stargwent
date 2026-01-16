@@ -74,6 +74,9 @@ from animations import (
     DakaraShockwaveEffect,
     ReplicatorCrawlEffect,
     GoauldSymbioteAnimation,
+    CardRevealAnimation,
+    AbilityBurstEffect,
+    RowScoreAnimation,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -914,6 +917,7 @@ def main(lan_game_data=None):
     catherine_cards_to_choose = []
     thor_selected_unit = None
     pending_leader_choice = None
+    leader_choice_rects = []  # Persists between frames for event-based click handling
     
     # History/column state
     history_scroll_offset = 0
@@ -951,6 +955,7 @@ def main(lan_game_data=None):
     from animations import AITurnAnimation
     ai_turn_anim = AITurnAnimation(SCREEN_WIDTH, SCREEN_HEIGHT)
     ai_turn_in_progress = False
+    ai_ability_tried = False  # Track if AI ability was tried this turn
     ai_card_to_play = None
     ai_row_to_play = None
     ai_selected_card_index = None
@@ -1140,10 +1145,18 @@ def main(lan_game_data=None):
             
             previous_weather = game.weather_active.copy()
     
+        # Reset AI ability flag when it becomes player1's turn
+        if game.current_player == game.player1:
+            ai_ability_tried = False
+
         # AI leader ability - auto-activate when appropriate (e.g., Apophis weather strike)
+        # Only try once per turn to avoid spam for leaders without implemented abilities
         if (game.game_state == "playing"
                 and game.current_player == game.player2
-                and not game.player2.has_passed):
+                and not game.player2.has_passed
+                and not ai_ability_tried
+                and game.can_use_leader_ability(game.player2)):
+            ai_ability_tried = True  # Only try once per turn
             ability_result = game.activate_leader_ability(game.player2)
             if ability_result:
                 ability_name = ability_result.get("ability", game.player2.leader.get('ability', 'Leader Ability'))
@@ -1152,6 +1165,18 @@ def main(lan_game_data=None):
                     if revealed:
                         chosen_card = max(revealed, key=lambda c: getattr(c, "power", 0))
                         game.catherine_play_chosen_card(game.player2, chosen_card)
+                elif ability_result.get("requires_ui") and ability_name == "Eidetic Memory":
+                    # AI Jonas Quinn - auto-choose highest power card
+                    revealed = ability_result.get("revealed_cards") or []
+                    if revealed:
+                        chosen_card = max(revealed, key=lambda c: getattr(c, "power", 0))
+                        game.jonas_memorize_card(game.player2, chosen_card)
+                elif ability_result.get("requires_ui") and ability_name == "System Lord's Cunning":
+                    # AI Ba'al - auto-choose highest power card from discard
+                    revealed = ability_result.get("revealed_cards") or []
+                    if revealed:
+                        chosen_card = max(revealed, key=lambda c: getattr(c, "power", 0))
+                        game.baal_resurrect_card(game.player2, chosen_card)
                 anim_manager.add_effect(create_ability_animation(
                     ability_name,
                     SCREEN_WIDTH // 2,
@@ -1679,22 +1704,43 @@ def main(lan_game_data=None):
                         run_space_shooter(screen)  # Shows ship selection screen
             elif event.type == pygame.MOUSEWHEEL:
                 if history_panel_rect and history_panel_rect.collidepoint(pygame.mouse.get_pos()):
+                    # Scroll down (event.y < 0) = see older entries = increase offset
                     history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - event.y * cfg.HISTORY_ENTRY_HEIGHT))
-                    history_manual_scroll = True
+                    history_manual_scroll = history_scroll_offset > 0
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # LAN: Block game interactions if waiting for opponent
                 # Allow Right Click (3) for inspection and UI clicks if paused/chatting
-                if waiting_for_opponent and ui_state not in (UIState.PAUSED, UIState.LAN_CHAT) and event.button != 3:
+                # Allow clicks during leader ability selection overlays (Jonas Quinn, Ba'al, etc.)
+                if waiting_for_opponent and ui_state not in (UIState.PAUSED, UIState.LAN_CHAT, UIState.LEADER_CHOICE_SELECT) and event.button != 3:
                     continue
-    
+
                 if event.button in (4, 5):
                     if history_panel_rect and history_panel_rect.collidepoint(event.pos):
-                        delta = cfg.HISTORY_ENTRY_HEIGHT if event.button == 4 else -cfg.HISTORY_ENTRY_HEIGHT
-                        history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset - delta))
-                        history_manual_scroll = True
+                        # Button 4 = scroll up (newer) = decrease offset, Button 5 = scroll down (older) = increase offset
+                        delta = -cfg.HISTORY_ENTRY_HEIGHT if event.button == 4 else cfg.HISTORY_ENTRY_HEIGHT
+                        history_scroll_offset = max(0, min(history_scroll_limit, history_scroll_offset + delta))
+                        history_manual_scroll = history_scroll_offset > 0
                     continue
                 if event.button == 1:
                     button_info_popup = None
+                    # Leader choice selection (Jonas Quinn, Ba'al)
+                    if ui_state == UIState.LEADER_CHOICE_SELECT and pending_leader_choice and leader_choice_rects:
+                        for card, rect in leader_choice_rects:
+                            if rect.collidepoint(event.pos):
+                                ability_name = pending_leader_choice.get("ability", "")
+                                if ability_name == "Eidetic Memory":
+                                    game.jonas_memorize_card(game.player1, card)
+                                    if network_proxy:
+                                        network_proxy.send_leader_ability("Eidetic Memory", {"card_id": card.id})
+                                elif ability_name == "System Lord's Cunning":
+                                    game.baal_resurrect_card(game.player1, card)
+                                    if network_proxy:
+                                        network_proxy.send_leader_ability("System Lord's Cunning", {"choice_id": card.id})
+                                pending_leader_choice = None
+                                leader_choice_rects = []
+                                ui_state = UIState.PLAYING
+                                break
+                        continue  # Don't process other clicks when in leader choice mode
                 if game.current_player == game.player1:
                     # Handle leader ability click
                     if player_ability_rect and player_ability_rect.collidepoint(event.pos):
@@ -2885,14 +2931,25 @@ def main(lan_game_data=None):
             board_renderer.draw_mulligan_button(screen, mulligan_selected)
             history_panel_rect = None
         elif game.game_state == "game_over":
-            # Draw game over screen
-            game_over_text = cfg.SCORE_FONT.render("GAME OVER", True, cfg.WHITE)
-            screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 100))
-            
+            # Initialize game over animation if not already created
+            if not hasattr(game, 'game_over_animation'):
+                game.game_over_animation = transitions.GameOverAnimation(game, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+            # Update and draw the animation
+            anim = game.game_over_animation
+            if anim:
+                anim.update()
+                anim.draw(screen)
+
+            # Calculate position below the leader cards for messages/score
+            # (VICTOR/DEFEATED labels in animation already communicate the result)
+            if anim:
+                card_bottom_y = int(SCREEN_HEIGHT * 0.42) + anim.card_height // 2
+                content_start_y = card_bottom_y + int(30 * anim.scale)
+            else:
+                content_start_y = SCREEN_HEIGHT // 2 + int(100 * SCALE_FACTOR)
+
             if game.winner:
-                winner_text = cfg.SCORE_FONT.render(f"{game.winner.name} WINS!", True, cfg.HIGHLIGHT_GREEN)
-                screen.blit(winner_text, (SCREEN_WIDTH // 2 - winner_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
-                
                 # Record game result and show rewards
                 if not hasattr(game, 'reward_shown'):
                     game.reward_shown = True
@@ -3082,39 +3139,44 @@ def main(lan_game_data=None):
                         record_defeat(game.player1_faction, mode_label)
                         unlock_system.record_game_result(False)
             
-            score_text = cfg.UI_FONT.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, cfg.WHITE)
-            screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2))
-            
-            # Show unlock messages if exist
-            y_offset = 30
+            # Position score and messages directly below the animation (tighter spacing)
+            messages_base_y = content_start_y + int(20 * SCALE_FACTOR)
+            score_font = pygame.font.SysFont("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
+            score_text = score_font.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, cfg.WHITE)
+            screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, messages_base_y))
+
+            # Show unlock messages if exist (tighter spacing)
+            line_spacing = int(28 * SCALE_FACTOR)
+            y_offset = line_spacing
             if hasattr(game, 'unlock_message'):
-                screen.blit(game.unlock_message, (SCREEN_WIDTH // 2 - game.unlock_message.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
-                y_offset += 35
+                screen.blit(game.unlock_message, (SCREEN_WIDTH // 2 - game.unlock_message.get_width() // 2, messages_base_y + y_offset))
+                y_offset += line_spacing
             if hasattr(game, 'unlock_message2'):
-                screen.blit(game.unlock_message2, (SCREEN_WIDTH // 2 - game.unlock_message2.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
-                y_offset += 35
+                screen.blit(game.unlock_message2, (SCREEN_WIDTH // 2 - game.unlock_message2.get_width() // 2, messages_base_y + y_offset))
+                y_offset += line_spacing
             if hasattr(game, 'streak_message'):
-                screen.blit(game.streak_message, (SCREEN_WIDTH // 2 - game.streak_message.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
-                y_offset += 35
-            
+                screen.blit(game.streak_message, (SCREEN_WIDTH // 2 - game.streak_message.get_width() // 2, messages_base_y + y_offset))
+                y_offset += line_spacing
+
             if hasattr(game, 'draft_messages'):
                 for msg in game.draft_messages:
                     if isinstance(msg, str):
                         msg_surf = cfg.UI_FONT.render(msg, True, cfg.HIGHLIGHT_ORANGE)
                     else:
                         msg_surf = msg
-                    screen.blit(msg_surf, (SCREEN_WIDTH // 2 - msg_surf.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset))
-                    y_offset += 35
-    
+                    screen.blit(msg_surf, (SCREEN_WIDTH // 2 - msg_surf.get_width() // 2, messages_base_y + y_offset))
+                    y_offset += line_spacing
+
             if getattr(game, 'draft_victory', False):
-                egg_font = pygame.font.SysFont("Arial", 48, bold=True)
+                egg_font = pygame.font.SysFont("Arial", max(36, int(48 * SCALE_FACTOR)), bold=True)
                 egg_text = egg_font.render("EASTER EGG UNLOCKED!", True, (255, 0, 255))
-                sub_text = cfg.UI_FONT.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
-                
-                screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 20))
-                screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, SCREEN_HEIGHT // 2 + y_offset + 70))
-                y_offset += 100
-            
+                sub_font = pygame.font.SysFont("Arial", max(16, int(20 * SCALE_FACTOR)))
+                sub_text = sub_font.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
+
+                screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, messages_base_y + y_offset + int(20 * SCALE_FACTOR)))
+                screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, messages_base_y + y_offset + int(70 * SCALE_FACTOR)))
+                y_offset += int(100 * SCALE_FACTOR)
+
             # Show different options based on game mode
             if hasattr(game, 'is_draft_match') and game.is_draft_match:
                 # In draft mode, check if we should continue automatically
@@ -3132,17 +3194,30 @@ def main(lan_game_data=None):
                         button_width = int(250 * scale)
                         button_height = int(55 * scale)
                         button_spacing = int(15 * scale)
-                        start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                        start_y = messages_base_y + y_offset + int(30 * scale)
                         mouse_pos = pygame.mouse.get_pos()
 
-                        # Progress message
+                        # Progress message (positioned above button panel)
                         progress_text = cfg.UI_FONT.render(f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", True, cfg.HIGHLIGHT_GREEN)
-                        screen.blit(progress_text, (SCREEN_WIDTH // 2 - progress_text.get_width() // 2, start_y - int(50 * scale)))
+                        screen.blit(progress_text, (SCREEN_WIDTH // 2 - progress_text.get_width() // 2, start_y - int(35 * scale)))
 
                         # Define buttons
                         continue_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
                         save_exit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
                         quit_draft_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                        # Draw semi-transparent panel behind buttons
+                        panel_padding = int(20 * scale)
+                        panel_rect = pygame.Rect(
+                            continue_button.left - panel_padding,
+                            continue_button.top - panel_padding,
+                            button_width + panel_padding * 2,
+                            quit_draft_button.bottom - continue_button.top + panel_padding * 2
+                        )
+                        panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+                        panel_surface.fill((0, 0, 0, 140))
+                        pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
+                        screen.blit(panel_surface, panel_rect.topleft)
 
                         # Draw Stargwent-styled buttons
                         draw_stargwent_button(screen, continue_button, "CONTINUE DRAFT", mouse_pos,
@@ -3177,13 +3252,26 @@ def main(lan_game_data=None):
                         button_width = int(250 * scale)
                         button_height = int(55 * scale)
                         button_spacing = int(20 * scale)
-                        start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                        start_y = messages_base_y + y_offset + int(30 * scale)
                         mouse_pos = pygame.mouse.get_pos()
 
                         # Define buttons - different for draft mode end
                         new_draft_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
                         main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
                         quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                        # Draw semi-transparent panel behind buttons
+                        panel_padding = int(20 * scale)
+                        panel_rect = pygame.Rect(
+                            new_draft_button.left - panel_padding,
+                            new_draft_button.top - panel_padding,
+                            button_width + panel_padding * 2,
+                            quit_button.bottom - new_draft_button.top + panel_padding * 2
+                        )
+                        panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+                        panel_surface.fill((0, 0, 0, 140))
+                        pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
+                        screen.blit(panel_surface, panel_rect.topleft)
 
                         # Draw Stargwent-styled buttons
                         draw_stargwent_button(screen, new_draft_button, "NEW DRAFT", mouse_pos,
@@ -3209,13 +3297,26 @@ def main(lan_game_data=None):
                     button_width = int(250 * scale)
                     button_height = int(55 * scale)
                     button_spacing = int(20 * scale)
-                    start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                    start_y = messages_base_y + y_offset + int(30 * scale)
                     mouse_pos = pygame.mouse.get_pos()
 
                     # Define buttons
                     rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
                     main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
                     quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                    # Draw semi-transparent panel behind buttons
+                    panel_padding = int(20 * scale)
+                    panel_rect = pygame.Rect(
+                        rematch_button.left - panel_padding,
+                        rematch_button.top - panel_padding,
+                        button_width + panel_padding * 2,
+                        quit_button.bottom - rematch_button.top + panel_padding * 2
+                    )
+                    panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+                    panel_surface.fill((0, 0, 0, 140))
+                    pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
+                    screen.blit(panel_surface, panel_rect.topleft)
 
                     # Draw Stargwent-styled buttons
                     draw_stargwent_button(screen, rematch_button, "REMATCH", mouse_pos)
@@ -3240,13 +3341,26 @@ def main(lan_game_data=None):
                 button_width = int(250 * scale)
                 button_height = int(55 * scale)
                 button_spacing = int(20 * scale)
-                start_y = SCREEN_HEIGHT // 2 + y_offset + int(40 * scale)
+                start_y = messages_base_y + y_offset + int(30 * scale)
                 mouse_pos = pygame.mouse.get_pos()
 
                 # Define buttons
                 rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
                 main_menu_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + button_height + button_spacing, button_width, button_height)
                 quit_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+
+                # Draw semi-transparent panel behind buttons
+                panel_padding = int(20 * scale)
+                panel_rect = pygame.Rect(
+                    rematch_button.left - panel_padding,
+                    rematch_button.top - panel_padding,
+                    button_width + panel_padding * 2,
+                    quit_button.bottom - rematch_button.top + panel_padding * 2
+                )
+                panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+                panel_surface.fill((0, 0, 0, 140))
+                pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
+                screen.blit(panel_surface, panel_rect.topleft)
 
                 # Draw Stargwent-styled buttons
                 draw_stargwent_button(screen, rematch_button, "REMATCH", mouse_pos)
@@ -3264,7 +3378,24 @@ def main(lan_game_data=None):
                     elif quit_button.collidepoint(mouse_pos):
                         pygame.quit()
                         sys.exit()
-            history_panel_rect = None
+
+            # Draw history panel on game over screen (right side)
+            panel_width = 300
+            history_rect = pygame.Rect(
+                cfg.SIDEBAR_X + 175,
+                pct_y(0.12),
+                panel_width,
+                pct_y(0.80) - pct_y(0.12)
+            )
+            history_panel_rect = history_rect
+            history_entry_hitboxes, history_scroll_limit = draw_history_panel(
+                screen,
+                game,
+                history_rect,
+                history_scroll_offset,
+                pygame.mouse.get_pos()
+            )
+
         if ui_state != UIState.LEADER_MATCHUP and game.game_state != "game_over":
             board_renderer.draw_board(screen, game, selected_card, dragging_card=dragging_card,
                        drag_hover_highlight=drag_hover_highlight,
@@ -3569,6 +3700,10 @@ def main(lan_game_data=None):
                         if rect.collidepoint(mouse_pos):
                             # Player selected this card to revive
                             game.trigger_medic(game.player1, card)
+                            # Add ability burst effect for Medical Evac
+                            anim_manager.add_effect(AbilityBurstEffect(
+                                rect.centerx, rect.centery, ability_name="Medical Evac"
+                            ))
                             game.player1.calculate_score()
                             game.player2.calculate_score()
                             game.last_turn_actor = game.player1
@@ -3594,6 +3729,10 @@ def main(lan_game_data=None):
                     if rect.collidepoint(mouse_pos):
                         # Player selected this card to return to hand
                         if game.apply_decoy(card):
+                            # Add ability burst effect for Decoy/Recall
+                            anim_manager.add_effect(AbilityBurstEffect(
+                                rect.centerx, rect.centery, ability_name="Decoy Recall"
+                            ))
                             game.player1.calculate_score()
                             game.player2.calculate_score()
                             game.last_turn_actor = game.player1
@@ -3605,14 +3744,26 @@ def main(lan_game_data=None):
                             pygame.time.wait(200)  # Small delay to prevent double-click
                         break
         
-        # Jonas Quinn peek overlay
+        # Jonas Quinn peek/copy overlay - select a card to copy to hand
         if ui_state == UIState.JONAS_PEEK:
-            selection_overlays.draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-    
-            # Handle click to close
+            jonas_card_rects = selection_overlays.draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+            # Handle click to select and copy a card
+            mouse_pos = pygame.mouse.get_pos()
             if pygame.mouse.get_pressed()[0]:
+                card_selected = False
+                if jonas_card_rects:
+                    for card, rect in jonas_card_rects:
+                        if rect.collidepoint(mouse_pos):
+                            # Copy this card to player's hand
+                            game.jonas_memorize_card(game.player1, card)
+                            if network_proxy:
+                                network_proxy.send_leader_ability("Eidetic Memory", {"card_id": card.id})
+                            card_selected = True
+                            break
+
+                # Close overlay and clear tracked cards
                 ui_state = UIState.PLAYING
-                # Clear the tracked cards after viewing
                 game.opponent_drawn_cards = []
                 pygame.time.wait(200)
         
@@ -3687,36 +3838,13 @@ def main(lan_game_data=None):
                         break
     
         # Generic leader choice overlay (Jonas Quinn, Ba'al, etc.)
-        leader_choice_rects = []
         if pending_leader_choice:
-            # Sync state if needed
             if ui_state != UIState.LEADER_CHOICE_SELECT:
                 ui_state = UIState.LEADER_CHOICE_SELECT
-                
+            # Draw overlay and store rects for event-loop click handling
             leader_choice_rects = selection_overlays.draw_leader_choice_overlay(screen, pending_leader_choice, SCREEN_WIDTH, SCREEN_HEIGHT)
-            mouse_pos = pygame.mouse.get_pos()
-            if pygame.mouse.get_pressed()[0]:
-                for card, rect in leader_choice_rects:
-                    if rect.collidepoint(mouse_pos):
-                        ability_name = pending_leader_choice.get("ability", "")
-                        if ability_name == "Eidetic Memory":
-                            game.jonas_memorize_card(game.player1, card)
-                            if network_proxy:
-                                network_proxy.send_leader_ability(
-                                    "Eidetic Memory",
-                                    {"card_id": card.id}
-                                )
-                        elif ability_name == "System Lord's Cunning":
-                            game.baal_resurrect_card(game.player1, card)
-                            if network_proxy:
-                                network_proxy.send_leader_ability(
-                                    "System Lord's Cunning",
-                                    {"choice_id": card.id}
-                                )
-                        pending_leader_choice = None
-                        ui_state = UIState.PLAYING
-                        pygame.time.wait(200)
-                        break
+        else:
+            leader_choice_rects = []
     
         # Thor move mode - simple visual indicator
         if ui_state == UIState.THOR_MOVE_SELECT:

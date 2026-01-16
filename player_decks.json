@@ -1,6 +1,6 @@
 {
   "Tau'ri": {
-    "leader": "tauri_oneill",
+    "leader": "tauri_quinn",
     "cards": [
       "neutral_ascended_daniel",
       "neutral_oma_desala",
@@ -31,7 +31,7 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_yu",
+    "leader": "goauld_apophis",
     "cards": [
       "goauld_osiris_guard_1",
       "goauld_kull_warrior_2",

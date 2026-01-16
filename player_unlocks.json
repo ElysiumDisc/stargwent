@@ -1,203 +1,337 @@
 {
   "unlocked": [],
   "unlocked_leaders": {},
-  "consecutive_wins": 1,
-  "total_wins": 3,
-  "total_games": 4,
+  "consecutive_wins": 0,
+  "total_wins": 5,
+  "total_games": 13,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ori Warship": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "ori_warship"
     },
     "Ancients Drone": {
-      "plays": 4,
-      "wins": 3,
+      "plays": 8,
+      "wins": 5,
       "id": "neutral_ancient_drone"
     },
     "Col. Jack O'Neill": {
-      "plays": 3,
-      "wins": 3,
+      "plays": 7,
+      "wins": 5,
       "id": "tauri_oneill"
     },
     "BC-304 Heavy Cruiser": {
-      "plays": 5,
-      "wins": 5,
+      "plays": 10,
+      "wins": 8,
       "id": "tauri_bc304_2"
     },
     "Ice Planet Contingency": {
-      "plays": 3,
-      "wins": 3,
+      "plays": 5,
+      "wins": 5,
       "id": "neutral_biting_frost_1"
     },
     "Nebula Field": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "neutral_impenetrable_fog_1"
     },
     "Asgard Anti-Goa'uld Pulse": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "neutral_skellige_storm_1"
     },
     "Ancient Ship Destiny": {
-      "plays": 3,
-      "wins": 3,
+      "plays": 6,
+      "wins": 5,
       "id": "destiny_ship"
     },
     "Zero Point Module": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 5,
+      "wins": 4,
       "id": "zpm_power"
     },
     "City of Atlantis": {
-      "plays": 4,
-      "wins": 3,
+      "plays": 8,
+      "wins": 4,
       "id": "atlantis_city"
     },
     "Ancient Communication Device": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 4,
+      "wins": 3,
       "id": "ancient_communication_stones"
     },
     "Oma Desala": {
-      "plays": 3,
-      "wins": 3,
+      "plays": 7,
+      "wins": 5,
       "id": "neutral_oma_desala"
     },
     "Dr. Rodney McKay": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 4,
+      "wins": 3,
       "id": "neutral_mckay"
     },
     "Capt. Cameron Mitchell": {
-      "plays": 2,
+      "plays": 3,
       "wins": 2,
       "id": "tauri_mitchell"
     },
     "Dr. Daniel Jackson": {
-      "plays": 3,
-      "wins": 3,
+      "plays": 6,
+      "wins": 5,
       "id": "tauri_jackson"
     },
     "Dr. Janet Fraiser": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 5,
+      "wins": 4,
       "id": "tauri_fraiser"
     },
     "Dr. Samantha Carter": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 6,
+      "wins": 4,
       "id": "tauri_carter"
     },
     "Col. Steven Caldwell": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 4,
+      "wins": 3,
       "id": "tauri_caldwell"
     },
     "Jonas Quinn": {
-      "plays": 2,
-      "wins": 2,
+      "plays": 3,
+      "wins": 3,
       "id": "tauri_quinn"
     },
     "Liaison Vala Mal Doran": {
-      "plays": 3,
+      "plays": 4,
       "wins": 3,
       "id": "tauri_vala"
     },
     "Ascended Daniel Jackson": {
-      "plays": 3,
-      "wins": 3,
+      "plays": 7,
+      "wins": 4,
       "id": "neutral_ascended_daniel"
     },
     "Micrometeorite Shower": {
-      "plays": 2,
+      "plays": 3,
       "wins": 2,
-      "id": "neutral_torrential_rain_1"
+      "id": "neutral_torrential_rain_2"
     },
     "Tok'ra Deep Cover Operative": {
-      "plays": 2,
-      "wins": 1,
+      "plays": 4,
+      "wins": 2,
       "id": "tok_ra_operative"
     },
     "NID Agent Malcolm Barrett": {
-      "plays": 1,
-      "wins": 1,
+      "plays": 4,
+      "wins": 3,
       "id": "tauri_barrett"
     },
     "Gen. George Hammond": {
-      "plays": 2,
+      "plays": 3,
       "wins": 2,
       "id": "tauri_hammond"
+    },
+    "Lord Yu": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_yu"
+    },
+    "Serpent Guard Elite": {
+      "plays": 2,
+      "wins": 0,
+      "id": "goauld_serpent_guard_1"
+    },
+    "Ha'tak Mothership": {
+      "plays": 2,
+      "wins": 0,
+      "id": "goauld_hatak_2"
+    },
+    "Apophis": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_apophis"
+    },
+    "Goa'uld Symbiote": {
+      "plays": 3,
+      "wins": 0,
+      "id": "goauld_symbiote"
+    },
+    "Sokar": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_sokar"
+    },
+    "Tel'tak Courier": {
+      "plays": 2,
+      "wins": 0,
+      "id": "goauld_teltak_2"
+    },
+    "Death Glider Swarm": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_glider_swarm_3"
+    },
+    "Council of Ba'al": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_council_baal"
+    },
+    "Anubis Guard": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_anubis_guard_1"
+    },
+    "Jaffa Master": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_jaffa_master"
+    },
+    "Solar Flare/Ion Storm": {
+      "plays": 1,
+      "wins": 0,
+      "id": "neutral_clear_weather_1"
+    },
+    "Osiris Guard": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_osiris_guard_2"
+    },
+    "Goa'uld Drone": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_drone_2"
+    },
+    "Kull Warrior": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_kull_warrior_2"
+    },
+    "Unscheduled Jaffa": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_unscheduled_jaffa_1"
+    },
+    "Asgard Observer": {
+      "plays": 1,
+      "wins": 0,
+      "id": "asgard_observer"
     }
   },
   "faction_wins": {
-    "Tau'ri": 3
+    "Tau'ri": 5
   },
-  "max_streak": 2,
-  "ai_games": 4,
-  "ai_wins": 3,
+  "max_streak": 3,
+  "ai_games": 13,
+  "ai_wins": 5,
   "lan_games": 0,
   "lan_wins": 0,
   "leader_stats": {
     "Col. Jack O'Neill": {
-      "games": 4,
-      "wins": 3
+      "games": 7,
+      "wins": 5
+    },
+    "Sokar": {
+      "games": 1,
+      "wins": 0
+    },
+    "Gen. Landry": {
+      "games": 1,
+      "wins": 0
+    },
+    "Apophis": {
+      "games": 1,
+      "wins": 0
+    },
+    "Jonas Quinn": {
+      "games": 3,
+      "wins": 0
     }
   },
   "matchups": {
     "Tau'ri": {
       "Asgard": {
-        "games": 2,
+        "games": 4,
         "wins": 2
       },
       "Lucian Alliance": {
+        "games": 3,
+        "wins": 1
+      },
+      "Jaffa Rebellion": {
         "games": 2,
         "wins": 1
+      },
+      "Goa'uld": {
+        "games": 2,
+        "wins": 1
+      }
+    },
+    "Goa'uld": {
+      "Tau'ri": {
+        "games": 1,
+        "wins": 0
+      },
+      "Jaffa Rebellion": {
+        "games": 1,
+        "wins": 0
       }
     }
   },
   "last_results": [
     "W",
     "W",
+    "W",
     "L",
-    "W"
+    "L",
+    "L",
+    "L",
+    "L",
+    "L",
+    "L"
   ],
   "turn_stats": {
-    "total": 265,
-    "games": 4,
-    "min": 22,
+    "total": 662,
+    "games": 13,
+    "min": 16,
     "max": 112,
     "history": [
       76,
       112,
       22,
-      55
+      55,
+      68,
+      63,
+      16,
+      63,
+      36,
+      23,
+      48,
+      46,
+      34
     ]
   },
   "mulligans": {
-    "total": 12,
-    "games": 4
+    "total": 31,
+    "games": 13
   },
   "ability_usage": {
-    "medic": 2,
+    "medic": 3,
     "decoy": 0,
-    "faction_power": 1,
-    "iris_blocks": 1
+    "faction_power": 2,
+    "iris_blocks": 3
   },
   "lan_reliability": {},
   "round_stats": {
-    "sweeps_for": 1,
-    "sweeps_against": 1,
-    "close_wins": 2,
-    "close_losses": 0,
-    "comebacks": 2,
-    "first_turn_games": 4,
-    "first_turn_wins": 1
+    "sweeps_for": 2,
+    "sweeps_against": 6,
+    "close_wins": 3,
+    "close_losses": 2,
+    "comebacks": 3,
+    "first_turn_games": 13,
+    "first_turn_wins": 2
   },
   "draft_stats": {
-    "runs_started": 48,
+    "runs_started": 49,
     "runs_completed": 0,
     "battles_won": 0,
     "battles_lost": 0,
@@ -214,9 +348,9 @@
   "active_draft_run": {
     "wins": 0,
     "losses": 0,
-    "phase": "leader_select",
+    "phase": "draft",
     "current_pick": 0,
-    "leader_id": null,
+    "leader_id": "goauld_hathor_unlock",
     "card_ids": [],
     "cards_to_remove_count": 0
   }
