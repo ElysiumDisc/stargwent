@@ -51,56 +51,56 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### ✨ Key Features
 
 ### 🎮 Complete Card Game Experience
-- **100% Fully Implemented** - All mechanics + Powers + Animations + Persistence + LAN Multiplayer + Draft Mode!
-- **⚡ NEW v4.8.0: STARGATE UI POLISH** - MALP Feed-styled history panel with scan-lines and terminal font! Iris Defense now shows metallic shutter overlay when active! DHD buttons and back buttons glow red on hover! Ring transport sound plays when entering mulligan phase!
-- **⚡ NEW v4.7.1: CODE ARCHITECTURE REFACTOR** - Type-safe Ability enum system replaces string-based checks! Centralized 50+ hardcoded values (animations, colors, fonts, timing) in game_config.py! Fixed Rule Compendium missing Jaffa/Lucian unlock sections!
-- **⚡ NEW v4.6.0: DHD BACK BUTTONS & NAVIGATION POLISH** - Replaced all "Back" buttons with circular DHD-style buttons! Holding arrow keys now continuously browses. SPACE previews cards (F plays). Wider chat/history panel with LAN chat input box!
-- **⚡ NEW v4.5.0: UNIVERSAL KEYBOARD CONTROLS** - Full keyboard navigation across all game screens! Arrow keys for card/menu navigation, F to play cards, G for faction power, Tab to cycle buttons. Cards now highlight with row-type colors (red=close, blue=ranged, green=siege). Enhanced pause menu with Options integration!
-- **⚡ NEW v4.4.0: DRAFT MODE SAVE & POST-GAME POLISH** - Draft mode now features Save & Continue options! After winning a match, choose to Continue Draft, Save & Exit, or Abandon. Post-game menu redesigned with Stargwent-styled buttons. Fixed critical card sharing bug and improved FPS with font/surface caching!
-- **⚡ NEW v4.3.1: ARCHITECTURE REFACTORING** - Split monolithic 6,000+ line `main.py` into clean, maintainable modules (`display_manager.py`, `game_config.py`, `render_engine.py`). Centralized configuration, improved testability, and eliminated code duplication while maintaining full backward compatibility!
-- **⚡ NEW v4.3.0: ASSET CACHING & PERFORMANCE OVERHAUL** - Implemented a global `ImageCache` system that stores high-resolution card assets in RAM, eliminating disk I/O stutters during resolution changes and menu transitions. Pre-calculated 1.08x hover images now provide instant, buttery-smooth card enlargement without the CPU overhead of per-frame scaling.
-- **⚡ NEW v4.2.0: MODERN DECK BUILDER ICONS** - Replaced text tabs with high-resolution circular icon buttons for card filtering. Added dedicated "Special" and "Neutral" tabs with distinct iconography. Refined visual polish with consistent icon scaling and selection glows.
-- **⚡ NEW v4.0.1: GOA'ULD SYMBIOTE ANIMATION & LAN REMATCH** - The Goa'uld Symbiote card now features a creepy larva animation that leaps toward opponent cards seeking a host! LAN chat now shows message timestamps. After LAN games, players can choose to Play Again (new faction/leader) or Disconnect!
-- **⚡ NEW v4.0.0: DRAFT MODE GAUNTLET & UNIFIED VISUALS** - Expanded Draft Mode into an 8-win roguelike gauntlet with redraft milestones (3 Wins: Cards, 5 Wins: Leader)! Standardized faction colors across all menus: Lucian Alliance is now Pink, Asgard is bright Cyan. Removed legacy XP system for a cleaner progression loop!
-- **⚡ NEW v3.9.4: UNLOCKABLE CARD VERIFICATION & FIXES** - Complete logic audit of all 20 unlockable cards! Fixed ZPM Power doubling (now preserves bonuses), Puddle Jumper Ring Transport for unit cards, and Replicator Swarm description. All abilities verified with correct animations!
-- **⚡ NEW v3.9.2: WITCHER-STYLE DECK BUILDER UI** - Complete visual overhaul featuring bottom accordion card preview (2x size), right-side vertical deck list, holographic stats panel, and smooth drag-and-drop interactions!
-- **⚡ NEW v3.9.1: STATS MENU OVERHAUL** - Comprehensive player statistics with faction win rates, round breakdown (2-0 vs 2-1), comeback tracking, unlock progress, and red DHD-styled reset button!
-- **⚡ NEW v3.9.0: FACTION POWER CINEMATICS** - Faction powers now feature high-fidelity animations: Asgard de-materialization beams, Lucian EM interference glitches, and functional Goa'uld Sarcophagus lid animations!
-- **⚡ NEW v3.9.0: REPLICATOR SWARM WEATHER** - A new weather hazard featuring swarms of grey metallic blocks that jitter and consume row space!
-- **⚡ NEW v3.9.0: COMBAT TEXT POP-UPS** - Scores now feature "BUFFED!", "INSPIRED!", or "WIPED!" tags that float alongside the numbers for better readability!
-- **⚡ NEW v3.7.0: PERSISTENT ROW WEATHER ANIMATIONS** - Each weather card now has distinct visual effects that persist on affected rows until cleared! Ice crystals for Ice Planet Hazard, fiery meteors for Asteroid Storm, purple nebula clouds, cyan EMP arcs, and more!
-- **⚡ NEW v3.7.0: ENHANCED CARD PREVIEW** - Right-click preview now shows cards at 2x scale with smooth scaling, faction-colored glow borders, and improved description layout!
-- **⚡ NEW v3.7.0: DRAFT MODE SYNERGY SYSTEM** - Draft mode now shows synergy scores for each card choice, highlighting cards that combo with your current deck! Press Z to undo picks!
-- **⚡ NEW v3.6.0: ELITE AI OVERHAUL** - AI logic rebuilt for strategic depth: Hero preservation, Round 2 bleeding, and tactical Faction Power usage. Single "Hard" difficulty now plays like a veteran!
-- **⚡ NEW v3.5.0: NARRATOR & INTEGRATED CHAT** - Game history now acts as a narrator, explaining score changes (e.g., "Scorch vaporized 3 units! (-15)") and card effects. Chat is fully integrated into the history panel—press 'T' to type without leaving the action!
-- **⚡ NEW v3.5.0: PRECISE CARD PLACEMENT** - You can now drop cards *between* existing units on the board, allowing for precise tactical positioning!
-- **⚡ NEW v3.0.0: DRAFT MODE (ARENA)** - Roguelike deck-building mode! Choose from 3 random leaders, draft 30 cards from ALL factions (1 of 3 choices each pick), review your deck stats, then battle AI with your creation! Card pool includes ALL unlocked cards regardless of faction!
-- **35 Unique Leaders** (15 base + 20 unlockable) with special abilities
-- **⚡ NEW v2.9.1: ADVANCED AI OVERHAUL** - Smart mulligan logic, strategic pass timing, intelligent power/iris usage, and advanced target selection for Hathor/Medic abilities!
-- **⚡ NEW v2.9: LAN MULTIPLAYER OVERHAUL** - Fixed game loop, added all animations for both players, robust disconnect handling!
-- **⚡ NEW v2.9: TAILSCALE SUPPORT** - Smart IP detection prioritizes Tailscale VPN addresses for easy remote play!
-- **⚡ NEW v2.8: LEGENDARY COMMANDER VOICE SNIPPETS** - Every legendary commander plays a character voice clip when deployed!
-- **⚡ NEW v2.7: ALLIANCE COMBO TRACKING** - Alliance activations now show in history viewer with full visibility!
-- **⚡ NEW v2.7: BALANCE CONFIG INTEGRATION** - All balance values now use centralized config for easy tuning!
-- **⚡ NEW v2.7: 7 NEW LEADER ABILITIES** - Landry, Ba'al, Jonas Quinn, Vala, Kiva, Thor Commander, Aegir all implemented!
-- **⚡ NEW v2.7: CRITICAL BUG FIXES** - Fixed Tactical Formation bonus stacking, Rya'c ability, and Asgard Beam artifact!
-- **⚡ NEW v2.5: MASTER VOLUME SLIDER** - Interactive sound control with real-time adjustment, persistent settings, and beautiful gradient UI!
-- **⚡ NEW v2.5: ENHANCED HISTORY PANEL** - Comprehensive event tracking: round results, leader abilities, weather, scorch, card draws, and more!
-- **⚡ NEW v2.5: LAN WAITING LOBBY** - Ready system with live chat before deck selection!
-- **⚡ NEW v2.2: LAN MULTIPLAYER** - Full 2-player networked gameplay with chat!
-- **218 Cards** across 5 factions + Neutral cards
-- **20+ Stargate-Themed Abilities** - Every ability matches the universe lore
-- **25+ Hero Animations** - Unique entry effects for legendary commanders
-- **⚡ NEW v1.9: Universal Leader Matchups** - One cinematic Stargate template replaces thousands of PNGs while preserving collision, Event Horizon effects, and lore quotes.
-- **⚡ NEW v1.9: Retro Neon Nameplates** - Leader names now render in a retro cyberpunk font with faction-colored glow + scanlines for every matchup.
-- **⚡ NEW v1.9: Seamless Fullscreen** - Toggle with F11 or launch via `--fullscreen`; mode persists from menus through combat.
-- **⚡ NEW v1.9: RULE MENU COMPENDIUM** - In-game `RULE MENU` button that opens the fully formatted rulebook generated from live card data.
-- **Interactive Abilities** - Medical Evac and Ring Transport with full UI
-- **DHD Buttons** - Authentic Stargate Dial Home Device styling for Pass button (in-game) and Back buttons (menus) with glowing chevrons and cyan crystals
-- **⚡ NEW v1.7: WITCHER 3 GWENT LAYOUT** - Complete visual restructure matching authentic Gwent board design with clear separation, proper lane spacing, and fixed hand positioning!
-- **⚡ NEW v1.6: FULLSCREEN UI FIX** - All bottom UI elements (Pass button, Faction Power) now properly visible in fullscreen mode with safe margins!
-- **⚡ NEW v1.6: ROUND WINNER ANNOUNCEMENT** - Beautiful scoreboard overlay shows who won each round with blue highlights for victories before transitioning to next round!
-- **⚡ NEW v1.6: IMPROVED HAND LAYOUT** - Hand area dynamically reserves 25% of screen height to prevent card cutoff in fullscreen!
+- **100% Fully Implemented** - All mechanics, powers, animations, persistence, LAN multiplayer, and Draft Mode
+- **218 Cards** across 5 factions + Neutral cards with 20+ Stargate-themed abilities
+- **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
+- **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
+- **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
+
+### 🎨 Stargate-Authentic UI
+- **MALP Feed History Panel** - Military monitor aesthetic with scan-lines and terminal font
+- **DHD Buttons** - Authentic Dial Home Device styling with glowing chevrons and cyan crystals
+- **Iris Defense Overlay** - Metallic titanium shutter pattern when Tau'ri shield is active
+- **Retro Neon Leader Nameplates** - Cyberpunk font with faction-colored glow and scanlines
+- **Witcher 3 Gwent Layout** - Authentic board design with clear lane separation
+
+### ⚔️ Deep Strategic Gameplay
+- **Elite AI Opponent** - Hero preservation, Round 2 bleeding tactics, strategic faction power usage
+- **Precise Card Placement** - Drop cards between existing units for tactical positioning
+- **5 Unique Faction Powers** - Once-per-game abilities with cinematic animations
+- **Interactive Abilities** - Medical Evac and Ring Transport with full selection UI
+
+### 🏆 Draft Mode (Roguelike Gauntlet)
+- **8-Win Challenge** - Survive increasingly difficult AI opponents
+- **Cross-Faction Drafting** - Build decks from ALL factions (30 cards, pick 1 of 3)
+- **Redraft Milestones** - At 3 wins: redraft 5 cards. At 5 wins: redraft your leader
+- **Synergy Scoring** - Cards highlight when they combo with your current deck
+- **Save & Continue** - Progress persists between sessions
+
+### 🌐 LAN Multiplayer
+- **Full 2-Player Networked Gameplay** - Host/Join with deck selection and chat
+- **Tailscale Support** - Smart IP detection prioritizes VPN addresses for remote play
+- **Rematch System** - Play again with new faction/leader or disconnect
+- **Integrated Chat** - Press 'T' to chat without leaving the action
+
+### 🎨 Visual Polish
+- **4K Native Resolution** (3840×2160) with perfect scaling
+- **Persistent Weather Animations** - Ice crystals, fiery meteors, nebula clouds, EMP arcs
+- **Faction Power Cinematics** - Asgard beams, Goa'uld sarcophagus, Lucian EM glitches
+- **Combat Text Pop-ups** - "BUFFED!", "INSPIRED!", "WIPED!" float with score changes
+- **Smooth Card Interactions** - Hover enlargement, drag shadows, glow borders
+
+### ⌨️ Universal Controls
+- **Full Keyboard Navigation** - Arrow keys, F to play, G for faction power, Tab to cycle
+- **Row-Type Highlighting** - Cards glow red (close), blue (ranged), green (siege)
+- **Mouse + Keyboard** - Drag-and-drop or keyboard-only gameplay
+
+### 💾 Progression & Customization
+- **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop
+- **Card Unlock System** - Win games to unlock 20+ powerful cards
+- **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
+- **Comprehensive Stats Menu** - Win rates, round breakdowns, matchup history
+- **Persistent Saves** - All progress saved to JSON
 
 ### 🆕 Recent UI Updates
 - **Witcher-Style Deck Builder** - Complete redesign inspired by The Witcher 3's Gwent interface:
