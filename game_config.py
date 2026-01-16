@@ -98,6 +98,18 @@ BG_BORDER = (80, 120, 160)           # Panel borders
 # Chevron/Stargate Colors
 CHEVRON_ACTIVE = (255, 160, 50)      # Active chevron amber
 
+# Iris Defense Colors
+IRIS_BLADE_COLOR = (100, 105, 115, 180)   # Metallic grey
+IRIS_TEXT_COLOR = (255, 200, 100)          # Amber text
+
+# Card Targeting Highlight Colors
+SPY_TARGET_FILL = (255, 100, 100, 40)      # Red tint for spy targets
+WEATHER_HIGHLIGHT = (180, 100, 100, 60)    # Reddish for weather effect
+
+# ZPM Indicator Colors
+ZPM_ACTIVE_COLOR = (100, 200, 255)         # Active ZPM - cyan
+ZPM_DEPLETED_COLOR = (50, 50, 70)          # Depleted ZPM - dark
+
 # Faction Theme Colors (for UI, not glow)
 FACTION_UI_COLORS = {
     "Tau'ri": (100, 150, 255),
@@ -124,6 +136,14 @@ FACTION_GLOW_COLORS = {
     FACTION_LUCIAN: (0xC8, 0x64, 0xFF),
     FACTION_ASGARD: (0x64, 0xFF, 0xFF),
 }
+
+# Card Layout Constants
+CARD_OVERLAP_RATIO = 0.85              # 15% overlap between cards in rows
+CARD_GAP_SHIFT_SCALE = 0.4             # How much cards shift when making room for insertion
+
+# Overlay Font Sizes (base sizes, scaled by SCALE_FACTOR)
+OVERLAY_TITLE_FONT_SIZE = 56           # Large titles in selection overlays
+OVERLAY_INSTRUCTION_FONT_SIZE = 32     # Instructions at bottom of overlays
 
 def get_row_color(row_name):
     """Return the theme color for a given row type."""

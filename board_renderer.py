@@ -54,11 +54,6 @@ def draw_weather_separator(surface, game):
     # Turn indicator moved to HUD - no duplicate text here
 
 
-def draw_lane_labels(surface):
-    """Lane labels intentionally suppressed for cleaner UI."""
-    return
-
-
 def _draw_iris_overlay(surface, row_rects):
     """Draw metallic shutter overlay over opponent's play area when Iris is active."""
     # Cache the font to avoid repeated creation
@@ -69,7 +64,7 @@ def _draw_iris_overlay(surface, row_rects):
         overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
 
         # Draw interlocking titanium blade pattern
-        blade_color = (100, 105, 115, 180)  # Metallic grey
+        blade_color = cfg.IRIS_BLADE_COLOR
         highlight = (140, 145, 155, 100)
 
         # Horizontal blades
@@ -82,7 +77,7 @@ def _draw_iris_overlay(surface, row_rects):
 
         # "GATE SHIELD ACTIVE" text (only on middle row)
         if row_name == "ranged":
-            text = font.render("GATE SHIELD ACTIVE", True, (255, 200, 100))
+            text = font.render("GATE SHIELD ACTIVE", True, cfg.IRIS_TEXT_COLOR)
             text_rect = text.get_rect(center=(rect.width // 2, rect.height // 2))
             overlay.blit(text, text_rect)
 
@@ -93,7 +88,6 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
                drag_row_highlights=None):
     """Draw the game board, including contextual drop highlights."""
     draw_weather_separator(surface, game)
-    draw_lane_labels(surface)
     draw_weather_slots(surface, game, dragging_card=dragging_card)
     draw_horn_slots(surface, game, dragging_card=dragging_card)
     
@@ -115,7 +109,7 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
         card_is_spy = is_spy(selected_card)
 
         target_rects = cfg.OPPONENT_ROW_RECTS if card_is_spy else cfg.PLAYER_ROW_RECTS
-        fill_color = (255, 100, 100, 40) if card_is_spy else (100, 255, 100, 40)
+        fill_color = cfg.SPY_TARGET_FILL if card_is_spy else (100, 255, 100, 40)
 
         if selected_card.row == "agile":
             valid_rows = ["close", "ranged"]
@@ -150,7 +144,7 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
                 affected_rows = ["close", "ranged", "siege"]
 
         # Highlight affected rows for both players
-        fill_color = (180, 100, 100, 60)  # Reddish transparent fill for weather
+        fill_color = cfg.WEATHER_HIGHLIGHT
         for row_name in affected_rows:
             if row_name in cfg.PLAYER_ROW_RECTS:
                 rect = cfg.PLAYER_ROW_RECTS[row_name]
@@ -211,7 +205,7 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
             available_width = cfg.PLAYFIELD_WIDTH
             
             # Fan Logic: Spread cards evenly
-            standard_spacing = int(cfg.CARD_WIDTH * 0.85) # 15% overlap
+            standard_spacing = int(cfg.CARD_WIDTH * cfg.CARD_OVERLAP_RATIO)
             needed_width = (total_cards - 1) * standard_spacing + cfg.CARD_WIDTH
             
             if needed_width <= available_width:
@@ -238,9 +232,9 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
                 # Apply visual parting shift
                 if insertion_index != -1:
                     if i >= insertion_index:
-                        x += cfg.CARD_WIDTH * 0.4 # Shift right to open a gap
+                        x += cfg.CARD_WIDTH * cfg.CARD_GAP_SHIFT_SCALE  # Shift right to open a gap
                     else:
-                        x -= cfg.CARD_WIDTH * 0.4 # Shift left slightly
+                        x -= cfg.CARD_WIDTH * cfg.CARD_GAP_SHIFT_SCALE  # Shift left slightly
 
                 y = row_rect.centery - cfg.CARD_HEIGHT // 2
                 
@@ -446,9 +440,9 @@ def draw_zpm_resource(surface, player, x, y):
     for i in range(player.zpm_resource.max_zpms):
         zpm_x = x + i * zpm_spacing
         if i < player.zpm_resource.current_zpms:
-            color = (100, 200, 255)  # Active ZPM - cyan
+            color = cfg.ZPM_ACTIVE_COLOR
         else:
-            color = (50, 50, 70)  # Depleted ZPM - dark
+            color = cfg.ZPM_DEPLETED_COLOR
         
         # Draw crystal shape
         pygame.draw.polygon(surface, color, [

@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 5,
-  "total_games": 13,
+  "total_games": 15,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ori Warship": {
@@ -12,7 +12,7 @@
       "id": "ori_warship"
     },
     "Ancients Drone": {
-      "plays": 8,
+      "plays": 9,
       "wins": 5,
       "id": "neutral_ancient_drone"
     },
@@ -37,27 +37,27 @@
       "id": "neutral_impenetrable_fog_1"
     },
     "Asgard Anti-Goa'uld Pulse": {
-      "plays": 3,
+      "plays": 4,
       "wins": 3,
       "id": "neutral_skellige_storm_1"
     },
     "Ancient Ship Destiny": {
-      "plays": 6,
+      "plays": 7,
       "wins": 5,
       "id": "destiny_ship"
     },
     "Zero Point Module": {
-      "plays": 5,
+      "plays": 6,
       "wins": 4,
       "id": "zpm_power"
     },
     "City of Atlantis": {
-      "plays": 8,
+      "plays": 9,
       "wins": 4,
       "id": "atlantis_city"
     },
     "Ancient Communication Device": {
-      "plays": 4,
+      "plays": 5,
       "wins": 3,
       "id": "ancient_communication_stones"
     },
@@ -77,7 +77,7 @@
       "id": "tauri_mitchell"
     },
     "Dr. Daniel Jackson": {
-      "plays": 6,
+      "plays": 7,
       "wins": 5,
       "id": "tauri_jackson"
     },
@@ -112,9 +112,9 @@
       "id": "neutral_ascended_daniel"
     },
     "Micrometeorite Shower": {
-      "plays": 3,
+      "plays": 4,
       "wins": 2,
-      "id": "neutral_torrential_rain_2"
+      "id": "neutral_torrential_rain_1"
     },
     "Tok'ra Deep Cover Operative": {
       "plays": 4,
@@ -122,7 +122,7 @@
       "id": "tok_ra_operative"
     },
     "NID Agent Malcolm Barrett": {
-      "plays": 4,
+      "plays": 5,
       "wins": 3,
       "id": "tauri_barrett"
     },
@@ -137,12 +137,12 @@
       "id": "goauld_yu"
     },
     "Serpent Guard Elite": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
-      "id": "goauld_serpent_guard_1"
+      "id": "goauld_serpent_guard_2"
     },
     "Ha'tak Mothership": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "goauld_hatak_2"
     },
@@ -152,7 +152,7 @@
       "id": "goauld_apophis"
     },
     "Goa'uld Symbiote": {
-      "plays": 3,
+      "plays": 4,
       "wins": 0,
       "id": "goauld_symbiote"
     },
@@ -172,7 +172,7 @@
       "id": "goauld_glider_swarm_3"
     },
     "Council of Ba'al": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_council_baal"
     },
@@ -187,7 +187,7 @@
       "id": "goauld_jaffa_master"
     },
     "Solar Flare/Ion Storm": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "neutral_clear_weather_1"
     },
@@ -202,7 +202,7 @@
       "id": "goauld_drone_2"
     },
     "Kull Warrior": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_kull_warrior_2"
     },
@@ -215,13 +215,23 @@
       "plays": 1,
       "wins": 0,
       "id": "asgard_observer"
+    },
+    "Council of Yu": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_council_yu"
+    },
+    "Captured Rebel Jaffa": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_rebel_jaffa"
     }
   },
   "faction_wins": {
     "Tau'ri": 5
   },
   "max_streak": 3,
-  "ai_games": 13,
+  "ai_games": 15,
   "ai_wins": 5,
   "lan_games": 0,
   "lan_wins": 0,
@@ -243,14 +253,18 @@
       "wins": 0
     },
     "Jonas Quinn": {
-      "games": 3,
+      "games": 4,
+      "wins": 0
+    },
+    "Lord Yu": {
+      "games": 1,
       "wins": 0
     }
   },
   "matchups": {
     "Tau'ri": {
       "Asgard": {
-        "games": 4,
+        "games": 5,
         "wins": 2
       },
       "Lucian Alliance": {
@@ -272,15 +286,15 @@
         "wins": 0
       },
       "Jaffa Rebellion": {
-        "games": 1,
+        "games": 2,
         "wins": 0
       }
     }
   },
   "last_results": [
     "W",
-    "W",
-    "W",
+    "L",
+    "L",
     "L",
     "L",
     "L",
@@ -290,8 +304,8 @@
     "L"
   ],
   "turn_stats": {
-    "total": 662,
-    "games": 13,
+    "total": 716,
+    "games": 15,
     "min": 16,
     "max": 112,
     "history": [
@@ -307,12 +321,14 @@
       23,
       48,
       46,
-      34
+      34,
+      26,
+      28
     ]
   },
   "mulligans": {
-    "total": 31,
-    "games": 13
+    "total": 35,
+    "games": 15
   },
   "ability_usage": {
     "medic": 3,
@@ -323,15 +339,15 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 2,
-    "sweeps_against": 6,
+    "sweeps_against": 7,
     "close_wins": 3,
-    "close_losses": 2,
+    "close_losses": 3,
     "comebacks": 3,
-    "first_turn_games": 13,
+    "first_turn_games": 15,
     "first_turn_wins": 2
   },
   "draft_stats": {
-    "runs_started": 49,
+    "runs_started": 52,
     "runs_completed": 0,
     "battles_won": 0,
     "battles_lost": 0,
@@ -349,9 +365,11 @@
     "wins": 0,
     "losses": 0,
     "phase": "draft",
-    "current_pick": 0,
-    "leader_id": "goauld_hathor_unlock",
-    "card_ids": [],
+    "current_pick": 1,
+    "leader_id": "jaffa_tealc",
+    "card_ids": [
+      "goauld_kull_warrior_1"
+    ],
     "cards_to_remove_count": 0
   }
 }

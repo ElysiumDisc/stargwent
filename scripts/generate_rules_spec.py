@@ -234,6 +234,11 @@ def build_ability_info():
             "timing": "Immediate strike.",
             "synergy": "Pick off engines hiding behind big tanks; works even through horned rows.",
         },
+        "Quantum Mirror": {
+            "effect": "Shuffle your entire hand into your deck, then draw the same number of cards. Clears any active hand reveal on you.",
+            "timing": "Instant effect when played. Card is discarded after use.",
+            "synergy": "Counter Lord Yu's reveal, escape Communication Device intel, or mulligan a bad hand mid-game.",
+        },
     }
 
 

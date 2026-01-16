@@ -4103,6 +4103,105 @@ class DakaraShockwaveEffect(Animation):
             surface.blit(text, text_rect)
 
 
+class QuantumMirrorEffect(Animation):
+    """Quantum Mirror portal effect - rectangular mirror with shimmering reflective surface."""
+    def __init__(self, x, y, screen_width, screen_height, duration=1600):
+        super().__init__(duration=duration)
+        self.x = x
+        self.y = y
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.mirror_width = 280
+        self.mirror_height = 400
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+
+        # Mirror rectangle centered at effect position
+        mx = self.x - self.mirror_width // 2
+        my = self.y - self.mirror_height // 2
+
+        # Phase 1: Mirror appears and activates (0-0.3)
+        # Phase 2: Reality ripples across surface (0.3-0.7)
+        # Phase 3: Flash and fade (0.7-1.0)
+
+        # Outer frame (dark metallic border - possibly Naquadah)
+        frame_alpha = int(220 * (1 - progress * 0.5))
+        frame_rect = pygame.Rect(mx - 12, my - 12, self.mirror_width + 24, self.mirror_height + 24)
+        pygame.draw.rect(overlay, (60, 65, 75, frame_alpha), frame_rect, border_radius=6)
+        pygame.draw.rect(overlay, (100, 110, 130, frame_alpha), frame_rect, width=4, border_radius=6)
+
+        # Inner reflective surface (silvery blue gradient effect)
+        mirror_alpha = int(180 * (1 - progress * 0.6))
+        mirror_rect = pygame.Rect(mx, my, self.mirror_width, self.mirror_height)
+
+        # Base mirror surface - silvery with slight blue tint
+        mirror_surf = pygame.Surface((self.mirror_width, self.mirror_height), pygame.SRCALPHA)
+
+        # Gradient bands to simulate reflection
+        for i in range(self.mirror_height):
+            # Oscillating silver/blue gradient
+            wave = math.sin((i / 30.0) + progress * 12) * 0.3 + 0.7
+            r = int(180 * wave)
+            g = int(190 * wave)
+            b = int(210 * wave + 30)
+            pygame.draw.line(mirror_surf, (r, g, b, mirror_alpha), (0, i), (self.mirror_width, i))
+
+        # Horizontal shimmer waves across the mirror surface
+        for i in range(5):
+            wave_y = int((progress * 3 + i * 0.2) % 1.0 * self.mirror_height)
+            wave_alpha = int(100 * (1 - abs(wave_y / self.mirror_height - 0.5) * 2))
+            if wave_alpha > 0:
+                pygame.draw.line(mirror_surf, (255, 255, 255, wave_alpha),
+                               (0, wave_y), (self.mirror_width, wave_y), 3)
+
+        # Vertical shimmer for that mirror sheen
+        for i in range(3):
+            wave_x = int((progress * 2 + i * 0.33) % 1.0 * self.mirror_width)
+            wave_alpha = int(60 * (1 - progress))
+            pygame.draw.line(mirror_surf, (220, 230, 255, wave_alpha),
+                           (wave_x, 0), (wave_x, self.mirror_height), 2)
+
+        overlay.blit(mirror_surf, (mx, my))
+
+        # Ripple effect emanating from center (reality distortion)
+        center_x, center_y = self.x, self.y
+        for i in range(4):
+            ripple_progress = (progress * 2 + i * 0.25) % 1.0
+            ripple_size = int(ripple_progress * 250)
+            ripple_alpha = max(0, int(120 * (1 - ripple_progress)))
+            if ripple_size > 10:
+                # Elliptical ripples to match mirror shape
+                ripple_rect = pygame.Rect(center_x - ripple_size // 2,
+                                         center_y - int(ripple_size * 0.7),
+                                         ripple_size, int(ripple_size * 1.4))
+                pygame.draw.ellipse(overlay, (200, 210, 230, ripple_alpha), ripple_rect, width=2)
+
+        # Central singularity glow (the quantum core)
+        if progress < 0.8:
+            glow_alpha = int(150 * (1 - progress / 0.8))
+            glow_radius = int(30 + 20 * math.sin(progress * 15))
+            pygame.draw.circle(overlay, (230, 240, 255, glow_alpha), (center_x, center_y), glow_radius)
+            pygame.draw.circle(overlay, (255, 255, 255, glow_alpha // 2), (center_x, center_y), glow_radius // 2)
+
+        # Bright flash when "passing through" (mid animation)
+        if 0.4 < progress < 0.6:
+            flash_intensity = 1 - abs(progress - 0.5) * 5
+            flash_alpha = int(200 * flash_intensity)
+            flash_surf = pygame.Surface((self.mirror_width + 40, self.mirror_height + 40), pygame.SRCALPHA)
+            flash_surf.fill((255, 255, 255, flash_alpha))
+            overlay.blit(flash_surf, (mx - 20, my - 20))
+
+        # Edge glow effect (energy from the singularity)
+        edge_alpha = int(100 * (1 - progress * 0.7))
+        pygame.draw.rect(overlay, (180, 200, 255, edge_alpha), mirror_rect, width=2, border_radius=2)
+
+        surface.blit(overlay, (0, 0))
+
+
 def create_ability_animation(ability_name, x, y):
     """Factory function to create ability-specific animations."""
     if "Inspiring Leadership" in ability_name:

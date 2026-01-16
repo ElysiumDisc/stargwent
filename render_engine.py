@@ -219,9 +219,7 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         card_y = display_manager.SCREEN_HEIGHT // 2 - card_h // 2
     else:
         card_y = cfg.COMMAND_BAR_Y + (cfg.COMMAND_BAR_HEIGHT - card_h) // 2
-    
-    idle_time = pygame.time.get_ticks() / 1000.0
-    
+
     for i, card in enumerate(player.hand):
         if card == dragging_card:
             continue
@@ -239,12 +237,8 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
             card_scale = base_scale * (hover_scale if is_hovered else 1.0)
         edge_alpha = 205 if (accordion_active and (i == 0 or i == len(player.hand) - 1)) else 255
 
-        # Idle animation disabled for 1440p performance (was causing flickering)
-        idle_float = 0
-        idle_tilt = 0
-
-        draw_y = card_y - (int(cfg.HAND_CARD_HOVER_LIFT * display_manager.SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0) + idle_float
-        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha, tilt_angle=idle_tilt,
+        draw_y = card_y - (int(cfg.HAND_CARD_HOVER_LIFT * display_manager.SCALE_FACTOR) if (is_hovered and not is_mulligan_mode) else 0)
+        draw_card(surface, card, card_x, draw_y, selected=is_selected, hover_scale=card_scale, alpha=edge_alpha,
                   target_width=card_w, target_height=card_h)
         
         if is_mulligan_selected:
@@ -333,30 +327,22 @@ def draw_opponent_hand(surface, opponent):
     card_positions, accordion_active = _compute_hand_positions(total_cards, cfg.CARD_WIDTH, card_spacing)
     
     card_back_image = get_card_back(cfg.CARD_WIDTH, cfg.CARD_HEIGHT)
-    idle_time = pygame.time.get_ticks() / 1000.0
-    
+
     for i, card in enumerate(opponent.hand):
         if i >= len(card_positions):
             continue
         card_x = card_positions[i]
         alpha = 205 if accordion_active and (i == 0 or i == total_cards - 1) else 255
 
-        # Idle animation disabled for 1440p performance
-        idle_float = 0
-        idle_tilt = 0
-
-        draw_y = hand_y + idle_float
-
         if opponent.hand_revealed:
-            draw_card(surface, card, card_x, draw_y, render_details=True, update_rect=False, alpha=alpha, tilt_angle=idle_tilt)
-            pygame.draw.rect(surface, (255, 215, 0), (card_x, int(draw_y), cfg.CARD_WIDTH, cfg.CARD_HEIGHT), 2, border_radius=8)
+            draw_card(surface, card, card_x, hand_y, render_details=True, update_rect=False, alpha=alpha)
+            pygame.draw.rect(surface, (255, 215, 0), (card_x, hand_y, cfg.CARD_WIDTH, cfg.CARD_HEIGHT), 2, border_radius=8)
         else:
-            # No rotation needed since idle_tilt is 0
             temp_surface = card_back_image.copy()
             if alpha < 255:
                 temp_surface.set_alpha(alpha)
-            surface.blit(temp_surface, (card_x, int(draw_y)))
-            pygame.draw.rect(surface, (100, 150, 200), (card_x, int(draw_y), cfg.CARD_WIDTH, cfg.CARD_HEIGHT), 2, border_radius=8)
+            surface.blit(temp_surface, (card_x, hand_y))
+            pygame.draw.rect(surface, (100, 150, 200), (card_x, hand_y, cfg.CARD_WIDTH, cfg.CARD_HEIGHT), 2, border_radius=8)
     
     if opponent.hand_revealed and opponent.hand_reveal_timer > 0:
         timer_text = f"HAND REVEALED: {int(opponent.hand_reveal_timer)}s"

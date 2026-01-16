@@ -1,6 +1,6 @@
 # Stargwent Rule Menu UI Specification
 
-Generated on 2026-01-15 01:38 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 218 core cards + 24 unlockables + 35 leaders.
+Generated on 2026-01-16 13:20 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 218 core cards + 24 unlockables + 35 leaders.
 
 ## UI Overview
 - Accessible from the Main Menu via the new `RULE MENU` option; loads instantly without blocking gameplay assets.
@@ -120,6 +120,7 @@ Generated on 2026-01-15 01:38 UTC using cards.py, content_registry.py, unlocks.p
 - **Naquadah Overload: Destroy lowest enemy unit** – Effect: Ancient Drone variant that targets the lowest-power enemy instead of the highest. Timing: Immediate strike. Synergy: Pick off engines hiding behind big tanks; works even through horned rows.
 - **Nebula Interference** – Effect: Ranged-row weather with the standard 1-power rule. Timing: Persistent until cleared. Synergy: Shuts down archers and spy spam while Survival Instinct units profit.
 - **Prometheus Draw Protocol** – Effect: Every Prometheus-class card draws 1 card for its owner upon being played. Timing: Draw happens immediately after deployment. Synergy: Encourages repeated deployment via Ring Transport and Medical Evac loops.
+- **Quantum Mirror** – Effect: Shuffle your entire hand into your deck, then draw the same number of cards. Clears any active hand reveal on you. Timing: Instant effect when played. Card is discarded after use. Synergy: Counter Lord Yu's reveal, escape Communication Device intel, or mulligan a bad hand mid-game.
 - **Remove all Goa'uld** – Effect: Thor's Hammer effect: purges every Goa'uld faction unit from both boards. Timing: Instant global cleanse. Synergy: Reset stubborn hero piles and open lanes for Tau'ri pushes.
 - **Reveal opponent's hand** – Effect: Communication Stones or Sodan recon reveal every card in the enemy hand until the round ends. Timing: Instant; stays visible for the round. Synergy: Informs Deep Cover Agent placement and Lord Yu turn planning.
 - **Ring Transport** – Effect: Interactive special that highlights all valid units and returns any selected non-Hero to your hand. Timing: Selection UI triggers on play; effect resolves once the player confirms. Synergy: Recycle deploy abilities, protect engines from Scorch, and trigger on-play effects multiple times.

@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.8.2-blue)
+![Version](https://img.shields.io/badge/version-4.8.3-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
@@ -52,7 +52,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics, powers, animations, persistence, LAN multiplayer, and Draft Mode
-- **218 Cards** across 5 factions + Neutral cards with 20+ Stargate-themed abilities
+- **219 Cards** across 5 factions + Neutral cards with 20+ Stargate-themed abilities
 - **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
 - **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
@@ -187,6 +187,21 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 4.8.3 (January 2026)
+**New Card: Quantum Mirror**
+
+- ✅ **Quantum Mirror** – New Neutral special card that counters hand reveal abilities:
+  - Shuffles your entire hand into your deck, then draws the same number of cards
+  - Clears any active hand reveal effect (Lord Yu, Communication Device, Sodan Warrior)
+  - Hand reveal is cleared BEFORE drawing, so new cards remain hidden from opponent
+  - Strategic uses: counter intel gathering, mid-game mulligan for bad hands, deck cycling
+- ✅ **Quantum Mirror Animation** – Authentic rectangular mirror portal inspired by the show:
+  - Dark metallic Naquadah frame with silvery-blue reflective surface
+  - Shimmering gradient bands and horizontal/vertical light waves
+  - Elliptical reality distortion ripples emanating from center
+  - Central singularity glow (the quantum core) with bright flash on activation
+- ✅ **Documentation** – Added Quantum Mirror to rules specification with effect, timing, and synergy info
 
 ### Version 4.8.2 (January 2026)
 **Jonas Quinn "Eidetic Memory" Bug Fix**

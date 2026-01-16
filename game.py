@@ -422,6 +422,7 @@ class Player:
         self.hand_revealed = False  # Track if opponent can see this player's hand
         self.hand_reveal_timer = 0  # Timer for hand reveal (in seconds)
         self.reveal_next_round = False  # Pending reveal flag for Yu ability
+        self.yu_ability_used = False  # Track if Lord Yu's ability has been used (once per game)
         self.plays_this_turn = 0  # Track plays for Rak'nor ability
         self.zpm_active = False  # Track if ZPM was played this round
         
@@ -1268,16 +1269,18 @@ class Game:
                         self._owner_label(passing_player),
                         icon="+2"
                     )
-                # Lord Yu: Reveal opponent's hand when you pass
+                # Lord Yu: Reveal opponent's hand when you pass (once per game)
                 elif "Yu" in leader_name:
-                    opponent = self.player2 if passing_player == self.player1 else self.player1
-                    self.add_history_event(
-                        "ability",
-                        f"{passing_player.name} (Lord Yu) will see {opponent.name}'s hand next round",
-                        self._owner_label(passing_player),
-                        icon="?"
-                    )
-                    opponent.reveal_next_round = True
+                    if not getattr(passing_player, 'yu_ability_used', False):
+                        opponent = self.player2 if passing_player == self.player1 else self.player1
+                        self.add_history_event(
+                            "ability",
+                            f"{passing_player.name} (Lord Yu) will see {opponent.name}'s hand next round",
+                            self._owner_label(passing_player),
+                            icon="👁️"
+                        )
+                        opponent.reveal_next_round = True
+                        passing_player.yu_ability_used = True
             self.last_turn_actor = passing_player
             self.switch_turn()
 
@@ -2104,6 +2107,30 @@ class Game:
                 f"{self.current_player.name} revealed {opponent.name}'s hand for 30s",
                 self._owner_label(self.current_player),
                 icon="👀"
+            )
+        elif "Quantum Mirror" in card.name or "Shuffle your hand into deck" in (card.ability or ""):
+            # Store current hand size
+            hand_size = len(self.current_player.hand)
+
+            # Clear hand reveal status BEFORE shuffling/drawing so new cards stay hidden
+            self.current_player.hand_revealed = False
+            self.current_player.hand_reveal_timer = 0
+
+            # Return hand to deck
+            self.current_player.deck.extend(self.current_player.hand)
+            self.current_player.hand.clear()
+
+            # Shuffle deck
+            random.shuffle(self.current_player.deck)
+
+            # Draw same number of cards (these will NOT be revealed)
+            self.current_player.draw_cards(hand_size)
+
+            self.add_history_event(
+                "ability",
+                f"{self.current_player.name} activated Quantum Mirror - reality shifted!",
+                self._owner_label(self.current_player),
+                icon="🪞"
             )
     
     def apply_decoy(self, selected_card):

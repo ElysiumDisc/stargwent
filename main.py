@@ -72,6 +72,7 @@ from animations import (
     CommunicationRevealEffect,
     MerlinAntiOriEffect,
     DakaraShockwaveEffect,
+    QuantumMirrorEffect,
     ReplicatorCrawlEffect,
     GoauldSymbioteAnimation,
     CardRevealAnimation,
@@ -340,6 +341,9 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         return True
     if "communication device" in name_lower or "reveal opponent's hand" in ability_lower:
         anim_manager.add_effect(CommunicationRevealEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    if "quantum mirror" in name_lower or "shuffle your hand into deck" in ability_lower:
+        anim_manager.add_effect(QuantumMirrorEffect(effect_x, effect_y, screen_width, screen_height))
         return True
     if "merlin" in name_lower or "anti-ori" in name_lower:
         anim_manager.add_effect(MerlinAntiOriEffect(effect_x, effect_y, screen_width, screen_height))
@@ -1278,11 +1282,6 @@ def main(lan_game_data=None):
                     # Toggle debug/FPS
                     DEBUG_MODE = not DEBUG_MODE
                     get_settings().set_show_fps(DEBUG_MODE)
-                    print(f"Debug Mode: {DEBUG_MODE}")
-
-                # Debug: Print all key presses
-                elif event.key == pygame.K_F11:
-                    print(f"🔑 DEBUG: F11 key detected (keycode: {event.key})")
 
                 # ESC to toggle pause menu or close overlays
                 if event.key == pygame.K_ESCAPE:
@@ -1306,7 +1305,6 @@ def main(lan_game_data=None):
                 
                 # Toggle fullscreen with F11
                 elif event.key == pygame.K_F11:
-                    print(f"🔑 Fullscreen toggle requested. Current state: {display_manager.FULLSCREEN}")
                     toggle_fullscreen_mode()
                     fullscreen = display_manager.FULLSCREEN
                     
@@ -1324,10 +1322,6 @@ def main(lan_game_data=None):
                         int(200 * SCALE_FACTOR),
                         int(50 * SCALE_FACTOR)
                     )
-                    
-                    mode_label = "ON" if fullscreen else "OFF"
-                    print(f"✓ Fullscreen: {mode_label} - Resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
-                    print(f"  Scale Factor: {SCALE_FACTOR:.2f}")
                 
                 # F key = Play keyboard-selected or hovered card to its default row
                 elif event.key == pygame.K_f:
@@ -1395,7 +1389,6 @@ def main(lan_game_data=None):
                                     network_proxy.send_faction_power(game.player1.faction_power.name)
                                 game.player1.calculate_score()
                                 game.player2.calculate_score()
-                                print(f"✓ Faction Power activated: {game.player1.faction_power.name}")
                 
                 # T key = Toggle LAN Chat Input
                 elif event.key == pygame.K_t:
@@ -3079,14 +3072,9 @@ def main(lan_game_data=None):
                             "lost_round_1": lost_round_1,
                             "went_first": went_first,
                         }
-                        print(f"[stats] Recording summary: won={player_won}, leader={leader_name}")
-                        print(f"[stats] cards_played={len(summary['cards_played'])}, abilities={summary['abilities']}")
                         get_persistence().record_game_summary(summary)
-                        print("[stats] Summary recorded successfully")
-                    except Exception as exc:
-                        print(f"[stats] Unable to record summary: {exc}")
-                        import traceback
-                        traceback.print_exc()
+                    except Exception:
+                        pass  # Silently handle stats recording failures
     
                     if player_won:
                         record_victory(game.player1_faction, mode_label)
@@ -3118,7 +3106,6 @@ def main(lan_game_data=None):
                                 if unlocked_card not in current_cards:
                                     current_cards.append(unlocked_card)
                                     persistence.set_deck(game.player1_faction, current_deck.get("leader", ""), current_cards)
-                                    print(f"✓ Card {unlocked_card} added to {game.player1_faction} deck")
 
                                 card_msg = cfg.UI_FONT.render(f"Unlocked: {UNLOCKABLE_CARDS[unlocked_card]['name']}!", True, cfg.GOLD)
                                 if hasattr(game, 'unlock_message'):
