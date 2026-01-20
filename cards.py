@@ -107,7 +107,7 @@ ALL_CARDS = {
     "goauld_glider_pilot": Card("goauld_glider_pilot", "Glider Pilot", FACTION_GOAULD, 5, "close", None),
     "goauld_jaffa_master": Card("goauld_jaffa_master", "Jaffa Master", FACTION_GOAULD, 5, "close", None),
     "goauld_rebel_jaffa": Card("goauld_rebel_jaffa", "Captured Rebel Jaffa", FACTION_GOAULD, 5, "close", None),
-    "goauld_scout": Card("goauld_scout", "Goa'uld Scout", FACTION_GOAULD, 2, "ranged", None),
+    "goauld_scout": Card("goauld_scout", "Goa'uld Scout", FACTION_GOAULD, 5, "ranged", "Deep Cover Agent"),
     "goauld_teltak_1": Card("goauld_teltak_1", "Tel'tak Courier", FACTION_GOAULD, 2, "ranged", None),
     "goauld_teltak_2": Card("goauld_teltak_2", "Tel'tak Courier", FACTION_GOAULD, 2, "ranged", None),
     "goauld_teltak_3": Card("goauld_teltak_3", "Tel'tak Courier", FACTION_GOAULD, 2, "ranged", None),
@@ -120,7 +120,7 @@ ALL_CARDS = {
     "goauld_plasma_emplacement": Card("goauld_plasma_emplacement", "Plasma Weapon Emplacement", FACTION_GOAULD, 6, "siege", None),
     "goauld_hatak_1": Card("goauld_hatak_1", "Ha'tak Mothership", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
     "goauld_hatak_2": Card("goauld_hatak_2", "Ha'tak Mothership", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
-    "goauld_ancient_weapon": Card("goauld_ancient_weapon", "RA Weapon", FACTION_GOAULD, 10, "siege", None),
+    "goauld_ancient_weapon": Card("goauld_ancient_weapon", "Ra Weapon", FACTION_GOAULD, 10, "siege", None),
 
     # --- Jaffa Rebellion ---
     "jaffa_tealc": Card("jaffa_tealc", "Teal'c", FACTION_JAFFA, 10, "ranged", "Legendary Commander"),

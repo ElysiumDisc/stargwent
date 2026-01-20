@@ -1180,101 +1180,10 @@ All abilities renamed and themed around Stargate lore:
    * `FACTION_BACKGROUND_IDS`: You need to tell it what filename to use for the faction selection screen.
    * Imports: You will need to add the new FACTION_NAME constant to the import line at the top of the script.
 
----
 
-## 📜 Rules Spec Generator (Auto-Detection)
-
-The `scripts/generate_rules_spec.py` script generates the comprehensive rules documentation and **automatically detects new cards with undocumented abilities**.
-
-### What It Does
-
-When you run `python scripts/generate_rules_spec.py`, the script:
-
-1. **Scans all cards** in `docs/card_catalog.json` and extracts every ability name
-2. **Compares against documented abilities** in the `build_ability_info()` function
-3. **Detects undocumented abilities** - any ability in the cards that doesn't have matching documentation
-4. **Prompts you interactively** if undocumented abilities are found:
-   - Lists all undocumented abilities
-   - Asks "Add documentation for these abilities? [Y/n]"
-   - For each ability you agree to document, prompts for: effect, timing, synergy
-5. **Generates a code snippet** you can copy into the script to make the documentation permanent
-6. **Uses the new docs** for the current spec generation run
-
-### Example Session
-
-```
-$ python scripts/generate_rules_spec.py
-
-============================================================
-UNDOCUMENTED ABILITIES DETECTED
-============================================================
-  1. New Ability Name
-
-Add documentation for these abilities? [Y/n]: y
-
---- Documenting: New Ability Name ---
-  Effect (what it does): Deals 5 damage to all enemies
-  Timing (when it triggers): On play
-  Synergy (combos/strategies): Works well with survival instinct units
-
-# === ADD TO build_ability_info() ===
-        "New Ability Name": {
-            "effect": "Deals 5 damage to all enemies",
-            "timing": "On play",
-            "synergy": "Works well with survival instinct units",
-        },
-# === END ===
-
-Copy the above into build_ability_info() to make it permanent.
-
-Wrote docs/rules_menu_spec.md (132145 characters)
-```
-
-### When All Abilities Are Documented
-
-If all abilities are already documented, the script skips the prompts and generates the spec directly:
-
-```
-$ python scripts/generate_rules_spec.py
-Wrote docs/rules_menu_spec.md (132145 characters)
-```
-
----
 
 ## 🛠️ Content Manager (Developer Tool)
 
-The `scripts/content_manager.py` script is a comprehensive developer tool for adding new content to Stargwent.
-
-### Usage
-
-```bash
-python scripts/content_manager.py
-```
-
-### Main Menu
-
-```
-╔══════════════════════════════════════════════╗
-║       STARGWENT CONTENT MANAGER              ║
-╠══════════════════════════════════════════════╣
-║  === DEVELOPER TOOLS ===                     ║
-║  1. Add a new CARD                           ║
-║  2. Add a new LEADER                         ║
-║  3. Add a new FACTION (comprehensive)        ║
-║  4. Add/Edit ABILITY                         ║
-║  5. Generate placeholder images              ║
-║  6. Regenerate all documentation             ║
-║  7. Asset Checker (find missing images)      ║
-║  8. Balance Analyzer (power stats)           ║
-║  11. Batch Import (from JSON)                ║
-║                                              ║
-║  === USER TOOLS ===                          ║
-║  9. Save Manager (backup/restore saves)      ║
-║  10. Deck Import/Export (share decks)        ║
-║                                              ║
-║  0. Exit                                     ║
-╚══════════════════════════════════════════════╝
-```
 
 ### Features
 
@@ -1438,54 +1347,6 @@ cp backup/2026-01-16_143205/* ./
 | Drag Card (Deck Builder) | Left click + drag |
 | Zoom Card (Deck Builder) | Right click |
 
-### Keyboard Controls (NEW in v4.5.0!)
-| Action | Control |
-|--------|---------|
-| **Navigate Hand** | **LEFT/RIGHT arrows** |
-| **Select Row (for agile/weather)** | **UP/DOWN arrows** |
-| **Play Card** | **F key** |
-| **Preview Card** | **SPACE** |
-| **Activate Faction Power** | **G key** |
-| **Cycle Pass/Power Buttons** | **Tab key** |
-| **Activate Selected Button** | **SPACE** |
-| **Close Overlay / Open Chat** | **ENTER** |
-| Fullscreen | F11 |
-| Pause Menu | ESC |
-| Debug Overlay | F3 |
-
-### Deck Builder Keyboard
-| Action | Control |
-|--------|---------|
-| Switch Pool/Deck Focus | Tab |
-| Navigate Card Pool | LEFT/RIGHT arrows |
-| Navigate Deck List | UP/DOWN arrows |
-| Switch Filter Tabs | UP/DOWN (when on pool) |
-| Add Card to Deck | F or ENTER |
-| Remove Card from Deck | DELETE or BACKSPACE |
-| Preview Card | SPACE |
-
-### Other Controls
-| Action | Control |
-|--------|---------|
-| Open LAN Chat | T (ESC to close) |
-| Restart | R (game over) |
-| Mulligan | Click cards (2-5) + "Confirm" |
-| Quick Select | 1/2/3 keys (rewards) |
-
-### LAN Multiplayer Controls
-| Action | Control |
-|--------|---------|
-| **Rematch (LAN)** | **P** (after game over) |
-| Disconnect | ESC (after game over) |
-| Open Chat | T |
-
-**LAN Rematch Flow:**
-1. After game ends, press **P** to request rematch
-2. Both players must click **PLAY AGAIN** to confirm
-3. Both players select new faction/leader/deck
-4. Decks are exchanged and new match begins
-5. Press **ESC** or click **DISCONNECT** to end session
-
 
 ### 📋 Planned
 - Tournament mode (best-of-3)
@@ -1513,7 +1374,7 @@ cp backup/2026-01-16_143205/* ./
 - Built with **Python 3.8+** and **Pygame CE 2.5.6+**
 - Inspired by The Witcher 3: Wild Hunt's Gwent
 - Animation system designed for extensibility
-- 90% complete, active development
+- Active development
 
 ### Legal
 **This is a non-commercial fan project created purely for educational purposes and out of love for two incredible franchises.**
@@ -1534,7 +1395,6 @@ cp backup/2026-01-16_143205/* ./
 - Pygame CE community for documentation
 - Contributors and playtesters
 
----
 
 ## 🤝 Contributing
 

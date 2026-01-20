@@ -11,6 +11,7 @@ Usage:
     python scripts/content_manager.py
 
 Features:
+    === DEVELOPER TOOLS ===
     1. Add a new CARD
     2. Add a new LEADER
     3. Add a new FACTION (comprehensive)
@@ -19,6 +20,12 @@ Features:
     6. Regenerate all documentation
     7. Asset Checker (find missing images)
     8. Balance Analyzer (power stats)
+    11. Batch Import (from JSON)
+    12. Audio Manager (faction themes, voices, sound effects)
+    13. Leader Ability Generator (code stub generation)
+    14. Card Rename/Delete Tool (safe multi-file updates)
+
+    === USER TOOLS ===
     9. Save Manager (backup/restore saves)
     10. Deck Import/Export (share decks)
 """
@@ -110,14 +117,30 @@ def save_session_log():
 # BACKUP SYSTEM
 # ============================================================================
 
-def create_backup(file_path: Path) -> Path:
-    """Create a backup of a file before modification."""
+def create_backup(file_path: Path, force: bool = False) -> Path:
+    """
+    Create a backup of a file before modification.
+
+    Args:
+        file_path: The file to backup
+        force: If True, overwrite existing backup. If False (default),
+               skip if backup already exists in this session.
+
+    Returns:
+        Path to the backup file
+    """
     if not _backup_folder:
         raise RuntimeError("Session not started - call start_session() first")
 
     _backup_folder.mkdir(parents=True, exist_ok=True)
 
     backup_path = _backup_folder / file_path.name
+
+    # Skip if backup already exists (preserves original state for batch operations)
+    if backup_path.exists() and not force:
+        log(f"BACKUP EXISTS: {file_path.name} (keeping original)")
+        return backup_path
+
     if file_path.exists():
         shutil.copy2(file_path, backup_path)
         log(f"BACKUP CREATED: {file_path.name} -> {backup_path}")
@@ -3401,6 +3424,1324 @@ Valid rarities: common, rare, epic, legendary
 
 
 # ============================================================================
+# MENU OPTION 12: AUDIO MANAGER
+# ============================================================================
+
+def audio_manager_workflow():
+    """Manage faction themes, leader voices, and sound effects."""
+    while True:
+        print_header("AUDIO MANAGER")
+
+        print("  1. Add New Faction Theme")
+        print("  2. Add New Leader Voice")
+        print("  3. Add New Sound Effect")
+        print("  4. Add Commander Snippet")
+        print("  5. Preview/Test Audio Files")
+        print("  6. List All Audio Assets")
+        print("  7. Find Missing Audio")
+        print("  0. Back")
+        print()
+
+        choice = get_input("Choice", default="0")
+
+        if choice == "0":
+            break
+        elif choice == "1":
+            add_faction_theme_workflow()
+        elif choice == "2":
+            add_leader_voice_workflow()
+        elif choice == "3":
+            add_sound_effect_workflow()
+        elif choice == "4":
+            add_commander_snippet_workflow()
+        elif choice == "5":
+            preview_audio_workflow()
+        elif choice == "6":
+            list_all_audio_assets()
+        elif choice == "7":
+            find_missing_audio()
+
+        input("\nPress Enter to continue...")
+
+
+def add_faction_theme_workflow():
+    """Copy a new faction theme to assets/audio/."""
+    print_header("ADD FACTION THEME")
+
+    audio_dir = ROOT / "assets" / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get existing factions
+    factions = get_existing_factions()
+    print("Existing factions:", ", ".join(factions))
+    print()
+
+    # Get source file
+    source_path = get_input("Path to source audio file (.ogg or .mp3)")
+    source = Path(source_path)
+
+    if not source.exists():
+        print(f"[ERROR] File not found: {source}")
+        return
+
+    # Get faction name
+    faction = select_from_list("Select faction:", factions)
+    faction_key = faction.lower().replace("'", "").replace(" ", "_")
+
+    # Determine destination
+    dest_name = f"{faction_key}_theme.ogg"
+    dest_path = audio_dir / dest_name
+
+    if dest_path.exists():
+        if not confirm(f"Theme already exists at {dest_name}. Overwrite?", default=False):
+            return
+
+    # Copy file
+    try:
+        shutil.copy2(source, dest_path)
+        log(f"AUDIO: Copied faction theme to {dest_path}")
+        print(f"\n[OK] Faction theme added: {dest_name}")
+    except Exception as e:
+        print(f"[ERROR] Failed to copy file: {e}")
+
+
+def add_leader_voice_workflow():
+    """Copy a new leader voice to assets/audio/leader_voices/."""
+    print_header("ADD LEADER VOICE")
+
+    voice_dir = ROOT / "assets" / "audio" / "leader_voices"
+    voice_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get source file
+    source_path = get_input("Path to source audio file (.ogg)")
+    source = Path(source_path)
+
+    if not source.exists():
+        print(f"[ERROR] File not found: {source}")
+        return
+
+    # Get leader info
+    try:
+        from content_registry import LEADER_NAME_BY_ID
+        print("\nAvailable leader IDs:")
+        for i, (lid, name) in enumerate(sorted(LEADER_NAME_BY_ID.items())[:20]):
+            print(f"  {lid}: {name}")
+        if len(LEADER_NAME_BY_ID) > 20:
+            print(f"  ... and {len(LEADER_NAME_BY_ID) - 20} more")
+    except ImportError:
+        pass
+
+    leader_id = get_input("\nLeader card_id (e.g., tauri_oneill)")
+
+    # Determine destination
+    dest_name = f"{leader_id}.ogg"
+    dest_path = voice_dir / dest_name
+
+    if dest_path.exists():
+        if not confirm(f"Voice already exists at {dest_name}. Overwrite?", default=False):
+            return
+
+    # Copy file
+    try:
+        shutil.copy2(source, dest_path)
+        log(f"AUDIO: Copied leader voice to {dest_path}")
+        print(f"\n[OK] Leader voice added: leader_voices/{dest_name}")
+    except Exception as e:
+        print(f"[ERROR] Failed to copy file: {e}")
+
+
+def add_sound_effect_workflow():
+    """Copy a new sound effect to assets/audio/."""
+    print_header("ADD SOUND EFFECT")
+
+    audio_dir = ROOT / "assets" / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    # Show existing sound effects
+    existing_sfx = [f.name for f in audio_dir.glob("*.ogg")
+                    if not f.name.endswith("_theme.ogg")
+                    and "battle_round" not in f.name]
+    print("Existing sound effects:")
+    for sfx in sorted(existing_sfx)[:15]:
+        print(f"  - {sfx}")
+    print()
+
+    # Get source file
+    source_path = get_input("Path to source audio file (.ogg)")
+    source = Path(source_path)
+
+    if not source.exists():
+        print(f"[ERROR] File not found: {source}")
+        return
+
+    # Get effect name
+    effect_name = get_input("Effect name (e.g., 'horn', 'ring', 'weather_storm')")
+    if not effect_name.endswith(".ogg"):
+        effect_name += ".ogg"
+
+    dest_path = audio_dir / effect_name
+
+    if dest_path.exists():
+        if not confirm(f"Effect already exists at {effect_name}. Overwrite?", default=False):
+            return
+
+    # Copy file
+    try:
+        shutil.copy2(source, dest_path)
+        log(f"AUDIO: Copied sound effect to {dest_path}")
+        print(f"\n[OK] Sound effect added: {effect_name}")
+    except Exception as e:
+        print(f"[ERROR] Failed to copy file: {e}")
+
+
+def add_commander_snippet_workflow():
+    """Copy a new commander snippet to assets/audio/commander_snippets/."""
+    print_header("ADD COMMANDER SNIPPET")
+
+    snippet_dir = ROOT / "assets" / "audio" / "commander_snippets"
+    snippet_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get source file
+    source_path = get_input("Path to source audio file (.ogg)")
+    source = Path(source_path)
+
+    if not source.exists():
+        print(f"[ERROR] File not found: {source}")
+        return
+
+    # Show legendary commanders
+    try:
+        from cards import ALL_CARDS
+        legendary = [cid for cid, c in ALL_CARDS.items()
+                     if c.ability and "Legendary Commander" in c.ability]
+        print("\nLegendary Commanders:")
+        for cid in sorted(legendary)[:20]:
+            card = ALL_CARDS[cid]
+            print(f"  {cid}: {card.name}")
+        if len(legendary) > 20:
+            print(f"  ... and {len(legendary) - 20} more")
+    except ImportError:
+        pass
+
+    card_id = get_input("\nCard ID (e.g., tauri_oneill)")
+
+    # Determine destination
+    dest_name = f"{card_id}.ogg"
+    dest_path = snippet_dir / dest_name
+
+    if dest_path.exists():
+        if not confirm(f"Snippet already exists at {dest_name}. Overwrite?", default=False):
+            return
+
+    # Copy file
+    try:
+        shutil.copy2(source, dest_path)
+        log(f"AUDIO: Copied commander snippet to {dest_path}")
+        print(f"\n[OK] Commander snippet added: commander_snippets/{dest_name}")
+    except Exception as e:
+        print(f"[ERROR] Failed to copy file: {e}")
+
+
+def preview_audio_workflow():
+    """Preview/test audio files using pygame.mixer."""
+    print_header("PREVIEW AUDIO")
+
+    audio_dir = ROOT / "assets" / "audio"
+    if not audio_dir.exists():
+        print("No audio directory found")
+        return
+
+    # Collect all audio files
+    all_audio = []
+    for ogg in audio_dir.glob("*.ogg"):
+        all_audio.append(("root", ogg))
+    for ogg in (audio_dir / "leader_voices").glob("*.ogg"):
+        all_audio.append(("leader_voices", ogg))
+    for ogg in (audio_dir / "commander_snippets").glob("*.ogg"):
+        all_audio.append(("commander_snippets", ogg))
+
+    if not all_audio:
+        print("No audio files found")
+        return
+
+    print(f"Found {len(all_audio)} audio files\n")
+
+    # Group by category
+    categories = {
+        "1. Faction Themes": [f for cat, f in all_audio if f.name.endswith("_theme.ogg")],
+        "2. Battle Music": [f for cat, f in all_audio if "battle_round" in f.name],
+        "3. Sound Effects": [f for cat, f in all_audio if cat == "root"
+                            and not f.name.endswith("_theme.ogg")
+                            and "battle_round" not in f.name],
+        "4. Leader Voices": [f for cat, f in all_audio if cat == "leader_voices"],
+        "5. Commander Snippets": [f for cat, f in all_audio if cat == "commander_snippets"],
+    }
+
+    for cat_name, files in categories.items():
+        if files:
+            print(f"{cat_name}: {len(files)} files")
+
+    print()
+    category = select_from_list("Select category:", list(categories.keys()))
+    files = categories[category]
+
+    if not files:
+        print("No files in this category")
+        return
+
+    print(f"\nFiles in {category}:")
+    for i, f in enumerate(sorted(files)[:20], 1):
+        print(f"  {i}. {f.name}")
+
+    if len(files) > 20:
+        print(f"  ... and {len(files) - 20} more")
+
+    choice = get_int("\nSelect file to preview (0 to cancel)", min_val=0, max_val=min(20, len(files)))
+    if choice == 0:
+        return
+
+    selected_file = sorted(files)[choice - 1]
+
+    # Try to play with pygame
+    try:
+        import pygame
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+
+        print(f"\nPlaying: {selected_file.name}")
+        print("(Press Enter to stop)")
+
+        sound = pygame.mixer.Sound(str(selected_file))
+        sound.play()
+
+        input()
+        sound.stop()
+        pygame.mixer.quit()
+
+    except Exception as e:
+        print(f"[ERROR] Could not play audio: {e}")
+        print("Make sure pygame is installed and audio device is available")
+
+
+def list_all_audio_assets():
+    """List all audio files in assets/audio/."""
+    print_header("ALL AUDIO ASSETS")
+
+    audio_dir = ROOT / "assets" / "audio"
+    if not audio_dir.exists():
+        print("No audio directory found")
+        return
+
+    print("=== FACTION THEMES ===")
+    themes = list(audio_dir.glob("*_theme.ogg"))
+    for t in sorted(themes):
+        size_kb = t.stat().st_size // 1024
+        print(f"  {t.name} ({size_kb} KB)")
+    print(f"  Total: {len(themes)} themes\n")
+
+    print("=== BATTLE MUSIC ===")
+    battle = list(audio_dir.glob("battle_round*.ogg"))
+    for b in sorted(battle):
+        size_kb = b.stat().st_size // 1024
+        print(f"  {b.name} ({size_kb} KB)")
+    print(f"  Total: {len(battle)} tracks\n")
+
+    print("=== SOUND EFFECTS ===")
+    sfx = [f for f in audio_dir.glob("*.ogg")
+           if not f.name.endswith("_theme.ogg")
+           and "battle_round" not in f.name]
+    for s in sorted(sfx):
+        size_kb = s.stat().st_size // 1024
+        print(f"  {s.name} ({size_kb} KB)")
+    print(f"  Total: {len(sfx)} effects\n")
+
+    print("=== LEADER VOICES ===")
+    voice_dir = audio_dir / "leader_voices"
+    if voice_dir.exists():
+        voices = list(voice_dir.glob("*.ogg"))
+        for v in sorted(voices):
+            size_kb = v.stat().st_size // 1024
+            print(f"  {v.name} ({size_kb} KB)")
+        print(f"  Total: {len(voices)} voices\n")
+    else:
+        print("  (directory not found)\n")
+
+    print("=== COMMANDER SNIPPETS ===")
+    snippet_dir = audio_dir / "commander_snippets"
+    if snippet_dir.exists():
+        snippets = list(snippet_dir.glob("*.ogg"))
+        for s in sorted(snippets):
+            size_kb = s.stat().st_size // 1024
+            print(f"  {s.name} ({size_kb} KB)")
+        print(f"  Total: {len(snippets)} snippets")
+    else:
+        print("  (directory not found)")
+
+
+def find_missing_audio():
+    """Cross-reference leaders/commanders with audio files."""
+    print_header("FIND MISSING AUDIO")
+
+    audio_dir = ROOT / "assets" / "audio"
+    voice_dir = audio_dir / "leader_voices"
+    snippet_dir = audio_dir / "commander_snippets"
+
+    # Get existing audio files
+    existing_voices = set()
+    if voice_dir.exists():
+        existing_voices = {f.stem for f in voice_dir.glob("*.ogg")}
+
+    existing_snippets = set()
+    if snippet_dir.exists():
+        existing_snippets = {f.stem for f in snippet_dir.glob("*.ogg")}
+
+    existing_themes = set()
+    for f in audio_dir.glob("*_theme.ogg"):
+        existing_themes.add(f.stem.replace("_theme", ""))
+
+    # Get expected items
+    missing_voices = []
+    missing_snippets = []
+    missing_themes = []
+
+    # Check leader voices
+    try:
+        from content_registry import LEADER_NAME_BY_ID
+        for leader_id, name in LEADER_NAME_BY_ID.items():
+            if leader_id not in existing_voices:
+                # Also check commander snippets as fallback
+                if leader_id not in existing_snippets:
+                    missing_voices.append((leader_id, name))
+    except ImportError:
+        print("[WARNING] Could not import content_registry")
+
+    # Check commander snippets
+    try:
+        from cards import ALL_CARDS
+        for card_id, card in ALL_CARDS.items():
+            if card.ability and "Legendary Commander" in card.ability:
+                if card_id not in existing_snippets:
+                    missing_snippets.append((card_id, card.name))
+    except ImportError:
+        print("[WARNING] Could not import cards")
+
+    # Check faction themes
+    factions = get_existing_factions()
+    for faction in factions:
+        if faction == "Neutral":
+            continue
+        faction_key = faction.lower().replace("'", "").replace(" ", "_")
+        if faction_key not in existing_themes:
+            missing_themes.append(faction)
+
+    # Report
+    print("=== MISSING LEADER VOICES ===")
+    if missing_voices:
+        for lid, name in sorted(missing_voices)[:15]:
+            print(f"  - {lid}: {name}")
+        if len(missing_voices) > 15:
+            print(f"  ... and {len(missing_voices) - 15} more")
+        print(f"  Total missing: {len(missing_voices)}")
+    else:
+        print("  All leader voices present!")
+
+    print("\n=== MISSING COMMANDER SNIPPETS ===")
+    if missing_snippets:
+        for cid, name in sorted(missing_snippets)[:15]:
+            print(f"  - {cid}: {name}")
+        if len(missing_snippets) > 15:
+            print(f"  ... and {len(missing_snippets) - 15} more")
+        print(f"  Total missing: {len(missing_snippets)}")
+    else:
+        print("  All commander snippets present!")
+
+    print("\n=== MISSING FACTION THEMES ===")
+    if missing_themes:
+        for faction in missing_themes:
+            faction_key = faction.lower().replace("'", "").replace(" ", "_")
+            print(f"  - {faction_key}_theme.ogg ({faction})")
+        print(f"  Total missing: {len(missing_themes)}")
+    else:
+        print("  All faction themes present!")
+
+
+# ============================================================================
+# MENU OPTION 13: LEADER ABILITY GENERATOR
+# ============================================================================
+
+def leader_ability_generator_workflow():
+    """Generate code stubs for new leader abilities."""
+    print_header("LEADER ABILITY GENERATOR")
+
+    print("This tool generates code stubs for new leader abilities.")
+    print("You'll need to manually add the generated code to game.py\n")
+
+    print("Ability Types:")
+    print("  1. Passive Power Bonus (applied during score calculation)")
+    print("  2. Once-Per-Game Manual Activation (player clicks button)")
+    print("  3. Automatic Trigger (event-based like round start/end)")
+    print("  4. Continuous Effect (always active)")
+    print("  0. Back")
+    print()
+
+    choice = get_input("Select ability type", default="0")
+
+    if choice == "0":
+        return
+
+    # Collect common info
+    print()
+    leader_name = get_input("Leader Name (e.g., 'Dr. McKay')")
+    leader_id = get_input("Leader card_id (e.g., 'tauri_mckay')")
+    ability_desc = get_input("Ability Description (what it does)")
+
+    print()
+
+    if choice == "1":
+        generate_passive_bonus_stub(leader_name, leader_id, ability_desc)
+    elif choice == "2":
+        generate_manual_activation_stub(leader_name, leader_id, ability_desc)
+    elif choice == "3":
+        generate_auto_trigger_stub(leader_name, leader_id, ability_desc)
+    elif choice == "4":
+        generate_continuous_effect_stub(leader_name, leader_id, ability_desc)
+
+    log(f"Generated leader ability stub for {leader_name} ({leader_id})")
+
+
+def generate_passive_bonus_stub(leader_name: str, leader_id: str, desc: str):
+    """Generate code stub for passive power bonus ability."""
+    print_header("PASSIVE POWER BONUS STUB")
+
+    # Get specifics
+    target_row = select_from_list("Which row to buff?", ["close", "ranged", "siege", "all rows"])
+    bonus = get_int("Power bonus amount", min_val=1, max_val=5, default=2)
+    hero_included = confirm("Does the bonus apply to heroes too?", default=False)
+
+    hero_check = "# Note: Applies to heroes too" if hero_included else "if not is_hero(card):"
+    indent = "" if hero_included else "    "
+
+    if target_row == "all rows":
+        row_code = '''for row_name in ["close", "ranged", "siege"]:
+            for card in player.board.get(row_name, []):'''
+    else:
+        row_code = f'''for card in player.board.get("{target_row}", []):'''
+
+    stub = f'''
+# =============================================================================
+# ADD TO game.py - In calculate_scores_and_log() method (~line 485)
+# Find the section where leader abilities modify power
+# =============================================================================
+
+# {leader_name} Leader Ability: {desc}
+if player.leader and "{leader_name}" in player.leader.get('name', ''):
+    {row_code}
+        {hero_check}
+        {indent}card.displayed_power = getattr(card, 'displayed_power', card.power) + {bonus}
+'''
+
+    print(stub)
+    print("=" * 70)
+    print()
+    print("INSTRUCTIONS:")
+    print("1. Open game.py")
+    print("2. Find the calculate_scores_and_log() method (around line 485)")
+    print("3. Look for other leader ability checks (search for 'player.leader')")
+    print("4. Add this code in the same section")
+    print()
+
+    if confirm("Save this stub to a file?", default=True):
+        stub_file = ROOT / "scripts" / f"leader_stub_{leader_id}.py"
+        stub_file.write_text(stub)
+        print(f"\n[OK] Stub saved to: {stub_file}")
+
+
+def generate_manual_activation_stub(leader_name: str, leader_id: str, desc: str):
+    """Generate code stub for once-per-game manual activation ability."""
+    print_header("MANUAL ACTIVATION STUB")
+
+    stub = f'''
+# =============================================================================
+# ADD TO game.py - In activate_leader_ability() method (~line 1694)
+# =============================================================================
+
+# In the activate_leader_ability method, add this elif clause:
+
+elif "{leader_name}" in leader_name:
+    result = self._activate_{leader_id.split('_')[1]}_ability(player)
+
+# =============================================================================
+# ADD TO game.py - New method (add after other _activate_* methods ~line 2000)
+# =============================================================================
+
+def _activate_{leader_id.split('_')[1]}_ability(self, player):
+    """
+    {leader_name}: {desc}
+    """
+    # TODO: Implement ability logic here
+
+    # Example: If ability needs UI selection, return requires_ui
+    # return {{
+    #     "ability": "{leader_name} Ability",
+    #     "revealed_cards": eligible_cards,
+    #     "requires_ui": True
+    # }}
+
+    # Example: If ability is immediate effect
+    self.add_history_event(
+        "ability",
+        f"{{player.name}} ({leader_name}) activated their ability!",
+        self._owner_label(player),
+        icon="⚡"
+    )
+
+    return {{"ability": "{leader_name} Ability"}}
+
+# =============================================================================
+# If ability needs UI interaction, also add a completion method:
+# =============================================================================
+
+def {leader_id.split('_')[1]}_complete_ability(self, player, chosen_card):
+    """Complete {leader_name}'s ability after UI selection."""
+    # TODO: Implement completion logic
+
+    # Mark leader ability as used after successful completion
+    self.leader_ability_used[player] = True
+    self.calculate_scores_and_log()
+    return True
+'''
+
+    print(stub)
+    print("=" * 70)
+    print()
+    print("INSTRUCTIONS:")
+    print("1. Open game.py")
+    print("2. Add the elif clause to activate_leader_ability() method (~line 1694)")
+    print("3. Add the _activate_*_ability method after similar methods (~line 2000)")
+    print("4. If UI interaction needed, add the completion method too")
+    print("5. Add UI handling in main.py if requires_ui is True")
+    print()
+
+    if confirm("Save this stub to a file?", default=True):
+        stub_file = ROOT / "scripts" / f"leader_stub_{leader_id}.py"
+        stub_file.write_text(stub)
+        print(f"\n[OK] Stub saved to: {stub_file}")
+
+
+def generate_auto_trigger_stub(leader_name: str, leader_id: str, desc: str):
+    """Generate code stub for automatic trigger ability."""
+    print_header("AUTOMATIC TRIGGER STUB")
+
+    trigger = select_from_list("When does this trigger?", [
+        "round_start",
+        "round_end",
+        "turn_start",
+        "turn_end",
+        "card_played",
+        "card_destroyed",
+        "pass_turn"
+    ])
+
+    stub = f'''
+# =============================================================================
+# ADD TO game.py - Find the appropriate trigger location
+# =============================================================================
+'''
+
+    if trigger == "round_start":
+        stub += f'''
+# In start_round() method (~line 200), add:
+
+# {leader_name} Leader Ability: {desc}
+for player in [self.player1, self.player2]:
+    if player.leader and "{leader_name}" in player.leader.get('name', ''):
+        # TODO: Implement round start effect
+        self.add_history_event(
+            "ability",
+            f"{{player.name}} ({leader_name})'s ability triggered!",
+            self._owner_label(player),
+            icon="⚡"
+        )
+'''
+    elif trigger == "round_end":
+        stub += f'''
+# In end_round() method (~line 350), add:
+
+# {leader_name} Leader Ability: {desc}
+for player in [self.player1, self.player2]:
+    if player.leader and "{leader_name}" in player.leader.get('name', ''):
+        # TODO: Implement round end effect
+        self.add_history_event(
+            "ability",
+            f"{{player.name}} ({leader_name})'s ability triggered!",
+            self._owner_label(player),
+            icon="⚡"
+        )
+'''
+    elif trigger == "card_played":
+        stub += f'''
+# In play_card() method (~line 500), after card is placed, add:
+
+# {leader_name} Leader Ability: {desc}
+if self.current_player.leader and "{leader_name}" in self.current_player.leader.get('name', ''):
+    # TODO: Implement card played effect
+    # card variable contains the card that was just played
+    self.add_history_event(
+        "ability",
+        f"{{self.current_player.name}} ({leader_name})'s ability triggered!",
+        self._owner_label(self.current_player),
+        icon="⚡"
+    )
+'''
+    elif trigger == "pass_turn":
+        stub += f'''
+# In pass_turn() method, add:
+
+# {leader_name} Leader Ability: {desc}
+if self.current_player.leader and "{leader_name}" in self.current_player.leader.get('name', ''):
+    # TODO: Implement pass turn effect
+    self.add_history_event(
+        "ability",
+        f"{{self.current_player.name}} ({leader_name})'s ability triggered on pass!",
+        self._owner_label(self.current_player),
+        icon="⚡"
+    )
+'''
+    else:
+        stub += f'''
+# Find the appropriate trigger point for: {trigger}
+# {leader_name} Leader Ability: {desc}
+
+if player.leader and "{leader_name}" in player.leader.get('name', ''):
+    # TODO: Implement {trigger} effect
+    self.add_history_event(
+        "ability",
+        f"{{player.name}} ({leader_name})'s ability triggered!",
+        self._owner_label(player),
+        icon="⚡"
+    )
+'''
+
+    print(stub)
+    print("=" * 70)
+    print()
+    print("INSTRUCTIONS:")
+    print(f"1. Open game.py")
+    print(f"2. Find the {trigger} trigger location")
+    print("3. Add the code at the appropriate point")
+    print()
+
+    if confirm("Save this stub to a file?", default=True):
+        stub_file = ROOT / "scripts" / f"leader_stub_{leader_id}.py"
+        stub_file.write_text(stub)
+        print(f"\n[OK] Stub saved to: {stub_file}")
+
+
+def generate_continuous_effect_stub(leader_name: str, leader_id: str, desc: str):
+    """Generate code stub for continuous effect ability."""
+    print_header("CONTINUOUS EFFECT STUB")
+
+    effect_type = select_from_list("What type of continuous effect?", [
+        "weather_immunity",
+        "power_modifier",
+        "draw_modifier",
+        "custom"
+    ])
+
+    stub = f'''
+# =============================================================================
+# CONTINUOUS EFFECT: {leader_name} - {desc}
+# =============================================================================
+'''
+
+    if effect_type == "weather_immunity":
+        stub += f'''
+# In apply_weather_effect() method, add check at the start:
+
+# {leader_name} Leader Ability: {desc}
+if player.leader and "{leader_name}" in player.leader.get('name', ''):
+    # Skip weather effect for this player
+    return []  # Or modify the effect as needed
+'''
+    elif effect_type == "power_modifier":
+        stub += f'''
+# In calculate_scores_and_log() method (~line 485), add:
+
+# {leader_name} Leader Ability: {desc}
+if player.leader and "{leader_name}" in player.leader.get('name', ''):
+    for row_name in ["close", "ranged", "siege"]:
+        for card in player.board.get(row_name, []):
+            # TODO: Apply continuous power modifier
+            # Example: card.displayed_power += 1
+            pass
+'''
+    elif effect_type == "draw_modifier":
+        stub += f'''
+# In draw_card() method, add:
+
+# {leader_name} Leader Ability: {desc}
+if player.leader and "{leader_name}" in player.leader.get('name', ''):
+    # TODO: Modify draw behavior
+    # Example: Draw extra card
+    # self._draw_single_card(player)
+    pass
+'''
+    else:
+        stub += f'''
+# {leader_name} Leader Ability: {desc}
+#
+# IMPLEMENTATION NOTES:
+# - Continuous effects should be checked wherever they apply
+# - Common locations:
+#   - calculate_scores_and_log() for power modifiers
+#   - apply_weather_effect() for weather immunity
+#   - draw_card() for draw modifiers
+#   - play_card() for card play effects
+#
+# Add checks like:
+if player.leader and "{leader_name}" in player.leader.get('name', ''):
+    # TODO: Implement continuous effect
+    pass
+'''
+
+    print(stub)
+    print("=" * 70)
+    print()
+    print("INSTRUCTIONS:")
+    print("1. Open game.py")
+    print("2. Find the appropriate method(s) based on effect type")
+    print("3. Add the check wherever the effect should apply")
+    print()
+
+    if confirm("Save this stub to a file?", default=True):
+        stub_file = ROOT / "scripts" / f"leader_stub_{leader_id}.py"
+        stub_file.write_text(stub)
+        print(f"\n[OK] Stub saved to: {stub_file}")
+
+
+# ============================================================================
+# MENU OPTION 14: CARD RENAME/DELETE TOOL
+# ============================================================================
+
+def card_rename_delete_workflow():
+    """Safely rename or delete cards across all files."""
+    while True:
+        print_header("CARD RENAME/DELETE TOOL")
+
+        print("  1. Rename Card ID")
+        print("  2. Delete Card Completely")
+        print("  3. Preview References (dry run)")
+        print("  4. Batch Rename (from JSON)")
+        print("  0. Back")
+        print()
+
+        choice = get_input("Choice", default="0")
+
+        if choice == "0":
+            break
+        elif choice == "1":
+            rename_card_workflow()
+        elif choice == "2":
+            delete_card_workflow()
+        elif choice == "3":
+            preview_references_workflow()
+        elif choice == "4":
+            batch_rename_workflow()
+
+        input("\nPress Enter to continue...")
+
+
+def find_all_card_references(card_id: str) -> Dict[str, List[Tuple[int, str]]]:
+    """
+    Find all references to a card_id across all relevant files.
+
+    Returns dict mapping filename to list of (line_number, line_content) tuples.
+    """
+    references = {}
+
+    # Files to search
+    search_files = [
+        ("cards.py", FILES["cards"]),
+        ("unlocks.py", FILES["unlocks"]),
+        ("content_registry.py", FILES["content_registry"]),
+        ("card_catalog.json", FILES["card_catalog"]),
+        ("player_decks.json", ROOT / "player_decks.json"),
+        ("player_unlocks.json", ROOT / "player_unlocks.json"),
+    ]
+
+    for name, path in search_files:
+        if not path.exists():
+            continue
+
+        content = path.read_text()
+        lines = content.split('\n')
+
+        matches = []
+        for i, line in enumerate(lines, 1):
+            if card_id in line:
+                matches.append((i, line.strip()[:80]))
+
+        if matches:
+            references[name] = matches
+
+    # Check asset files
+    asset_files = []
+    card_asset = ROOT / "assets" / f"{card_id}.png"
+    if card_asset.exists():
+        asset_files.append((0, f"assets/{card_id}.png"))
+
+    snippet = ROOT / "assets" / "audio" / "commander_snippets" / f"{card_id}.ogg"
+    if snippet.exists():
+        asset_files.append((0, f"assets/audio/commander_snippets/{card_id}.ogg"))
+
+    voice = ROOT / "assets" / "audio" / "leader_voices" / f"{card_id}.ogg"
+    if voice.exists():
+        asset_files.append((0, f"assets/audio/leader_voices/{card_id}.ogg"))
+
+    if asset_files:
+        references["asset_files"] = asset_files
+
+    return references
+
+
+def preview_references_workflow():
+    """Preview all references to a card (dry run)."""
+    print_header("PREVIEW CARD REFERENCES")
+
+    card_id = get_input("Enter card_id to search for")
+
+    print(f"\nSearching for references to '{card_id}'...\n")
+
+    refs = find_all_card_references(card_id)
+
+    if not refs:
+        print(f"No references found for '{card_id}'")
+        return
+
+    total_refs = 0
+    for filename, matches in refs.items():
+        print(f"\n=== {filename} ({len(matches)} references) ===")
+        for line_num, line_content in matches[:10]:
+            if line_num > 0:
+                print(f"  Line {line_num}: {line_content}")
+            else:
+                print(f"  File: {line_content}")
+        if len(matches) > 10:
+            print(f"  ... and {len(matches) - 10} more")
+        total_refs += len(matches)
+
+    print(f"\n=== TOTAL: {total_refs} references in {len(refs)} files ===")
+
+
+def rename_card_workflow():
+    """Interactive card rename with preview."""
+    print_header("RENAME CARD")
+
+    old_id = get_input("Current card_id")
+
+    # Check card exists
+    try:
+        from cards import ALL_CARDS
+        if old_id not in ALL_CARDS:
+            print(f"\n[WARNING] Card '{old_id}' not found in ALL_CARDS")
+            if not confirm("Continue anyway?", default=False):
+                return
+        else:
+            card = ALL_CARDS[old_id]
+            print(f"\n  Found: {card.name} ({card.faction})")
+    except ImportError:
+        print("[WARNING] Could not verify card exists")
+
+    new_id = get_input("New card_id", validator=validate_card_id)
+
+    # Preview references
+    print(f"\nSearching for references to '{old_id}'...\n")
+    refs = find_all_card_references(old_id)
+
+    if not refs:
+        print(f"No references found for '{old_id}'")
+        return
+
+    total_refs = sum(len(m) for m in refs.values())
+    print(f"Found {total_refs} references in {len(refs)} files:")
+    for filename in refs.keys():
+        print(f"  - {filename}")
+
+    print()
+    if not confirm(f"Rename '{old_id}' to '{new_id}' in all these files?"):
+        print("Cancelled.")
+        return
+
+    # Create backups and execute rename
+    success = execute_card_rename(old_id, new_id, refs)
+
+    if success:
+        log(f"RENAMED: {old_id} -> {new_id}")
+        print(f"\n[OK] Card renamed successfully: {old_id} -> {new_id}")
+    else:
+        print("\n[ERROR] Rename failed - check logs for details")
+
+
+def execute_card_rename(old_id: str, new_id: str, refs: Dict) -> bool:
+    """Execute the card rename across all files."""
+    # Backup all files first
+    for filename, _ in refs.items():
+        if filename == "asset_files":
+            continue
+        if filename == "cards.py":
+            create_backup(FILES["cards"])
+        elif filename == "unlocks.py":
+            create_backup(FILES["unlocks"])
+        elif filename == "content_registry.py":
+            create_backup(FILES["content_registry"])
+        elif filename == "card_catalog.json":
+            create_backup(FILES["card_catalog"])
+        elif filename == "player_decks.json":
+            create_backup(ROOT / "player_decks.json")
+        elif filename == "player_unlocks.json":
+            create_backup(ROOT / "player_unlocks.json")
+
+    try:
+        # Rename in Python files
+        for py_file in ["cards", "unlocks", "content_registry"]:
+            path = FILES.get(py_file)
+            if path and path.exists() and py_file + ".py" in refs:
+                content = path.read_text()
+                # Use word boundary replacement to avoid partial matches
+                new_content = re.sub(
+                    rf'\b{re.escape(old_id)}\b',
+                    new_id,
+                    content
+                )
+                # Validate Python syntax
+                compile(new_content, str(path), "exec")
+                path.write_text(new_content)
+                log(f"  Updated {py_file}.py")
+
+        # Rename in JSON files
+        for json_file in ["card_catalog.json", "player_decks.json", "player_unlocks.json"]:
+            if json_file in refs:
+                if json_file == "card_catalog.json":
+                    path = FILES["card_catalog"]
+                else:
+                    path = ROOT / json_file
+
+                if path.exists():
+                    content = path.read_text()
+                    new_content = content.replace(f'"{old_id}"', f'"{new_id}"')
+                    path.write_text(new_content)
+                    log(f"  Updated {json_file}")
+
+        # Rename asset files
+        if "asset_files" in refs:
+            for _, asset_path in refs["asset_files"]:
+                old_asset = ROOT / asset_path
+                new_asset_path = asset_path.replace(old_id, new_id)
+                new_asset = ROOT / new_asset_path
+                if old_asset.exists():
+                    old_asset.rename(new_asset)
+                    log(f"  Renamed asset: {asset_path} -> {new_asset_path}")
+
+        return True
+
+    except Exception as e:
+        log(f"ERROR during rename: {e}")
+        print(f"[ERROR] {e}")
+        print("Attempting rollback...")
+
+        # Restore backups
+        for filename in refs.keys():
+            if filename == "asset_files":
+                continue
+            if filename == "cards.py":
+                restore_from_backup(FILES["cards"])
+            elif filename == "unlocks.py":
+                restore_from_backup(FILES["unlocks"])
+            elif filename == "content_registry.py":
+                restore_from_backup(FILES["content_registry"])
+
+        return False
+
+
+def delete_card_workflow():
+    """Delete a card with double confirmation."""
+    print_header("DELETE CARD")
+
+    card_id = get_input("Card ID to delete")
+
+    # Check if card exists and get info
+    card_info = None
+    is_leader = False
+    try:
+        from cards import ALL_CARDS
+        if card_id in ALL_CARDS:
+            card = ALL_CARDS[card_id]
+            card_info = f"{card.name} ({card.faction}, {card.power} power)"
+            print(f"\n  Found: {card_info}")
+        else:
+            print(f"\n[WARNING] Card '{card_id}' not found in ALL_CARDS")
+
+        # Check if it's a leader
+        from content_registry import LEADER_NAME_BY_ID
+        if card_id in LEADER_NAME_BY_ID:
+            is_leader = True
+            print(f"  [!] This is also a LEADER: {LEADER_NAME_BY_ID[card_id]}")
+    except ImportError:
+        pass
+
+    # Preview references
+    print(f"\nSearching for references to '{card_id}'...\n")
+    refs = find_all_card_references(card_id)
+
+    if not refs:
+        print(f"No references found for '{card_id}'")
+        return
+
+    total_refs = sum(len(m) for m in refs.values())
+    print(f"Found {total_refs} references in {len(refs)} files:")
+    for filename, matches in refs.items():
+        print(f"  - {filename}: {len(matches)} references")
+
+    # First confirmation
+    print()
+    print("[!] WARNING: This will permanently delete the card from:")
+    print("    - cards.py (card definition)")
+    if "unlocks.py" in refs:
+        print("    - unlocks.py (unlock entry)")
+    if is_leader:
+        print("    - content_registry.py (leader entry)")
+    if "asset_files" in refs:
+        print("    - Asset files (images, audio)")
+    if "player_decks.json" in refs:
+        print("    - Player deck saves")
+    if "player_unlocks.json" in refs:
+        print("    - Player unlock progress")
+
+    if not confirm("\nAre you sure you want to delete this card?", default=False):
+        print("Cancelled.")
+        return
+
+    # Second confirmation - type DELETE card_id
+    print()
+    confirmation = get_input(f"Type 'DELETE {card_id}' to confirm")
+    if confirmation != f"DELETE {card_id}":
+        print("Confirmation failed. Cancelled.")
+        return
+
+    # Execute deletion
+    success = execute_card_delete(card_id, refs, is_leader)
+
+    if success:
+        log(f"DELETED: {card_id}")
+        print(f"\n[OK] Card deleted successfully: {card_id}")
+    else:
+        print("\n[ERROR] Delete failed - check logs for details")
+
+
+def execute_card_delete(card_id: str, refs: Dict, is_leader: bool) -> bool:
+    """Execute the card deletion across all files."""
+    # Backup all files first
+    for filename in refs.keys():
+        if filename == "asset_files":
+            continue
+        if filename == "cards.py":
+            create_backup(FILES["cards"])
+        elif filename == "unlocks.py":
+            create_backup(FILES["unlocks"])
+        elif filename == "content_registry.py":
+            create_backup(FILES["content_registry"])
+        elif filename == "card_catalog.json":
+            create_backup(FILES["card_catalog"])
+        elif filename == "player_decks.json":
+            create_backup(ROOT / "player_decks.json")
+        elif filename == "player_unlocks.json":
+            create_backup(ROOT / "player_unlocks.json")
+
+    try:
+        # Delete from cards.py
+        if "cards.py" in refs:
+            content = FILES["cards"].read_text()
+            # Remove the card entry line
+            pattern = rf'^\s*"{card_id}":\s*Card\([^)]+\),?\s*$'
+            new_content = re.sub(pattern, '', content, flags=re.MULTILINE)
+            compile(new_content, str(FILES["cards"]), "exec")
+            FILES["cards"].write_text(new_content)
+            log(f"  Removed from cards.py")
+
+        # Delete from unlocks.py
+        if "unlocks.py" in refs:
+            content = FILES["unlocks"].read_text()
+            # Remove the unlockable entry block
+            pattern = rf'^\s*"{card_id}":\s*\{{[^}}]+\}},?\s*$'
+            new_content = re.sub(pattern, '', content, flags=re.MULTILINE | re.DOTALL)
+            compile(new_content, str(FILES["unlocks"]), "exec")
+            FILES["unlocks"].write_text(new_content)
+            log(f"  Removed from unlocks.py")
+
+        # Delete from content_registry.py (if leader)
+        if is_leader and "content_registry.py" in refs:
+            content = FILES["content_registry"].read_text()
+            # Remove leader entry
+            pattern = rf'\{{"name":[^}}]*"card_id":\s*"{card_id}"[^}}]*\}},?\s*'
+            new_content = re.sub(pattern, '', content)
+            # Remove from LEADER_COLOR_OVERRIDES
+            pattern2 = rf'^\s*"{card_id}":\s*\([^)]+\),?\s*$'
+            new_content = re.sub(pattern2, '', new_content, flags=re.MULTILINE)
+            # Remove from LEADER_BANNER_NAMES
+            pattern3 = rf'^\s*"{card_id}":\s*"[^"]+",?\s*$'
+            new_content = re.sub(pattern3, '', new_content, flags=re.MULTILINE)
+            compile(new_content, str(FILES["content_registry"]), "exec")
+            FILES["content_registry"].write_text(new_content)
+            log(f"  Removed from content_registry.py")
+
+        # Clean up JSON files
+        if "card_catalog.json" in refs:
+            remove_card_from_json_file(FILES["card_catalog"], card_id)
+            log(f"  Removed from card_catalog.json")
+
+        if "player_decks.json" in refs:
+            path = ROOT / "player_decks.json"
+            if path.exists():
+                data = json.loads(path.read_text())
+                for faction, deck in data.items():
+                    if "cards" in deck and card_id in deck["cards"]:
+                        deck["cards"] = [c for c in deck["cards"] if c != card_id]
+                    if deck.get("leader") == card_id:
+                        deck["leader"] = ""
+                path.write_text(json.dumps(data, indent=2))
+                log(f"  Cleaned player_decks.json")
+
+        if "player_unlocks.json" in refs:
+            path = ROOT / "player_unlocks.json"
+            if path.exists():
+                data = json.loads(path.read_text())
+                if "unlocked" in data and card_id in data["unlocked"]:
+                    data["unlocked"] = [c for c in data["unlocked"] if c != card_id]
+                for faction, leaders in data.get("unlocked_leaders", {}).items():
+                    if card_id in leaders:
+                        data["unlocked_leaders"][faction] = [l for l in leaders if l != card_id]
+                path.write_text(json.dumps(data, indent=2))
+                log(f"  Cleaned player_unlocks.json")
+
+        # Delete asset files
+        if "asset_files" in refs:
+            for _, asset_path in refs["asset_files"]:
+                full_path = ROOT / asset_path
+                if full_path.exists():
+                    # Move to backup folder instead of deleting
+                    backup_path = _backup_folder / Path(asset_path).name
+                    shutil.move(str(full_path), str(backup_path))
+                    log(f"  Moved asset to backup: {asset_path}")
+
+        return True
+
+    except Exception as e:
+        log(f"ERROR during delete: {e}")
+        print(f"[ERROR] {e}")
+        print("Attempting rollback...")
+
+        # Restore backups
+        for filename in refs.keys():
+            if filename == "asset_files":
+                continue
+            if filename == "cards.py":
+                restore_from_backup(FILES["cards"])
+            elif filename == "unlocks.py":
+                restore_from_backup(FILES["unlocks"])
+            elif filename == "content_registry.py":
+                restore_from_backup(FILES["content_registry"])
+
+        return False
+
+
+def remove_card_from_json_file(path: Path, card_id: str):
+    """Remove card from a JSON file (card_catalog.json format)."""
+    if not path.exists():
+        return
+
+    data = json.loads(path.read_text())
+
+    # Handle card_catalog.json format
+    for faction, cards in list(data.items()):
+        if isinstance(cards, list):
+            data[faction] = [c for c in cards if c.get("card_id") != card_id]
+
+    path.write_text(json.dumps(data, indent=2))
+
+
+def batch_rename_workflow():
+    """Batch rename cards from a JSON file."""
+    print_header("BATCH RENAME FROM JSON")
+
+    print("JSON format expected:")
+    print('''
+{
+  "renames": [
+    {"old_id": "old_card_id_1", "new_id": "new_card_id_1"},
+    {"old_id": "old_card_id_2", "new_id": "new_card_id_2"}
+  ]
+}
+''')
+
+    file_path = get_input("Path to JSON file")
+    path = Path(file_path)
+
+    if not path.exists():
+        print(f"[ERROR] File not found: {path}")
+        return
+
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Invalid JSON: {e}")
+        return
+
+    renames = data.get("renames", [])
+    if not renames:
+        print("[ERROR] No renames found in JSON")
+        return
+
+    print(f"\nFound {len(renames)} rename operations:")
+    for r in renames[:10]:
+        print(f"  - {r['old_id']} -> {r['new_id']}")
+    if len(renames) > 10:
+        print(f"  ... and {len(renames) - 10} more")
+
+    if not confirm("\nProceed with batch rename?"):
+        print("Cancelled.")
+        return
+
+    success_count = 0
+    error_count = 0
+
+    for rename in renames:
+        old_id = rename.get("old_id")
+        new_id = rename.get("new_id")
+
+        if not old_id or not new_id:
+            print(f"  [SKIP] Invalid entry: {rename}")
+            error_count += 1
+            continue
+
+        print(f"\n  Renaming: {old_id} -> {new_id}")
+        refs = find_all_card_references(old_id)
+
+        if not refs:
+            print(f"    [SKIP] No references found")
+            continue
+
+        if execute_card_rename(old_id, new_id, refs):
+            success_count += 1
+            print(f"    [OK] Renamed successfully")
+        else:
+            error_count += 1
+            print(f"    [ERROR] Rename failed")
+
+    print(f"\n=== BATCH COMPLETE ===")
+    print(f"  Successful: {success_count}")
+    print(f"  Failed: {error_count}")
+
+
+# ============================================================================
 # MAIN MENU
 # ============================================================================
 
@@ -3410,27 +4751,30 @@ def main_menu():
         clear_screen()
 
         print()
-        print("+" + "=" * 48 + "+")
-        print("|       STARGWENT CONTENT MANAGER                |")
-        print("+" + "=" * 48 + "+")
-        print("|                                                |")
-        print("|  === DEVELOPER TOOLS ===                       |")
-        print("|  1. Add a new CARD                             |")
-        print("|  2. Add a new LEADER                           |")
-        print("|  3. Add a new FACTION (comprehensive)          |")
-        print("|  4. Add/Edit ABILITY                           |")
-        print("|  5. Generate placeholder images                |")
-        print("|  6. Regenerate all documentation               |")
-        print("|  7. Asset Checker (find missing images)        |")
-        print("|  8. Balance Analyzer (power stats)             |")
-        print("| 11. Batch Import (from JSON)                   |")
-        print("|                                                |")
-        print("|  === USER TOOLS ===                            |")
-        print("|  9. Save Manager (backup/restore saves)        |")
-        print("| 10. Deck Import/Export (share decks)           |")
-        print("|                                                |")
-        print("|  0. Exit                                       |")
-        print("+" + "=" * 48 + "+")
+        print("+" + "=" * 50 + "+")
+        print("|        STARGWENT CONTENT MANAGER                  |")
+        print("+" + "=" * 50 + "+")
+        print("|                                                   |")
+        print("|  === DEVELOPER TOOLS ===                          |")
+        print("|   1. Add a new CARD                               |")
+        print("|   2. Add a new LEADER                             |")
+        print("|   3. Add a new FACTION (comprehensive)            |")
+        print("|   4. Add/Edit ABILITY                             |")
+        print("|   5. Generate placeholder images                  |")
+        print("|   6. Regenerate all documentation                 |")
+        print("|   7. Asset Checker (find missing images)          |")
+        print("|   8. Balance Analyzer (power stats)               |")
+        print("|  11. Batch Import (from JSON)                     |")
+        print("|  12. Audio Manager                          [NEW] |")
+        print("|  13. Leader Ability Generator               [NEW] |")
+        print("|  14. Card Rename/Delete Tool                [NEW] |")
+        print("|                                                   |")
+        print("|  === USER TOOLS ===                               |")
+        print("|   9. Save Manager (backup/restore saves)          |")
+        print("|  10. Deck Import/Export (share decks)             |")
+        print("|                                                   |")
+        print("|   0. Exit                                         |")
+        print("+" + "=" * 50 + "+")
         print()
 
         choice = get_input("Choice", default="0")
@@ -3465,6 +4809,12 @@ def main_menu():
                 deck_import_export_workflow()
             elif choice == "11":
                 batch_import_workflow()
+            elif choice == "12":
+                audio_manager_workflow()
+            elif choice == "13":
+                leader_ability_generator_workflow()
+            elif choice == "14":
+                card_rename_delete_workflow()
             else:
                 print("Invalid choice")
         except KeyboardInterrupt:

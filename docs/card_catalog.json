@@ -606,9 +606,9 @@
       "card_id": "goauld_scout",
       "name": "Goa'uld Scout",
       "faction": "Goa'uld",
-      "power": 2,
+      "power": 5,
       "row": "ranged",
-      "ability": null
+      "ability": "Deep Cover Agent"
     },
     {
       "card_id": "goauld_symbiote",
