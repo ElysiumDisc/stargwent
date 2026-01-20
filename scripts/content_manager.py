@@ -28,6 +28,7 @@ import sys
 import json
 import shutil
 import re
+import ast
 import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -387,6 +388,496 @@ def validate_power(power: int) -> Optional[str]:
 
 
 # ============================================================================
+# FORMAT HELPERS - Generate code strings matching existing file formats
+# ============================================================================
+
+def format_card_entry(card_id: str, name: str, faction_const: str,
+                      power: int, row: str, ability: Optional[str]) -> str:
+    """
+    Format card entry matching cards.py style (4-space indent, single line).
+
+    Example output:
+        "tauri_scientist": Card("tauri_scientist", "SGC Scientist", FACTION_TAURI, 3, "ranged", None),
+    """
+    ability_str = f'"{ability}"' if ability else "None"
+    return f'    "{card_id}": Card("{card_id}", "{name}", {faction_const}, {power}, "{row}", {ability_str}),'
+
+
+def format_unlockable_entry(card_id: str, name: str, faction: str, row: str,
+                            power: int, ability: Optional[str], description: str, rarity: str) -> str:
+    """
+    Format unlockable entry matching unlocks.py style (4+8 space indent, multiline).
+
+    Example output:
+        "card_id": {
+            "name": "Card Name",
+            "faction": "Faction Name",
+            "row": "row_type",
+            "power": 5,
+            "ability": "Ability String",
+            "description": "Description text",
+            "rarity": "rare"
+        },
+    """
+    ability_str = ability if ability else ""
+    return f'''    "{card_id}": {{
+        "name": "{name}",
+        "faction": "{faction}",
+        "row": "{row}",
+        "power": {power},
+        "ability": "{ability_str}",
+        "description": "{description or ''}",
+        "rarity": "{rarity}"
+    }},'''
+
+
+def format_leader_entry(name: str, ability: str, ability_desc: str, card_id: str,
+                        image_path: Optional[str] = None) -> str:
+    """
+    Format leader entry matching content_registry.py style.
+
+    Example output:
+        {"name": "Leader Name", "ability": "Ability", "ability_desc": "Full desc", "card_id": "leader_id"},
+    """
+    if image_path:
+        return f'{{"name": "{name}", "ability": "{ability}", "ability_desc": "{ability_desc}", "card_id": "{card_id}", "image_path": "{image_path}"}}'
+    return f'{{"name": "{name}", "ability": "{ability}", "ability_desc": "{ability_desc}", "card_id": "{card_id}"}}'
+
+
+# ============================================================================
+# AST-AWARE CODE INSERTION
+# ============================================================================
+
+def find_dict_in_ast(content: str, dict_name: str) -> Optional[Tuple[int, int]]:
+    """
+    Find the start and end positions of a dictionary assignment in Python code.
+
+    Returns (start, end) character positions or None if not found.
+    """
+    try:
+        tree = ast.parse(content)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == dict_name:
+                        if isinstance(node.value, ast.Dict):
+                            # Return positions from the dict value, not the assignment
+                            return (node.value.col_offset, node.value.end_col_offset)
+    except SyntaxError:
+        pass
+    return None
+
+
+def find_faction_section_end(content: str, faction: str) -> int:
+    """
+    Find the position to insert a new card for a given faction in cards.py.
+
+    Uses comment markers like "# --- Faction ---" and finds the last card entry
+    before the next section or end of ALL_CARDS dict.
+    """
+    # Look for the faction section marker
+    pattern = rf'#\s*---\s*{re.escape(faction)}\s*---'
+    match = re.search(pattern, content, re.IGNORECASE)
+
+    if match:
+        start_pos = match.end()
+
+        # Find the next section marker
+        next_section = re.search(r'\n\s*#\s*---\s*\w', content[start_pos:])
+        if next_section:
+            end_pos = start_pos + next_section.start()
+        else:
+            # Find end of ALL_CARDS dict - look for final closing brace
+            end_pos = content.rfind("}")
+
+        # Find the last complete card entry ending with "),"
+        section = content[start_pos:end_pos]
+
+        # Find the last ")," which marks end of a Card() constructor
+        last_entry = section.rfind("),")
+        if last_entry != -1:
+            return start_pos + last_entry + 2  # Position after "),"
+
+    # Fallback: before the closing brace of ALL_CARDS
+    # Find the last "}" that closes the dict
+    all_cards_start = content.find("ALL_CARDS = {")
+    if all_cards_start != -1:
+        # Count braces to find matching close
+        brace_count = 0
+        pos = all_cards_start + len("ALL_CARDS = ")
+        while pos < len(content):
+            if content[pos] == '{':
+                brace_count += 1
+            elif content[pos] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    # Find the last ")," before this closing brace
+                    last_entry = content.rfind("),", all_cards_start, pos)
+                    if last_entry != -1:
+                        return last_entry + 2
+                    return pos
+            pos += 1
+
+    return len(content)
+
+
+def insert_card_entry_safely(content: str, faction: str, card_entry: str) -> str:
+    """
+    Insert card entry using AST-aware positioning, preserving format.
+
+    Args:
+        content: Current cards.py content
+        faction: Faction name (e.g., "Tau'ri")
+        card_entry: Pre-formatted card entry string
+
+    Returns:
+        Modified content with card inserted
+    """
+    insert_pos = find_faction_section_end(content, faction)
+    return content[:insert_pos] + "\n" + card_entry + content[insert_pos:]
+
+
+def insert_unlockable_entry_safely(content: str, entry: str) -> str:
+    """
+    Insert entry into UNLOCKABLE_CARDS dict in unlocks.py.
+
+    Args:
+        content: Current unlocks.py content
+        entry: Pre-formatted unlockable entry string
+
+    Returns:
+        Modified content with entry inserted
+    """
+    # Find UNLOCKABLE_CARDS dict
+    pattern = r'UNLOCKABLE_CARDS\s*=\s*\{'
+    match = re.search(pattern, content)
+
+    if match:
+        # Find matching closing brace
+        start = match.end()
+        brace_count = 1
+        pos = start
+        while brace_count > 0 and pos < len(content):
+            if content[pos] == '{':
+                brace_count += 1
+            elif content[pos] == '}':
+                brace_count -= 1
+            pos += 1
+
+        # Insert before the closing brace
+        insert_pos = pos - 1
+
+        # Find the last entry (ends with "},")
+        last_entry = content.rfind("},", match.start(), insert_pos)
+        if last_entry != -1:
+            insert_pos = last_entry + 2  # After "},"
+
+        return content[:insert_pos] + "\n" + entry + content[insert_pos:]
+
+    return content
+
+
+def insert_leader_entry_safely(content: str, target_dict: str,
+                                faction_const: str, leader_entry: str) -> str:
+    """
+    Insert leader entry into BASE_FACTION_LEADERS or UNLOCKABLE_LEADERS.
+
+    Args:
+        content: Current content_registry.py content
+        target_dict: "BASE_FACTION_LEADERS" or "UNLOCKABLE_LEADERS"
+        faction_const: Faction constant (e.g., "FACTION_TAURI")
+        leader_entry: Pre-formatted leader entry string
+
+    Returns:
+        Modified content with leader inserted
+    """
+    # Find the faction's list within the target dict
+    pattern = rf'({target_dict}\s*=\s*\{{[^}}]*{faction_const}\s*:\s*\[)'
+    match = re.search(pattern, content, re.DOTALL)
+
+    if match:
+        # Find the closing bracket of this faction's list
+        start = match.end()
+        bracket_count = 1
+        pos = start
+        while bracket_count > 0 and pos < len(content):
+            if content[pos] == '[':
+                bracket_count += 1
+            elif content[pos] == ']':
+                bracket_count -= 1
+            pos += 1
+
+        # Insert before the closing bracket
+        insert_pos = pos - 1
+
+        # Find last entry (ends with "},")
+        last_entry = content.rfind("},", match.end(), insert_pos)
+        if last_entry != -1:
+            insert_pos = last_entry + 2
+
+        return content[:insert_pos] + "\n        " + leader_entry + "," + content[insert_pos:]
+
+    return content
+
+
+# ============================================================================
+# ENHANCED VALIDATION FUNCTIONS
+# ============================================================================
+
+def validate_card_name_unique(name: str) -> Optional[str]:
+    """
+    Ensure card name isn't already used by another card.
+
+    Returns error message if duplicate found, None if unique.
+    """
+    try:
+        from cards import ALL_CARDS
+        for card in ALL_CARDS.values():
+            if card.name.lower() == name.lower():
+                return f"Card name '{name}' already exists (on card '{card.id}')"
+    except Exception:
+        pass
+    return None
+
+
+def validate_leader_id_prefix(card_id: str, faction: str) -> Optional[str]:
+    """
+    Ensure leader card_id matches faction prefix convention.
+
+    Returns error message if mismatched, None if valid.
+    """
+    faction_prefixes = {
+        "Tau'ri": "tauri_",
+        "Goa'uld": "goauld_",
+        "Jaffa Rebellion": "jaffa_",
+        "Lucian Alliance": "lucian_",
+        "Asgard": "asgard_",
+        "Neutral": "neutral_",
+    }
+
+    expected_prefix = faction_prefixes.get(faction)
+    if expected_prefix and not card_id.startswith(expected_prefix):
+        return f"Leader card_id should start with '{expected_prefix}' for {faction} faction"
+    return None
+
+
+def validate_ability_string(ability: str) -> Optional[str]:
+    """
+    Check ability string against known abilities in Ability enum.
+
+    Returns error message if ability not found, None if valid.
+    """
+    if not ability:
+        return None
+
+    try:
+        from abilities import Ability
+        valid_abilities = {a.value for a in Ability}
+
+        # Split by comma for multi-ability cards
+        abilities = [a.strip() for a in ability.split(",")]
+        unknown = [a for a in abilities if a not in valid_abilities]
+
+        if unknown:
+            return f"Unknown abilities: {', '.join(unknown)}. Consider adding them first."
+    except Exception:
+        pass
+    return None
+
+
+def validate_faction_complete(faction_data: dict) -> List[str]:
+    """
+    Check all required faction components are defined.
+
+    Returns list of missing/incomplete items.
+    """
+    issues = []
+
+    required_keys = ["name", "constant", "base_leaders", "cards"]
+    for key in required_keys:
+        if key not in faction_data or not faction_data[key]:
+            issues.append(f"Missing required field: {key}")
+
+    if "base_leaders" in faction_data:
+        if len(faction_data["base_leaders"]) < 3:
+            issues.append(f"Need at least 3 base leaders (have {len(faction_data['base_leaders'])})")
+
+    if "cards" in faction_data:
+        if len(faction_data["cards"]) < 15:
+            issues.append(f"Need at least 15 starter cards (have {len(faction_data['cards'])})")
+
+    return issues
+
+
+# ============================================================================
+# INTEGRATION VERIFICATION
+# ============================================================================
+
+def verify_card_integration(card_id: str, faction: str, is_unlockable: bool) -> List[Tuple[str, bool, str]]:
+    """
+    Verify card is properly integrated across all systems.
+
+    Returns list of (check_name, passed, details) tuples.
+    """
+    checks = []
+
+    # Check cards.py
+    try:
+        if "cards" in sys.modules:
+            del sys.modules["cards"]
+        from cards import ALL_CARDS
+        in_cards = card_id in ALL_CARDS
+        checks.append(("cards.py", in_cards, f"Card {'found' if in_cards else 'NOT FOUND'} in ALL_CARDS"))
+    except Exception as e:
+        checks.append(("cards.py", False, f"Import error: {e}"))
+
+    # Check card_catalog.json
+    try:
+        catalog_path = FILES["card_catalog"]
+        if catalog_path.exists():
+            catalog = json.loads(catalog_path.read_text())
+            found = any(
+                c["card_id"] == card_id
+                for cards in catalog.values()
+                for c in cards
+            )
+            checks.append(("card_catalog.json", found, f"Card {'found' if found else 'NOT FOUND'} in catalog"))
+        else:
+            checks.append(("card_catalog.json", False, "Catalog file doesn't exist"))
+    except Exception as e:
+        checks.append(("card_catalog.json", False, f"Error: {e}"))
+
+    # Check asset exists
+    asset_path = ROOT / "assets" / f"{card_id}.png"
+    checks.append(("Asset file", asset_path.exists(), f"{asset_path.name}"))
+
+    # Check unlocks.py if unlockable
+    if is_unlockable:
+        try:
+            if "unlocks" in sys.modules:
+                del sys.modules["unlocks"]
+            from unlocks import UNLOCKABLE_CARDS
+            in_unlocks = card_id in UNLOCKABLE_CARDS
+            checks.append(("unlocks.py", in_unlocks, f"Card {'found' if in_unlocks else 'NOT FOUND'} in UNLOCKABLE_CARDS"))
+        except Exception as e:
+            checks.append(("unlocks.py", False, f"Import error: {e}"))
+
+    return checks
+
+
+def verify_leader_integration(card_id: str, faction: str) -> List[Tuple[str, bool, str]]:
+    """
+    Verify leader is properly integrated across all systems.
+
+    Returns list of (check_name, passed, details) tuples.
+    """
+    checks = []
+
+    # Check content_registry.py
+    try:
+        if "content_registry" in sys.modules:
+            del sys.modules["content_registry"]
+        from content_registry import LEADER_REGISTRY, LEADER_NAME_BY_ID
+        in_registry = card_id in LEADER_NAME_BY_ID
+        checks.append(("content_registry.py", in_registry,
+                      f"Leader {'found' if in_registry else 'NOT FOUND'} in LEADER_REGISTRY"))
+    except Exception as e:
+        checks.append(("content_registry.py", False, f"Import error: {e}"))
+
+    # Check leader_catalog.json
+    try:
+        catalog_path = FILES["leader_catalog"]
+        if catalog_path.exists():
+            catalog = json.loads(catalog_path.read_text())
+            found = any(
+                leader["card_id"] == card_id
+                for faction_data in catalog.values()
+                for leader_list in [faction_data.get("base", []), faction_data.get("unlockable", [])]
+                for leader in leader_list
+            )
+            checks.append(("leader_catalog.json", found, f"Leader {'found' if found else 'NOT FOUND'} in catalog"))
+        else:
+            checks.append(("leader_catalog.json", False, "Catalog file doesn't exist"))
+    except Exception as e:
+        checks.append(("leader_catalog.json", False, f"Error: {e}"))
+
+    # Check portrait asset
+    portrait_path = ROOT / "assets" / f"{card_id}_leader.png"
+    checks.append(("Portrait", portrait_path.exists(), f"{card_id}_leader.png"))
+
+    # Check background asset
+    bg_path = ROOT / "assets" / f"leader_bg_{card_id}.png"
+    checks.append(("Background", bg_path.exists(), f"leader_bg_{card_id}.png"))
+
+    return checks
+
+
+def verify_faction_integration(faction_name: str, faction_const: str) -> List[Tuple[str, bool, str]]:
+    """
+    Comprehensive faction integration check.
+
+    Returns list of (check_name, passed, details) tuples.
+    """
+    checks = []
+
+    # Check cards.py for faction constant
+    try:
+        cards_content = FILES["cards"].read_text()
+        has_constant = f'{faction_const} = "{faction_name}"' in cards_content
+        checks.append(("Faction constant", has_constant, f"{faction_const} in cards.py"))
+
+        # Check for faction section in ALL_CARDS
+        has_section = f"# --- {faction_name} ---" in cards_content
+        checks.append(("Faction section", has_section, f"Section marker in cards.py"))
+    except Exception as e:
+        checks.append(("cards.py", False, f"Error: {e}"))
+
+    # Check content_registry.py
+    try:
+        registry_content = FILES["content_registry"].read_text()
+        has_base_leaders = faction_const in registry_content and "BASE_FACTION_LEADERS" in registry_content
+        checks.append(("Base leaders", has_base_leaders, f"{faction_const} in BASE_FACTION_LEADERS"))
+    except Exception as e:
+        checks.append(("content_registry.py", False, f"Error: {e}"))
+
+    # Check game_config.py
+    try:
+        config_content = FILES["game_config"].read_text()
+        has_ui_color = f'"{faction_name}"' in config_content
+        checks.append(("UI colors", has_ui_color, f"Faction in FACTION_UI_COLORS"))
+    except Exception as e:
+        checks.append(("game_config.py", False, f"Error: {e}"))
+
+    # Check create_placeholders.py
+    try:
+        placeholders_content = FILES["create_placeholders"].read_text()
+        has_colors = faction_const in placeholders_content
+        checks.append(("Placeholder colors", has_colors, f"{faction_const} in create_placeholders.py"))
+    except Exception as e:
+        checks.append(("create_placeholders.py", False, f"Error: {e}"))
+
+    return checks
+
+
+def print_verification_results(checks: List[Tuple[str, bool, str]]):
+    """Print verification results in a formatted table."""
+    print("\n=== INTEGRATION VERIFICATION ===")
+    all_passed = True
+    for check_name, passed, details in checks:
+        status = "[OK]" if passed else "[!!]"
+        print(f"  {status} {check_name}: {details}")
+        if not passed:
+            all_passed = False
+
+    if all_passed:
+        print("\n  All checks passed!")
+    else:
+        print("\n  Some checks failed - manual review may be needed")
+
+    return all_passed
+
+
+# ============================================================================
 # CODE PARSING HELPERS
 # ============================================================================
 
@@ -478,10 +969,30 @@ def add_card_workflow():
     print("Enter card details:\n")
 
     card_id = get_input("Card ID (e.g., tauri_scientist)", validator=validate_card_id)
-    card_name = get_input("Card Name (e.g., SGC Scientist)")
+
+    # Validate card name is unique
+    while True:
+        card_name = get_input("Card Name (e.g., SGC Scientist)")
+        name_error = validate_card_name_unique(card_name)
+        if name_error:
+            print(f"  Warning: {name_error}")
+            if not confirm("Use this name anyway?", default=False):
+                continue
+        break
 
     factions = get_existing_factions()
     faction = select_from_list("Select Faction:", factions)
+
+    # Validate card_id prefix matches faction convention
+    prefix_warning = validate_leader_id_prefix(card_id, faction)
+    if prefix_warning:
+        # Use same prefix validation for cards
+        expected_prefix = card_id.split("_")[0] + "_"
+        faction_prefix = faction.lower().replace("'", "").replace(" ", "_")[:8]
+        if not card_id.startswith(faction_prefix):
+            print(f"  Note: Card ID doesn't start with faction prefix '{faction_prefix}_'")
+            if not confirm("Continue anyway?", default=True):
+                return
 
     power = get_int("Power (0-15)", min_val=0, max_val=15, default=5)
 
@@ -491,6 +1002,14 @@ def add_card_workflow():
     ability = select_from_list("Select Ability (or None):", ["None"] + abilities[:15], allow_custom=True)
     if ability == "None":
         ability = None
+
+    # Validate ability string if provided
+    if ability:
+        ability_warning = validate_ability_string(ability)
+        if ability_warning:
+            print(f"  Warning: {ability_warning}")
+            if not confirm("Use this ability anyway?", default=True):
+                ability = None
 
     is_unlockable = confirm("Is this an unlockable card?", default=False)
 
@@ -517,23 +1036,18 @@ def add_card_workflow():
     print("PREVIEW: New Card Entry")
     print("=" * 50)
 
-    ability_str = f'"{ability}"' if ability else "None"
-    card_code = f'    "{card_id}": Card("{card_id}", "{card_name}", {faction_const}, {power}, "{row}", {ability_str}),'
+    # Use format helpers to generate properly formatted code
+    card_code = format_card_entry(card_id, card_name, faction_const, power, row, ability)
 
     print(f"\ncards.py entry:")
     print(card_code)
 
     if is_unlockable:
+        unlockable_code = format_unlockable_entry(
+            card_id, card_name, faction, row, power, ability, description, rarity
+        )
         print(f"\nunlocks.py entry:")
-        print(f'    "{card_id}": {{')
-        print(f'        "name": "{card_name}",')
-        print(f'        "faction": "{faction}",')
-        print(f'        "row": "{row}",')
-        print(f'        "power": {power},')
-        print(f'        "ability": {ability_str},')
-        print(f'        "description": "{description}",')
-        print(f'        "rarity": "{rarity}"')
-        print(f'    }},')
+        print(unlockable_code)
 
     print()
 
@@ -545,12 +1059,8 @@ def add_card_workflow():
     print("\n=== STEP 1: cards.py ===")
 
     def modify_cards_py(content: str) -> str:
-        # Find insertion point for this faction
-        insert_pos = find_insertion_point_for_card(content, faction)
-
-        # Insert new card entry
-        new_entry = f'\n{card_code}'
-        return content[:insert_pos] + new_entry + content[insert_pos:]
+        # Use AST-aware insertion
+        return insert_card_entry_safely(content, faction, card_code)
 
     if not safe_modify_file(FILES["cards"], modify_cards_py, f"Added card {card_id}"):
         return
@@ -559,40 +1069,13 @@ def add_card_workflow():
     if is_unlockable:
         print("\n=== STEP 2: unlocks.py ===")
 
+        unlockable_code = format_unlockable_entry(
+            card_id, card_name, faction, row, power, ability, description, rarity
+        )
+
         def modify_unlocks_py(content: str) -> str:
-            # Find UNLOCKABLE_CARDS dict
-            pattern = r'(UNLOCKABLE_CARDS\s*=\s*\{)'
-            match = re.search(pattern, content)
-
-            if match:
-                # Find a good place to insert (before the closing brace)
-                # Look for the closing brace, accounting for nesting
-                start = match.end()
-                brace_count = 1
-                pos = start
-                while brace_count > 0 and pos < len(content):
-                    if content[pos] == '{':
-                        brace_count += 1
-                    elif content[pos] == '}':
-                        brace_count -= 1
-                    pos += 1
-
-                # Insert before the last closing brace
-                insert_pos = pos - 1
-
-                new_entry = f'''    "{card_id}": {{
-        "name": "{card_name}",
-        "faction": "{faction}",
-        "row": "{row}",
-        "power": {power},
-        "ability": {ability_str},
-        "description": "{description or ''}",
-        "rarity": "{rarity}"
-    }},
-'''
-                return content[:insert_pos] + new_entry + content[insert_pos:]
-
-            return content
+            # Use safe insertion helper
+            return insert_unlockable_entry_safely(content, unlockable_code)
 
         if not safe_modify_file(FILES["unlocks"], modify_unlocks_py, f"Added unlockable {card_id}"):
             # Rollback cards.py
@@ -627,19 +1110,8 @@ def add_card_workflow():
         generate_card_placeholder(card_id, card_name, faction, power, row, force=True)
 
     # === VERIFICATION ===
-    print("\n=== VERIFICATION ===")
-    try:
-        # Force reimport
-        if "cards" in sys.modules:
-            del sys.modules["cards"]
-        from cards import ALL_CARDS
-
-        if card_id in ALL_CARDS:
-            print(f"[OK] Card '{card_name}' successfully added!")
-        else:
-            print(f"[WARNING] Card not found in ALL_CARDS after modification")
-    except Exception as e:
-        print(f"[WARNING] Could not verify: {e}")
+    checks = verify_card_integration(card_id, faction, is_unlockable)
+    print_verification_results(checks)
 
     log(f"SESSION COMPLETE - Card '{card_name}' ({card_id}) added")
 
@@ -660,6 +1132,13 @@ def add_leader_workflow():
 
     factions = get_existing_factions()[:-1]  # Exclude Neutral
     faction = select_from_list("Select Faction:", factions)
+
+    # Validate leader card_id matches faction prefix
+    prefix_warning = validate_leader_id_prefix(card_id, faction)
+    if prefix_warning:
+        print(f"  Warning: {prefix_warning}")
+        if not confirm("Continue anyway?", default=False):
+            return
 
     ability_short = get_input("Ability (short description, e.g., 'Draw 2 cards when passing')")
     ability_desc = get_input("Ability Description (full explanation)")
@@ -796,9 +1275,10 @@ def add_leader_workflow():
         generate_leader_placeholders(card_id, name, faction, force=True)
 
     # === VERIFICATION ===
-    print("\n=== VERIFICATION ===")
-    print(f"[OK] Leader '{name}' ({card_id}) added!")
-    print(f"     Type: {'Unlockable' if is_unlockable else 'Base'}")
+    checks = verify_leader_integration(card_id, faction)
+    print_verification_results(checks)
+
+    print(f"\n     Type: {'Unlockable' if is_unlockable else 'Base'}")
     print(f"     Faction: {faction}")
 
     log(f"SESSION COMPLETE - Leader '{name}' ({card_id}) added")
@@ -948,6 +1428,11 @@ def add_faction_workflow():
     if confirm("Generate all placeholder images for this faction?"):
         generate_faction_placeholders(faction_name, faction_constant, cards,
                                       base_leaders + unlock_leaders)
+
+    # === VERIFICATION ===
+    print("\n=== INTEGRATION VERIFICATION ===")
+    checks = verify_faction_integration(faction_name, faction_constant)
+    print_verification_results(checks)
 
     print_header("FACTION CREATED!")
     print(f"'{faction_name}' has been added to the game.")
@@ -1253,7 +1738,7 @@ class {class_name}(FactionPower):
 
 def add_faction_to_placeholders_script(faction_name: str, faction_constant: str,
                                         primary_color: tuple) -> bool:
-    """Add faction to create_placeholders.py."""
+    """Add faction to create_placeholders.py including FACTION_NAME_ALIASES."""
 
     def modify(content: str) -> str:
         # Add to FACTION_COLORS
@@ -1274,6 +1759,40 @@ def add_faction_to_placeholders_script(faction_name: str, faction_constant: str,
             bg_id = faction_name.lower().replace(" ", "_").replace("'", "")
             new_line = f'\n    {faction_constant}: "{bg_id}",'
             content = content[:closing] + new_line + content[closing:]
+
+        # Add to FACTION_NAME_ALIASES for common variations
+        pattern = r'(FACTION_NAME_ALIASES\s*=\s*\{)'
+        match = re.search(pattern, content)
+        if match:
+            # Find the closing brace of the dict
+            start = match.end()
+            brace_count = 1
+            pos = start
+            while brace_count > 0 and pos < len(content):
+                if content[pos] == '{':
+                    brace_count += 1
+                elif content[pos] == '}':
+                    brace_count -= 1
+                pos += 1
+            closing = pos - 1
+
+            # Generate common aliases
+            clean_name = faction_name.replace("'", "").replace(" ", "")
+            short_name = faction_name.split()[0] if " " in faction_name else faction_name
+
+            aliases = [
+                f'    {faction_constant}: {faction_constant},',
+                f'    "{faction_name}": {faction_constant},',
+            ]
+            # Add short name alias if different
+            if short_name != faction_name:
+                aliases.append(f'    "{short_name}": {faction_constant},')
+            # Add clean name alias if different
+            if clean_name != faction_name and clean_name != short_name:
+                aliases.append(f'    "{clean_name}": {faction_constant},')
+
+            new_lines = '\n'.join(aliases)
+            content = content[:closing] + new_lines + '\n' + content[closing:]
 
         return content
 
@@ -2414,6 +2933,474 @@ def import_deck_json():
 
 
 # ============================================================================
+# MENU OPTION 11: BATCH IMPORT FROM JSON
+# ============================================================================
+
+def batch_import_workflow():
+    """Import multiple cards/leaders from JSON file."""
+    print_header("BATCH IMPORT FROM JSON")
+
+    print("This feature allows you to import multiple cards and/or leaders")
+    print("from a single JSON file.\n")
+
+    print("  1. Import from JSON file")
+    print("  2. Export JSON template")
+    print("  3. View example JSON format")
+    print("  0. Back")
+    print()
+
+    choice = get_input("Choice", default="0")
+
+    if choice == "1":
+        import_from_json_file()
+    elif choice == "2":
+        export_json_template()
+    elif choice == "3":
+        show_json_format_example()
+
+
+def validate_batch_json(data: dict) -> List[str]:
+    """
+    Validate JSON structure and content for batch import.
+
+    Returns list of error messages (empty if valid).
+    """
+    errors = []
+
+    if not isinstance(data, dict):
+        errors.append("Root must be a JSON object")
+        return errors
+
+    # Validate cards
+    if "cards" in data:
+        if not isinstance(data["cards"], list):
+            errors.append("'cards' must be an array")
+        else:
+            for i, card in enumerate(data["cards"]):
+                card_errors = validate_batch_card(card, i)
+                errors.extend(card_errors)
+
+    # Validate leaders
+    if "leaders" in data:
+        if not isinstance(data["leaders"], list):
+            errors.append("'leaders' must be an array")
+        else:
+            for i, leader in enumerate(data["leaders"]):
+                leader_errors = validate_batch_leader(leader, i)
+                errors.extend(leader_errors)
+
+    if "cards" not in data and "leaders" not in data:
+        errors.append("JSON must contain 'cards' and/or 'leaders' array")
+
+    return errors
+
+
+def validate_batch_card(card: dict, index: int) -> List[str]:
+    """Validate a single card entry in batch import."""
+    errors = []
+    prefix = f"Card[{index}]"
+
+    required_fields = ["card_id", "name", "faction", "power", "row"]
+    for field in required_fields:
+        if field not in card:
+            errors.append(f"{prefix}: missing required field '{field}'")
+
+    if "card_id" in card:
+        id_error = validate_card_id(card["card_id"])
+        if id_error:
+            errors.append(f"{prefix}: {id_error}")
+
+    if "row" in card and card["row"] not in VALID_ROWS:
+        errors.append(f"{prefix}: invalid row '{card['row']}' - must be one of {VALID_ROWS}")
+
+    if "power" in card:
+        try:
+            power = int(card["power"])
+            if not 0 <= power <= 20:
+                errors.append(f"{prefix}: power must be 0-20")
+        except (ValueError, TypeError):
+            errors.append(f"{prefix}: power must be a number")
+
+    if card.get("is_unlockable") and "rarity" not in card:
+        errors.append(f"{prefix}: unlockable cards require 'rarity' field")
+
+    return errors
+
+
+def validate_batch_leader(leader: dict, index: int) -> List[str]:
+    """Validate a single leader entry in batch import."""
+    errors = []
+    prefix = f"Leader[{index}]"
+
+    required_fields = ["card_id", "name", "faction", "ability", "ability_desc"]
+    for field in required_fields:
+        if field not in leader:
+            errors.append(f"{prefix}: missing required field '{field}'")
+
+    if "card_id" in leader:
+        id_error = validate_card_id(leader["card_id"])
+        if id_error:
+            errors.append(f"{prefix}: {id_error}")
+
+    if "faction" in leader:
+        valid_factions = get_existing_factions()[:-1]  # Exclude Neutral
+        if leader["faction"] not in valid_factions:
+            errors.append(f"{prefix}: invalid faction '{leader['faction']}'")
+
+    return errors
+
+
+def process_batch_cards(cards: List[dict]) -> Tuple[int, int]:
+    """
+    Process batch cards.
+
+    Returns (success_count, error_count).
+    """
+    success = 0
+    errors = 0
+
+    for card in cards:
+        try:
+            card_id = card["card_id"]
+            name = card["name"]
+            faction = card["faction"]
+            power = int(card["power"])
+            row = card["row"]
+            ability = card.get("ability")
+            is_unlockable = card.get("is_unlockable", False)
+            rarity = card.get("rarity", "common")
+            description = card.get("description", "")
+
+            # Get faction constant
+            faction_constants = get_existing_faction_constants()
+            faction_const = None
+            for const, val in faction_constants.items():
+                if val == faction:
+                    faction_const = const
+                    break
+
+            if not faction_const:
+                clean_faction = faction.upper().replace(' ', '_').replace("'", '')
+                faction_const = f"FACTION_{clean_faction}"
+
+            # Generate formatted code
+            card_code = format_card_entry(card_id, name, faction_const, power, row, ability)
+
+            # Modify cards.py
+            def modify_cards(content: str) -> str:
+                return insert_card_entry_safely(content, faction, card_code)
+
+            if not safe_modify_file(FILES["cards"], modify_cards, f"Added card {card_id}"):
+                errors += 1
+                continue
+
+            # Modify unlocks.py if unlockable
+            if is_unlockable:
+                unlock_code = format_unlockable_entry(
+                    card_id, name, faction, row, power, ability, description, rarity
+                )
+
+                def modify_unlocks(content: str) -> str:
+                    return insert_unlockable_entry_safely(content, unlock_code)
+
+                if not safe_modify_file(FILES["unlocks"], modify_unlocks, f"Added unlockable {card_id}"):
+                    errors += 1
+                    continue
+
+            # Update card_catalog.json
+            def modify_catalog(data: dict) -> dict:
+                if faction not in data:
+                    data[faction] = []
+                data[faction].append({
+                    "card_id": card_id,
+                    "name": name,
+                    "faction": faction,
+                    "power": power,
+                    "row": row,
+                    "ability": ability
+                })
+                return data
+
+            safe_modify_json(FILES["card_catalog"], modify_catalog, f"Added {card_id} to catalog")
+
+            success += 1
+            print(f"  [OK] Added card: {name} ({card_id})")
+
+        except Exception as e:
+            errors += 1
+            print(f"  [ERROR] Failed to add card {card.get('card_id', '?')}: {e}")
+
+    return success, errors
+
+
+def process_batch_leaders(leaders: List[dict]) -> Tuple[int, int]:
+    """
+    Process batch leaders.
+
+    Returns (success_count, error_count).
+    """
+    success = 0
+    errors = 0
+
+    for leader in leaders:
+        try:
+            card_id = leader["card_id"]
+            name = leader["name"]
+            faction = leader["faction"]
+            ability = leader["ability"]
+            ability_desc = leader["ability_desc"]
+            is_unlockable = leader.get("is_unlockable", True)
+            color_override = leader.get("color_override")
+            banner_name = leader.get("banner_name", name.split()[-1])
+
+            # Get faction constant
+            faction_constants = get_existing_faction_constants()
+            faction_const = None
+            for const, val in faction_constants.items():
+                if val == faction:
+                    faction_const = const
+                    break
+
+            if not faction_const:
+                print(f"  [ERROR] Unknown faction: {faction}")
+                errors += 1
+                continue
+
+            # Format leader entry
+            leader_entry = format_leader_entry(name, ability, ability_desc, card_id)
+
+            # Modify content_registry.py
+            def modify_registry(content: str) -> str:
+                target_dict = "UNLOCKABLE_LEADERS" if is_unlockable else "BASE_FACTION_LEADERS"
+                content = insert_leader_entry_safely(content, target_dict, faction_const, leader_entry)
+
+                # Add color override if provided
+                if color_override:
+                    pattern = r'(LEADER_COLOR_OVERRIDES\s*=\s*\{)'
+                    match = re.search(pattern, content)
+                    if match:
+                        end = content.find("}", match.end())
+                        new_line = f'\n    "{card_id}": {tuple(color_override)},'
+                        content = content[:end] + new_line + content[end:]
+
+                # Add banner name
+                pattern = r'(LEADER_BANNER_NAMES\s*=\s*\{)'
+                match = re.search(pattern, content)
+                if match:
+                    end = content.find("}", match.end())
+                    new_line = f'\n    "{card_id}": "{banner_name}",'
+                    content = content[:end] + new_line + content[end:]
+
+                return content
+
+            if not safe_modify_file(FILES["content_registry"], modify_registry, f"Added leader {card_id}"):
+                errors += 1
+                continue
+
+            # Update leader_catalog.json
+            def modify_leader_catalog(data: dict) -> dict:
+                key = faction_const
+                if key not in data:
+                    data[key] = {"base": [], "unlockable": []}
+
+                target = "unlockable" if is_unlockable else "base"
+                data[key][target].append({
+                    "name": name,
+                    "ability": ability,
+                    "ability_desc": ability_desc,
+                    "card_id": card_id
+                })
+                return data
+
+            safe_modify_json(FILES["leader_catalog"], modify_leader_catalog, f"Added leader {card_id}")
+
+            success += 1
+            print(f"  [OK] Added leader: {name} ({card_id})")
+
+        except Exception as e:
+            errors += 1
+            print(f"  [ERROR] Failed to add leader {leader.get('card_id', '?')}: {e}")
+
+    return success, errors
+
+
+def import_from_json_file():
+    """Import cards and leaders from a JSON file."""
+    print_header("IMPORT FROM JSON FILE")
+
+    file_path = get_input("Path to JSON file")
+    path = Path(file_path)
+
+    if not path.exists():
+        print(f"[ERROR] File not found: {path}")
+        return
+
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Invalid JSON: {e}")
+        return
+
+    # Validate
+    print("\n=== VALIDATING JSON ===")
+    validation_errors = validate_batch_json(data)
+
+    if validation_errors:
+        print(f"\n[ERROR] Found {len(validation_errors)} validation errors:")
+        for error in validation_errors[:10]:
+            print(f"  - {error}")
+        if len(validation_errors) > 10:
+            print(f"  ... and {len(validation_errors) - 10} more errors")
+        return
+
+    print("[OK] JSON validation passed")
+
+    # Summary
+    cards = data.get("cards", [])
+    leaders = data.get("leaders", [])
+
+    print(f"\n=== IMPORT SUMMARY ===")
+    print(f"  Cards to import: {len(cards)}")
+    print(f"  Leaders to import: {len(leaders)}")
+
+    if not confirm("\nProceed with import?"):
+        print("Cancelled.")
+        return
+
+    # Process cards
+    card_success = 0
+    card_errors = 0
+    if cards:
+        print("\n=== IMPORTING CARDS ===")
+        card_success, card_errors = process_batch_cards(cards)
+
+    # Process leaders
+    leader_success = 0
+    leader_errors = 0
+    if leaders:
+        print("\n=== IMPORTING LEADERS ===")
+        leader_success, leader_errors = process_batch_leaders(leaders)
+
+    # Final summary
+    print("\n=== IMPORT COMPLETE ===")
+    print(f"  Cards:   {card_success} added, {card_errors} failed")
+    print(f"  Leaders: {leader_success} added, {leader_errors} failed")
+
+    if card_errors + leader_errors > 0:
+        print("\n  Some imports failed - check the log for details")
+
+    # Generate placeholders
+    if card_success + leader_success > 0:
+        if confirm("\nGenerate placeholder images for imported content?"):
+            print("\n=== GENERATING PLACEHOLDERS ===")
+            for card in cards:
+                try:
+                    generate_card_placeholder(
+                        card["card_id"], card["name"], card["faction"],
+                        int(card["power"]), card["row"], force=True
+                    )
+                except Exception:
+                    pass
+            for leader in leaders:
+                try:
+                    generate_leader_placeholders(
+                        leader["card_id"], leader["name"], leader["faction"], force=True
+                    )
+                except Exception:
+                    pass
+
+
+def export_json_template():
+    """Generate JSON template for batch import with examples."""
+    print_header("EXPORT JSON TEMPLATE")
+
+    template = {
+        "cards": [
+            {
+                "card_id": "tauri_example",
+                "name": "Example Card",
+                "faction": "Tau'ri",
+                "power": 5,
+                "row": "ranged",
+                "ability": None,
+                "is_unlockable": False
+            },
+            {
+                "card_id": "goauld_example",
+                "name": "Example Unlockable",
+                "faction": "Goa'uld",
+                "power": 7,
+                "row": "close",
+                "ability": "Survival Instinct",
+                "is_unlockable": True,
+                "rarity": "rare",
+                "description": "An example unlockable card"
+            }
+        ],
+        "leaders": [
+            {
+                "card_id": "tauri_example_leader",
+                "name": "Example Leader",
+                "faction": "Tau'ri",
+                "ability": "Draw 1 card when passing",
+                "ability_desc": "When you pass your turn, draw 1 card from your deck",
+                "is_unlockable": True,
+                "banner_name": "Example"
+            }
+        ]
+    }
+
+    output_path = ROOT / "batch_import_template.json"
+    output_path.write_text(json.dumps(template, indent=2))
+
+    print(f"[OK] Template exported to: {output_path}")
+    print("\nEdit this file with your content, then use option 1 to import.")
+
+
+def show_json_format_example():
+    """Display example JSON format for batch import."""
+    print_header("JSON FORMAT EXAMPLE")
+
+    print("""
+The JSON file should have the following structure:
+
+{
+  "cards": [
+    {
+      "card_id": "faction_cardname",      // Required: lowercase, underscores
+      "name": "Card Display Name",        // Required: the name shown in-game
+      "faction": "Tau'ri",                // Required: exact faction name
+      "power": 5,                         // Required: 0-20
+      "row": "ranged",                    // Required: close/ranged/siege/agile
+      "ability": "Tactical Formation",    // Optional: null or ability string
+      "is_unlockable": false,             // Optional: default false
+      "rarity": "rare",                   // Required if unlockable
+      "description": "Flavor text"        // Optional for unlockables
+    }
+  ],
+  "leaders": [
+    {
+      "card_id": "faction_leadername",    // Required: must match faction prefix
+      "name": "Leader Name",              // Required: display name
+      "faction": "Tau'ri",                // Required: exact faction name
+      "ability": "Short ability text",    // Required: brief description
+      "ability_desc": "Full description", // Required: detailed explanation
+      "is_unlockable": true,              // Optional: default true
+      "banner_name": "ShortName",         // Optional: short display name
+      "color_override": [50, 100, 150]    // Optional: RGB color array
+    }
+  ]
+}
+
+Valid factions: Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard
+Valid rows: close, ranged, siege, agile, special, weather
+Valid rarities: common, rare, epic, legendary
+""")
+
+    input("\nPress Enter to continue...")
+
+
+# ============================================================================
 # MAIN MENU
 # ============================================================================
 
@@ -2436,6 +3423,7 @@ def main_menu():
         print("|  6. Regenerate all documentation               |")
         print("|  7. Asset Checker (find missing images)        |")
         print("|  8. Balance Analyzer (power stats)             |")
+        print("| 11. Batch Import (from JSON)                   |")
         print("|                                                |")
         print("|  === USER TOOLS ===                            |")
         print("|  9. Save Manager (backup/restore saves)        |")
@@ -2475,6 +3463,8 @@ def main_menu():
                 save_manager_workflow()
             elif choice == "10":
                 deck_import_export_workflow()
+            elif choice == "11":
+                batch_import_workflow()
             else:
                 print("Invalid choice")
         except KeyboardInterrupt:

@@ -120,7 +120,7 @@ ALL_CARDS = {
     "goauld_plasma_emplacement": Card("goauld_plasma_emplacement", "Plasma Weapon Emplacement", FACTION_GOAULD, 6, "siege", None),
     "goauld_hatak_1": Card("goauld_hatak_1", "Ha'tak Mothership", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
     "goauld_hatak_2": Card("goauld_hatak_2", "Ha'tak Mothership", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
-    "goauld_ancient_drone": Card("goauld_ancient_drone", "Ancient Defense Drone", FACTION_GOAULD, 5, "siege", None),
+    "goauld_ancient_weapon": Card("goauld_ancient_weapon", "RA Weapon", FACTION_GOAULD, 10, "siege", None),
 
     # --- Jaffa Rebellion ---
     "jaffa_tealc": Card("jaffa_tealc", "Teal'c", FACTION_JAFFA, 10, "ranged", "Legendary Commander"),
@@ -288,14 +288,7 @@ ALL_CARDS = {
     "ancient_communication_stones": Card("ancient_communication_stones", "Ancient Communication Device", FACTION_NEUTRAL, 0, "special", "Reveal opponent's hand for 30 seconds"),
     "asuran_warship": Card("asuran_warship", "Asuran Aurora-class", FACTION_NEUTRAL, 10, "siege", "Grant ZPM, Tactical Formation"),
     "destiny_ship": Card("destiny_ship", "Ancient Ship Destiny", FACTION_NEUTRAL, 15, "siege", "Legendary Commander"),
-    "neutral_quantum_mirror": Card(
-        "neutral_quantum_mirror",
-        "Quantum Mirror",
-        FACTION_NEUTRAL,
-        0,
-        "special",
-        "Shuffle your hand into deck, draw same number of cards. Ends hand reveal."
-    ),
+    "neutral_quantum_mirror": Card("neutral_quantum_mirror", "Quantum Mirror", FACTION_NEUTRAL, 0, "special", "Shuffle your hand into deck, draw same number of cards. Ends hand reveal."),
 }
 
 

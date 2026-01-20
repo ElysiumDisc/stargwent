@@ -31,7 +31,7 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_yu",
+    "leader": "goauld_anubis",
     "cards": [
       "goauld_osiris_guard_1",
       "goauld_kull_warrior_2",
@@ -42,7 +42,7 @@
       "goauld_serpent_guard_1",
       "goauld_apophis",
       "neutral_clear_weather_1",
-      "goauld_ancient_drone",
+      "goauld_ancient_weapon",
       "goauld_scout",
       "goauld_sokar",
       "goauld_jaffa_master",

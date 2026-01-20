@@ -20,10 +20,10 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-4.9.0-blue)
+![Version](https://img.shields.io/badge/version-5.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
-![Resolution](https://img.shields.io/badge/resolution-4K%20(3840x2160)-purple)
+![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
 ![Status](https://img.shields.io/badge/status-Optimized-brightgreen)
 
 ---
@@ -189,6 +189,36 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 5.0.0 (January 2026)
+**Content Manager Reliability & Batch Import**
+
+- ✅ **JSON Batch Import (Option 11)** – Import multiple cards and leaders from a single JSON file:
+  - Define cards with: `card_id`, `name`, `faction`, `power`, `row`, `ability`, `is_unlockable`, `rarity`, `description`
+  - Define leaders with: `card_id`, `name`, `faction`, `ability`, `ability_desc`, `is_unlockable`, `banner_name`, `color_override`
+  - Full JSON validation with detailed error messages before import
+  - Export JSON template with example entries to get started
+  - Optional placeholder image generation for all imported content
+- ✅ **Robust Code Insertion** – AST-aware parsing replaces fragile regex:
+  - `format_card_entry()` - generates cards.py format (4-space indent, single line)
+  - `format_unlockable_entry()` - generates unlocks.py format (multiline with proper indentation)
+  - `format_leader_entry()` - generates content_registry.py leader format
+  - `find_faction_section_end()` - finds correct insertion point by faction section
+  - Preserves exact formatting patterns from existing files
+- ✅ **Enhanced Validation** – Catch errors before they break the game:
+  - `validate_card_name_unique()` - warns if card name already exists
+  - `validate_leader_id_prefix()` - ensures leader IDs match faction convention (e.g., `tauri_` for Tau'ri)
+  - `validate_ability_string()` - checks abilities against the Ability enum
+  - `validate_faction_complete()` - verifies all required faction components
+- ✅ **Integration Verification** – Automatic checks after adding content:
+  - `verify_card_integration()` - checks cards.py, card_catalog.json, unlocks.py, assets
+  - `verify_leader_integration()` - checks content_registry.py, leader_catalog.json, portraits
+  - `verify_faction_integration()` - comprehensive check across all faction-related files
+  - Clear [OK]/[!!] status output for each verification check
+- ✅ **Faction Workflow Fixes** – Complete integration for new factions:
+  - Now adds `FACTION_NAME_ALIASES` entries in create_placeholders.py
+  - Generates common aliases (full name, short name, clean name)
+  - Verification step at end of faction creation
 
 ### Version 4.9.0 (January 2026)
 **Content Manager Developer Tool**
@@ -1236,6 +1266,7 @@ python scripts/content_manager.py
 ║  6. Regenerate all documentation             ║
 ║  7. Asset Checker (find missing images)      ║
 ║  8. Balance Analyzer (power stats)           ║
+║  11. Batch Import (from JSON)                ║
 ║                                              ║
 ║  === USER TOOLS ===                          ║
 ║  9. Save Manager (backup/restore saves)      ║
@@ -1259,6 +1290,7 @@ python scripts/content_manager.py
 | **8. Balance Analyzer** | Power distribution, ability frequency, faction balance stats |
 | **9. Save Manager** | Backup/restore player_unlocks.json, player_decks.json, player_stats.json |
 | **10. Deck Import/Export** | Share decks via JSON or text format |
+| **11. Batch Import** | Import multiple cards/leaders from a JSON file |
 
 ### Safety Features
 
@@ -1298,6 +1330,83 @@ Add this entry? [Y/n]: y
 Testing imports... OK
 
 Done! Card "SGC Scientist" ready to use.
+```
+
+### Example: Batch Import from JSON
+
+Create a JSON file with cards and/or leaders:
+
+```json
+{
+  "cards": [
+    {
+      "card_id": "tauri_scientist",
+      "name": "SGC Scientist",
+      "faction": "Tau'ri",
+      "power": 3,
+      "row": "ranged",
+      "ability": null,
+      "is_unlockable": false
+    },
+    {
+      "card_id": "goauld_elite",
+      "name": "Elite Jaffa Guard",
+      "faction": "Goa'uld",
+      "power": 7,
+      "row": "close",
+      "ability": "Survival Instinct",
+      "is_unlockable": true,
+      "rarity": "rare",
+      "description": "A battle-hardened warrior"
+    }
+  ],
+  "leaders": [
+    {
+      "card_id": "tauri_newleader",
+      "name": "New Leader Name",
+      "faction": "Tau'ri",
+      "ability": "Draw 1 card when passing",
+      "ability_desc": "When you pass your turn, draw 1 card from your deck",
+      "is_unlockable": true,
+      "banner_name": "NewLeader"
+    }
+  ]
+}
+```
+
+Then import:
+
+```
+Choice: 11
+
+=== BATCH IMPORT FROM JSON ===
+  1. Import from JSON file
+  2. Export JSON template
+  3. View example JSON format
+  0. Back
+
+Choice: 1
+Path to JSON file: my_cards.json
+
+=== VALIDATING JSON ===
+[OK] JSON validation passed
+
+=== IMPORT SUMMARY ===
+  Cards to import: 2
+  Leaders to import: 1
+
+Proceed with import? [Y/n]: y
+
+=== IMPORTING CARDS ===
+  [OK] Added card: SGC Scientist (tauri_scientist)
+  [OK] Added card: Elite Jaffa Guard (goauld_elite)
+
+=== IMPORTING LEADERS ===
+  [OK] Added leader: New Leader Name (tauri_newleader)
+
+=== IMPORT COMPLETE ===
+  Cards:   2 added, 0 failed
+  Leaders: 1 added, 0 failed
 ```
 
 ### Restoring From Backup
