@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.2.0-blue)
+![Version](https://img.shields.io/badge/version-5.3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -192,6 +192,22 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 5.3.0 (January 2026)
+**Movie-Accurate Stargate Animation & Rule Compendium Polish**
+
+#### New Stargate Opening Animation
+- ✅ **Cinematic Stargate Sequence** – Complete visual overhaul of the Stargate opening animation with movie-accurate effects:
+  - **Rotating Inner Ring** – The inner symbol ring rotates and stops at randomized glyphs, alternating clockwise/counter-clockwise for each chevron
+  - **9-Chevron Locking Sequence** – Each chevron lights up, engages with a visual "clunk" bump, and locks in sequence
+  - **Enhanced Kawoosh Effect** – Directional particle cone with 300 layered particles that burst outward, extend, retract, then stabilize
+  - **Event Horizon Particles** – 100 swirling particles create the iconic blue ripple effect inside the gate
+  - **16-Second Duration** – Timed to match the audio cue for full immersion
+  - **State Machine Control** – Kawoosh progresses through dormant → burst → extend → retract → stable phases
+
+#### Rule Compendium Improvements
+- ✅ **Scaling Fix** – Rule Compendium UI now scales properly across all resolutions (4K, 1440p, 1080p)
+- ✅ **Enhanced Layout** – Improved text rendering and section organization in the rules menu
 
 ### Version 5.2.0 (January 2026)
 **LAN Multiplayer Reliability & Chat Overhaul**
