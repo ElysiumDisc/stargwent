@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 5,
-  "total_games": 15,
+  "total_games": 21,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ori Warship": {
@@ -82,7 +82,7 @@
       "id": "tauri_jackson"
     },
     "Dr. Janet Fraiser": {
-      "plays": 5,
+      "plays": 6,
       "wins": 4,
       "id": "tauri_fraiser"
     },
@@ -112,9 +112,9 @@
       "id": "neutral_ascended_daniel"
     },
     "Micrometeorite Shower": {
-      "plays": 4,
+      "plays": 5,
       "wins": 2,
-      "id": "neutral_torrential_rain_1"
+      "id": "neutral_torrential_rain_2"
     },
     "Tok'ra Deep Cover Operative": {
       "plays": 4,
@@ -137,22 +137,22 @@
       "id": "goauld_yu"
     },
     "Serpent Guard Elite": {
-      "plays": 3,
+      "plays": 4,
       "wins": 0,
-      "id": "goauld_serpent_guard_2"
+      "id": "goauld_serpent_guard_1"
     },
     "Ha'tak Mothership": {
-      "plays": 3,
+      "plays": 4,
       "wins": 0,
       "id": "goauld_hatak_2"
     },
     "Apophis": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_apophis"
     },
     "Goa'uld Symbiote": {
-      "plays": 4,
+      "plays": 6,
       "wins": 0,
       "id": "goauld_symbiote"
     },
@@ -162,14 +162,14 @@
       "id": "goauld_sokar"
     },
     "Tel'tak Courier": {
-      "plays": 2,
+      "plays": 4,
       "wins": 0,
-      "id": "goauld_teltak_2"
+      "id": "goauld_teltak_1"
     },
     "Death Glider Swarm": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
-      "id": "goauld_glider_swarm_3"
+      "id": "goauld_glider_swarm_2"
     },
     "Council of Ba'al": {
       "plays": 2,
@@ -177,29 +177,29 @@
       "id": "goauld_council_baal"
     },
     "Anubis Guard": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_anubis_guard_1"
     },
     "Jaffa Master": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
       "id": "goauld_jaffa_master"
     },
     "Solar Flare/Ion Storm": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "neutral_clear_weather_1"
     },
     "Osiris Guard": {
-      "plays": 1,
+      "plays": 3,
       "wins": 0,
-      "id": "goauld_osiris_guard_2"
+      "id": "goauld_osiris_guard_1"
     },
     "Goa'uld Drone": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
-      "id": "goauld_drone_2"
+      "id": "goauld_drone_3"
     },
     "Kull Warrior": {
       "plays": 2,
@@ -207,9 +207,9 @@
       "id": "goauld_kull_warrior_2"
     },
     "Unscheduled Jaffa": {
-      "plays": 1,
+      "plays": 2,
       "wins": 0,
-      "id": "goauld_unscheduled_jaffa_1"
+      "id": "goauld_unscheduled_jaffa_2"
     },
     "Asgard Observer": {
       "plays": 1,
@@ -225,13 +225,28 @@
       "plays": 1,
       "wins": 0,
       "id": "goauld_rebel_jaffa"
+    },
+    "Plasma Weapon Emplacement": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_plasma_emplacement"
+    },
+    "Ra Weapon": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_ancient_weapon"
+    },
+    "Isis": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_isis"
     }
   },
   "faction_wins": {
     "Tau'ri": 5
   },
   "max_streak": 3,
-  "ai_games": 15,
+  "ai_games": 21,
   "ai_wins": 5,
   "lan_games": 0,
   "lan_wins": 0,
@@ -241,7 +256,7 @@
       "wins": 5
     },
     "Sokar": {
-      "games": 1,
+      "games": 4,
       "wins": 0
     },
     "Gen. Landry": {
@@ -249,7 +264,7 @@
       "wins": 0
     },
     "Apophis": {
-      "games": 1,
+      "games": 3,
       "wins": 0
     },
     "Jonas Quinn": {
@@ -257,7 +272,7 @@
       "wins": 0
     },
     "Lord Yu": {
-      "games": 1,
+      "games": 2,
       "wins": 0
     }
   },
@@ -282,17 +297,17 @@
     },
     "Goa'uld": {
       "Tau'ri": {
-        "games": 1,
+        "games": 3,
         "wins": 0
       },
       "Jaffa Rebellion": {
-        "games": 2,
+        "games": 6,
         "wins": 0
       }
     }
   },
   "last_results": [
-    "W",
+    "L",
     "L",
     "L",
     "L",
@@ -304,9 +319,9 @@
     "L"
   ],
   "turn_stats": {
-    "total": 716,
-    "games": 15,
-    "min": 16,
+    "total": 808,
+    "games": 21,
+    "min": 9,
     "max": 112,
     "history": [
       76,
@@ -323,31 +338,37 @@
       46,
       34,
       26,
-      28
+      28,
+      9,
+      11,
+      15,
+      15,
+      15,
+      27
     ]
   },
   "mulligans": {
-    "total": 35,
-    "games": 15
+    "total": 47,
+    "games": 21
   },
   "ability_usage": {
     "medic": 3,
     "decoy": 0,
-    "faction_power": 2,
+    "faction_power": 3,
     "iris_blocks": 3
   },
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 2,
-    "sweeps_against": 7,
+    "sweeps_against": 12,
     "close_wins": 3,
-    "close_losses": 3,
+    "close_losses": 4,
     "comebacks": 3,
-    "first_turn_games": 15,
+    "first_turn_games": 21,
     "first_turn_wins": 2
   },
   "draft_stats": {
-    "runs_started": 52,
+    "runs_started": 53,
     "runs_completed": 0,
     "battles_won": 0,
     "battles_lost": 0,
@@ -365,11 +386,9 @@
     "wins": 0,
     "losses": 0,
     "phase": "draft",
-    "current_pick": 1,
-    "leader_id": "jaffa_tealc",
-    "card_ids": [
-      "goauld_kull_warrior_1"
-    ],
+    "current_pick": 0,
+    "leader_id": "jaffa_ryac",
+    "card_ids": [],
     "cards_to_remove_count": 0
   }
 }

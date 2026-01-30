@@ -10,15 +10,33 @@ from game_settings import get_settings
 
 
 class SoundEffectManager:
-    """Manages card-specific sound effects, particularly legendary commander snippets."""
+    """Manages card-specific sound effects, particularly legendary commander snippets.
+
+    Features:
+    - Channel management with reserved channels for critical sounds
+    - Audio fadeout for smooth transitions
+    - Sound caching for performance
+    - Volume control integration with game settings
+    """
 
     COMMANDER_SNIPPETS_PATH = os.path.join("assets", "audio", "commander_snippets")
     ROW_SOUNDS_PATH = os.path.join("assets", "audio")
+
+    # Channel configuration
+    NUM_CHANNELS = 16  # Increased from default 8 for complex audio scenarios
+    NUM_RESERVED_CHANNELS = 2  # Channels 0-1 reserved for critical sounds (victory/defeat)
+
+    # Default fadeout durations (milliseconds)
+    FADE_QUICK = 300
+    FADE_NORMAL = 500
+    FADE_SLOW = 800
 
     def __init__(self):
         self._ensure_mixer_ready()
         self.loaded_sounds = {}
         self.settings = get_settings()
+        self._reserved_channels = []
+        self._setup_channels()
 
     def _ensure_mixer_ready(self):
         """Initialize pygame mixer if not already done."""
@@ -30,6 +48,99 @@ class SoundEffectManager:
         except pygame.error as exc:
             print(f"[audio] Unable to init mixer for sound effects: {exc}")
             return False
+
+    def _setup_channels(self):
+        """Configure audio channels with reserved channels for critical sounds."""
+        if not pygame.mixer.get_init():
+            return
+
+        try:
+            # Increase total channels
+            pygame.mixer.set_num_channels(self.NUM_CHANNELS)
+
+            # Reserve channels for critical sounds (victory, defeat, important UI)
+            pygame.mixer.set_reserved(self.NUM_RESERVED_CHANNELS)
+
+            # Cache reserved channel references
+            self._reserved_channels = [
+                pygame.mixer.Channel(i)
+                for i in range(self.NUM_RESERVED_CHANNELS)
+            ]
+
+            print(f"[audio] Configured {self.NUM_CHANNELS} channels, "
+                  f"{self.NUM_RESERVED_CHANNELS} reserved for critical sounds")
+        except pygame.error as exc:
+            print(f"[audio] Channel setup failed: {exc}")
+
+    def get_critical_channel(self, index=0):
+        """Get a reserved channel for critical sounds.
+
+        Args:
+            index: Which reserved channel (0 or 1)
+
+        Returns:
+            pygame.mixer.Channel or None
+        """
+        if 0 <= index < len(self._reserved_channels):
+            return self._reserved_channels[index]
+        return None
+
+    def play_critical_sound(self, sound, volume=1.0):
+        """Play a sound on a reserved channel (won't be interrupted).
+
+        Args:
+            sound: pygame.mixer.Sound object
+            volume: Volume level 0.0 to 1.0
+
+        Returns:
+            pygame.mixer.Channel or None
+        """
+        channel = self.get_critical_channel(0)
+        if channel and sound:
+            try:
+                sound.set_volume(self._get_effective_sfx_volume(volume))
+                channel.play(sound)
+                return channel
+            except pygame.error:
+                pass
+        return None
+
+    def fadeout_all(self, fade_ms=None):
+        """Fade out all sound effects.
+
+        Args:
+            fade_ms: Fadeout duration in milliseconds (default: FADE_NORMAL)
+        """
+        if fade_ms is None:
+            fade_ms = self.FADE_NORMAL
+
+        if pygame.mixer.get_init():
+            try:
+                # Fadeout all channels (not music)
+                for i in range(pygame.mixer.get_num_channels()):
+                    channel = pygame.mixer.Channel(i)
+                    if channel.get_busy():
+                        channel.fadeout(fade_ms)
+            except pygame.error:
+                # Fallback to immediate stop
+                pygame.mixer.stop()
+
+    def fadeout_sound(self, cache_key, fade_ms=None):
+        """Fade out a specific cached sound.
+
+        Args:
+            cache_key: Key in loaded_sounds cache
+            fade_ms: Fadeout duration in milliseconds
+        """
+        if fade_ms is None:
+            fade_ms = self.FADE_NORMAL
+
+        sound = self.loaded_sounds.get(cache_key)
+        if sound:
+            try:
+                sound.fadeout(fade_ms)
+            except pygame.error:
+                sound.stop()
 
     def _get_effective_sfx_volume(self, requested_volume: float) -> float:
         """Scale requested volume by the user's settings."""

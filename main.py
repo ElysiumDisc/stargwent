@@ -3897,7 +3897,7 @@ def main(lan_game_data=None):
 
             # Pause menu
             menu_width = 500
-            menu_height = 480
+            menu_height = 550  # Increased to fit surrender button
             menu_x = (SCREEN_WIDTH - menu_width) // 2
             menu_y = (SCREEN_HEIGHT - menu_height) // 2
 
@@ -3937,8 +3937,20 @@ def main(lan_game_data=None):
             options_rect = options_text.get_rect(center=options_button.center)
             screen.blit(options_text, options_rect)
 
-            # Main Menu button
-            main_menu_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * 2, button_width, button_height)
+            # Surrender button (only show if game is still in progress)
+            surrender_button = None
+            if game.game_state == "playing":
+                surrender_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * 2, button_width, button_height)
+                surrender_hover = surrender_button.collidepoint(mouse_pos)
+                pygame.draw.rect(screen, (180, 100, 50) if surrender_hover else (140, 70, 30), surrender_button, border_radius=10)
+                pygame.draw.rect(screen, (220, 140, 80) if surrender_hover else (160, 90, 50), surrender_button, 2, border_radius=10)
+                surrender_text = button_font.render("SURRENDER", True, (255, 255, 255))
+                surrender_rect = surrender_text.get_rect(center=surrender_button.center)
+                screen.blit(surrender_text, surrender_rect)
+
+            # Main Menu button (shifted down if surrender is shown)
+            main_menu_offset = 3 if game.game_state == "playing" else 2
+            main_menu_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * main_menu_offset, button_width, button_height)
             main_menu_hover = main_menu_button.collidepoint(mouse_pos)
             pygame.draw.rect(screen, (200, 160, 60) if main_menu_hover else (160, 120, 40), main_menu_button, border_radius=10)
             pygame.draw.rect(screen, (255, 200, 100) if main_menu_hover else (180, 140, 60), main_menu_button, 2, border_radius=10)
@@ -3947,7 +3959,8 @@ def main(lan_game_data=None):
             screen.blit(menu_text, menu_rect)
 
             # Quit button
-            quit_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * 3, button_width, button_height)
+            quit_offset = 4 if game.game_state == "playing" else 3
+            quit_button = pygame.Rect(button_x, menu_y + 140 + button_spacing * quit_offset, button_width, button_height)
             quit_hover = quit_button.collidepoint(mouse_pos)
             pygame.draw.rect(screen, (200, 70, 70) if quit_hover else (160, 50, 50), quit_button, border_radius=10)
             pygame.draw.rect(screen, (255, 100, 100) if quit_hover else (180, 70, 70), quit_button, 2, border_radius=10)
@@ -3957,7 +3970,7 @@ def main(lan_game_data=None):
 
             # Hint text
             hint_font = pygame.font.SysFont("Arial", 18)
-            hint_text = hint_font.render("Press ESC to resume | F11 for fullscreen", True, (140, 140, 160))
+            hint_text = hint_font.render("Press ESC to resume | Q to surrender | F11 fullscreen", True, (140, 140, 160))
             hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + menu_height - 25))
             screen.blit(hint_text, hint_rect)
 
@@ -3969,6 +3982,10 @@ def main(lan_game_data=None):
                     # Open settings menu
                     from game_settings import run_settings_menu
                     run_settings_menu(screen)
+                elif surrender_button and surrender_button.collidepoint(event.pos):
+                    # Surrender - player forfeits the game
+                    game.surrender(game.player1)
+                    ui_state = UIState.GAME_OVER
                 elif main_menu_button.collidepoint(event.pos):
                     battle_music.stop_battle_music()
                     main()
@@ -3977,6 +3994,12 @@ def main(lan_game_data=None):
                     battle_music.stop_battle_music()
                     pygame.quit()
                     sys.exit()
+
+            # Handle Q key for surrender in pause menu
+            if event and event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+                if game.game_state == "playing":
+                    game.surrender(game.player1)
+                    ui_state = UIState.GAME_OVER
     
         # LAN: Waiting for Opponent Overlay
         if LAN_MODE and game.current_player != game.player1 and not game.game_over and ui_state == UIState.PLAYING:

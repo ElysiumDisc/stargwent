@@ -13,17 +13,50 @@ UNLOCK_SAVE_FILE = "player_unlocks.json"
 
 class DeckPersistence:
     """Manages persistent deck storage across game sessions"""
-    
+
+    # Card ID migrations: old_id -> new_id
+    # When cards are renamed or split into multiple copies, add mappings here
+    CARD_ID_MIGRATIONS = {
+        "goauld_alkesh": "goauld_alkesh_1",  # Split into _1, _2, _3 for Gate Reinforcement
+    }
+
     def __init__(self):
         self.deck_data = self.load_decks()
         self.unlock_data = self.load_unlocks()
-    
+
+    def _migrate_card_ids(self, deck_data: Dict) -> tuple:
+        """Migrate old card IDs to new ones. Returns (data, was_migrated)."""
+        migrated = False
+        for faction, faction_data in deck_data.items():
+            if isinstance(faction_data, dict) and "cards" in faction_data:
+                new_cards = []
+                for card_id in faction_data["cards"]:
+                    if card_id in self.CARD_ID_MIGRATIONS:
+                        new_id = self.CARD_ID_MIGRATIONS[card_id]
+                        new_cards.append(new_id)
+                        print(f"  Migrated card ID: {card_id} -> {new_id}")
+                        migrated = True
+                    else:
+                        new_cards.append(card_id)
+                faction_data["cards"] = new_cards
+        if migrated:
+            print("✓ Card ID migration complete")
+        return deck_data, migrated
+
     def load_decks(self) -> Dict:
         """Load saved deck configurations"""
         if os.path.exists(DECK_SAVE_FILE):
             try:
                 with open(DECK_SAVE_FILE, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    # Apply migrations for renamed/split cards
+                    data, was_migrated = self._migrate_card_ids(data)
+                    # Save migrated data so it only migrates once
+                    if was_migrated:
+                        with open(DECK_SAVE_FILE, 'w') as fw:
+                            json.dump(data, fw, indent=2)
+                        print(f"✓ Migrated deck data saved to {DECK_SAVE_FILE}")
+                    return data
             except Exception as e:
                 print(f"Error loading deck data: {e}")
                 return self._get_default_deck_data()
@@ -534,18 +567,228 @@ def check_leader_unlock() -> Optional[str]:
     """Check if player unlocked a new leader (3 consecutive wins)"""
     persistence = get_persistence()
     wins = persistence.get_consecutive_wins()
-    
+
     if wins >= 3 and wins % 3 == 0:  # Every 3 wins
         # Return a random locked leader
         all_unlockable = [
             leader_id for leader_id in iter_unlockable_leader_ids()
             if not persistence.is_leader_unlocked(leader_id)
         ]
-        
+
         if all_unlockable:
             import random
             unlocked_leader = random.choice(all_unlockable)
             persistence.unlock_leader(unlocked_leader)
             return unlocked_leader
-    
+
     return None
+
+
+# ============================================================================
+# DECK EXPORT/IMPORT (JSON Format)
+# ============================================================================
+
+def export_deck_json(faction: str, filepath: str) -> bool:
+    """Export a deck to a shareable JSON file.
+
+    Args:
+        faction: Faction name (e.g., "Tau'ri", "Goa'uld")
+        filepath: Path to save the JSON file
+
+    Returns:
+        True if export successful, False otherwise
+
+    JSON Format:
+    {
+        "version": "1.0",
+        "faction": "Tau'ri",
+        "leader": "tauri_oneill",
+        "cards": ["tauri_carter", "tauri_jackson", ...]
+    }
+    """
+    persistence = get_persistence()
+    deck_data = persistence.get_deck(faction)
+
+    if not deck_data:
+        print(f"[deck-export] No deck found for faction: {faction}")
+        return False
+
+    export_data = {
+        "version": "1.0",
+        "faction": faction,
+        "leader": deck_data.get("leader", ""),
+        "cards": deck_data.get("cards", [])
+    }
+
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+        print(f"[deck-export] Deck exported to {filepath}")
+        return True
+    except (IOError, OSError) as e:
+        print(f"[deck-export] Failed to export deck: {e}")
+        return False
+
+
+def import_deck_json(filepath: str) -> Optional[Dict]:
+    """Import a deck from a JSON file.
+
+    Args:
+        filepath: Path to the JSON file
+
+    Returns:
+        Dict with deck data if successful:
+        {
+            "faction": str,
+            "leader": str,
+            "cards": List[str]
+        }
+        Or None if import failed
+
+    Note: This does NOT automatically save the deck.
+    Call save_player_deck() to persist the imported deck.
+    """
+    if not os.path.exists(filepath):
+        print(f"[deck-import] File not found: {filepath}")
+        return None
+
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # Validate required fields
+        if not isinstance(data, dict):
+            print("[deck-import] Invalid JSON format: expected object")
+            return None
+
+        faction = data.get("faction")
+        leader = data.get("leader", "")
+        cards = data.get("cards", [])
+
+        if not faction:
+            print("[deck-import] Missing required field: faction")
+            return None
+
+        if not isinstance(cards, list):
+            print("[deck-import] Invalid cards field: expected array")
+            return None
+
+        # Validate cards exist in card database
+        from cards import ALL_CARDS
+        valid_cards = []
+        invalid_cards = []
+
+        for card_id in cards:
+            if card_id in ALL_CARDS:
+                valid_cards.append(card_id)
+            else:
+                invalid_cards.append(card_id)
+
+        if invalid_cards:
+            print(f"[deck-import] Warning: {len(invalid_cards)} unknown cards skipped: {invalid_cards[:5]}...")
+
+        result = {
+            "faction": faction,
+            "leader": leader,
+            "cards": valid_cards
+        }
+
+        print(f"[deck-import] Loaded deck: {faction}, leader={leader}, {len(valid_cards)} cards")
+        return result
+
+    except json.JSONDecodeError as e:
+        print(f"[deck-import] Invalid JSON: {e}")
+        return None
+    except (IOError, OSError) as e:
+        print(f"[deck-import] Failed to read file: {e}")
+        return None
+
+
+def import_and_save_deck(filepath: str) -> bool:
+    """Import a deck from JSON and save it to persistence.
+
+    Args:
+        filepath: Path to the JSON file
+
+    Returns:
+        True if import and save successful, False otherwise
+    """
+    deck_data = import_deck_json(filepath)
+    if not deck_data:
+        return False
+
+    faction = deck_data["faction"]
+    leader = deck_data["leader"]
+    cards = deck_data["cards"]
+
+    save_player_deck(faction, leader, cards)
+    print(f"[deck-import] Deck saved for {faction}")
+    return True
+
+
+def get_deck_summary(faction: str) -> Dict:
+    """Get a summary of a deck for display/export preview.
+
+    Args:
+        faction: Faction name
+
+    Returns:
+        Dict with deck statistics:
+        {
+            "faction": str,
+            "leader": str,
+            "card_count": int,
+            "total_power": int,
+            "unit_counts": {"close": n, "ranged": n, "siege": n},
+            "special_count": int,
+            "weather_count": int
+        }
+    """
+    from cards import ALL_CARDS
+
+    persistence = get_persistence()
+    deck_data = persistence.get_deck(faction)
+
+    if not deck_data or not deck_data.get("cards"):
+        return {
+            "faction": faction,
+            "leader": deck_data.get("leader", "") if deck_data else "",
+            "card_count": 0,
+            "total_power": 0,
+            "unit_counts": {"close": 0, "ranged": 0, "siege": 0},
+            "special_count": 0,
+            "weather_count": 0
+        }
+
+    cards = deck_data["cards"]
+    total_power = 0
+    unit_counts = {"close": 0, "ranged": 0, "siege": 0}
+    special_count = 0
+    weather_count = 0
+
+    for card_id in cards:
+        if card_id not in ALL_CARDS:
+            continue
+        card = ALL_CARDS[card_id]
+        total_power += card.power
+
+        if card.row == "special":
+            special_count += 1
+        elif card.row == "weather":
+            weather_count += 1
+        elif card.row == "agile":
+            # Agile cards count towards both close and ranged
+            unit_counts["close"] += 0.5
+            unit_counts["ranged"] += 0.5
+        elif card.row in unit_counts:
+            unit_counts[card.row] += 1
+
+    return {
+        "faction": faction,
+        "leader": deck_data.get("leader", ""),
+        "card_count": len(cards),
+        "total_power": total_power,
+        "unit_counts": {k: int(v) for k, v in unit_counts.items()},
+        "special_count": special_count,
+        "weather_count": weather_count
+    }

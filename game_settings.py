@@ -46,6 +46,8 @@ class GameSettings:
             "music_volume": 0.7,
             "sfx_volume": 0.7,
             "show_fps": False,
+            "vsync": True,  # VSync enabled by default for tear-free rendering
+            "competitive_mode": False,  # Precise timing for LAN games
         }
 
     def get_master_volume(self) -> float:
@@ -108,6 +110,24 @@ class GameSettings:
     def set_show_fps(self, show: bool):
         """Set show FPS setting"""
         self.settings["show_fps"] = bool(show)
+        self.save_settings()
+
+    def get_vsync_enabled(self) -> bool:
+        """Get VSync enabled setting"""
+        return self.settings.get("vsync", True)
+
+    def set_vsync_enabled(self, enabled: bool):
+        """Set VSync enabled setting"""
+        self.settings["vsync"] = bool(enabled)
+        self.save_settings()
+
+    def get_competitive_mode(self) -> bool:
+        """Get competitive mode setting (precise timing for LAN games)"""
+        return self.settings.get("competitive_mode", False)
+
+    def set_competitive_mode(self, enabled: bool):
+        """Set competitive mode setting"""
+        self.settings["competitive_mode"] = bool(enabled)
         self.save_settings()
 
 

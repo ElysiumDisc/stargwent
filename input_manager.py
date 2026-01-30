@@ -3,10 +3,64 @@ Input Manager Module (v4.3.1)
 
 Centralized input handling for cleaner event loops and easier key rebinding.
 Processes all pygame events in one place and provides a clean API for checking input states.
+
+Enhanced Keyboard Controls (Gwent-style):
+    E / Enter     - Confirm / Play selected card
+    X             - Activate leader ability
+    Q / Escape    - Close overlay / Surrender (in pause menu)
+    Space         - Pass turn
+    Arrow Keys    - Navigate cards in hand
+    Tab           - Switch between rows
+    1 / 2 / 3     - Select row (close / ranged / siege)
+    F             - Toggle fullscreen
+    P             - Pause game
 """
 
 import pygame
 from typing import Set, Tuple, Optional, Dict
+
+
+# ============================================================================
+# KEY BINDING CONFIGURATION
+# ============================================================================
+class KeyBindings:
+    """Configurable key bindings for game actions.
+
+    All bindings can be customized by modifying this class.
+    Multiple keys can be assigned to the same action.
+    """
+    # Confirmation / Selection
+    CONFIRM = [pygame.K_e, pygame.K_RETURN, pygame.K_KP_ENTER]
+    PLAY_CARD = [pygame.K_RETURN, pygame.K_KP_ENTER]
+
+    # Navigation
+    NAV_LEFT = [pygame.K_LEFT, pygame.K_a]
+    NAV_RIGHT = [pygame.K_RIGHT, pygame.K_d]
+    NAV_UP = [pygame.K_UP, pygame.K_w]
+    NAV_DOWN = [pygame.K_DOWN, pygame.K_s]
+
+    # Row selection (direct)
+    SELECT_ROW_CLOSE = [pygame.K_1, pygame.K_KP1]
+    SELECT_ROW_RANGED = [pygame.K_2, pygame.K_KP2]
+    SELECT_ROW_SIEGE = [pygame.K_3, pygame.K_KP3]
+
+    # Tab to cycle rows
+    CYCLE_ROW = [pygame.K_TAB]
+
+    # Game actions
+    PASS_TURN = [pygame.K_SPACE]
+    LEADER_ABILITY = [pygame.K_x]
+    FACTION_POWER = [pygame.K_c]
+
+    # Menu / System
+    CANCEL = [pygame.K_ESCAPE, pygame.K_q]
+    PAUSE = [pygame.K_p, pygame.K_ESCAPE]
+    SURRENDER = [pygame.K_q]  # Only in pause menu
+    FULLSCREEN = [pygame.K_f, pygame.K_F11]
+
+    # Debug
+    TOGGLE_FPS = [pygame.K_F3]
+    DEBUG_INFO = [pygame.K_F1]
 
 
 class InputManager:
@@ -156,9 +210,125 @@ class InputManager:
         self.mouse_wheel_y = 0
         self.text_input = ""
 
+    # ========================================================================
+    # GAME ACTION HELPERS (Using KeyBindings)
+    # ========================================================================
+
+    def confirm_pressed(self) -> bool:
+        """Check if confirm action triggered (E, Enter)."""
+        return self.any_key_pressed(*KeyBindings.CONFIRM)
+
+    def play_card_pressed(self) -> bool:
+        """Check if play card action triggered (Enter)."""
+        return self.any_key_pressed(*KeyBindings.PLAY_CARD)
+
+    def cancel_pressed(self) -> bool:
+        """Check if cancel action triggered (Escape, Q)."""
+        return self.any_key_pressed(*KeyBindings.CANCEL)
+
+    def pass_turn_pressed(self) -> bool:
+        """Check if pass turn action triggered (Space)."""
+        return self.any_key_pressed(*KeyBindings.PASS_TURN)
+
+    def leader_ability_pressed(self) -> bool:
+        """Check if leader ability action triggered (X)."""
+        return self.any_key_pressed(*KeyBindings.LEADER_ABILITY)
+
+    def faction_power_pressed(self) -> bool:
+        """Check if faction power action triggered (C)."""
+        return self.any_key_pressed(*KeyBindings.FACTION_POWER)
+
+    def pause_pressed(self) -> bool:
+        """Check if pause action triggered (P, Escape)."""
+        return self.any_key_pressed(*KeyBindings.PAUSE)
+
+    def fullscreen_pressed(self) -> bool:
+        """Check if fullscreen toggle triggered (F, F11)."""
+        return self.any_key_pressed(*KeyBindings.FULLSCREEN)
+
+    def surrender_pressed(self) -> bool:
+        """Check if surrender action triggered (Q) - only valid in pause menu."""
+        return self.any_key_pressed(*KeyBindings.SURRENDER)
+
+    def toggle_fps_pressed(self) -> bool:
+        """Check if FPS toggle triggered (F3)."""
+        return self.any_key_pressed(*KeyBindings.TOGGLE_FPS)
+
+    # Navigation helpers
+
+    def nav_left_pressed(self) -> bool:
+        """Check if navigate left triggered (Left, A)."""
+        return self.any_key_pressed(*KeyBindings.NAV_LEFT)
+
+    def nav_right_pressed(self) -> bool:
+        """Check if navigate right triggered (Right, D)."""
+        return self.any_key_pressed(*KeyBindings.NAV_RIGHT)
+
+    def nav_up_pressed(self) -> bool:
+        """Check if navigate up triggered (Up, W)."""
+        return self.any_key_pressed(*KeyBindings.NAV_UP)
+
+    def nav_down_pressed(self) -> bool:
+        """Check if navigate down triggered (Down, S)."""
+        return self.any_key_pressed(*KeyBindings.NAV_DOWN)
+
+    def cycle_row_pressed(self) -> bool:
+        """Check if row cycle triggered (Tab)."""
+        return self.any_key_pressed(*KeyBindings.CYCLE_ROW)
+
+    def select_row_close_pressed(self) -> bool:
+        """Check if close row selected (1)."""
+        return self.any_key_pressed(*KeyBindings.SELECT_ROW_CLOSE)
+
+    def select_row_ranged_pressed(self) -> bool:
+        """Check if ranged row selected (2)."""
+        return self.any_key_pressed(*KeyBindings.SELECT_ROW_RANGED)
+
+    def select_row_siege_pressed(self) -> bool:
+        """Check if siege row selected (3)."""
+        return self.any_key_pressed(*KeyBindings.SELECT_ROW_SIEGE)
+
+    def get_selected_row(self) -> Optional[str]:
+        """Get directly selected row if any number key pressed.
+
+        Returns:
+            "close", "ranged", "siege", or None
+        """
+        if self.select_row_close_pressed():
+            return "close"
+        if self.select_row_ranged_pressed():
+            return "ranged"
+        if self.select_row_siege_pressed():
+            return "siege"
+        return None
+
+    def get_navigation_direction(self) -> Tuple[int, int]:
+        """Get navigation direction as (dx, dy) tuple.
+
+        Returns:
+            (dx, dy) where:
+            - dx: -1 (left), 0 (none), 1 (right)
+            - dy: -1 (up), 0 (none), 1 (down)
+        """
+        dx = 0
+        dy = 0
+
+        if self.nav_left_pressed():
+            dx = -1
+        elif self.nav_right_pressed():
+            dx = 1
+
+        if self.nav_up_pressed():
+            dy = -1
+        elif self.nav_down_pressed():
+            dy = 1
+
+        return (dx, dy)
+
 
 # Singleton instance for easy global access (optional)
 _input_manager_instance: Optional[InputManager] = None
+
 
 def get_input_manager() -> InputManager:
     """Get the singleton InputManager instance."""
@@ -166,3 +336,8 @@ def get_input_manager() -> InputManager:
     if _input_manager_instance is None:
         _input_manager_instance = InputManager()
     return _input_manager_instance
+
+
+def get_key_bindings() -> KeyBindings:
+    """Get the key bindings configuration."""
+    return KeyBindings

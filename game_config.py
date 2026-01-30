@@ -5,6 +5,53 @@ from cards import (
     FACTION_LUCIAN, FACTION_ASGARD
 )
 
+
+# ============================================================================
+# COLOR UTILITIES (pygame-ce enhanced)
+# ============================================================================
+def hex_color(hex_str: str) -> tuple:
+    """Convert hex color string to RGB tuple.
+
+    Supports pygame-ce Color.from_hex() if available,
+    falls back to manual parsing otherwise.
+
+    Args:
+        hex_str: Color in hex format, e.g., "#2D50AA" or "2D50AA"
+
+    Returns:
+        RGB tuple (r, g, b)
+
+    Examples:
+        >>> hex_color("#FF0000")  # Red
+        (255, 0, 0)
+        >>> hex_color("2D50AA")   # Tau'ri blue
+        (45, 80, 170)
+    """
+    try:
+        # pygame-ce has Color.from_hex()
+        color = pygame.Color.from_hex(hex_str)
+        return (color.r, color.g, color.b)
+    except AttributeError:
+        # Fallback for standard pygame
+        hex_str = hex_str.lstrip('#')
+        if len(hex_str) != 6:
+            raise ValueError(f"Invalid hex color: {hex_str}")
+        return tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+
+
+def hex_color_alpha(hex_str: str, alpha: int = 255) -> tuple:
+    """Convert hex color string to RGBA tuple.
+
+    Args:
+        hex_str: Color in hex format
+        alpha: Alpha value 0-255
+
+    Returns:
+        RGBA tuple (r, g, b, a)
+    """
+    r, g, b = hex_color(hex_str)
+    return (r, g, b, alpha)
+
 # ============================================================================
 # ANIMATION DURATIONS (milliseconds)
 # ============================================================================
@@ -129,12 +176,14 @@ ROW_COLORS = {
     "weather": (150, 150, 255),  # Light blue
 }
 
+# Faction glow colors using hex notation for clarity
+# These are the signature colors for each faction's UI elements
 FACTION_GLOW_COLORS = {
-    FACTION_TAURI: (0x2D, 0x50, 0xAA),
-    FACTION_GOAULD: (0xA0, 0x19, 0x1E),
-    FACTION_JAFFA: (0xC8, 0xA0, 0x28),
-    FACTION_LUCIAN: (0xC8, 0x64, 0xFF),
-    FACTION_ASGARD: (0x64, 0xFF, 0xFF),
+    FACTION_TAURI: hex_color("#2D50AA"),    # SGC Blue
+    FACTION_GOAULD: hex_color("#A0191E"),   # System Lord Red
+    FACTION_JAFFA: hex_color("#C8A028"),    # Rebel Gold
+    FACTION_LUCIAN: hex_color("#C864FF"),   # Alliance Purple
+    FACTION_ASGARD: hex_color("#64FFFF"),   # Asgard Cyan
 }
 
 # Card Layout Constants

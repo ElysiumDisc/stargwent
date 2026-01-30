@@ -22,6 +22,8 @@ except:
 
 screen = None
 FULLSCREEN = False
+VSYNC_ENABLED = True  # VSync enabled by default for tear-free rendering
+COMPETITIVE_MODE = False  # Uses tick_busy_loop for precise timing in LAN games
 SCREEN_WIDTH = 0
 SCREEN_HEIGHT = 0
 SCALE_FACTOR = 1.0
@@ -44,11 +46,29 @@ def initialize_display():
     global SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN, screen
     global DESKTOP_WIDTH, DESKTOP_HEIGHT, WINDOWED_WIDTH, WINDOWED_HEIGHT
     global WINDOWED_SCALE_FACTOR, WINDOWED_FLAGS, _initialized
+    global VSYNC_ENABLED, COMPETITIVE_MODE
 
     # GUARD: Only initialize once
     if _initialized:
         return
     _initialized = True
+
+    # Load vsync and competitive mode settings
+    try:
+        from game_settings import get_settings
+        settings = get_settings()
+        VSYNC_ENABLED = settings.get_vsync_enabled()
+        COMPETITIVE_MODE = settings.get_competitive_mode()
+    except (ImportError, AttributeError):
+        VSYNC_ENABLED = True
+        COMPETITIVE_MODE = False
+
+    # Check smoothscale SIMD acceleration backend
+    try:
+        backend = pygame.transform.get_smoothscale_backend()
+        print(f"Smoothscale SIMD backend: {backend}")
+    except AttributeError:
+        print("Smoothscale backend check not available")
 
     _desktop_cache_file = os.path.join(tempfile.gettempdir(), 'stargwent_desktop_cache.txt')
 
@@ -120,21 +140,41 @@ def initialize_display():
     reload_card_images()
     print("Card images loaded.")
 
-def set_display_mode(fullscreen_enabled, *, reload_cards=False):
-    """Hardware-accelerated scaling using 1440p internal resolution."""
-    global screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN
+def set_display_mode(fullscreen_enabled, *, reload_cards=False, vsync=None):
+    """Hardware-accelerated scaling using 1440p internal resolution.
+
+    Args:
+        fullscreen_enabled: Whether to use fullscreen mode
+        reload_cards: Whether to reload card images after mode change
+        vsync: Override vsync setting (None uses global VSYNC_ENABLED)
+    """
+    global screen, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE_FACTOR, FULLSCREEN, VSYNC_ENABLED
     FULLSCREEN = fullscreen_enabled
+
+    # Use global vsync setting if not overridden
+    use_vsync = VSYNC_ENABLED if vsync is None else vsync
+    vsync_value = 1 if use_vsync else 0
 
     # Don't override SCREEN_WIDTH/HEIGHT - they're already set by initialize_display()
     # with adaptive resolution logic (native res if < 1440p, else 1440p)
-    
+
     if fullscreen_enabled:
-        # Use SCALED + FULLSCREEN for hardware-accelerated 4K output
-        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
-        pygame.display.set_caption("Stargwent - 4K (Hardware Scaled)")
+        # Use SCALED + FULLSCREEN for hardware-accelerated 4K output with optional vsync
+        screen = pygame.display.set_mode(
+            (SCREEN_WIDTH, SCREEN_HEIGHT),
+            pygame.FULLSCREEN | pygame.SCALED,
+            vsync=vsync_value
+        )
+        vsync_status = "VSync ON" if use_vsync else "VSync OFF"
+        pygame.display.set_caption(f"Stargwent - 4K ({vsync_status})")
     else:
-        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
-        pygame.display.set_caption("Stargwent - 1440p (Windowed)")
+        screen = pygame.display.set_mode(
+            (SCREEN_WIDTH, SCREEN_HEIGHT),
+            pygame.SCALED,
+            vsync=vsync_value
+        )
+        vsync_status = "VSync ON" if use_vsync else "VSync OFF"
+        pygame.display.set_caption(f"Stargwent - Windowed ({vsync_status})")
     
     # Adjust SCALE_FACTOR for our 1440p base
     SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
@@ -174,11 +214,40 @@ def sync_fullscreen_from_surface():
 def toggle_fullscreen_mode():
     """Flip fullscreen state respecting all UI/layout updates."""
     new_state = not FULLSCREEN
-    print(f"🔄 Toggling fullscreen: {FULLSCREEN} → {new_state}")
+    print(f"Toggling fullscreen: {FULLSCREEN} -> {new_state}")
     set_display_mode(new_state, reload_cards=True)
 
     # Verify the change took effect
     surface = pygame.display.get_surface()
     if surface:
         actual_fullscreen = bool(surface.get_flags() & pygame.FULLSCREEN)
-        print(f"✓ Fullscreen toggle complete. Requested={new_state}, Actual SDL state={actual_fullscreen}")
+        print(f"Fullscreen toggle complete. Requested={new_state}, Actual SDL state={actual_fullscreen}")
+
+
+def set_vsync_enabled(enabled):
+    """Enable or disable VSync. Requires display mode reset to take effect."""
+    global VSYNC_ENABLED
+    VSYNC_ENABLED = enabled
+    print(f"VSync {'enabled' if enabled else 'disabled'}")
+    # Apply immediately by resetting display mode
+    set_display_mode(FULLSCREEN, reload_cards=False, vsync=enabled)
+
+
+def set_competitive_mode(enabled):
+    """Enable competitive mode for precise timing in LAN games."""
+    global COMPETITIVE_MODE
+    COMPETITIVE_MODE = enabled
+    print(f"Competitive mode {'enabled' if enabled else 'disabled'} (uses tick_busy_loop)")
+
+
+def get_clock_tick_func():
+    """Get the appropriate clock tick function based on competitive mode.
+
+    Returns a function that takes fps as argument:
+    - competitive mode: clock.tick_busy_loop (precise, more CPU)
+    - normal mode: clock.tick (efficient, uses SDL_Delay)
+    """
+    if COMPETITIVE_MODE:
+        return lambda clock, fps: clock.tick_busy_loop(fps)
+    else:
+        return lambda clock, fps: clock.tick(fps)

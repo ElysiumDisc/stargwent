@@ -14,6 +14,35 @@ from render_engine import (
 )
 from abilities import Ability, has_ability, is_spy
 
+
+def draw_aa_circle(surface, color, center, radius, width=0):
+    """Draw an anti-aliased circle using pygame-ce's aacircle if available.
+
+    Falls back to standard circle if aacircle is not supported.
+
+    Args:
+        surface: Target surface to draw on
+        color: RGB or RGBA color tuple
+        center: (x, y) center position
+        radius: Circle radius in pixels
+        width: Border width (0 = filled)
+    """
+    try:
+        # pygame-ce has draw.aacircle for anti-aliased circles
+        if width == 0:
+            # Filled anti-aliased circle
+            pygame.draw.aacircle(surface, center[0], center[1], radius, color)
+        else:
+            # Anti-aliased circle outline
+            pygame.draw.aacircle(surface, center[0], center[1], radius, color)
+            if radius > width:
+                # Draw inner circle to create ring effect
+                inner_color = surface.get_at((int(center[0]), int(center[1]))) if width > 1 else (0, 0, 0, 0)
+                pygame.draw.aacircle(surface, center[0], center[1], radius - width, inner_color)
+    except (AttributeError, TypeError):
+        # Fallback to standard circle
+        pygame.draw.circle(surface, color, center, radius, width)
+
 # Surface cache for frequently-used overlay surfaces
 _surface_cache = {}
 

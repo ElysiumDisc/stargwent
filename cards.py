@@ -116,7 +116,9 @@ ALL_CARDS = {
     "goauld_glider_swarm_1": Card("goauld_glider_swarm_1", "Death Glider Swarm", FACTION_GOAULD, 1, "ranged", "Gate Reinforcement"),
     "goauld_glider_swarm_2": Card("goauld_glider_swarm_2", "Death Glider Swarm", FACTION_GOAULD, 1, "ranged", "Gate Reinforcement"),
     "goauld_glider_swarm_3": Card("goauld_glider_swarm_3", "Death Glider Swarm", FACTION_GOAULD, 1, "ranged", "Gate Reinforcement"),
-    "goauld_alkesh": Card("goauld_alkesh", "Al'kesh Bomber", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
+    "goauld_alkesh_1": Card("goauld_alkesh_1", "Al'kesh Bomber", FACTION_GOAULD, 4, "siege", "Gate Reinforcement"),
+    "goauld_alkesh_2": Card("goauld_alkesh_2", "Al'kesh Bomber", FACTION_GOAULD, 4, "siege", "Gate Reinforcement"),
+    "goauld_alkesh_3": Card("goauld_alkesh_3", "Al'kesh Bomber", FACTION_GOAULD, 4, "siege", "Gate Reinforcement"),
     "goauld_plasma_emplacement": Card("goauld_plasma_emplacement", "Plasma Weapon Emplacement", FACTION_GOAULD, 6, "siege", None),
     "goauld_hatak_1": Card("goauld_hatak_1", "Ha'tak Mothership", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
     "goauld_hatak_2": Card("goauld_hatak_2", "Ha'tak Mothership", FACTION_GOAULD, 6, "siege", "Gate Reinforcement"),
@@ -377,10 +379,30 @@ def get_card_back(width, height):
 _original_image_cache = {}
 _last_loaded_size = None  # Cache to avoid redundant reloads
 
+def _has_transparency(image_path):
+    """Check if an image file likely has transparency based on format.
+
+    PNG files with alpha channel need convert_alpha(), while opaque images
+    can use the faster convert() method.
+    """
+    # Card images are PNG with alpha, so default to True for safety
+    # Background/UI images ending in _bg typically don't need alpha
+    lower_path = image_path.lower()
+    if lower_path.endswith('_bg.png') or lower_path.endswith('_background.png'):
+        return False
+    # All card images use transparency for proper rendering
+    return True
+
+
 def reload_card_images():
     """
     Reload all card images with high-quality smoothscale and cache them.
     This ensures cards look sharp and render extremely fast.
+
+    Optimization notes:
+    - Uses SIMD-accelerated smoothscale (SSE2/NEON) via pygame-ce
+    - Caches original images to avoid disk I/O on resize
+    - Pre-renders hover images at 1.08x scale
     """
     global _last_loaded_size
     import os
@@ -393,15 +415,15 @@ def reload_card_images():
     # OPTIMIZATION: Skip reload if size hasn't changed
     target_size = (card_width, card_height)
     if _last_loaded_size == target_size:
-        print(f"  ↻ Using cached high-quality images at {card_width}x{card_height}")
+        print(f"  Using cached high-quality images at {card_width}x{card_height}")
         return
 
     _last_loaded_size = target_size
     print(f"Loading high-quality card images... Target size: {card_width}x{card_height}")
-    
+
     for card_id, card in ALL_CARDS.items():
         card.rect = pygame.Rect(0, 0, card_width, card_height)
-        
+
         # 1. Get the original image (from Cache or Disk)
         original_image = None
         if card.image_path in _original_image_cache:
@@ -409,26 +431,32 @@ def reload_card_images():
         else:
             try:
                 if os.path.exists(card.image_path):
-                    # Load and immediately convert for optimal memory storage
-                    original_image = pygame.image.load(card.image_path).convert_alpha()
+                    # Load and convert with optimal format based on transparency needs
+                    raw_image = pygame.image.load(card.image_path)
+                    if _has_transparency(card.image_path):
+                        original_image = raw_image.convert_alpha()
+                    else:
+                        original_image = raw_image.convert()  # Faster for opaque images
                     _original_image_cache[card.image_path] = original_image
             except (pygame.error, FileNotFoundError, OSError):
                 pass
-        
-        # 2. Generate Scaled Versions using SMOOTHSCALE (only done once here!)
+
+        # 2. Generate Scaled Versions using SMOOTHSCALE (SIMD-accelerated)
         if original_image:
             # High-quality scaling
-            card.image = pygame.transform.smoothscale(original_image, (card_width, card_height)).convert_alpha()
-                 
+            scaled = pygame.transform.smoothscale(original_image, (card_width, card_height))
+            card.image = scaled.convert_alpha() if scaled.get_alpha() else scaled.convert()
+
             # Hover size (1.08x) - Pre-calculated for performance
             hover_w = int(card_width * 1.08)
             hover_h = int(card_height * 1.08)
-            card.hover_image = pygame.transform.smoothscale(original_image, (hover_w, hover_h)).convert_alpha()
+            hover_scaled = pygame.transform.smoothscale(original_image, (hover_w, hover_h))
+            card.hover_image = hover_scaled.convert_alpha() if hover_scaled.get_alpha() else hover_scaled.convert()
         else:
             # Fallback for missing images
             card.image = pygame.Surface((card_width, card_height), pygame.SRCALPHA)
             card.image.fill((80, 80, 90))
-            
+
             hover_w = int(card_width * 1.08)
             hover_h = int(card_height * 1.08)
             card.hover_image = pygame.Surface((hover_w, hover_h), pygame.SRCALPHA)

@@ -935,6 +935,7 @@ class Game:
 
     def switch_turn(self):
         """Switches the turn to the other player, handling passed players."""
+        print(f"[DEBUG switch_turn] p1.has_passed={self.player1.has_passed}, p2.has_passed={self.player2.has_passed}, round={self.round_number}")
         # Check if Hathor's ability animation is complete
         if hasattr(self.current_player, 'hathor_ability_pending'):
             pending = self.current_player.hathor_ability_pending
@@ -1252,6 +1253,7 @@ class Game:
 
     def pass_turn(self):
         """The current player passes their turn."""
+        print(f"[DEBUG pass_turn] {self.current_player.name} passing, round={self.round_number}")
         if not self.current_player.has_passed:
             passing_player = self.current_player
             passing_player.has_passed = True
@@ -2420,6 +2422,8 @@ class Game:
 
     def end_round(self):
         """Ends the round, determines winner, and resets for the next."""
+        print(f"[DEBUG] end_round called: round={self.round_number}, p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
+        print(f"[DEBUG] Scores: p1={self.player1.score}, p2={self.player2.score}")
         # Generate thematic round descriptions
         score_diff = abs(self.player1.score - self.player2.score)
         
@@ -2482,6 +2486,7 @@ class Game:
                         )
 
         # Check for game over BEFORE incrementing round number
+        print(f"[DEBUG] After round {self.round_number}: p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
         # If both players have 2+ wins, it's a draw (e.g. 1 win each + 1 draw, or 2 draws)
         if self.player1.rounds_won >= 2 and self.player2.rounds_won >= 2:
             self.game_state = "game_over"
@@ -2503,6 +2508,239 @@ class Game:
             return
 
         self.round_number = min(self.round_number + 1, 3)
+
+        # Reset turn counters for new round
+        self.cards_played_this_round = {self.player1: 0, self.player2: 0}
+
+        # Move all board cards to discard pile
+        for p in [self.player1, self.player2]:
+            for row_cards in p.board.values():
+                # Clear leader ability boost flags before moving to discard
+                for card in row_cards:
+                    if hasattr(card, 'hammond_boosted'):
+                        delattr(card, 'hammond_boosted')
+                    if hasattr(card, 'kalel_boosted'):
+                        delattr(card, 'kalel_boosted')
+                    if hasattr(card, 'kiva_boosted'):
+                        delattr(card, 'kiva_boosted')
+                p.discard_pile.extend(row_cards)
+
+            # Reset for next round
+            p.board = { "close": [], "ranged": [], "siege": [] }
+            p.has_passed = False
+            p.weather_effects = {"close": False, "ranged": False, "siege": False}
+            p.horn_effects = {"close": False, "ranged": False, "siege": False}
+            p.horn_slots = {"close": None, "ranged": None, "siege": None}
+            p.weather_cards_played = 0
+            p.current_round_number = self.round_number
+            p.units_played_this_round = 0
+            pending_reveal = getattr(p, "reveal_next_round", False)
+            p.hand_revealed = pending_reveal
+            p.reveal_next_round = False
+            p.zpm_active = False
+
+            # Reset Ring Transportation for new round (Goa'uld)
+            if p.ring_transportation:
+                p.ring_transportation.reset_round()
+
+            # Reset score (board is empty at this point)
+            p.score = 0
+
+        # Clear weather cards from board and move to discard
+        self.discard_active_weather_cards()
+        self.weather_active = {"close": False, "ranged": False, "siege": False}
+        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
+        self.current_weather_types = {"close": None, "ranged": None, "siege": None}
+        self.weather_cards_on_board = {"close": None, "ranged": None, "siege": None}
+
+        # Draw cards for new round
+        for p in [self.player1, self.player2]:
+            base_draw = 2
+
+            # Apply leader abilities - card draw bonuses
+            if p.leader:
+                leader_name = p.leader.get('name', '')
+                # Col. Jack O'Neill: Draw 1 extra card at round start
+                if "O'Neill" in leader_name and self.round_number > 1:
+                    base_draw += 1
+                    self.add_history_event(
+                        "ability",
+                        f"{p.name} (O'Neill) draws +1 card (Resourcefulness)",
+                        self._owner_label(p),
+                        icon="+"
+                    )
+                # Teal'c: Draw 1 card when winning a round (if just won)
+                elif "Teal'c" in leader_name and self.round_winner == p:
+                    base_draw += 1
+                    self.add_history_event(
+                        "ability",
+                        f"{p.name} (Teal'c) draws +1 card for winning last round",
+                        self._owner_label(p),
+                        icon="#"
+                    )
+                # Rya'c: Draw 2 extra cards at start of round 3
+                elif "Rya'c" in leader_name and self.round_number == 3:
+                    base_draw += 2
+                    self.add_history_event(
+                        "ability",
+                        f"{p.name} (Rya'c) draws +2 cards - Hope for Tomorrow!",
+                        self._owner_label(p),
+                        icon="+"
+                    )
+                # Vala Mal Doran: Steal 1 random card from opponent's hand at round 2 start
+                elif "Vala" in leader_name and self.round_number == 2:
+                    opponent = self.player2 if p == self.player1 else self.player1
+                    if opponent.hand:
+                        stolen_card = self.rng.choice(opponent.hand)
+                        opponent.hand.remove(stolen_card)
+                        p.hand.append(stolen_card)
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (Vala) Thief's Luck: Stole {stolen_card.name} from {opponent.name}!",
+                            self._owner_label(p),
+                            icon="+"
+                        )
+                # Penegal: Revive 1 unit at start of rounds 2 and 3
+                elif "Penegal" in leader_name and self.round_number > 1:
+                    if p.discard_pile:
+                        revived = self.rng.choice(p.discard_pile)
+                        p.discard_pile.remove(revived)
+                        if revived.row in ["close", "ranged", "siege"]:
+                            p.board[revived.row].append(revived)
+                        elif revived.row == "agile":
+                            p.board[self.rng.choice(["close", "ranged", "siege"])].append(revived)
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (Penegal) revived {revived.name} from discard",
+                            self._owner_label(p),
+                            icon="+"
+                        )
+                # Netan: Add random Neutral card each round
+                elif "Netan" in leader_name:
+                    base_draw += 1
+                # Anateo: Free Medical Evac at start of each round
+                elif "Anateo" in leader_name and self.round_number > 1:
+                    valid_cards = [c for c in p.discard_pile
+                                  if not is_hero(c)
+                                  and c.row in ["close", "ranged", "siege", "agile"]]
+                    if valid_cards:
+                        revived = max(valid_cards, key=lambda c: c.power)
+                        p.discard_pile.remove(revived)
+                        target_row = revived.row if revived.row != "agile" else "close"
+                        p.board[target_row].append(revived)
+                        self.add_history_event(
+                            "ability",
+                            f"{p.name} (Anateo) used free Medical Evac on {revived.name}",
+                            self._owner_label(p),
+                            icon="+"
+                        )
+
+            # Draw base cards for the round
+            if self.game_state == "playing" and p == self.player2:
+                if self.player1.leader and "Jonas" in self.player1.leader.get('name', ''):
+                    drawn = p.draw_cards(base_draw, track_for_jonas=True)
+                    self.opponent_drawn_cards.extend(drawn)
+                else:
+                    p.draw_cards(base_draw)
+            elif self.game_state == "playing" and p == self.player1:
+                if self.player2.leader and "Jonas" in self.player2.leader.get('name', ''):
+                    drawn = p.draw_cards(base_draw, track_for_jonas=True)
+                    self.player1_drawn_cards.extend(drawn)
+                else:
+                    p.draw_cards(base_draw)
+            else:
+                p.draw_cards(base_draw)
+
+            # Apply faction round-start abilities
+            if p.faction_ability and hasattr(p.faction_ability, 'apply_round_start'):
+                if self.game_state == "playing" and p == self.player2:
+                    if self.player1.leader and "Jonas" in self.player1.leader.get('name', ''):
+                        if p.faction == FACTION_TAURI and self.round_number > 1:
+                            drawn = p.draw_cards(1, track_for_jonas=True)
+                            self.opponent_drawn_cards.extend(drawn)
+                        else:
+                            p.faction_ability.apply_round_start(self, p)
+                    else:
+                        p.faction_ability.apply_round_start(self, p)
+                elif self.game_state == "playing" and p == self.player1:
+                    if self.player2.leader and "Jonas" in self.player2.leader.get('name', ''):
+                        if p.faction == FACTION_TAURI and self.round_number > 1:
+                            drawn = p.draw_cards(1, track_for_jonas=True)
+                            self.player1_drawn_cards.extend(drawn)
+                        else:
+                            p.faction_ability.apply_round_start(self, p)
+                    else:
+                        p.faction_ability.apply_round_start(self, p)
+                else:
+                    p.faction_ability.apply_round_start(self, p)
+            self._apply_leader_round_start_effects(p)
+
+            # Reset round-specific abilities
+            if p.faction_ability:
+                if hasattr(p.faction_ability, 'reset_round'):
+                    p.faction_ability.reset_round()
+            p.dhd_mechanic.reset_round()
+
+            # Reset Iris Power
+            if p.faction_power:
+                p.faction_power.reset_round()
+
+        # Clear weather
+        self.weather_active = {"close": False, "ranged": False, "siege": False}
+        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
+        self.current_weather_types = {"close": None, "ranged": None, "siege": None}
+
+        # Add round start history event
+        if self.round_number <= 3:
+            round_themes = {
+                1: "═══ Round 1: Opening Gambit ═══",
+                2: "═══ Round 2: The Tide Turns ═══",
+                3: "═══ Round 3: Final Confrontation ═══",
+            }
+            self.add_history_event(
+                "round_start",
+                round_themes.get(self.round_number, f"═══ Round {self.round_number} Start ═══"),
+                "neutral",
+                icon="=="
+            )
+        print(f"[DEBUG end_round COMPLETE] round={self.round_number}, p1.has_passed={self.player1.has_passed}, p2.has_passed={self.player2.has_passed}")
+
+    def surrender(self, surrendering_player):
+        """Handle player surrender / give up.
+
+        Args:
+            surrendering_player: The player who is surrendering (self.player1 or self.player2)
+
+        The opponent wins immediately with 2 rounds won.
+        """
+        if self.game_state == "game_over":
+            return  # Already ended
+
+        # Determine winner (opponent of surrendering player)
+        if surrendering_player == self.player1:
+            self.winner = self.player2
+            winner_name = self.player2.name
+            loser_name = self.player1.name
+        else:
+            self.winner = self.player1
+            winner_name = self.player1.name
+            loser_name = self.player2.name
+
+        # Set game state to over
+        self.game_state = "game_over"
+
+        # Give winner 2 rounds won (minimum needed to win)
+        self.winner.rounds_won = max(self.winner.rounds_won, 2)
+
+        # Log surrender in history
+        self.add_history_event(
+            "surrender",
+            f"{loser_name} has surrendered! {winner_name} wins by forfeit.",
+            "player" if surrendering_player == self.player2 else "opponent",
+            icon="X"
+        )
+
+        print(f"[game] {loser_name} surrendered. {winner_name} wins.")
         
         # Reset turn counters for new round
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
@@ -2714,6 +2952,7 @@ class Game:
                 "neutral",
                 icon="=="
             )
+        print(f"[DEBUG end_round COMPLETE] round={self.round_number}, p1.has_passed={self.player1.has_passed}, p2.has_passed={self.player2.has_passed}")
 
     def decrement_all_clone_tokens(self):
         """Reduce lifetime on all O'Neill clones for both players and remove expired ones."""

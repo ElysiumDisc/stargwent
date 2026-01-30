@@ -31,11 +31,11 @@
     ]
   },
   "Goa'uld": {
-    "leader": "goauld_anubis",
+    "leader": "goauld_apophis",
     "cards": [
       "goauld_osiris_guard_1",
       "goauld_kull_warrior_2",
-      "goauld_alkesh",
+      "goauld_alkesh_1",
       "goauld_teltak_2",
       "goauld_yu",
       "goauld_hatak_2",
