@@ -42,29 +42,72 @@ def clear_render_caches():
     _scaled_image_cache.clear()
 
 def _draw_card_details(target_surface, card, rect):
-    """Render card overlays (power pips and row icon)."""
+    """Render card overlays (power pips and row icon) with enhanced StarGwent styling."""
     if card.row not in ["special", "weather"]:
-        if card.displayed_power > card.power:
-            text_color = (100, 255, 100)
-        elif card.displayed_power < card.power:
+        # Determine power state and colors
+        power_diff = card.displayed_power - card.power
+        if power_diff > 0:
+            # Boosted - green with glow
+            text_color = (100, 255, 120)
+            border_color = (80, 200, 100, 200)
+            glow_color = (50, 255, 80, 60)
+        elif power_diff < 0:
+            # Weakened - red with glow
             text_color = (255, 100, 100)
+            border_color = (200, 80, 80, 200)
+            glow_color = (255, 50, 50, 60)
         else:
-            text_color = cfg.WHITE
+            # Normal - clean white/blue theme
+            text_color = (230, 240, 255)
+            border_color = (100, 140, 180, 180)
+            glow_color = None
 
-        # Scale font based on card size (smaller for board cards) - use cached font
-        font_size = max(10, int(rect.height * 0.12))
+        # Scale font based on card size - use cached font
+        font_size = max(10, int(rect.height * 0.13))
         power_font = _get_cached_font(font_size, bold=True)
         power_text = power_font.render(str(card.displayed_power), True, text_color)
-        power_rect = power_text.get_rect(
-            center=(rect.x + rect.width // 2, rect.y + rect.height - int(rect.height * 0.12))
-        )
-        pygame.draw.rect(
-            target_surface,
-            (0, 0, 0, 180),
-            power_rect.inflate(3, 2),
-            border_radius=3
-        )
-        target_surface.blit(power_text, power_rect)
+
+        # Position the power badge at the bottom center
+        badge_width = max(power_text.get_width() + 12, int(rect.width * 0.35))
+        badge_height = power_text.get_height() + 6
+        badge_x = rect.x + (rect.width - badge_width) // 2
+        badge_y = rect.y + rect.height - badge_height - 4
+        badge_rect = pygame.Rect(badge_x, badge_y, badge_width, badge_height)
+
+        # Draw outer glow for boosted/weakened states
+        if glow_color:
+            glow_rect = badge_rect.inflate(6, 4)
+            glow_surface = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surface, glow_color, glow_surface.get_rect(), border_radius=6)
+            target_surface.blit(glow_surface, glow_rect.topleft)
+
+        # Draw main badge background with gradient effect (dark to slightly lighter)
+        badge_surface = pygame.Surface((badge_width, badge_height), pygame.SRCALPHA)
+        # Base dark background
+        pygame.draw.rect(badge_surface, (15, 20, 30, 220), badge_surface.get_rect(), border_radius=4)
+        # Subtle top highlight for depth
+        highlight_rect = pygame.Rect(1, 1, badge_width - 2, badge_height // 3)
+        pygame.draw.rect(badge_surface, (40, 50, 70, 80), highlight_rect, border_radius=4)
+        target_surface.blit(badge_surface, badge_rect.topleft)
+
+        # Draw border
+        pygame.draw.rect(target_surface, border_color[:3], badge_rect, width=1, border_radius=4)
+
+        # Draw power text centered in badge
+        text_rect = power_text.get_rect(center=badge_rect.center)
+        target_surface.blit(power_text, text_rect)
+
+        # Add small power change indicator for significant changes
+        if abs(power_diff) >= 3:
+            indicator_font = _get_cached_font(max(8, int(rect.height * 0.07)), bold=True)
+            indicator_text = f"+{power_diff}" if power_diff > 0 else str(power_diff)
+            indicator_surf = indicator_font.render(indicator_text, True, text_color)
+            indicator_rect = indicator_surf.get_rect(
+                midleft=(badge_rect.right + 2, badge_rect.centery)
+            )
+            # Only show if it fits
+            if indicator_rect.right < rect.right - 2:
+                target_surface.blit(indicator_surf, indicator_rect)
 
 def draw_card(surface, card, x, y, selected=False, hover_scale=1.0, tilt_angle=0.0,
               alpha=255, render_details=True, update_rect=True,
