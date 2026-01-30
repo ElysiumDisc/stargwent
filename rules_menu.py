@@ -360,6 +360,18 @@ CHEVRON_POLYGONS = [
 ]
 SCANLINE_SPACING = 6
 
+# Chevron tab assignments - thematic groupings with labels
+# Each chevron controls related content sections
+CHEVRON_CONFIG = [
+    {"label": "RULES", "tabs": [0, 1]},      # Tab 1: Basic Rules, Tab 2: Turn Structure
+    {"label": "CARDS", "tabs": [2, 8]},      # Tab 3: Card Types, Tab 9: Card Glossary
+    {"label": "FACTIONS", "tabs": [3, 9]},   # Tab 4: Faction Abilities, Tab 10: Faction Lore
+    {"label": "LEADERS", "tabs": [4]},       # Tab 5: Leader Cards & Abilities
+    {"label": "ABILITIES", "tabs": [5]},     # Tab 6: Unit Abilities
+    {"label": "SPECIAL", "tabs": [6]},       # Tab 7: Special Cards, Weather, Horns
+    {"label": "STATUS", "tabs": [7]},        # Tab 8: Status Effects
+]
+
 
 @dataclass
 class SpecNode:
@@ -886,12 +898,16 @@ class RulesMenuScreen:
             cx = sum(pt[0] for pt in scaled) / len(scaled)
             cy = sum(pt[1] for pt in scaled) / len(scaled)
             angle = math.degrees(math.atan2(cy - center[1], cx - center[0])) % 360
-            slots.append((angle, {"polygon": scaled, "tabs": [], "current_index": 0}))
+            slots.append((angle, {"polygon": scaled, "tabs": [], "current_index": 0, "label": ""}))
         slots.sort(key=lambda entry: entry[0])
         ordered = [payload for _, payload in slots]
-        for idx in range(len(self.tab_titles)):
-            target = ordered[idx % len(ordered)]
-            target["tabs"].append(idx)
+
+        # Apply thematic chevron config
+        for idx, config in enumerate(CHEVRON_CONFIG):
+            if idx < len(ordered):
+                ordered[idx]["tabs"] = config["tabs"]
+                ordered[idx]["label"] = config["label"]
+
         self.chevron_slots = ordered
         self._sync_chevron_state()
 
@@ -1239,6 +1255,7 @@ class RulesMenuScreen:
 
     def _draw_chevrons(self, surface: pygame.Surface):
         layer = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+
         for idx, slot in enumerate(self.chevron_slots):
             polygon = slot["polygon"]
             active_tab = slot["tabs"][slot["current_index"]] if slot["tabs"] else None
@@ -1247,7 +1264,6 @@ class RulesMenuScreen:
             stroke_color = self.chevron_color if active else (120, 40, 40)
             pygame.draw.polygon(layer, (*stroke_color, fill_alpha), polygon)
             pygame.draw.polygon(layer, (*stroke_color, 200), polygon, 2)
-            # Text rendering removed as requested
             self.hit_regions.append({"type": "chevron", "slot": idx, "polygon": polygon})
         surface.blit(layer, (0, 0))
 
