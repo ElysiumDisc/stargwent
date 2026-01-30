@@ -455,6 +455,8 @@ class RulesMenuScreen:
         self.scale_x = 1.0
         self.scale_y = 1.0
         self.scale = 1.0
+        self.offset_x = 0.0
+        self.offset_y = 0.0
         self.left_panels: Dict[str, pygame.Rect] = {}
         self.right_slots: List[pygame.Rect] = []
         self.bottom_status_rect = pygame.Rect(0, 0, 0, 0)
@@ -689,7 +691,7 @@ class RulesMenuScreen:
 
     def _load_leader_portraits(self) -> Dict[str, pygame.Surface]:
         portraits: Dict[str, pygame.Surface] = {}
-        portrait_size = (140, 180)
+        portrait_size = (280, 360)  # Higher res for better scaling
         for faction in self.leader_data.values():
             for bucket in faction.values():
                 for leader in bucket:
@@ -727,7 +729,7 @@ class RulesMenuScreen:
 
     def _load_card_images(self) -> Dict[str, pygame.Surface]:
         images: Dict[str, pygame.Surface] = {}
-        thumb_size = (80, 120)
+        thumb_size = (200, 280)  # Higher res for better scaling
         for faction_sections in self.card_data.values():
             for entries in faction_sections.values():
                 for entry in entries:
@@ -785,20 +787,36 @@ class RulesMenuScreen:
     # ---------- Layout Helpers ----------
 
     def _refresh_layout(self):
-        if self.background_image:
-            scaled = pygame.transform.smoothscale(self.background_image, (self.width, self.height))
-            scaled = scaled.convert()
-            scaled.set_colorkey((0, 0, 0))
-            self.background_scaled = scaled
-        else:
-            self.background_scaled = None
+        # Calculate uniform scale (preserve aspect ratio) with letterboxing
         self.scale_x = self.width / BASE_FRAME_SIZE[0]
         self.scale_y = self.height / BASE_FRAME_SIZE[1]
-        self.scale = (self.scale_x + self.scale_y) * 0.5
+        self.scale = min(self.scale_x, self.scale_y)  # Use minimum to fit without stretching
+
+        # Calculate centering offsets for letterboxing
+        scaled_width = BASE_FRAME_SIZE[0] * self.scale
+        scaled_height = BASE_FRAME_SIZE[1] * self.scale
+        self.offset_x = (self.width - scaled_width) / 2
+        self.offset_y = (self.height - scaled_height) / 2
+
+        # Scale background with uniform scaling and center it
+        if self.background_image:
+            new_w = int(BASE_FRAME_SIZE[0] * self.scale)
+            new_h = int(BASE_FRAME_SIZE[1] * self.scale)
+            scaled = pygame.transform.smoothscale(self.background_image, (new_w, new_h))
+
+            # Create full-screen surface and center the scaled background
+            self.background_scaled = pygame.Surface((self.width, self.height))
+            self.background_scaled.fill(self.bg_color)
+            self.background_scaled.blit(scaled, (int(self.offset_x), int(self.offset_y)))
+            self.background_scaled.set_colorkey((0, 0, 0))
+        else:
+            self.background_scaled = None
         self._init_fonts()
+        # All panels use uniform scaling to align with background frame
         self.left_panels = {name: self._scale_rect(rect) for name, rect in LEFT_PANEL_RECTS.items()}
         self.right_slots = [self._scale_rect(rect) for rect in RIGHT_STACK_RECTS]
         self.bottom_status_rect = self._scale_rect(STATUS_BAR_RECT)
+        # Gate-centered elements use uniform scaling with offset
         center = self._scale_point(GATE_CENTER)
         radius = max(60, int(self.scale * GATE_RADIUS))
         self.viewport_rect = pygame.Rect(
@@ -807,9 +825,8 @@ class RulesMenuScreen:
             radius * 2,
             radius * 2,
         )
-        
-        # Position back button in bottom left (scaled from 4k ref)
-        # Position: x=100, y=2000, w=350, h=100
+
+        # Position back button in bottom left (uniform scaling to align with frame)
         self.back_button_rect = self._scale_rect((100, 2000, 350, 100))
         
         self._rebuild_viewport_mask()
@@ -819,7 +836,9 @@ class RulesMenuScreen:
         self._ensure_card_selection()
 
     def _init_fonts(self):
-        base = max(0.65, min(self.scale * 1.4, 2.4))
+        # Use average of scale_x/scale_y for fonts (screen-relative, not letterboxed)
+        screen_scale = (self.scale_x + self.scale_y) * 0.5
+        base = max(0.65, min(screen_scale * 1.4, 2.4))
         self.title_font = pygame.font.SysFont(
             "BankGothic Md BT, Orbitron, Eurostile, Arial", max(32, int(46 * base))
         )
@@ -828,19 +847,23 @@ class RulesMenuScreen:
         self.mono_font = pygame.font.SysFont("Consolas, Menlo, Courier", max(14, int(18 * base)))
 
     def _scale_point(self, point: Tuple[float, float]) -> Tuple[float, float]:
-        return (point[0] * self.scale_x, point[1] * self.scale_y)
+        """Scale a point for gate-centered elements (uses uniform scale + offset)."""
+        return (point[0] * self.scale + self.offset_x,
+                point[1] * self.scale + self.offset_y)
 
     def _scale_rect(self, rect_data: Tuple[int, int, int, int]) -> pygame.Rect:
+        """Scale a rect for gate-centered elements (uses uniform scale + offset)."""
         x, y, w, h = rect_data
         return pygame.Rect(
-            int(x * self.scale_x),
-            int(y * self.scale_y),
-            max(4, int(w * self.scale_x)),
-            max(4, int(h * self.scale_y)),
+            int(x * self.scale + self.offset_x),
+            int(y * self.scale + self.offset_y),
+            max(4, int(w * self.scale)),
+            max(4, int(h * self.scale)),
         )
 
     def _scale_polygon(self, polygon: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-        return [(int(px * self.scale_x), int(py * self.scale_y)) for px, py in polygon]
+        """Scale a polygon for gate-centered elements (uses uniform scale + offset)."""
+        return [(int(px * self.scale + self.offset_x), int(py * self.scale + self.offset_y)) for px, py in polygon]
 
     def _rebuild_viewport_mask(self):
         size = (self.viewport_rect.width, self.viewport_rect.height)
@@ -1070,6 +1093,9 @@ class RulesMenuScreen:
 
     def draw(self, surface: pygame.Surface):
         surface.fill(self.bg_color)
+        # Draw background FIRST so it's behind all UI elements
+        if self.background_scaled:
+            surface.blit(self.background_scaled, (0, 0))
         self.hit_regions.clear()
         self._draw_soft_grid(surface)
         tab_title = self.tab_titles[self.active_tab]
@@ -1080,8 +1106,6 @@ class RulesMenuScreen:
         self._draw_viewport(surface, behavior)
         self._draw_status_bar(surface)
         self._draw_chevrons(surface)
-        if self.background_scaled:
-            surface.blit(self.background_scaled, (0, 0))
         self._draw_back_button(surface)
 
     def _draw_back_button(self, surface: pygame.Surface):
@@ -1619,17 +1643,20 @@ class RulesMenuScreen:
                 continue
             leader = visible[idx]
             portrait = self.leader_images.get(leader.get("card_id"))
+            # Reserve space for name at bottom (scaled)
+            name_height = self.small_font.get_linesize() + 8
             if portrait:
-                max_w = max(20, slot.width - 24)
-                max_h = max(20, slot.height - 60)
+                # Fill the slot with portrait, leaving small padding and name space
+                max_w = max(20, slot.width - 8)
+                max_h = max(20, slot.height - name_height - 8)
                 pw, ph = portrait.get_size()
                 scale = min(max_w / pw, max_h / ph)
                 new_size = (max(1, int(pw * scale)), max(1, int(ph * scale)))
-                img = portrait if new_size == portrait.get_size() else pygame.transform.smoothscale(portrait, new_size)
-                img_rect = img.get_rect(midtop=(slot.centerx, slot.y + 10))
+                img = pygame.transform.smoothscale(portrait, new_size)
+                img_rect = img.get_rect(midtop=(slot.centerx, slot.y + 4))
                 surface.blit(img, img_rect)
             name = self.small_font.render(leader["name"], True, self.text_color)
-            surface.blit(name, (slot.x + 10, slot.bottom - name.get_height() - 12))
+            surface.blit(name, (slot.x + 4, slot.bottom - name.get_height() - 4))
             self.hit_regions.append({"type": "leader_select", "entry": leader, "rect": slot})
         if leaders:
             max_offset = max(0, len(leaders) - len(slots))
@@ -1647,10 +1674,10 @@ class RulesMenuScreen:
             return
         art_slot = self.right_slots[0]
         pygame.draw.rect(surface, self.deep_accent, art_slot, 2)
-        art = self._get_card_art(self.card_selected.get("card_id"), (art_slot.width - 20, art_slot.height - 40))
+        # Fill the slot with card art, leaving small padding
+        art = self._get_card_art(self.card_selected.get("card_id"), (art_slot.width - 8, art_slot.height - 8))
         if art:
-            center = (int(art_slot.centerx), int(art_slot.y + art_slot.height / 2 - 10))
-            art_pos = art.get_rect(center=center)
+            art_pos = art.get_rect(center=art_slot.center)
             surface.blit(art, art_pos.topleft)
         text_slot = self.right_slots[1] if len(self.right_slots) > 1 else None
         if text_slot:
@@ -1660,9 +1687,9 @@ class RulesMenuScreen:
                 f"Section: {self.card_section}",
                 f"Faction: {self.card_faction}",
             ]
-            y = text_slot.y + 10
+            y = text_slot.y + 4
             for line in lines:
-                y = self._render_wrapped(surface, line, (text_slot.x + 10, y), text_slot.width - 20, self.small_font, self.text_color) + 6
+                y = self._render_wrapped(surface, line, (text_slot.x + 4, y), text_slot.width - 8, self.small_font, self.text_color) + 2
 
     def _filter_abilities(self) -> List[Dict[str, str]]:
         results = self.ability_entries
