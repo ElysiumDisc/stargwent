@@ -1233,8 +1233,8 @@ def run_deck_customization(screen, deck_manager):
 # ===== STARGATE OPENING ANIMATION (MERGED FROM stargate_opening.py) =====
 
 class StargateOpeningAnimation:
-    """Dramatic Stargate opening animation."""
-    
+    """Dramatic Stargate opening animation with movie-accurate effects."""
+
     def __init__(self, screen_width, screen_height):
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -1243,22 +1243,41 @@ class StargateOpeningAnimation:
         self.progress = 0.0
         self.duration = STARGATE_SEQUENCE_DURATION_MS  # 16 seconds to match audio cue
         self.elapsed = 0
-        
+
         # Gate properties
         self.gate_radius = min(screen_width, screen_height) // 3
         self.inner_radius = self.gate_radius - 40
-        
-        # Chevrons
+
+        # Inner ring rotation state
+        self.inner_ring_angle = 0.0  # Current rotation in degrees
+        self.target_symbol_angles = []  # Target angles for each chevron dial
+        self.current_dialing_chevron = 0
+        self.ring_state = 'idle'  # idle, rotating, paused, locked
+        self.rotation_speed = 180  # degrees per second
+        self.rotation_direction = 1  # 1 = clockwise, -1 = counter-clockwise
+        self.pause_timer = 0  # Brief pause when symbol aligns
+        self.last_lock_time = 0
+
+        # Generate target angles for each chevron (randomized destinations)
+        for i in range(9):
+            # Alternate rotation direction for visual interest
+            angle = random.randint(0, 35) * 10  # 36 symbols, 10° apart
+            self.target_symbol_angles.append(angle)
+
+        # Chevrons with enhanced states
         self.chevrons = []
         for i in range(9):
             angle = i * 40 - 90  # Start at top
             self.chevrons.append({
                 'angle': angle,
                 'locked': False,
-                'lock_time': 500 + i * 400,  # Stagger locks
-                'glow': 0
+                'lock_time': 500 + i * 800,  # Adjusted timing for rotation
+                'glow': 0,
+                'state': 'idle',  # idle, aligning, engaging, locked
+                'engage_offset': 0,  # For top chevron movement animation
+                'scale_bump': 1.0  # For "clunk" visual feedback
             })
-        
+
         # Event horizon particles
         self.horizon_particles = []
         for _ in range(100):
@@ -1269,19 +1288,35 @@ class StargateOpeningAnimation:
                 'size': random.randint(2, 4),
                 'alpha': 0
             })
-        
-        # Outward vortex particles (KAWOOSH!)
-        self.vortex_particles = []
-        for _ in range(200):
-            self.vortex_particles.append({
-                'angle': random.uniform(0, 360),
+
+        # Enhanced kawoosh particles (directional cone)
+        self.kawoosh_particles = []
+        for _ in range(300):
+            self.kawoosh_particles.append({
+                'angle': random.gauss(0, 20),  # Clustered around forward direction (toward viewer)
                 'distance': 0,
-                'speed': random.uniform(15, 30),  # Fast outward burst
-                'size': random.randint(3, 8),
+                'base_speed': random.uniform(25, 50),
+                'speed': 0,
+                'size': random.randint(4, 12),
                 'alpha': 255,
-                'lifetime': random.uniform(0.5, 1.5)  # How long it lives
+                'lifetime': 1.0,
+                'layer': random.randint(0, 3),  # For depth layering
+                'offset_x': random.uniform(-0.3, 0.3),  # Horizontal spread
+                'offset_y': random.uniform(-0.3, 0.3)   # Vertical spread
             })
-        
+
+        # Kawoosh state machine
+        self.kawoosh_state = 'dormant'  # dormant, burst, extend, retract, stable
+        self.kawoosh_progress = 0.0
+        self.kawoosh_distance = 0
+        self.kawoosh_max_distance = self.gate_radius * 2.0
+        self.kawoosh_start_time = None
+
+        # Event horizon depth effect
+        self.horizon_depth_layers = 8
+        self.horizon_depth_phase = 0.0
+        self.horizon_ripples = []  # Ripples that propagate from center
+
         # Starfield backdrop and glyph engravings for extra fidelity
         self.starfield = [{
             'x': random.randint(0, screen_width),
@@ -1290,12 +1325,15 @@ class StargateOpeningAnimation:
             'phase': random.uniform(0, math.tau),
             'size': random.choice([1, 1, 2])
         } for _ in range(200)]
+
+        # Gate glyphs on the inner ring (these rotate)
         self.gate_glyphs = [{
-            'angle': i * 10 + random.uniform(-2, 2),
+            'base_angle': i * 10,  # Base angle before rotation
             'width': random.randint(2, 3),
-            'length': random.randint(16, 22)
+            'length': random.randint(16, 22),
+            'glow': 0  # For highlighting when aligned
         } for i in range(36)]
-        
+
         self.ripple_phase = 0.0
         self.title_pulse = 0.0
     
@@ -1305,7 +1343,7 @@ class StargateOpeningAnimation:
         self.progress = min(1.0, self.elapsed / self.duration)
         self.ripple_phase = (self.ripple_phase + dt * 0.003) % (math.tau)
         self.title_pulse = (self.title_pulse + dt * 0.005) % (math.tau)
-        
+
         # Parallax starfield (slow drift + twinkle)
         for star in self.starfield:
             star['phase'] = (star['phase'] + dt * 0.002) % (math.tau)
@@ -1313,43 +1351,220 @@ class StargateOpeningAnimation:
             if star['y'] > self.screen_height:
                 star['y'] = 0
                 star['x'] = random.randint(0, self.screen_width)
-    
-        # Lock chevrons progressively
-        for chevron in self.chevrons:
-            if self.elapsed >= chevron['lock_time'] and not chevron['locked']:
-                chevron['locked'] = True
-                chevron['glow'] = 255
-            
-            # Fade glow
-            if chevron['glow'] > 50:
-                chevron['glow'] = max(50, chevron['glow'] - dt * 0.3)
-        
-        # Update event horizon particles (after chevrons lock)
-        if self.progress > 0.5:
+
+        # Update inner ring rotation
+        self._update_ring_rotation(dt)
+
+        # Update chevron states and engagement
+        self._update_chevrons(dt)
+
+        # Update glyph highlighting
+        self._update_glyph_highlighting(dt)
+
+        # Update event horizon particles (after chevrons start locking)
+        if self.progress > 0.3:
             for particle in self.horizon_particles:
                 particle['distance'] += particle['speed'] * (dt / 16.0)
                 particle['alpha'] = min(255, particle['alpha'] + 5)
-                
+
                 # Reset if too far
                 if particle['distance'] > self.inner_radius:
                     particle['distance'] = 0
                     particle['angle'] = random.uniform(0, 360)
-        
-        # Update VORTEX particles (KAWOOSH at 70% progress, lasts longer)
-        if self.progress > 0.7:
-            for particle in self.vortex_particles:
-                particle['distance'] += particle['speed'] * (dt / 16.0)
-                particle['lifetime'] -= dt / 1000.0
-                particle['alpha'] = max(0, int(255 * particle['lifetime']))
-                
-                # Reset when dead
-                if particle['lifetime'] <= 0:
-                    particle['distance'] = 0
-                    particle['angle'] = random.uniform(0, 360)
-                    particle['lifetime'] = random.uniform(0.5, 1.5)
-                    particle['alpha'] = 255
-        
+
+        # Update event horizon depth animation
+        if self.progress > 0.3:
+            self.horizon_depth_phase = (self.horizon_depth_phase + dt * 0.002) % 1.0
+
+            # Occasionally spawn ripples from center
+            if random.random() < 0.02:
+                self.horizon_ripples.append({
+                    'radius': 0,
+                    'max_radius': self.inner_radius,
+                    'alpha': 200,
+                    'speed': random.uniform(1.5, 3.0)
+                })
+
+            # Update existing ripples
+            for ripple in self.horizon_ripples[:]:
+                ripple['radius'] += ripple['speed'] * dt * 0.1
+                ripple['alpha'] = int(200 * (1.0 - ripple['radius'] / ripple['max_radius']))
+                if ripple['radius'] >= ripple['max_radius']:
+                    self.horizon_ripples.remove(ripple)
+
+        # Update kawoosh effect
+        self._update_kawoosh(dt)
+
         return self.progress < 1.0
+
+    def _update_ring_rotation(self, dt):
+        """Handle inner ring dialing animation."""
+        # Only rotate during dialing phase (before all chevrons locked)
+        if self.current_dialing_chevron >= 9:
+            return
+
+        chevron = self.chevrons[self.current_dialing_chevron]
+        target_angle = self.target_symbol_angles[self.current_dialing_chevron]
+
+        # Check if it's time to start dialing this chevron
+        dial_start_time = 300 + self.current_dialing_chevron * 800
+
+        if self.elapsed < dial_start_time:
+            self.ring_state = 'idle'
+            return
+
+        if self.ring_state == 'idle':
+            # Start rotating toward target
+            self.ring_state = 'rotating'
+            # Alternate rotation direction
+            self.rotation_direction = 1 if self.current_dialing_chevron % 2 == 0 else -1
+
+        elif self.ring_state == 'rotating':
+            # Calculate angle difference
+            angle_diff = (target_angle - self.inner_ring_angle) % 360
+            if angle_diff > 180:
+                angle_diff -= 360
+
+            # Check if close enough to lock
+            if abs(angle_diff) < 5:
+                self.inner_ring_angle = target_angle
+                self.ring_state = 'paused'
+                self.pause_timer = 200  # 200ms pause before lock
+                chevron['state'] = 'aligning'
+            else:
+                # Rotate toward target
+                rotation_amount = self.rotation_speed * dt / 1000.0
+                self.inner_ring_angle += rotation_amount * self.rotation_direction
+                self.inner_ring_angle = self.inner_ring_angle % 360
+
+        elif self.ring_state == 'paused':
+            self.pause_timer -= dt
+            if self.pause_timer <= 0:
+                # Lock the chevron
+                chevron['state'] = 'engaging'
+                chevron['locked'] = True
+                chevron['glow'] = 255
+                chevron['scale_bump'] = 1.3  # Visual "clunk"
+                self.ring_state = 'locked'
+                self.pause_timer = 300  # Hold before next dial
+
+        elif self.ring_state == 'locked':
+            self.pause_timer -= dt
+            if self.pause_timer <= 0:
+                chevron['state'] = 'locked'
+                self.current_dialing_chevron += 1
+                self.ring_state = 'idle'
+
+    def _update_chevrons(self, dt):
+        """Update chevron animations."""
+        for i, chevron in enumerate(self.chevrons):
+            # Fade glow (but pulse if locked)
+            if chevron['locked']:
+                # Pulsing glow for locked chevrons
+                pulse = 50 + 30 * math.sin(self.elapsed * 0.005 + i * 0.5)
+                target_glow = max(pulse, 50)
+                if chevron['glow'] > target_glow + 10:
+                    chevron['glow'] = max(target_glow, chevron['glow'] - dt * 0.4)
+            else:
+                if chevron['glow'] > 0:
+                    chevron['glow'] = max(0, chevron['glow'] - dt * 0.3)
+
+            # Animate scale bump back to normal
+            if chevron['scale_bump'] > 1.0:
+                chevron['scale_bump'] = max(1.0, chevron['scale_bump'] - dt * 0.002)
+
+            # Top chevron (index 0) engagement animation
+            if i == 0 and chevron['state'] == 'engaging':
+                chevron['engage_offset'] = min(8, chevron['engage_offset'] + dt * 0.05)
+            elif i == 0 and chevron['state'] == 'locked':
+                chevron['engage_offset'] = max(0, chevron['engage_offset'] - dt * 0.02)
+
+    def _update_glyph_highlighting(self, dt):
+        """Update glyph highlighting based on ring position."""
+        # Find which glyph is at the top (aligned with top chevron)
+        aligned_index = self._get_aligned_glyph_index()
+
+        for i, glyph in enumerate(self.gate_glyphs):
+            if i == aligned_index and self.ring_state == 'rotating':
+                # Highlight the aligned glyph
+                glyph['glow'] = min(255, glyph['glow'] + dt * 0.8)
+            else:
+                # Fade out
+                glyph['glow'] = max(0, glyph['glow'] - dt * 0.3)
+
+    def _get_aligned_glyph_index(self):
+        """Calculate which glyph is at top (angle -90° / 270°)."""
+        # Top of gate is at -90 degrees
+        # We need to find which glyph, when rotated, is at the top
+        adjusted_angle = (270 - self.inner_ring_angle) % 360
+        return int(adjusted_angle / 10) % 36
+
+    def _update_kawoosh(self, dt):
+        """Handle kawoosh burst/extend/retract phases."""
+        kawoosh_trigger = 0.68  # Start kawoosh at 68%
+
+        if self.progress < kawoosh_trigger:
+            self.kawoosh_state = 'dormant'
+            return
+
+        if self.kawoosh_state == 'dormant':
+            self.kawoosh_state = 'burst'
+            self.kawoosh_progress = 0.0
+            self.kawoosh_start_time = self.elapsed
+            # Initialize particles for burst
+            for particle in self.kawoosh_particles:
+                particle['distance'] = 0
+                particle['speed'] = particle['base_speed'] * random.uniform(0.8, 1.2)
+                particle['alpha'] = 255
+                particle['lifetime'] = 1.0
+
+        # Calculate time since kawoosh started
+        kawoosh_elapsed = (self.elapsed - self.kawoosh_start_time) / 1000.0  # in seconds
+
+        if self.kawoosh_state == 'burst':
+            # Burst phase: 0-0.3s - violent outward explosion
+            if kawoosh_elapsed < 0.3:
+                self.kawoosh_progress = kawoosh_elapsed / 0.3
+                self.kawoosh_distance = self.kawoosh_max_distance * 0.4 * self.kawoosh_progress
+                # Particles move fast outward
+                for particle in self.kawoosh_particles:
+                    particle['distance'] += particle['speed'] * dt / 16.0 * 2.0
+                    particle['alpha'] = 255
+            else:
+                self.kawoosh_state = 'extend'
+
+        elif self.kawoosh_state == 'extend':
+            # Extension phase: 0.3-0.8s - vortex extends to max
+            extend_time = kawoosh_elapsed - 0.3
+            if extend_time < 0.5:
+                self.kawoosh_progress = extend_time / 0.5
+                self.kawoosh_distance = self.kawoosh_max_distance * (0.4 + 0.6 * self.kawoosh_progress)
+                # Particles continue but slower
+                for particle in self.kawoosh_particles:
+                    particle['distance'] += particle['speed'] * dt / 16.0 * 0.5
+            else:
+                self.kawoosh_state = 'retract'
+
+        elif self.kawoosh_state == 'retract':
+            # Retraction phase: 0.8-1.5s - vortex pulls back
+            retract_time = kawoosh_elapsed - 0.8
+            if retract_time < 0.7:
+                self.kawoosh_progress = 1.0 - (retract_time / 0.7)
+                self.kawoosh_distance = self.kawoosh_max_distance * self.kawoosh_progress
+                # Particles pull back toward gate
+                for particle in self.kawoosh_particles:
+                    particle['distance'] = max(0, particle['distance'] - particle['speed'] * dt / 16.0 * 1.5)
+                    particle['alpha'] = int(255 * self.kawoosh_progress)
+            else:
+                self.kawoosh_state = 'stable'
+                self.kawoosh_distance = 0
+
+        elif self.kawoosh_state == 'stable':
+            # Stable event horizon - particles reset for ambient effect
+            for particle in self.kawoosh_particles:
+                if particle['distance'] > 0:
+                    particle['distance'] = max(0, particle['distance'] - dt * 0.5)
+                particle['alpha'] = max(0, particle['alpha'] - int(dt * 0.2))
     
     def draw(self, surface):
         """Draw the Stargate opening animation."""
@@ -1359,167 +1574,337 @@ class StargateOpeningAnimation:
         pygame.draw.circle(nebula, (20, 60, 140, 90), (self.center_x - 200, self.center_y - 150), self.gate_radius * 2)
         pygame.draw.circle(nebula, (10, 30, 80, 70), (self.center_x + 260, self.center_y + 80), self.gate_radius * 2)
         surface.blit(nebula, (0, 0), special_flags=pygame.BLEND_ADD)
-        
+
         for star in self.starfield:
             brightness = 150 + int(100 * (math.sin(star['phase']) * 0.5 + 0.5))
             color = (brightness, brightness, min(255, brightness + 80))
             pygame.draw.circle(surface, color, (int(star['x']), int(star['y'])), star['size'])
-        
-        # Gate body (layered metallic gradient)
-        gate_surface = pygame.Surface((self.gate_radius * 2 + 80, self.gate_radius * 2 + 80), pygame.SRCALPHA)
-        gate_center = gate_surface.get_width() // 2
-        for i in range(26):
-            radius = self.gate_radius + 30 - i * 2
-            shade = 40 + i * 3
-            pygame.draw.circle(gate_surface, (shade, shade, shade + 20, 250), (gate_center, gate_center), radius, 2)
-        pygame.draw.circle(gate_surface, (30, 30, 45, 255), (gate_center, gate_center), self.inner_radius + 22, 22)
-        surface.blit(gate_surface, (self.center_x - gate_center, self.center_y - gate_center))
-        
-        # Glyph engravings around the ring
-        for glyph in self.gate_glyphs:
-            angle_rad = math.radians(glyph['angle'])
-            outer = (
-                self.center_x + math.cos(angle_rad) * (self.gate_radius - 5),
-                self.center_y + math.sin(angle_rad) * (self.gate_radius - 5)
-            )
-            inner = (
-                self.center_x + math.cos(angle_rad) * (self.gate_radius - glyph['length']),
-                self.center_y + math.sin(angle_rad) * (self.gate_radius - glyph['length'])
-            )
-            pygame.draw.line(surface, (110, 130, 170), inner, outer, glyph['width'])
-        
-        # Inner ring accent
-        pygame.draw.circle(surface, (30, 40, 80), (self.center_x, self.center_y), self.inner_radius, 10)
-        pygame.draw.circle(surface, (0, 0, 0), (self.center_x, self.center_y), self.inner_radius - 5, 0)
-        
-        # Draw chevrons
-        for chevron in self.chevrons:
-            angle_rad = math.radians(chevron['angle'])
-            x = self.center_x + math.cos(angle_rad) * self.gate_radius
-            y = self.center_y + math.sin(angle_rad) * self.gate_radius
-            
-            # Chevron symbol (triangle)
-            size = 20
-            points = [
-                (x, y - size),
-                (x - size // 2, y + size // 2),
-                (x + size // 2, y + size // 2)
-            ]
-            
-            if chevron['locked']:
-                # Locked chevron - glowing orange
-                glow = int(chevron['glow'])
-                color = (255, min(255, 140 + glow // 2), 0)
-                
-                # Glow effect
-                if chevron['glow'] > 100:
-                    glow_surf = pygame.Surface((size * 4, size * 4), pygame.SRCALPHA)
-                    glow_color = (255, 180, 0, int(chevron['glow'] * 0.6))
-                    pygame.draw.circle(glow_surf, glow_color, (size * 2, size * 2), size * 2)
-                    surface.blit(glow_surf, (int(x - size * 2), int(y - size * 2)))
-                
-                pygame.draw.polygon(surface, color, points)
-                inner_glow = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                pygame.draw.polygon(inner_glow, (255, 220, 120, 200), [(p[0] - x + size, p[1] - y + size) for p in points])
-                inner_glow = pygame.transform.smoothscale(inner_glow, (size * 3, size * 3))
-                surface.blit(inner_glow, (int(x - 1.5 * size), int(y - 1.5 * size)), special_flags=pygame.BLEND_ADD)
-            else:
-                # Inactive chevron
-                pygame.draw.polygon(surface, (60, 60, 70), points)
-            
-            pygame.draw.polygon(surface, (200, 200, 200), points, 2)
-        
-        # Event horizon (after chevrons start locking)
+
+        # Draw gate body with rotation track
+        self._draw_gate_body(surface)
+
+        # Draw inner ring with rotating glyphs
+        self._draw_inner_ring(surface)
+
+        # Draw chevrons with engagement animation
+        self._draw_chevrons(surface)
+
+        # Event horizon with depth effect (after chevrons start locking)
         if self.progress > 0.3:
-            # Base event horizon glow
-            horizon_alpha = int(min(255, (self.progress - 0.3) * 400))
-            horizon_surf = pygame.Surface((self.inner_radius * 2, self.inner_radius * 2), pygame.SRCALPHA)
-            center = (self.inner_radius, self.inner_radius)
-            
-            # Pulsing watery ripples
-            ripple_layers = 6
-            for i in range(ripple_layers):
-                wave_offset = math.sin(self.ripple_phase + i * 0.6) * 8
-                radius = self.inner_radius - i * 18 + wave_offset
-                alpha = max(10, horizon_alpha - i * 25)
-                blue_component = min(255, 120 + i * 30)
-                alpha_int = int(max(0, min(255, alpha)))
-                color = (40, blue_component, 255, alpha_int)
-                pygame.draw.circle(horizon_surf, color, center, int(max(10, radius)))
-            
-            # Energy swirl accent
-            swirl_surf = pygame.Surface((self.inner_radius * 2, self.inner_radius * 2), pygame.SRCALPHA)
-            for i in range(8):
-                angle = self.ripple_phase * 180 / math.pi + i * 45
-                start_angle = math.radians(angle)
-                end_angle = start_angle + math.radians(40)
-                color = (120, 200, 255, 90)
-                pygame.draw.arc(swirl_surf, color, swirl_surf.get_rect(), start_angle, end_angle, 3)
-            horizon_surf.blit(swirl_surf, (0, 0), special_flags=pygame.BLEND_ADD)
-            
-            surface.blit(horizon_surf, (self.center_x - self.inner_radius, self.center_y - self.inner_radius))
-            
-            # Swirling particles
-            for particle in self.horizon_particles:
-                if particle['alpha'] > 0:
-                    angle_rad = math.radians(particle['angle'])
-                    x = self.center_x + math.cos(angle_rad) * particle['distance']
-                    y = self.center_y + math.sin(angle_rad) * particle['distance']
-                    
-                    particle_surf = pygame.Surface((particle['size'] * 2, particle['size'] * 2), pygame.SRCALPHA)
-                    color = (150, 200, 255, int(particle['alpha']))
-                    pygame.draw.circle(particle_surf, color, (particle['size'], particle['size']), particle['size'])
-                    surface.blit(particle_surf, (int(x - particle['size']), int(y - particle['size'])))
-        
-        # OUTWARD VORTEX (KAWOOSH!) at 70%
-        if self.progress > 0.7:
-            for particle in self.vortex_particles:
-                if particle['alpha'] > 0 and particle['distance'] < self.gate_radius * 2 and particle['size'] > 0:
-                    angle_rad = math.radians(particle['angle'])
-                    x = self.center_x + math.cos(angle_rad) * particle['distance']
-                    y = self.center_y + math.sin(angle_rad) * particle['distance']
-                    
-                    size = max(1, int(particle['size']))  # Ensure size is at least 1
-                    alpha = max(0, min(255, int(particle['alpha'])))  # Clamp alpha
-                    
-                    particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                    # Bright white/blue vortex particles
-                    color = (200, 230, 255, alpha)
-                    pygame.draw.circle(particle_surf, color, (size, size), size)
-                    surface.blit(particle_surf, (int(x - size), int(y - size)))
-            
-            # Lens flare burst
-            flare = pygame.Surface((self.gate_radius * 2, self.gate_radius * 2), pygame.SRCALPHA)
-            pygame.draw.circle(flare, (80, 180, 255, 70), (self.gate_radius, self.gate_radius), self.gate_radius)
-            surface.blit(flare, (self.center_x - self.gate_radius, self.center_y - self.gate_radius), special_flags=pygame.BLEND_ADD)
-        
+            self._draw_event_horizon_3d(surface)
+
+        # Kawoosh effect
+        if self.kawoosh_state != 'dormant':
+            self._draw_kawoosh(surface)
+
         # Title text (fades in at end)
-        if self.progress > 0.7:
-            title_alpha = int(min(255, (self.progress - 0.7) * 850))
-            pulse_scale = 1.0 + 0.03 * math.sin(self.title_pulse * 2)
-            title_font = pygame.font.SysFont("Eurostile", 80, bold=True)
-            title_text = title_font.render("STARGWENT", True, (230, 240, 255))
-            title_text = pygame.transform.rotozoom(title_text, 0, pulse_scale)
-            title_rect = title_text.get_rect(center=(self.center_x, self.screen_height - 140))
-            
-            # Stargate-style glow layers
-            glow_surface = pygame.Surface((title_rect.width + 120, title_rect.height + 80), pygame.SRCALPHA)
-            pygame.draw.ellipse(glow_surface, (40, 120, 255, min(180, title_alpha)), glow_surface.get_rect())
-            surface.blit(glow_surface, (title_rect.x - 60, title_rect.y - 40), special_flags=pygame.BLEND_ADD)
-            
-            title_text.set_alpha(title_alpha)
-            surface.blit(title_text, title_rect)
-        
+        if self.progress > 0.75:
+            self._draw_title(surface)
+
         # White fade to next screen (98.75-100%) - starts at 15.8s
         if self.progress > 0.9875:
-            # Smooth fade out to white
-            fade_progress = (self.progress - 0.9875) / 0.0125  # 0 to 1 over last 1.25% (0.2s)
+            fade_progress = (self.progress - 0.9875) / 0.0125
             fade_alpha = int(fade_progress * 255)
-            
             fade_surface = pygame.Surface((self.screen_width, self.screen_height))
             fade_surface.fill((255, 255, 255))
             fade_surface.set_alpha(fade_alpha)
             surface.blit(fade_surface, (0, 0))
+
+    def _draw_gate_body(self, surface):
+        """Draw the gate body with metallic rings and rotation track."""
+        gate_surface = pygame.Surface((self.gate_radius * 2 + 80, self.gate_radius * 2 + 80), pygame.SRCALPHA)
+        gate_center = gate_surface.get_width() // 2
+
+        # Outer beveled edge highlight
+        for i in range(5):
+            radius = self.gate_radius + 35 - i
+            highlight = 80 - i * 10
+            pygame.draw.circle(gate_surface, (highlight, highlight, highlight + 10, 200), (gate_center, gate_center), radius, 1)
+
+        # Main metallic gradient rings
+        for i in range(26):
+            radius = self.gate_radius + 30 - i * 2
+            shade = 40 + i * 3
+            pygame.draw.circle(gate_surface, (shade, shade, shade + 20, 250), (gate_center, gate_center), radius, 2)
+
+        # Inner track where ring rotates (darker groove)
+        track_radius = self.inner_radius + 25
+        pygame.draw.circle(gate_surface, (20, 20, 30, 255), (gate_center, gate_center), track_radius, 8)
+        pygame.draw.circle(gate_surface, (15, 15, 25, 255), (gate_center, gate_center), track_radius - 2, 4)
+
+        # Inner ring base
+        pygame.draw.circle(gate_surface, (30, 30, 45, 255), (gate_center, gate_center), self.inner_radius + 18, 18)
+
+        surface.blit(gate_surface, (self.center_x - gate_center, self.center_y - gate_center))
+
+    def _draw_inner_ring(self, surface):
+        """Draw the rotating inner ring with glyphs."""
+        # Draw glyphs with rotation applied
+        for i, glyph in enumerate(self.gate_glyphs):
+            # Apply rotation to glyph angle
+            rotated_angle = glyph['base_angle'] + self.inner_ring_angle
+            angle_rad = math.radians(rotated_angle)
+
+            glyph_radius = self.gate_radius - 8
+            outer = (
+                self.center_x + math.cos(angle_rad) * glyph_radius,
+                self.center_y + math.sin(angle_rad) * glyph_radius
+            )
+            inner = (
+                self.center_x + math.cos(angle_rad) * (glyph_radius - glyph['length']),
+                self.center_y + math.sin(angle_rad) * (glyph_radius - glyph['length'])
+            )
+
+            # Base glyph color
+            base_color = (110, 130, 170)
+
+            # Highlight if glowing (aligned with top chevron)
+            if glyph['glow'] > 0:
+                glow_intensity = glyph['glow'] / 255.0
+                # Glow effect around glyph
+                glow_surf = pygame.Surface((40, 40), pygame.SRCALPHA)
+                glow_color = (255, 200, 100, int(glyph['glow'] * 0.7))
+                pygame.draw.circle(glow_surf, glow_color, (20, 20), 18)
+                mid_x = (outer[0] + inner[0]) / 2
+                mid_y = (outer[1] + inner[1]) / 2
+                surface.blit(glow_surf, (int(mid_x - 20), int(mid_y - 20)), special_flags=pygame.BLEND_ADD)
+
+                # Brighter glyph color when highlighted
+                r = int(110 + 145 * glow_intensity)
+                g = int(130 + 100 * glow_intensity)
+                b = int(170 + 85 * glow_intensity)
+                base_color = (min(255, r), min(255, g), min(255, b))
+
+            pygame.draw.line(surface, base_color, inner, outer, glyph['width'])
+
+        # Inner ring accent circle
+        pygame.draw.circle(surface, (30, 40, 80), (self.center_x, self.center_y), self.inner_radius, 10)
+        pygame.draw.circle(surface, (0, 0, 0), (self.center_x, self.center_y), self.inner_radius - 5, 0)
+
+    def _draw_chevrons(self, surface):
+        """Draw chevrons with engagement animation."""
+        for i, chevron in enumerate(self.chevrons):
+            angle_rad = math.radians(chevron['angle'])
+
+            # Base position
+            base_x = self.center_x + math.cos(angle_rad) * self.gate_radius
+            base_y = self.center_y + math.sin(angle_rad) * self.gate_radius
+
+            # Top chevron (i=0) has engagement offset
+            if i == 0:
+                # Move inward toward center when engaging
+                offset = chevron['engage_offset']
+                base_x -= math.cos(angle_rad) * offset
+                base_y -= math.sin(angle_rad) * offset
+
+            x, y = base_x, base_y
+
+            # Chevron size with scale bump
+            base_size = 20
+            size = int(base_size * chevron['scale_bump'])
+
+            # Calculate chevron points (pointing outward from center)
+            # Rotate points based on chevron angle
+            cos_a = math.cos(angle_rad + math.pi / 2)
+            sin_a = math.sin(angle_rad + math.pi / 2)
+
+            # Triangle pointing outward
+            tip_offset = size
+            base_offset = size // 2
+            points = [
+                (x + cos_a * tip_offset, y + sin_a * tip_offset),  # Tip
+                (x - cos_a * base_offset - math.cos(angle_rad) * base_offset,
+                 y - sin_a * base_offset - math.sin(angle_rad) * base_offset),
+                (x - cos_a * base_offset + math.cos(angle_rad) * base_offset,
+                 y - sin_a * base_offset + math.sin(angle_rad) * base_offset)
+            ]
+
+            if chevron['locked']:
+                # Locked chevron - glowing orange with pulse
+                glow = int(chevron['glow'])
+                color = (255, min(255, 140 + glow // 2), 0)
+
+                # Outer glow effect
+                if chevron['glow'] > 30:
+                    glow_size = int(size * 2 * chevron['scale_bump'])
+                    glow_surf = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+                    glow_alpha = int(min(180, chevron['glow'] * 0.7))
+                    glow_color = (255, 180, 0, glow_alpha)
+                    pygame.draw.circle(glow_surf, glow_color, (glow_size, glow_size), glow_size)
+                    surface.blit(glow_surf, (int(x - glow_size), int(y - glow_size)), special_flags=pygame.BLEND_ADD)
+
+                pygame.draw.polygon(surface, color, points)
+
+                # Inner bright glow
+                inner_glow = pygame.Surface((size * 3, size * 3), pygame.SRCALPHA)
+                local_points = [(p[0] - x + size * 1.5, p[1] - y + size * 1.5) for p in points]
+                pygame.draw.polygon(inner_glow, (255, 220, 120, 200), local_points)
+                surface.blit(inner_glow, (int(x - size * 1.5), int(y - size * 1.5)), special_flags=pygame.BLEND_ADD)
+
+            elif chevron['state'] == 'aligning':
+                # Aligning state - dim orange glow
+                pygame.draw.polygon(surface, (180, 120, 40), points)
+            else:
+                # Inactive chevron
+                pygame.draw.polygon(surface, (60, 60, 70), points)
+
+            # Chevron outline
+            pygame.draw.polygon(surface, (200, 200, 200), points, 2)
+
+    def _draw_event_horizon_3d(self, surface):
+        """Draw event horizon with 3D depth tunnel effect."""
+        horizon_alpha = int(min(255, (self.progress - 0.3) * 400))
+        horizon_surf = pygame.Surface((self.inner_radius * 2, self.inner_radius * 2), pygame.SRCALPHA)
+        center = (self.inner_radius, self.inner_radius)
+
+        # 3D depth layers (concentric rings getting smaller toward center)
+        for i in range(self.horizon_depth_layers):
+            # Each layer smaller, creating perspective illusion
+            scale = 1.0 - (i * 0.1)
+            depth_offset = (self.horizon_depth_phase + i * 0.12) % 1.0
+
+            # Layer radius with animated movement "into" screen
+            base_radius = (self.inner_radius - 10) * scale
+            animated_radius = base_radius * (0.95 + 0.05 * math.sin(depth_offset * math.tau))
+
+            # Color gradient: lighter at edges, darker blue at center
+            brightness = 255 - (i * 25)
+            blue = min(255, 180 + i * 10)
+            green = max(80, 150 - i * 15)
+            layer_alpha = int(max(30, horizon_alpha - i * 20))
+
+            color = (int(green * 0.3), green, blue, layer_alpha)
+            pygame.draw.circle(horizon_surf, color, center, int(max(5, animated_radius)))
+
+        # Watery ripple overlay
+        for i in range(4):
+            wave_offset = math.sin(self.ripple_phase * 2 + i * 0.8) * 6
+            radius = self.inner_radius - 15 - i * 25 + wave_offset
+            if radius > 10:
+                alpha = int(max(20, 80 - i * 15))
+                color = (100, 200, 255, alpha)
+                pygame.draw.circle(horizon_surf, color, center, int(radius), 2)
+
+        # Energy swirl accent
+        swirl_surf = pygame.Surface((self.inner_radius * 2, self.inner_radius * 2), pygame.SRCALPHA)
+        for i in range(6):
+            angle = self.ripple_phase * 200 / math.pi + i * 60
+            start_angle = math.radians(angle)
+            end_angle = start_angle + math.radians(50)
+            color = (120, 200, 255, 70)
+            pygame.draw.arc(swirl_surf, color, swirl_surf.get_rect().inflate(-20, -20), start_angle, end_angle, 3)
+        horizon_surf.blit(swirl_surf, (0, 0), special_flags=pygame.BLEND_ADD)
+
+        # Draw propagating ripples from center
+        for ripple in self.horizon_ripples:
+            if ripple['alpha'] > 0:
+                ripple_color = (150, 220, 255, ripple['alpha'])
+                pygame.draw.circle(horizon_surf, ripple_color, center, int(ripple['radius']), 2)
+
+        surface.blit(horizon_surf, (self.center_x - self.inner_radius, self.center_y - self.inner_radius))
+
+        # Swirling particles
+        for particle in self.horizon_particles:
+            if particle['alpha'] > 0:
+                angle_rad = math.radians(particle['angle'])
+                px = self.center_x + math.cos(angle_rad) * particle['distance']
+                py = self.center_y + math.sin(angle_rad) * particle['distance']
+
+                particle_surf = pygame.Surface((particle['size'] * 2, particle['size'] * 2), pygame.SRCALPHA)
+                color = (150, 200, 255, int(particle['alpha']))
+                pygame.draw.circle(particle_surf, color, (particle['size'], particle['size']), particle['size'])
+                surface.blit(particle_surf, (int(px - particle['size']), int(py - particle['size'])))
+
+    def _draw_kawoosh(self, surface):
+        """Draw the kawoosh effect with burst/extend/retract phases."""
+        if self.kawoosh_state == 'stable':
+            # Just draw a subtle lens flare for stable wormhole
+            flare = pygame.Surface((self.gate_radius * 2, self.gate_radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(flare, (60, 140, 255, 40), (self.gate_radius, self.gate_radius), self.gate_radius)
+            surface.blit(flare, (self.center_x - self.gate_radius, self.center_y - self.gate_radius), special_flags=pygame.BLEND_ADD)
+            return
+
+        # Cone-shaped vortex effect
+        if self.kawoosh_distance > 0:
+            # Draw the main vortex cone (narrower at gate, wider at tip)
+            vortex_surf = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+
+            # Multiple layers for depth
+            for layer in range(4):
+                layer_alpha = int(150 - layer * 30)
+                layer_width = self.inner_radius * (0.8 - layer * 0.15)
+
+                # Cone points
+                cone_length = self.kawoosh_distance * (1.0 - layer * 0.1)
+                tip_width = layer_width * (1.0 + cone_length / self.gate_radius * 0.5)
+
+                # Color: bright white core, blue edges
+                if layer == 0:
+                    color = (255, 255, 255, layer_alpha)
+                else:
+                    blue_shift = layer * 40
+                    color = (200 - blue_shift, 220 - blue_shift // 2, 255, layer_alpha)
+
+                # Draw cone as a series of circles expanding outward
+                steps = int(cone_length / 8) + 1
+                for step in range(steps):
+                    t = step / max(1, steps - 1)
+                    step_dist = cone_length * t
+                    step_radius = layer_width + (tip_width - layer_width) * t
+
+                    # Wavy distortion
+                    wave = math.sin(self.ripple_phase * 3 + step * 0.5) * 5 * t
+                    cx = self.center_x + wave
+                    cy = self.center_y - step_dist  # Toward viewer (up on screen)
+
+                    step_alpha = int(layer_alpha * (1.0 - t * 0.5))
+                    step_color = (color[0], color[1], color[2], step_alpha)
+                    pygame.draw.circle(vortex_surf, step_color, (int(cx), int(cy)), int(max(3, step_radius)))
+
+            surface.blit(vortex_surf, (0, 0), special_flags=pygame.BLEND_ADD)
+
+        # Draw kawoosh particles
+        for particle in self.kawoosh_particles:
+            if particle['alpha'] > 10 and particle['distance'] > 0:
+                # Particles spread in a cone toward viewer
+                spread = particle['distance'] / self.kawoosh_max_distance
+                px = self.center_x + particle['offset_x'] * particle['distance']
+                py = self.center_y - particle['distance']  # Moving toward viewer (up)
+
+                size = max(2, int(particle['size'] * (1.0 + spread * 0.5)))
+                alpha = max(0, min(255, int(particle['alpha'])))
+
+                if size > 0 and alpha > 0:
+                    particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                    # Bright white/blue vortex particles
+                    color = (220, 240, 255, alpha)
+                    pygame.draw.circle(particle_surf, color, (size, size), size)
+                    surface.blit(particle_surf, (int(px - size), int(py - size)), special_flags=pygame.BLEND_ADD)
+
+        # Intense lens flare during burst/extend
+        if self.kawoosh_state in ('burst', 'extend'):
+            flare_intensity = 1.0 if self.kawoosh_state == 'burst' else 0.7
+            flare = pygame.Surface((self.gate_radius * 3, self.gate_radius * 3), pygame.SRCALPHA)
+            flare_alpha = int(120 * flare_intensity)
+            pygame.draw.circle(flare, (100, 200, 255, flare_alpha), (self.gate_radius * 1.5, self.gate_radius * 1.5), int(self.gate_radius * 1.5))
+            surface.blit(flare, (int(self.center_x - self.gate_radius * 1.5), int(self.center_y - self.gate_radius * 1.5)), special_flags=pygame.BLEND_ADD)
+
+    def _draw_title(self, surface):
+        """Draw the title text with glow effect."""
+        title_alpha = int(min(255, (self.progress - 0.75) * 1000))
+        pulse_scale = 1.0 + 0.03 * math.sin(self.title_pulse * 2)
+        title_font = pygame.font.SysFont("Eurostile", 80, bold=True)
+        title_text = title_font.render("STARGWENT", True, (230, 240, 255))
+        title_text = pygame.transform.rotozoom(title_text, 0, pulse_scale)
+        title_rect = title_text.get_rect(center=(self.center_x, self.screen_height - 140))
+
+        # Stargate-style glow layers
+        glow_surface = pygame.Surface((title_rect.width + 120, title_rect.height + 80), pygame.SRCALPHA)
+        pygame.draw.ellipse(glow_surface, (40, 120, 255, min(180, title_alpha)), glow_surface.get_rect())
+        surface.blit(glow_surface, (title_rect.x - 60, title_rect.y - 40), special_flags=pygame.BLEND_ADD)
+
+        title_text.set_alpha(title_alpha)
+        surface.blit(title_text, title_rect)
 
 
 
