@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.0.0-blue)
+![Version](https://img.shields.io/badge/version-5.2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -81,9 +81,12 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🌐 LAN Multiplayer
 - **Full 2-Player Networked Gameplay** - Host/Join with deck selection and chat
+- **Room Codes** - Share easy codes like "GATE-7K3M" instead of IP addresses
 - **Tailscale Support** - Smart IP detection prioritizes VPN addresses for remote play
 - **Rematch System** - Play again with new faction/leader or disconnect
-- **Integrated Chat** - Press 'T' to chat without leaving the action
+- **Integrated Chat** - Press 'T' to chat, quick chat keys 1-5, sound notifications
+- **Connection Quality** - Real-time latency indicator (green/yellow/red) in HUD
+- **Reliable Connections** - JSON error recovery, host timeout, graceful disconnect handling
 
 ### 🎨 Visual Polish
 - **4K Native Resolution** (3840×2160) with perfect scaling
@@ -189,6 +192,65 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 5.2.0 (January 2026)
+**LAN Multiplayer Reliability & Chat Overhaul**
+
+#### Connection Reliability
+- ✅ **JSON Error Recovery** – No longer disconnects on first malformed packet:
+  - 3-strike system before disconnect (tolerates network corruption)
+  - Logs corrupted data preview for debugging
+  - Resets error counter on successful parse
+- ✅ **Host Timeout & Cancel** – Hosting no longer blocks forever:
+  - 120-second timeout with elapsed time display ("Waiting... 45s / 120s")
+  - ESC key cancels hosting gracefully
+  - Proper socket cleanup on cancel
+- ✅ **Improved Disconnect UX** – Better feedback when connection lost:
+  - Styled overlay box with specific reason ("Opponent disconnected" vs "Connection lost")
+  - 10-second countdown before auto-return to menu
+  - "Return Now" button for immediate exit
+
+#### Connection Quality
+- ✅ **Ping/Latency Display** – Real-time connection quality indicator in HUD:
+  - PING/PONG protocol measures round-trip time every 5 seconds
+  - Colored dot indicator: Green (<50ms), Yellow (50-150ms), Red (>150ms)
+  - Shows exact latency in milliseconds
+- ✅ **Room Codes** – Human-readable codes for easier LAN connections:
+  - Host displays room code (e.g., "GATE-7K3M") prominently
+  - Join screen accepts room codes OR IP addresses
+  - Excludes confusing characters (0/O, 1/I/L)
+  - Auto-detects network prefix for decoding
+
+#### Chat System Overhaul
+- ✅ **Sound Notifications** – Audio feedback for incoming messages:
+  - Plays `assets/audio/chat_notification.ogg` on peer messages
+  - Respects game sound settings (silent if file missing)
+- ✅ **Chat Scrolling** – Full history navigation:
+  - PageUp/PageDown, Home/End keys for scrolling
+  - Mouse wheel support
+  - Keeps 100 messages in memory (was 20)
+  - "New messages below" indicator when scrolled up
+- ✅ **Quick Chat** – Pre-defined messages via number keys:
+  - `1`: "Good game!"
+  - `2`: "Nice play!"
+  - `3`: "Good luck!"
+  - `4`: "One moment..."
+  - `5`: "Well played!"
+  - Hints displayed below chat input
+- ✅ **Unread Message Indicator** – Track messages when chat minimized:
+  - Badge shows unread count
+  - Clears when chat is opened
+  - `draw_unread_badge()` method for custom UI placement
+- ✅ **Message Delivery Confirmation** – Know your messages arrived:
+  - Unique message IDs with ACK protocol
+  - Checkmark (v) appears next to confirmed messages
+  - Unconfirmed messages shown dimmed
+  - Auto-confirms after 5-second timeout
+
+#### New Audio Asset
+- `assets/audio/chat_notification.ogg` – Chat message notification sound (optional, silent if missing)
+
+See [Audio Assets](#audio-assets) section for full list of supported audio files.
 
 ### Version 5.0.0 (January 2026)
 **Content Manager Reliability & Batch Import**
@@ -1369,6 +1431,57 @@ cp backup/2026-01-16_143205/* ./
 - Color-coded by faction
 - Custom particle systems
 - Future: Replace with commissioned art or community art
+
+### Audio Assets
+
+All audio files are located in `assets/audio/`. Missing files are silently skipped (no crashes).
+
+#### Music Files
+| File | Purpose |
+|------|---------|
+| `menu_theme.ogg` | Main menu background music |
+| `battle_round1.ogg` | Battle music - Round 1 |
+| `battle_round2.ogg` | Battle music - Round 2 (more intense) |
+| `battle_round3.ogg` | Battle music - Round 3 (climactic) |
+| `faction_tauri.ogg` | Tau'ri faction theme (hover preview) |
+| `faction_goauld.ogg` | Goa'uld faction theme (hover preview) |
+| `faction_jaffa.ogg` | Jaffa faction theme (hover preview) |
+| `faction_lucian.ogg` | Lucian Alliance faction theme (hover preview) |
+| `faction_asgard.ogg` | Asgard faction theme (hover preview) |
+
+#### Sound Effects
+| File | Purpose |
+|------|---------|
+| `close.ogg` | Close combat unit played |
+| `ranged.ogg` | Ranged unit played |
+| `siege.ogg` | Siege unit played |
+| `ring.ogg` | Ring Transport / Mulligan phase |
+| `horn.ogg` | Commander's Horn effect |
+| `iris.ogg` | Tau'ri Iris Defense activation |
+| `symbiote.ogg` | Goa'uld Symbiote animation |
+| `chat_notification.ogg` | LAN chat message received |
+
+#### Weather Sound Effects (Optional)
+| File | Purpose |
+|------|---------|
+| `weather_ice.ogg` | Ice Planet Hazard |
+| `weather_nebula.ogg` | Nebula Interference |
+| `weather_asteroid.ogg` | Asteroid Storm |
+| `weather_emp.ogg` | Electromagnetic Pulse |
+
+#### Commander Voice Snippets
+Located in `assets/audio/commander_snippets/`. Each legendary commander can have a voice clip that plays when deployed.
+
+| Pattern | Example |
+|---------|---------|
+| `{card_id}.ogg` | `tauri_oneill.ogg`, `goauld_apophis.ogg` |
+
+#### Leader Voice Snippets
+Located in `assets/audio/leader_voices/`. Leader quotes for draft mode and selection screens.
+
+| Pattern | Example |
+|---------|---------|
+| `{leader_id}.ogg` | `tauri_oneill.ogg`, `jaffa_tealc.ogg` |
 
 ### Development
 - Built with **Python 3.8+** and **Pygame CE 2.5.6+**

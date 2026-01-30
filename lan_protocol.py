@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 
 class LanMessageType(str, Enum):
     CHAT = "chat"
+    CHAT_ACK = "chat_ack"  # Message delivery confirmation
     DECK_SELECTION = "deck_selection"
     SEED = "seed"
     GAME_ACTION = "game_action"
@@ -29,6 +30,8 @@ class LanMessageType(str, Enum):
     DISCONNECT = "disconnect"
     PLAY_AGAIN = "play_again"
     KEEPALIVE = "keepalive"
+    PING = "ping"  # Latency measurement request
+    PONG = "pong"  # Latency measurement response
 
 
 def build_message(message_type: LanMessageType, payload: Optional[Dict[str, Any]] = None, turn_token: Optional[str] = None) -> Dict[str, Any]:
