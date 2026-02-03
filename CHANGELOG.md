@@ -1,7 +1,71 @@
-### Version 5.1.0 (February 2026)
-**Code Quality & Bug Fix Update**
+### Version 5.3.0 (January 2026)
+**Movie-Accurate Stargate Animation & Rule Compendium Polish**
 
-Major code quality improvements addressing 25+ issues across game logic, deck building, and AI systems.
+#### New Stargate Opening Animation
+- ✅ **Cinematic Stargate Sequence** – Complete visual overhaul of the Stargate opening animation with movie-accurate effects:
+  - **Rotating Inner Ring** – The inner symbol ring rotates and stops at randomized glyphs, alternating clockwise/counter-clockwise for each chevron
+  - **9-Chevron Locking Sequence** – Each chevron lights up, engages with a visual "clunk" bump, and locks in sequence
+  - **Enhanced Kawoosh Effect** – Directional particle cone with 300 layered particles that burst outward, extend, retract, then stabilize
+  - **Event Horizon Particles** – 100 swirling particles create the iconic blue ripple effect inside the gate
+  - **16-Second Duration** – Timed to match the audio cue for full immersion
+  - **State Machine Control** – Kawoosh progresses through dormant → burst → extend → retract → stable phases
+
+#### Rule Compendium Improvements
+- ✅ **Scaling Fix** – Rule Compendium UI now scales properly across all resolutions (4K, 1440p, 1080p)
+- ✅ **Enhanced Layout** – Improved text rendering and section organization in the rules menu
+
+### Version 5.2.0 (January 2026)
+**LAN Multiplayer Reliability & Chat Overhaul**
+
+#### Connection Reliability
+- ✅ **JSON Error Recovery** – No longer disconnects on first malformed packet:
+  - 3-strike system before disconnect (tolerates network corruption)
+  - Logs corrupted data preview for debugging
+  - Resets error counter on successful parse
+- ✅ **Host Timeout & Cancel** – Hosting no longer blocks forever:
+  - 120-second timeout with elapsed time display ("Waiting... 45s / 120s")
+  - ESC key cancels hosting gracefully
+  - Proper socket cleanup on cancel
+- ✅ **Improved Disconnect UX** – Better feedback when connection lost:
+  - Styled overlay box with specific reason ("Opponent disconnected" vs "Connection lost")
+  - 10-second countdown before auto-return to menu
+  - "Return Now" button for immediate exit
+
+#### Connection Quality
+- ✅ **Ping/Latency Display** – Real-time connection quality indicator in HUD:
+  - PING/PONG protocol measures round-trip time every 5 seconds
+  - Colored dot indicator: Green (<50ms), Yellow (50-150ms), Red (>150ms)
+  - Shows exact latency in milliseconds
+- ✅ **Room Codes** – Human-readable codes for easier LAN connections:
+  - Host displays room code (e.g., "GATE-7K3M") prominently
+  - Join screen accepts room codes OR IP addresses
+  - Excludes confusing characters (0/O, 1/I/L)
+  - Auto-detects network prefix for decoding
+
+#### Chat System Overhaul
+- ✅ **Sound Notifications** – Audio feedback for incoming messages
+- ✅ **Chat Scrolling** – Full history navigation with PageUp/PageDown, Home/End, mouse wheel
+- ✅ **Quick Chat** – Pre-defined messages via number keys (1-5)
+- ✅ **Unread Message Indicator** – Badge shows unread count when chat minimized
+- ✅ **Message Delivery Confirmation** – Checkmark appears next to confirmed messages
+
+### Version 5.1.0 (February 2026)
+**Code Quality, XDG Save Paths & Bug Fix Update**
+
+Major code quality improvements addressing 25+ issues across game logic, deck building, and AI systems. Plus proper XDG save paths for Linux compatibility.
+
+#### XDG Base Directory Support
+- ✅ **Centralized Save Paths** – New `save_paths.py` module implements XDG Base Directory Specification:
+  - Save data now stored in `~/.local/share/stargwent/` (or `$XDG_DATA_HOME/stargwent/`)
+  - Works correctly with both .deb and AppImage builds
+  - Automatic migration of legacy saves from game directory to XDG location
+  - Affected files: `player_decks.json`, `player_unlocks.json`, `game_settings.json`
+- ✅ **Updated Modules** – `deck_persistence.py`, `unlocks.py`, `game_settings.py`, `main_menu.py` now use centralized paths
+
+#### Draft Mode Fixes
+- ✅ **Duplicate Card Prevention** – Fixed weighted draft pool that could show the same card multiple times in choices
+- ✅ **Better Card ID Matching** – Save/restore now matches cards by name, faction, power, AND row to avoid variant mismatches
+- ✅ **Exception Handling** – Replaced broad `except Exception:` with specific types in draft UI
 
 #### Critical Bug Fixes
 - ✅ **Clone Token Lifetime Fix** – O'Neill clones now correctly live for 4 turns instead of 3 (off-by-one error in `decrement_clone_tokens`)
