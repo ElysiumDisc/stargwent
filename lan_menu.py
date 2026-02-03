@@ -3,6 +3,7 @@ import pygame
 import socket
 import subprocess
 import re
+import time
 from lan_session import LanSession
 
 FONT_CACHE = {}
@@ -122,6 +123,95 @@ def get_local_ips():
     return sorted_ips
 
 
+# ============================================================================
+# ROOM CODE SYSTEM - Human-readable codes for LAN IPs
+# ============================================================================
+# Character set excluding confusing chars: 0/O, 1/I/L
+ROOM_CODE_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+
+
+def ip_to_room_code(ip: str, port: int = 4765) -> str:
+    """Convert IP address to human-readable room code.
+
+    Encodes the IP as a GATE-XXXX code for easy sharing.
+    Only works reliably on same subnet (last two octets encoded).
+
+    Args:
+        ip: IP address string (e.g., "192.168.1.42")
+        port: Port number (unused for now, reserved for future)
+
+    Returns:
+        Room code string (e.g., "GATE-7K3M")
+    """
+    try:
+        parts = [int(x) for x in ip.split('.')]
+        if len(parts) != 4:
+            return "GATE-????"
+
+        # Encode last two octets (most likely to vary on LAN)
+        # Using a simple base conversion with our character set
+        value = parts[2] * 256 + parts[3]  # 0-65535 range
+
+        code_chars = []
+        base = len(ROOM_CODE_CHARS)
+        for _ in range(4):
+            code_chars.append(ROOM_CODE_CHARS[value % base])
+            value //= base
+
+        return f"GATE-{''.join(reversed(code_chars))}"
+    except (ValueError, IndexError):
+        return "GATE-????"
+
+
+def room_code_to_ip(code: str, network_prefix: str = None) -> tuple:
+    """Convert room code back to IP address.
+
+    Args:
+        code: Room code string (e.g., "GATE-7K3M")
+        network_prefix: First two octets of network (e.g., "192.168")
+                       If None, uses common LAN prefixes
+
+    Returns:
+        tuple: (ip_string, port) or (None, None) if invalid
+    """
+    try:
+        # Strip prefix and normalize
+        code = code.upper().replace("GATE-", "").replace("-", "")
+        if len(code) != 4:
+            return (None, None)
+
+        # Decode from our character set
+        base = len(ROOM_CODE_CHARS)
+        value = 0
+        for char in code:
+            idx = ROOM_CODE_CHARS.find(char)
+            if idx < 0:
+                return (None, None)
+            value = value * base + idx
+
+        # Extract octets
+        octet3 = value // 256
+        octet4 = value % 256
+
+        if octet3 > 255 or octet4 > 255:
+            return (None, None)
+
+        # Determine network prefix (try to auto-detect from local IPs)
+        if not network_prefix:
+            local_ips = get_local_ips()
+            if local_ips:
+                parts = local_ips[0].split('.')
+                if len(parts) >= 2:
+                    network_prefix = f"{parts[0]}.{parts[1]}"
+            if not network_prefix:
+                network_prefix = "192.168"
+
+        ip = f"{network_prefix}.{octet3}.{octet4}"
+        return (ip, 4765)
+    except (ValueError, IndexError):
+        return (None, None)
+
+
 def draw_button(surface, rect, text, font_size=32, hover=False, color_normal=(50, 100, 180), color_hover=(70, 130, 220)):
     """Draw a styled button with hover effect."""
     color = color_hover if hover else color_normal
@@ -154,6 +244,9 @@ def run_lan_menu(screen):
     status_lines = []
     host_thread = None
     host_error = None
+    host_cancelled = False
+    host_start_time = None
+    host_timeout = 120  # seconds
     connected = False
     role = None
 
@@ -199,6 +292,8 @@ def run_lan_menu(screen):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if state in ("join", "hosting"):
+                        if state == "hosting":
+                            host_cancelled = True
                         state = "menu"
                         if session:
                             session.close()
@@ -209,11 +304,26 @@ def run_lan_menu(screen):
                     if event.key == pygame.K_BACKSPACE:
                         join_ip = join_ip[:-1]
                     elif event.key == pygame.K_RETURN and join_ip:
+                        # Check if it's a room code or IP address
+                        target_ip = join_ip
+                        target_port = 4765
+
+                        # Try to decode as room code if it looks like one
+                        if join_ip.upper().startswith("GATE") or (len(join_ip) == 4 and not "." in join_ip):
+                            decoded_ip, decoded_port = room_code_to_ip(join_ip)
+                            if decoded_ip:
+                                target_ip = decoded_ip
+                                target_port = decoded_port
+                                add_status(f"Room code decoded: {target_ip}")
+                            else:
+                                add_status("Invalid room code format")
+                                continue
+
                         # Connect on Enter
                         session = LanSession()
-                        add_status(f"Connecting to {join_ip}:4765...")
+                        add_status(f"Connecting to {target_ip}:{target_port}...")
                         try:
-                            session.join(join_ip, 4765)
+                            session.join(target_ip, target_port)
                             state = "chat"
                             role = "client"
                             add_status("Connected successfully!")
@@ -232,16 +342,24 @@ def run_lan_menu(screen):
                         status_lines.clear()
                         add_status("Waiting for connection on port 4765...")
                         role = "host"
+                        host_start_time = time.time()
+                        host_cancelled = False
 
                         def wait_for_client():
-                            nonlocal connected, host_error
+                            nonlocal connected, host_error, host_cancelled
                             try:
-                                addr = session.host(4765)
-                                connected = True
-                                add_status(f"Client connected: {addr[0]}")
-                                session.send("status", "Welcome to Stargwent LAN!")
+                                # Use timeout to allow periodic cancel checks
+                                addr = session.host(4765, timeout=host_timeout)
+                                if not host_cancelled:
+                                    connected = True
+                                    add_status(f"Client connected: {addr[0]}")
+                                    session.send("status", "Welcome to Stargwent LAN!")
+                            except socket.timeout:
+                                if not host_cancelled:
+                                    host_error = "Connection timeout - no client connected within 2 minutes"
                             except OSError as exc:
-                                host_error = str(exc)
+                                if not host_cancelled:
+                                    host_error = str(exc)
 
                         host_thread = threading.Thread(target=wait_for_client, daemon=True)
                         host_thread.start()
@@ -251,10 +369,25 @@ def run_lan_menu(screen):
                         status_lines.clear()
                 elif state == "join":
                     if connect_btn.collidepoint(mx, my) and join_ip:
+                        # Check if it's a room code or IP address
+                        target_ip = join_ip
+                        target_port = 4765
+
+                        # Try to decode as room code if it looks like one
+                        if join_ip.upper().startswith("GATE") or (len(join_ip) == 4 and not "." in join_ip):
+                            decoded_ip, decoded_port = room_code_to_ip(join_ip)
+                            if decoded_ip:
+                                target_ip = decoded_ip
+                                target_port = decoded_port
+                                add_status(f"Room code decoded: {target_ip}")
+                            else:
+                                add_status("Invalid room code format")
+                                continue
+
                         session = LanSession()
-                        add_status(f"Connecting to {join_ip}:4765...")
+                        add_status(f"Connecting to {target_ip}:{target_port}...")
                         try:
-                            session.join(join_ip, 4765)
+                            session.join(target_ip, target_port)
                             state = "chat"
                             role = "client"
                             add_status("Connected successfully!")
@@ -266,6 +399,7 @@ def run_lan_menu(screen):
                         state = "menu"
                 elif state == "hosting":
                     if back_btn.collidepoint(mx, my):
+                        host_cancelled = True
                         state = "menu"
                         if session:
                             session.close()
@@ -295,26 +429,40 @@ def run_lan_menu(screen):
             # Title
             draw_text(screen, "HOSTING GAME", 60, (100, 255, 150), 42, center_x)
 
+            # Calculate elapsed time
+            elapsed_seconds = int(time.time() - host_start_time) if host_start_time else 0
+            remaining_seconds = max(0, host_timeout - elapsed_seconds)
+
             # IP addresses box
             ips = get_local_ips()
+
+            # Generate room code from first IP
+            room_code = ip_to_room_code(ips[0]) if ips else "GATE-????"
+
             box_y = 130
-            box_height = 40 + len(ips) * 35
+            box_height = 80 + len(ips) * 35  # Extra space for room code
             ip_box = pygame.Rect(center_x - 280, box_y, 560, box_height)
             pygame.draw.rect(screen, (30, 40, 50), ip_box, border_radius=8)
             pygame.draw.rect(screen, (80, 180, 120), ip_box, 2, border_radius=8)
 
-            draw_text(screen, "Share this IP with your opponent:", box_y + 15, (200, 200, 200), 20, center_x)
+            # Room code display (large and prominent)
+            draw_text(screen, f"Room Code: {room_code}", box_y + 15, (255, 215, 0), 28, center_x)
+            draw_text(screen, "Or share this IP with your opponent:", box_y + 50, (150, 150, 180), 18, center_x)
 
             for idx, ip in enumerate(ips):
                 ip_color = (100, 255, 150) if idx == 0 else (180, 180, 180)
                 label = "★ RECOMMENDED" if idx == 0 else f"  Alternative {idx}"
-                draw_text_left(screen, f"{label}:  {ip}", center_x - 250, box_y + 50 + idx * 35, ip_color, 22)
+                draw_text_left(screen, f"{label}:  {ip}", center_x - 250, box_y + 85 + idx * 35, ip_color, 22)
 
-            # Status messages
+            # Status messages with elapsed time
             status_y = box_y + box_height + 30
-            for idx, msg in enumerate(status_lines[-4:]):
-                color = (255, 200, 100) if "Waiting" in msg else (100, 255, 150) if "connected" in msg.lower() else (180, 180, 180)
-                draw_text(screen, msg, status_y + idx * 28, color, 20, center_x)
+            wait_text = f"Waiting for connection... ({elapsed_seconds}s / {host_timeout}s)"
+            draw_text(screen, wait_text, status_y, (255, 200, 100), 20, center_x)
+
+            for idx, msg in enumerate(status_lines[-3:]):
+                if "Waiting" not in msg:  # Skip generic waiting message
+                    color = (100, 255, 150) if "connected" in msg.lower() else (180, 180, 180)
+                    draw_text(screen, msg, status_y + 30 + idx * 28, color, 20, center_x)
 
             # Error handling
             if host_error:
@@ -327,12 +475,12 @@ def run_lan_menu(screen):
 
             # Back button
             back_hover = back_btn.collidepoint(mx, my)
-            draw_button(screen, back_btn, "← CANCEL", 24, back_hover, (120, 60, 60), (160, 80, 80))
+            draw_button(screen, back_btn, "← CANCEL (ESC)", 24, back_hover, (120, 60, 60), (160, 80, 80))
 
         elif state == "join":
             # Title
             draw_text(screen, "JOIN GAME", 60, (100, 180, 255), 42, center_x)
-            draw_text(screen, "Enter the host's IP address", 115, (150, 150, 180), 20, center_x)
+            draw_text(screen, "Enter room code or IP address", 115, (150, 150, 180), 20, center_x)
 
             # IP input box
             input_box = pygame.Rect(center_x - 250, 180, 500, 60)
@@ -343,16 +491,16 @@ def run_lan_menu(screen):
             if join_ip:
                 draw_text(screen, join_ip, 195, (255, 255, 255), 28, center_x)
             else:
-                draw_text(screen, "100.x.x.x or 192.168.x.x", 195, (100, 100, 120), 28, center_x)
+                draw_text(screen, "GATE-XXXX or 192.168.x.x", 195, (100, 100, 120), 28, center_x)
 
             # Cursor blink
             if pygame.time.get_ticks() % 1000 < 500:
                 font = get_font(28)
-                cursor_x = center_x + font.size(join_ip)[0] // 2 if join_ip else center_x + font.size("100.x.x.x or 192.168.x.x")[0] // 2
+                cursor_x = center_x + font.size(join_ip)[0] // 2 if join_ip else center_x + font.size("GATE-XXXX or 192.168.x.x")[0] // 2
                 pygame.draw.rect(screen, (255, 255, 255), (cursor_x + 5, 195, 2, 28))
 
             # Hint text
-            draw_text(screen, "Press ENTER to connect", 260, (120, 120, 140), 16, center_x)
+            draw_text(screen, "Press ENTER to connect (room codes: GATE-XXXX)", 260, (120, 120, 140), 16, center_x)
 
             # Connect button
             connect_hover = connect_btn.collidepoint(mx, my)

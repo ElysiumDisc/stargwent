@@ -397,6 +397,109 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
 # draw_leader_column moved to render_engine.py
 
 
+def _show_disconnect_overlay(screen, screen_width, screen_height, reason="connection_lost", countdown_seconds=10):
+    """Show a disconnect overlay with countdown and return options.
+
+    Args:
+        screen: Pygame surface to draw on
+        screen_width: Screen width in pixels
+        screen_height: Screen height in pixels
+        reason: "opponent_disconnected" or "connection_lost"
+        countdown_seconds: Seconds before auto-return to menu
+
+    Returns:
+        None (blocks until user clicks or countdown expires)
+    """
+    font_large = pygame.font.SysFont("Arial", 60, bold=True)
+    font_medium = pygame.font.SysFont("Arial", 36)
+    font_small = pygame.font.SysFont("Arial", 24)
+
+    # Reason-specific messages
+    if reason == "opponent_disconnected":
+        title = "OPPONENT DISCONNECTED"
+        subtitle = "Your opponent has left the game"
+        title_color = cfg.HIGHLIGHT_ORANGE
+    else:
+        title = "CONNECTION LOST"
+        subtitle = "The connection to your opponent was interrupted"
+        title_color = cfg.HIGHLIGHT_RED
+
+    # Button rect
+    button_width = 280
+    button_height = 50
+    button_rect = pygame.Rect(
+        screen_width // 2 - button_width // 2,
+        screen_height // 2 + 100,
+        button_width, button_height
+    )
+
+    clock = pygame.time.Clock()
+    start_time = pygame.time.get_ticks()
+
+    while True:
+        elapsed_ms = pygame.time.get_ticks() - start_time
+        remaining = max(0, countdown_seconds - elapsed_ms // 1000)
+
+        # Check for timeout
+        if remaining <= 0:
+            return
+
+        # Event handling
+        mouse_pos = pygame.mouse.get_pos()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN or event.key == pygame.K_ESCAPE:
+                    return
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if button_rect.collidepoint(mouse_pos):
+                    return
+
+        # Draw overlay
+        overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 220))
+        screen.blit(overlay, (0, 0))
+
+        # Draw border box
+        box_width = 600
+        box_height = 300
+        box_rect = pygame.Rect(
+            screen_width // 2 - box_width // 2,
+            screen_height // 2 - box_height // 2,
+            box_width, box_height
+        )
+        pygame.draw.rect(screen, (30, 40, 55), box_rect, border_radius=12)
+        pygame.draw.rect(screen, title_color, box_rect, 3, border_radius=12)
+
+        # Draw title
+        text1 = font_large.render(title, True, title_color)
+        screen.blit(text1, (screen_width // 2 - text1.get_width() // 2, box_rect.y + 30))
+
+        # Draw subtitle
+        text2 = font_medium.render(subtitle, True, cfg.TEXT_DIM)
+        screen.blit(text2, (screen_width // 2 - text2.get_width() // 2, box_rect.y + 100))
+
+        # Draw countdown
+        countdown_text = f"Returning to menu in {remaining} seconds..."
+        text3 = font_small.render(countdown_text, True, cfg.TEXT_MUTED)
+        screen.blit(text3, (screen_width // 2 - text3.get_width() // 2, box_rect.y + 150))
+
+        # Draw return button
+        button_hover = button_rect.collidepoint(mouse_pos)
+        button_color = (70, 130, 220) if button_hover else (50, 100, 180)
+        pygame.draw.rect(screen, button_color, button_rect, border_radius=8)
+        pygame.draw.rect(screen, (100, 150, 230), button_rect, 2, border_radius=8)
+
+        btn_text = font_small.render("Return Now (Enter)", True, cfg.TEXT_LIGHT)
+        screen.blit(btn_text, (button_rect.centerx - btn_text.get_width() // 2,
+                               button_rect.centery - btn_text.get_height() // 2))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+
 def build_button_info_popup(kind, owner, anchor_rect, special_kind=None):
     """Create metadata describing the info popup for leader column buttons."""
     if not owner or not anchor_rect:
@@ -1018,33 +1121,12 @@ def main(lan_game_data=None):
         # Check for LAN disconnect
         if LAN_MODE and LAN_CONTEXT:
             if not LAN_CONTEXT.session.is_connected():
-                # Show disconnect message
-                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                overlay.fill((0, 0, 0, 200))
-                screen.blit(overlay, (0, 0))
-
-                font_large = pygame.font.SysFont("Arial", 60, bold=True)
-                font_small = pygame.font.SysFont("Arial", 30)
-
-                text1 = font_large.render("CONNECTION LOST", True, cfg.HIGHLIGHT_RED)
-                text2 = font_small.render("Your opponent has disconnected", True, cfg.TEXT_DIM)
-                text3 = font_small.render("Press any key to return to menu", True, cfg.TEXT_MUTED)
-
-                screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, SCREEN_HEIGHT // 2 - 80))
-                screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, SCREEN_HEIGHT // 2))
-                screen.blit(text3, (SCREEN_WIDTH // 2 - text3.get_width() // 2, SCREEN_HEIGHT // 2 + 60))
-
-                pygame.display.flip()
-
-                waiting = True
-                while waiting:
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            pygame.quit()
-                            sys.exit()
-                        elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
-                            waiting = False
-
+                # Show disconnect overlay with countdown
+                _show_disconnect_overlay(
+                    screen, SCREEN_WIDTH, SCREEN_HEIGHT,
+                    reason="opponent_disconnected",
+                    countdown_seconds=10
+                )
                 LAN_CONTEXT.session.close()
                 battle_music.stop_battle_music()
                 main()
@@ -3481,6 +3563,19 @@ def main(lan_game_data=None):
             hud_text_y = pct_y(0.04)
             screen.blit(round_text, (hud_text_x, hud_text_y))
             screen.blit(turn_text, (hud_text_x, hud_text_y + round_text.get_height() + 4))
+
+            # LAN Mode: Draw latency indicator
+            if LAN_MODE and LAN_CONTEXT and LAN_CONTEXT.session.is_connected():
+                latency_font = pygame.font.SysFont("Arial", max(16, int(18 * SCALE_FACTOR)))
+                rtt = LAN_CONTEXT.session.get_latency()
+                latency_color, latency_label = LAN_CONTEXT.session.get_latency_status()
+
+                # Draw latency dot and text
+                latency_y = hud_text_y + round_text.get_height() + turn_text.get_height() + 12
+                dot_radius = 6
+                pygame.draw.circle(screen, latency_color, (hud_text_x + dot_radius, latency_y + dot_radius), dot_radius)
+                latency_text = latency_font.render(f"{rtt}ms ({latency_label})", True, latency_color)
+                screen.blit(latency_text, (hud_text_x + dot_radius * 3, latency_y))
     
             command_bar_surface = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
             command_bar_surface.fill((10, 20, 35, 200))

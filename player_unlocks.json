@@ -3,7 +3,7 @@
   "unlocked_leaders": {},
   "consecutive_wins": 0,
   "total_wins": 5,
-  "total_games": 21,
+  "total_games": 22,
   "unlock_override_enabled": true,
   "top_cards": {
     "Ori Warship": {
@@ -137,9 +137,9 @@
       "id": "goauld_yu"
     },
     "Serpent Guard Elite": {
-      "plays": 4,
+      "plays": 5,
       "wins": 0,
-      "id": "goauld_serpent_guard_1"
+      "id": "goauld_serpent_guard_3"
     },
     "Ha'tak Mothership": {
       "plays": 4,
@@ -147,7 +147,7 @@
       "id": "goauld_hatak_2"
     },
     "Apophis": {
-      "plays": 2,
+      "plays": 3,
       "wins": 0,
       "id": "goauld_apophis"
     },
@@ -240,13 +240,18 @@
       "plays": 1,
       "wins": 0,
       "id": "goauld_isis"
+    },
+    "Glider Pilot": {
+      "plays": 1,
+      "wins": 0,
+      "id": "goauld_glider_pilot"
     }
   },
   "faction_wins": {
     "Tau'ri": 5
   },
   "max_streak": 3,
-  "ai_games": 21,
+  "ai_games": 22,
   "ai_wins": 5,
   "lan_games": 0,
   "lan_wins": 0,
@@ -264,7 +269,7 @@
       "wins": 0
     },
     "Apophis": {
-      "games": 3,
+      "games": 4,
       "wins": 0
     },
     "Jonas Quinn": {
@@ -303,6 +308,10 @@
       "Jaffa Rebellion": {
         "games": 6,
         "wins": 0
+      },
+      "Lucian Alliance": {
+        "games": 1,
+        "wins": 0
       }
     }
   },
@@ -319,8 +328,8 @@
     "L"
   ],
   "turn_stats": {
-    "total": 808,
-    "games": 21,
+    "total": 836,
+    "games": 22,
     "min": 9,
     "max": 112,
     "history": [
@@ -344,12 +353,13 @@
       15,
       15,
       15,
-      27
+      27,
+      28
     ]
   },
   "mulligans": {
-    "total": 47,
-    "games": 21
+    "total": 52,
+    "games": 22
   },
   "ability_usage": {
     "medic": 3,
@@ -360,11 +370,11 @@
   "lan_reliability": {},
   "round_stats": {
     "sweeps_for": 2,
-    "sweeps_against": 12,
+    "sweeps_against": 13,
     "close_wins": 3,
     "close_losses": 4,
     "comebacks": 3,
-    "first_turn_games": 21,
+    "first_turn_games": 22,
     "first_turn_wins": 2
   },
   "draft_stats": {

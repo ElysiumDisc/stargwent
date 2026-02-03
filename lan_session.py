@@ -18,6 +18,14 @@ class LanSession:
         self.connection_timeout = 30  # seconds without message = disconnect
         self.keepalive_interval = 5   # send keepalive every 5 seconds
 
+        # JSON error recovery (3 strikes = disconnect)
+        self.parse_error_count = 0
+        self.max_parse_errors = 3
+
+        # Ping/latency tracking
+        self.current_rtt = 0  # milliseconds
+        self.last_ping_time = 0
+
     def host(self, port=4765, timeout=None):
         """
         Host a game on the specified port.
@@ -107,26 +115,62 @@ class LanSession:
                     continue
                 try:
                     payload = json.loads(line.decode("utf-8"))
+                    # Reset error counter on successful parse
+                    self.parse_error_count = 0
+
+                    msg_type = payload.get("type")
+
                     # Filter out keepalive messages (don't put in inbox)
-                    if payload.get("type") != "keepalive":
-                        self.inbox.put(payload)
-                except json.JSONDecodeError:
-                    print("[LanSession] Error: Received malformed JSON. Closing connection to prevent state corruption.")
-                    self.stop_event.set()
-                    break
+                    if msg_type == "keepalive":
+                        continue
+
+                    # Handle ping/pong for latency measurement
+                    if msg_type == "ping":
+                        # Respond with pong containing the same timestamp
+                        timestamp = payload.get("payload", {}).get("timestamp", 0)
+                        self.send("pong", {"timestamp": timestamp})
+                        continue
+                    elif msg_type == "pong":
+                        # Calculate RTT from the timestamp
+                        timestamp = payload.get("payload", {}).get("timestamp", 0)
+                        if timestamp:
+                            self.current_rtt = int((time.time() - timestamp) * 1000)
+                        continue
+
+                    self.inbox.put(payload)
+                except json.JSONDecodeError as e:
+                    self.parse_error_count += 1
+                    # Log corrupted data for debugging (truncated to avoid spam)
+                    corrupted_preview = line[:100].decode("utf-8", errors="replace")
+                    print(f"[LanSession] JSON parse error #{self.parse_error_count}: {e}")
+                    print(f"[LanSession] Corrupted data preview: {corrupted_preview}...")
+
+                    if self.parse_error_count >= self.max_parse_errors:
+                        print("[LanSession] Too many parse errors, disconnecting")
+                        self.stop_event.set()
+                        break
+                    continue  # Try next message instead of disconnecting
 
         self.stop_event.set()
         self.inbox.put({"type": "disconnect"})
 
     def _keepalive_sender(self):
-        """Send periodic keepalive messages to detect dead connections."""
+        """Send periodic keepalive and ping messages to detect dead connections and measure latency."""
         while not self.stop_event.is_set():
             time.sleep(self.keepalive_interval)
             if not self.stop_event.is_set():
                 try:
-                    # Send minimal keepalive packet
+                    # Send keepalive packet
                     packet = json.dumps({"type": "keepalive"}).encode("utf-8") + b"\n"
                     self.sock.sendall(packet)
+
+                    # Also send ping for latency measurement
+                    self.last_ping_time = time.time()
+                    ping_packet = json.dumps({
+                        "type": "ping",
+                        "payload": {"timestamp": self.last_ping_time}
+                    }).encode("utf-8") + b"\n"
+                    self.sock.sendall(ping_packet)
                 except OSError:
                     # Connection lost
                     self.stop_event.set()
@@ -136,6 +180,27 @@ class LanSession:
     def is_connected(self):
         """Check if the session is still connected."""
         return not self.stop_event.is_set() and self.sock is not None
+
+    def get_latency(self):
+        """Get the current round-trip time in milliseconds."""
+        return self.current_rtt
+
+    def get_latency_status(self):
+        """Get latency status as a tuple (color, label).
+
+        Returns:
+            tuple: (color_rgb, label_string)
+                - Green (0, 255, 0): <50ms "Good"
+                - Yellow (255, 255, 0): 50-150ms "Fair"
+                - Red (255, 0, 0): >150ms "Poor"
+        """
+        rtt = self.current_rtt
+        if rtt < 50:
+            return ((100, 255, 100), "Good")
+        elif rtt < 150:
+            return ((255, 255, 100), "Fair")
+        else:
+            return ((255, 100, 100), "Poor")
 
     def receive(self):
         """

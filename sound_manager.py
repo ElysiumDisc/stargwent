@@ -471,6 +471,34 @@ class SoundEffectManager:
             print(f"[audio] Failed to play symbiote sound: {exc}")
             return False
 
+    def play_chat_notification(self, msg_type="peer", volume=0.5):
+        """
+        Play chat notification sound.
+        Looks for assets/audio/chat_notification.ogg.
+        Silent fallback if file doesn't exist.
+
+        Args:
+            msg_type: "peer" for opponent messages, "system" for system messages
+            volume: Volume level from 0.0 to 1.0
+
+        Returns:
+            True if sound was played, False otherwise
+        """
+        cache_key = "chat_notification"
+        sound = self._load_generic_sound(cache_key, "chat_notification.ogg")
+
+        # Silent fallback if no sound file exists
+        if not sound:
+            return False
+
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play chat notification: {exc}")
+            return False
+
     def preload_all_commander_sounds(self):
         """
         Preload all commander snippets to avoid lag during gameplay.
