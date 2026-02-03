@@ -115,16 +115,24 @@ class DraftModeController:
         """Save current run state to persistence."""
         if not self.current_run:
             return
-            
+
         # Serialize card IDs
         # Helper to find ID for a card object since Card class might not store it directly
-        # We search ALL_CARDS for matching name/stats or assume 'id' attr if added
+        # We search ALL_CARDS for matching name/stats/power or assume 'id' attr if added
         card_ids = []
         for card in self.current_run.drafted_cards:
-            # Try efficient lookup first
+            # Try to use card's id attribute first if available
+            if hasattr(card, 'id') and card.id in ALL_CARDS:
+                card_ids.append(card.id)
+                continue
+
+            # Fallback: search ALL_CARDS for exact match (name, faction, power, row)
             found = False
             for cid, c_obj in ALL_CARDS.items():
-                if c_obj.name == card.name and c_obj.faction == card.faction:
+                if (c_obj.name == card.name and
+                    c_obj.faction == card.faction and
+                    c_obj.power == card.power and
+                    c_obj.row == card.row):
                     card_ids.append(cid)
                     found = True
                     break

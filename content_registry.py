@@ -199,3 +199,75 @@ for faction in {*BASE_FACTION_LEADERS.keys(), *UNLOCKABLE_LEADERS.keys()}:
         if 'faction' not in leader:
             leader['faction'] = faction
     LEADER_REGISTRY.extend(leaders)
+
+
+# ============================================================================
+# USER CONTENT LOADING
+# ============================================================================
+
+def load_user_leaders():
+    """
+    Load user-created leaders from user_content folder.
+
+    This function is called at game startup to inject user leaders
+    into the leader registries. User leaders use ONLY existing
+    leader ability mechanics.
+    """
+    try:
+        from user_content_loader import get_loader
+
+        loader = get_loader()
+        if not loader._loaded:
+            loader.load_all()
+
+        # Register user leaders
+        for leader in loader.user_leaders:
+            card_id = leader.get("card_id")
+            faction = leader.get("faction")
+            name = leader.get("name")
+            is_base = leader.get("is_base", True)
+
+            if not card_id or not faction:
+                continue
+
+            # Skip if already registered
+            if card_id in LEADER_NAME_BY_ID:
+                continue
+
+            # Add to name mapping
+            LEADER_NAME_BY_ID[card_id] = name
+
+            # Add to faction leader IDs
+            if faction not in ALL_LEADER_IDS_BY_FACTION:
+                ALL_LEADER_IDS_BY_FACTION[faction] = []
+            ALL_LEADER_IDS_BY_FACTION[faction].append(card_id)
+
+            # Add to banner names
+            banner_name = leader.get("banner_name", name)
+            LEADER_BANNER_NAMES[card_id] = banner_name
+
+            # Add to appropriate registry
+            target_registry = BASE_FACTION_LEADERS if is_base else UNLOCKABLE_LEADERS
+            if faction not in target_registry:
+                target_registry[faction] = []
+
+            leader_entry = {
+                "name": name,
+                "ability": leader.get("ability", ""),
+                "ability_desc": leader.get("ability_desc", ""),
+                "card_id": card_id,
+                "faction": faction,
+            }
+
+            if leader.get("image_path"):
+                leader_entry["image_path"] = leader["image_path"]
+
+            target_registry[faction].append(leader_entry)
+            LEADER_REGISTRY.append(leader_entry)
+
+            print(f"[LEADERS] Registered user leader: {card_id}")
+
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[LEADERS] Error loading user leaders: {e}")

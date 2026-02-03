@@ -9,9 +9,13 @@ import json
 import os
 from cards import Card, FACTION_NEUTRAL
 from content_registry import UNLOCKABLE_LEADERS
+from save_paths import get_unlock_save_path, ensure_migration
 
-# File to persist unlocked cards and stats
-UNLOCK_DATA_FILE = "player_unlocks.json"
+# Ensure legacy saves are migrated to XDG directory on first access
+ensure_migration()
+
+# File to persist unlocked cards and stats (using XDG Base Directory path)
+UNLOCK_DATA_FILE = get_unlock_save_path()
 
 # Define unlockable cards (cards that can be earned through gameplay)
 UNLOCKABLE_CARDS = {
@@ -257,7 +261,7 @@ class CardUnlockSystem:
                     self.total_wins = data.get('total_wins', 0)
                     self.total_games = data.get('total_games', 0)
                     self.unlock_override_enabled = data.get('unlock_override_enabled', False)
-            except:
+            except (json.JSONDecodeError, OSError, KeyError):
                 self.unlocked_cards = set()
                 self.unlocked_leaders = {}
                 self.consecutive_wins = 0
@@ -281,7 +285,7 @@ class CardUnlockSystem:
             try:
                 with open(UNLOCK_DATA_FILE, 'r') as f:
                     existing_data = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
                 existing_data = {}
         
         # Update with our data (preserving other keys like top_cards, matchups, etc.)

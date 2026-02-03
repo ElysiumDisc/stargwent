@@ -621,14 +621,13 @@ class AIStrategy:
         # Base value: we gain the card's power, opponent loses it
         value = card.power * 2
 
-        # Synergy bonus
+        # Synergy bonus and breaking opponent's synergy
         if has_ability(card, Ability.TACTICAL_FORMATION):
             # We might be able to use it with our own copies
             our_copies = sum(1 for c in self.ai_player.board.get(card.row, []) if c.name == card.name)
             value += our_copies * 3
 
-        # Breaking opponent's synergy
-        if has_ability(card, Ability.TACTICAL_FORMATION):
+            # Breaking opponent's synergy
             opp_copies = sum(1 for c in self.opponent.board.get(card.row, []) if c.name == card.name)
             if opp_copies > 1:
                 value += opp_copies * 2

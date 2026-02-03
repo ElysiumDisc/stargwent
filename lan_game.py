@@ -59,12 +59,30 @@ def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_
         screen,
         unlock_override=True,  # In LAN, always give full pool to both players
         unlock_system=unlock_system,
-        toggle_fullscreen_callback=toggle_fullscreen_callback
+        toggle_fullscreen_callback=toggle_fullscreen_callback,
+        exclude_user_content=True  # CRITICAL: No user content in multiplayer!
     )
     if selection is None:
         session.close()
         return None
-    
+
+    # CRITICAL: Validate deck contains NO user content before sending
+    try:
+        from user_content_loader import validate_deck_for_multiplayer, filter_out_user_cards
+        deck_ids = selection["deck_ids"]
+        leader_id = selection["leader"]["id"]
+        faction = selection["faction"]
+
+        is_valid, error_msg = validate_deck_for_multiplayer(deck_ids, leader_id, faction)
+        if not is_valid:
+            print(f"[LAN] ERROR: Deck validation failed!\n{error_msg}")
+            # Filter out any user content that slipped through
+            deck_ids = filter_out_user_cards(deck_ids)
+            selection["deck_ids"] = deck_ids
+            print(f"[LAN] Filtered deck to {len(deck_ids)} base game cards")
+    except ImportError:
+        pass  # user_content_loader not available
+
     local_payload = {
         "faction": selection["faction"],
         "leader_id": selection["leader"]["id"],

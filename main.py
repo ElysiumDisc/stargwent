@@ -100,6 +100,17 @@ import render_engine as re
 # Initialize display via the new manager
 display_manager.initialize_display()
 
+# Load user-created content (cards, leaders, factions)
+# This must happen early, before card images are loaded
+try:
+    from user_content_loader import load_user_content
+    load_user_content()
+    print("[INIT] User content loaded")
+except ImportError:
+    pass  # user_content_loader not available
+except Exception as e:
+    print(f"[INIT] Warning: Could not load user content: {e}")
+
 # Calculate layout dimensions and fonts based on initialized display
 cfg.recalculate_dimensions()
 

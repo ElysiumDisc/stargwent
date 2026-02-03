@@ -1,33 +1,55 @@
 #!/usr/bin/env python3
 """
-Stargwent Content Manager - Developer Tool
-===========================================
+Stargwent Content Manager
+=========================
 
-A powerful CLI tool to help add game content to the Stargwent codebase.
-This script modifies source code files to add factions, leaders, cards, abilities,
-and auto-generate placeholder assets.
+A CLI tool for managing Stargwent content, with separate modes for
+developers and players.
 
 Usage:
     python scripts/content_manager.py
 
-Features:
-    === DEVELOPER TOOLS ===
-    1. Add a new CARD
-    2. Add a new LEADER
-    3. Add a new FACTION (comprehensive)
-    4. Add/Edit ABILITY
-    5. Generate placeholder images
-    6. Regenerate all documentation
-    7. Asset Checker (find missing images)
-    8. Balance Analyzer (power stats)
-    11. Batch Import (from JSON)
-    12. Audio Manager (faction themes, voices, sound effects)
-    13. Leader Ability Generator (code stub generation)
-    14. Card Rename/Delete Tool (safe multi-file updates)
+The tool first asks whether you are a Developer or User, then shows
+the appropriate menu options to prevent accidental source code modifications.
 
-    === USER TOOLS ===
-    9. Save Manager (backup/restore saves)
-    10. Deck Import/Export (share decks)
+=== DEVELOPER MODE ===
+(Modifies game source code - for adding official content)
+
+    Content Creation:
+    - Add a new CARD
+    - Add a new LEADER
+    - Add a new FACTION (comprehensive)
+    - Add/Edit ABILITY
+
+    Asset Management:
+    - Generate placeholder images
+    - Regenerate all documentation
+    - Asset Checker (find missing images)
+    - Audio Manager
+
+    Analysis & Tools:
+    - Balance Analyzer (power stats)
+    - Batch Import (from JSON)
+    - Leader Ability Generator
+    - Card Rename/Delete Tool
+
+=== USER / PLAYER MODE ===
+(Safe - does not modify source code)
+
+    Save & Deck Management:
+    - Save Manager (backup/restore saves)
+    - Deck Import/Export (share decks)
+
+    Custom Content Creation (uses ONLY existing abilities):
+    - Create Custom Card (wizard)
+    - Create Custom Leader (wizard)
+    - Create Custom Faction (wizard)
+
+    Content Pack Management:
+    - Import Content Pack (.zip)
+    - Export Content Pack (.zip)
+    - Manage User Content (enable/disable)
+    - Validate User Content
 """
 
 import os
@@ -381,7 +403,7 @@ def validate_card_id(card_id: str) -> Optional[str]:
         from cards import ALL_CARDS
         if card_id in ALL_CARDS:
             return f"Card ID '{card_id}' already exists"
-    except:
+    except ImportError:
         pass
 
     return None
@@ -913,7 +935,7 @@ def get_existing_factions() -> List[str]:
         )
         return [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
                 FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL]
-    except:
+    except ImportError:
         return ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard", "Neutral"]
 
 
@@ -934,7 +956,7 @@ def get_existing_abilities() -> List[str]:
     try:
         from abilities import Ability
         return [a.value for a in Ability]
-    except:
+    except ImportError:
         return []
 
 
@@ -943,7 +965,7 @@ def get_all_cards() -> Dict[str, Any]:
     try:
         from cards import ALL_CARDS
         return ALL_CARDS
-    except:
+    except ImportError:
         return {}
 
 
@@ -2504,7 +2526,7 @@ def asset_checker_workflow():
     # Get all expected card images
     try:
         from cards import ALL_CARDS
-    except:
+    except ImportError:
         print("Could not import cards.py")
         return
 
@@ -2595,7 +2617,7 @@ def balance_analyzer_workflow():
 
     try:
         from cards import ALL_CARDS
-    except:
+    except ImportError:
         print("Could not import cards.py")
         return
 
@@ -2898,7 +2920,7 @@ def import_deck_text():
             print(f"\n[WARNING] Unknown card IDs: {', '.join(invalid[:5])}")
             if not confirm("Import anyway?"):
                 return
-    except:
+    except ImportError:
         pass
 
     faction = select_from_list("Select faction for this deck:", get_existing_factions()[:-1])
@@ -4742,91 +4764,1233 @@ def batch_rename_workflow():
 
 
 # ============================================================================
-# MAIN MENU
+# USER CONTENT CREATION (Options 15-21)
+# ============================================================================
+# These wizards create content in user_content/ folder using ONLY existing
+# game mechanics and abilities. Users cannot create new abilities or powers.
 # ============================================================================
 
-def main_menu():
-    """Display and handle main menu."""
-    while True:
-        clear_screen()
+USER_CONTENT_DIR = ROOT / "user_content"
 
-        print()
-        print("+" + "=" * 50 + "+")
-        print("|        STARGWENT CONTENT MANAGER                  |")
-        print("+" + "=" * 50 + "+")
-        print("|                                                   |")
-        print("|  === DEVELOPER TOOLS ===                          |")
-        print("|   1. Add a new CARD                               |")
-        print("|   2. Add a new LEADER                             |")
-        print("|   3. Add a new FACTION (comprehensive)            |")
-        print("|   4. Add/Edit ABILITY                             |")
-        print("|   5. Generate placeholder images                  |")
-        print("|   6. Regenerate all documentation                 |")
-        print("|   7. Asset Checker (find missing images)          |")
-        print("|   8. Balance Analyzer (power stats)               |")
-        print("|  11. Batch Import (from JSON)                     |")
-        print("|  12. Audio Manager                          [NEW] |")
-        print("|  13. Leader Ability Generator               [NEW] |")
-        print("|  14. Card Rename/Delete Tool                [NEW] |")
-        print("|                                                   |")
-        print("|  === USER TOOLS ===                               |")
-        print("|   9. Save Manager (backup/restore saves)          |")
-        print("|  10. Deck Import/Export (share decks)             |")
-        print("|                                                   |")
-        print("|   0. Exit                                         |")
-        print("+" + "=" * 50 + "+")
+
+def get_valid_abilities_list() -> List[str]:
+    """Get list of valid ability names from the Ability enum."""
+    try:
+        from abilities import Ability
+        return [a.value for a in Ability]
+    except ImportError:
+        return []
+
+
+def get_leader_ability_types() -> Dict[str, Dict[str, Any]]:
+    """
+    Get available leader ability types derived from existing leaders.
+
+    Returns dict mapping ability type to example and parameters.
+    """
+    return {
+        "DRAW_ON_PASS": {
+            "example": "Dr. McKay",
+            "desc": "Draw cards when you pass",
+            "params": {"draw_count": {"type": "int", "min": 1, "max": 3, "default": 2}}
+        },
+        "DRAW_ON_ROUND_START": {
+            "example": "Col. O'Neill",
+            "desc": "Draw extra cards at round start",
+            "params": {"draw_count": {"type": "int", "min": 1, "max": 2, "default": 1}}
+        },
+        "FIRST_UNIT_BOOST": {
+            "example": "Gen. Hammond",
+            "desc": "First unit played each round gets power boost",
+            "params": {"boost": {"type": "int", "min": 1, "max": 5, "default": 3}}
+        },
+        "ROW_POWER_BOOST": {
+            "example": "Dr. Carter (Siege), Bra'tac (Agile)",
+            "desc": "All units in specific row get power boost",
+            "params": {
+                "row": {"type": "choice", "options": ["close", "ranged", "siege", "agile"]},
+                "boost": {"type": "int", "min": 1, "max": 3, "default": 2}
+            }
+        },
+        "UNIT_TYPE_BOOST": {
+            "example": "Heimdall (heroes)",
+            "desc": "Specific unit types get power boost",
+            "params": {
+                "unit_type": {"type": "choice", "options": ["heroes", "spies", "medics"]},
+                "boost": {"type": "int", "min": 1, "max": 5, "default": 3}
+            }
+        },
+        "SPY_DRAW_BONUS": {
+            "example": "Vulkar",
+            "desc": "Spy cards draw extra cards",
+            "params": {"extra_draw": {"type": "int", "min": 1, "max": 2, "default": 1}}
+        },
+        "HIGHEST_UNIT_BOOST": {
+            "example": "Sodan Master",
+            "desc": "Highest unit in each row gets boost",
+            "params": {"boost": {"type": "int", "min": 1, "max": 5, "default": 3}}
+        },
+        "WEATHER_IMMUNITY": {
+            "example": "Freyr",
+            "desc": "Immune to weather effects",
+            "params": {}
+        },
+        "CLONE_STRONGEST": {
+            "example": "Ba'al",
+            "desc": "Copy highest power unit from discard",
+            "params": {}
+        },
+        "PEEK_OPPONENT": {
+            "example": "Lord Yu",
+            "desc": "See opponent's hand when passing",
+            "params": {}
+        },
+        "PEEK_DECK": {
+            "example": "Catherine Langford",
+            "desc": "Look at top cards of deck, play one",
+            "params": {"peek_count": {"type": "int", "min": 2, "max": 5, "default": 3}}
+        },
+        "STEAL_LOWEST": {
+            "example": "Hathor",
+            "desc": "Steal lowest power enemy unit",
+            "params": {}
+        },
+        "AUTO_SCORCH": {
+            "example": "Anubis",
+            "desc": "Automatically scorch at certain rounds",
+            "params": {"rounds": {"type": "list", "default": [2, 3]}}
+        },
+        "ROUND_POWER_BONUS": {
+            "example": "Cronus",
+            "desc": "Units gain power based on round number",
+            "params": {"per_round": {"type": "int", "min": 1, "max": 2, "default": 1}}
+        },
+        "WIN_ROUND_DRAW": {
+            "example": "Teal'c",
+            "desc": "Draw card when winning a round",
+            "params": {"draw_count": {"type": "int", "min": 1, "max": 2, "default": 1}}
+        },
+        "DOUBLE_PLAY_FIRST_TURN": {
+            "example": "Rak'nor",
+            "desc": "Play 2 cards on first turn each round",
+            "params": {}
+        },
+    }
+
+
+def get_faction_passive_types() -> Dict[str, Dict[str, Any]]:
+    """Get available faction passive types from existing factions."""
+    return {
+        "EXTRA_DRAW": {
+            "example": "Tau'ri Resourcefulness",
+            "desc": "Draw extra cards at certain rounds",
+            "params": {
+                "count": {"type": "int", "min": 1, "max": 2, "default": 1},
+                "rounds": {"type": "list", "default": [2, 3]}
+            }
+        },
+        "HERO_POWER_BOOST": {
+            "example": "Goa'uld System Lord's Command",
+            "desc": "Bonus power when you control a hero",
+            "params": {"boost": {"type": "int", "min": 1, "max": 3, "default": 1}}
+        },
+        "BROTHERHOOD": {
+            "example": "Jaffa Brotherhood",
+            "desc": "Units gain power per adjacent unit in same row",
+            "params": {"max_bonus": {"type": "int", "min": 2, "max": 5, "default": 3}}
+        },
+        "SPY_DRAW_BONUS": {
+            "example": "Lucian Alliance Piracy",
+            "desc": "First spy each round draws extra cards",
+            "params": {"extra_draw": {"type": "int", "min": 1, "max": 2, "default": 1}}
+        },
+        "WEATHER_IMMUNITY": {
+            "example": "Asgard Superior Shielding",
+            "desc": "Immune to first weather effect",
+            "params": {"immune_count": {"type": "int", "min": 1, "max": 2, "default": 1}}
+        },
+    }
+
+
+def get_faction_power_types() -> Dict[str, Dict[str, Any]]:
+    """Get available faction power types from existing factions."""
+    return {
+        "SCORCH_ROWS": {
+            "example": "Tau'ri Gate Shutdown",
+            "desc": "Destroy highest unit in each enemy row",
+            "params": {}
+        },
+        "REVIVE_UNITS": {
+            "example": "Goa'uld Sarcophagus",
+            "desc": "Revive units from discard pile",
+            "params": {"count": {"type": "int", "min": 1, "max": 3, "default": 2}}
+        },
+        "DAMAGE_ALL": {
+            "example": "Lucian Unstable Naquadah",
+            "desc": "Deal damage to all non-hero units",
+            "params": {"damage": {"type": "int", "min": 3, "max": 7, "default": 5}}
+        },
+        "DRAW_AND_DISCARD": {
+            "example": "Jaffa Rebel Alliance Aid",
+            "desc": "Draw cards then discard random cards",
+            "params": {
+                "draw": {"type": "int", "min": 2, "max": 4, "default": 3},
+                "discard": {"type": "int", "min": 2, "max": 4, "default": 3}
+            }
+        },
+        "SWAP_ROWS": {
+            "example": "Asgard Holographic Decoy",
+            "desc": "Swap opponent's close and ranged rows",
+            "params": {}
+        },
+    }
+
+
+def user_create_card_wizard():
+    """Interactive wizard to create a custom card (using existing abilities only)."""
+    print_header("CREATE CUSTOM CARD")
+    print("This wizard helps you create a custom card for Stargwent.")
+    print("All abilities must be from the existing game - no new mechanics.\n")
+
+    # Ensure user_content directory exists
+    cards_dir = USER_CONTENT_DIR / "cards"
+    cards_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get card ID
+    def validate_user_card_id(card_id: str) -> Optional[str]:
+        if not card_id:
+            return "Card ID cannot be empty"
+        if not re.match(r'^[a-z][a-z0-9_]*$', card_id):
+            return "Card ID must be lowercase letters, numbers, underscores, starting with letter"
+        # Check for duplicates in user content
+        if (cards_dir / card_id).exists():
+            return f"User card '{card_id}' already exists"
+        # Check for duplicates in game
+        try:
+            from cards import ALL_CARDS
+            # Add user_ prefix to avoid conflicts
+            full_id = f"user_{card_id}" if not card_id.startswith("user_") else card_id
+            if full_id in ALL_CARDS or card_id in ALL_CARDS:
+                return f"Card ID conflicts with existing game card"
+        except ImportError:
+            pass
+        return None
+
+    card_id = get_input("Card ID (e.g., tokra_spy)", validator=validate_user_card_id)
+    # Ensure user_ prefix
+    if not card_id.startswith("user_"):
+        card_id = f"user_{card_id}"
+
+    card_name = get_input("Card Name (e.g., Tok'ra Infiltrator)")
+
+    # Select faction
+    factions = get_existing_factions()
+    # Also add any user factions
+    user_factions_dir = USER_CONTENT_DIR / "factions"
+    if user_factions_dir.exists():
+        for f in user_factions_dir.iterdir():
+            if f.is_dir():
+                faction_json = f / "faction.json"
+                if faction_json.exists():
+                    try:
+                        data = json.loads(faction_json.read_text())
+                        fname = data.get("name")
+                        if fname and fname not in factions:
+                            factions.append(fname)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+
+    faction = select_from_list("Select Faction:", factions)
+
+    # Get power
+    power = get_int("Power (0-15)", min_val=0, max_val=15, default=5)
+
+    # Select row
+    rows = [
+        "close (melee combat)",
+        "ranged (archery/guns)",
+        "siege (ships/heavy weapons)",
+        "agile (can go in close or ranged)",
+    ]
+    row_choice = select_from_list("Select Row:", rows)
+    row = row_choice.split(" ")[0]  # Extract just the row name
+
+    # Select ability - ONLY from existing abilities
+    abilities = get_valid_abilities_list()
+    ability_options = ["None (no special ability)"] + abilities
+
+    print("\nSelect Ability (ONLY from existing game abilities):")
+    for i, opt in enumerate(ability_options, 1):
+        if i <= 10:
+            print(f"  {i:2}. {opt}")
+    if len(ability_options) > 10:
+        print(f"  ... ({len(ability_options) - 10} more abilities available)")
+        print("  Enter a number or type to search")
+
+    while True:
+        response = input("Choice (number or search term): ").strip()
+        try:
+            idx = int(response) - 1
+            if 0 <= idx < len(ability_options):
+                if idx == 0:
+                    ability = None
+                else:
+                    ability = ability_options[idx]
+                break
+        except ValueError:
+            # Search for ability
+            matches = [a for a in abilities if response.lower() in a.lower()]
+            if matches:
+                print(f"\nMatching abilities:")
+                for i, m in enumerate(matches[:10], 1):
+                    print(f"  {i}. {m}")
+                choice = get_int("Select match", min_val=1, max_val=len(matches[:10]))
+                ability = matches[choice - 1]
+                break
+            else:
+                print("No matching abilities found. Enter a number or try another search.")
+
+    # Is unlockable?
+    is_unlockable = confirm("Is this card unlockable (earned through gameplay)?", default=False)
+
+    # Rarity
+    rarities = ["common", "rare", "epic", "legendary"]
+    rarity = select_from_list("Select Rarity:", rarities)
+
+    # Description
+    description = get_input("Description (flavor text, no mechanics)", default="A custom card")
+
+    # Author
+    author = get_input("Author (your name)", default="Unknown")
+
+    # Preview
+    print("\n" + "=" * 50)
+    print("=== PREVIEW ===")
+    print("=" * 50)
+    print(f"  Card: {card_name}")
+    print(f"  ID: {card_id}")
+    print(f"  Faction: {faction}")
+    print(f"  Power: {power} | Row: {row}")
+    print(f"  Ability: {ability if ability else 'None'}")
+    print(f"  Rarity: {rarity}" + (" (unlockable)" if is_unlockable else ""))
+    print("=" * 50)
+
+    if not confirm("\nCreate this card?"):
+        print("Cancelled.")
+        return
+
+    # Create card directory and files
+    card_dir = cards_dir / card_id.replace("user_", "")  # Store without prefix in folder name
+    card_dir.mkdir(parents=True, exist_ok=True)
+
+    card_data = {
+        "card_id": card_id,
+        "name": card_name,
+        "faction": faction,
+        "power": power,
+        "row": row,
+        "ability": ability,
+        "is_unlockable": is_unlockable,
+        "rarity": rarity,
+        "description": description,
+        "author": author
+    }
+
+    # Save card.json
+    card_json = card_dir / "card.json"
+    card_json.write_text(json.dumps(card_data, indent=2))
+    log(f"Created user card: {card_id}")
+
+    print(f"\n[OK] Card created in {card_dir}/")
+
+    # Offer to generate placeholder
+    if confirm("Generate placeholder image?", default=True):
+        generate_card_placeholder(card_id, card_name, faction, power, row, force=True)
+        # Copy to user content dir
+        src = ROOT / "assets" / f"{card_id}.png"
+        dst = card_dir / "card.png"
+        if src.exists():
+            shutil.copy2(src, dst)
+            print(f"[OK] Placeholder saved to {dst}")
+
+    # Auto-enable
+    try:
+        from user_content_loader import get_loader
+        loader = get_loader()
+        loader.enable_content("card", card_id)
+        print(f"[OK] Card enabled - will be available next game start")
+    except (ImportError, AttributeError):
+        print("[INFO] Card created. Enable it in 'Manage User Content' menu.")
+
+
+def user_create_leader_wizard():
+    """Interactive wizard to create a custom leader (using existing ability types)."""
+    print_header("CREATE CUSTOM LEADER")
+    print("This wizard helps you create a custom leader for Stargwent.")
+    print("All abilities must be based on existing leader mechanics.\n")
+
+    # Ensure user_content directory exists
+    leaders_dir = USER_CONTENT_DIR / "leaders"
+    leaders_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get leader ID
+    def validate_user_leader_id(leader_id: str) -> Optional[str]:
+        if not leader_id:
+            return "Leader ID cannot be empty"
+        if not re.match(r'^[a-z][a-z0-9_]*$', leader_id):
+            return "Leader ID must be lowercase letters, numbers, underscores"
+        if (leaders_dir / leader_id).exists():
+            return f"User leader '{leader_id}' already exists"
+        return None
+
+    leader_id = get_input("Leader ID (e.g., jacob_carter)", validator=validate_user_leader_id)
+    if not leader_id.startswith("user_"):
+        leader_id = f"user_{leader_id}"
+
+    leader_name = get_input("Leader Name (e.g., Jacob Carter/Selmak)")
+
+    # Select faction
+    factions = get_existing_factions()[:-1]  # Exclude Neutral
+    faction = select_from_list("Select Faction:", factions)
+
+    # Select ability type from existing leader mechanics
+    ability_types = get_leader_ability_types()
+    type_names = list(ability_types.keys())
+    type_descriptions = [f"{k} - {v['desc']} (like {v['example']})" for k, v in ability_types.items()]
+
+    print("\nSelect Leader Ability Type (from existing leaders):")
+    for i, desc in enumerate(type_descriptions, 1):
+        print(f"  {i:2}. {desc}")
+
+    type_choice = get_int("Choice", min_val=1, max_val=len(type_names)) - 1
+    ability_type = type_names[type_choice]
+    ability_info = ability_types[ability_type]
+
+    # Configure ability parameters
+    ability_params = {}
+    if ability_info["params"]:
+        print(f"\nConfigure ability values (within bounds):")
+        for param_name, param_config in ability_info["params"].items():
+            if param_config["type"] == "int":
+                value = get_int(
+                    f"  {param_name}",
+                    min_val=param_config.get("min", 1),
+                    max_val=param_config.get("max", 10),
+                    default=param_config.get("default", 1)
+                )
+                ability_params[param_name] = value
+            elif param_config["type"] == "choice":
+                value = select_from_list(f"  {param_name}:", param_config["options"])
+                ability_params[param_name] = value
+            elif param_config["type"] == "list":
+                ability_params[param_name] = param_config.get("default", [])
+
+    # Generate ability name and description based on type
+    ability_name = get_input("Ability Name (short)", default=ability_info["desc"].split()[0].title() + " Ability")
+    ability_desc = get_input("Ability Description (full)", default=ability_info["desc"])
+
+    # Is base or unlockable?
+    is_base = confirm("Is this a BASE leader (available from start)?", default=True)
+
+    # Banner name (short display name)
+    banner_name = get_input("Banner Name (short display)", default=leader_name.split()[0])
+
+    # Author
+    author = get_input("Author", default="Unknown")
+
+    # Preview
+    print("\n" + "=" * 50)
+    print("=== PREVIEW ===")
+    print("=" * 50)
+    print(f"  Leader: {leader_name}")
+    print(f"  ID: {leader_id}")
+    print(f"  Faction: {faction}")
+    print(f"  Ability: {ability_name}")
+    print(f"  Description: {ability_desc}")
+    print(f"  Type: {ability_type} (uses existing {ability_info['example']} mechanic)")
+    if ability_params:
+        print(f"  Parameters: {ability_params}")
+    print(f"  Status: {'Base' if is_base else 'Unlockable'}")
+    print("=" * 50)
+
+    if not confirm("\nCreate this leader?"):
+        print("Cancelled.")
+        return
+
+    # Create leader directory and files
+    leader_dir = leaders_dir / leader_id.replace("user_", "")
+    leader_dir.mkdir(parents=True, exist_ok=True)
+
+    leader_data = {
+        "card_id": leader_id,
+        "name": leader_name,
+        "faction": faction,
+        "ability": ability_name,
+        "ability_desc": ability_desc,
+        "ability_type": ability_type,
+        "ability_params": ability_params,
+        "is_base": is_base,
+        "banner_name": banner_name,
+        "author": author
+    }
+
+    # Save leader.json
+    leader_json = leader_dir / "leader.json"
+    leader_json.write_text(json.dumps(leader_data, indent=2))
+    log(f"Created user leader: {leader_id}")
+
+    print(f"\n[OK] Leader created in {leader_dir}/")
+
+    # Offer to generate placeholder
+    if confirm("Generate placeholder portrait?", default=True):
+        generate_leader_placeholders(leader_id, leader_name, faction, force=True)
+        # Copy to user content dir
+        src = ROOT / "assets" / f"{leader_id}_leader.png"
+        dst = leader_dir / "portrait.png"
+        if src.exists():
+            shutil.copy2(src, dst)
+            print(f"[OK] Portrait saved to {dst}")
+
+    # Auto-enable
+    try:
+        from user_content_loader import get_loader
+        loader = get_loader()
+        loader.enable_content("leader", leader_id)
+        print(f"[OK] Leader enabled - will be available next game start")
+    except (ImportError, AttributeError):
+        print("[INFO] Leader created. Enable it in 'Manage User Content' menu.")
+
+
+def user_create_faction_wizard():
+    """Interactive wizard to create a custom faction (using existing passive/power types)."""
+    print_header("CREATE CUSTOM FACTION")
+    print("This wizard helps you create a custom faction for Stargwent.")
+    print("Faction passives and powers must be based on existing mechanics.")
+    print("\nNOTE: Full faction support requires game code changes.")
+    print("Created factions will have limited functionality.\n")
+
+    # Ensure user_content directory exists
+    factions_dir = USER_CONTENT_DIR / "factions"
+    factions_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get faction name
+    faction_name = get_input("Faction Name (e.g., Tok'ra)")
+
+    # Check for duplicates
+    if (factions_dir / faction_name.lower().replace("'", "").replace(" ", "_")).exists():
+        print(f"[ERROR] Faction '{faction_name}' already exists")
+        return
+
+    # Generate constant name
+    constant = f"FACTION_{faction_name.upper().replace(' ', '_').replace(chr(39), '')}"
+    constant = get_input("Faction Constant", default=constant)
+
+    # Visual identity
+    print("\n=== VISUAL IDENTITY ===")
+    primary_color = get_rgb("Primary Color", default=(100, 150, 200))
+    secondary_color = get_rgb("Secondary Color", default=(80, 120, 160))
+    glow_color = get_rgb("Glow Color", default=(120, 180, 240))
+
+    # Select faction passive from existing types
+    print("\n=== FACTION PASSIVE (from existing) ===")
+    passive_types = get_faction_passive_types()
+    passive_names = list(passive_types.keys())
+
+    for i, (name, info) in enumerate(passive_types.items(), 1):
+        print(f"  {i}. {info['desc']} - like {info['example']}")
+
+    passive_choice = get_int("Select passive type", min_val=1, max_val=len(passive_names)) - 1
+    passive_type = passive_names[passive_choice]
+    passive_info = passive_types[passive_type]
+
+    passive_name = get_input("Passive Name", default=f"{faction_name} {passive_info['desc'].split()[0]}")
+    passive_desc = get_input("Passive Description", default=passive_info['desc'])
+
+    # Configure passive parameters
+    passive_params = {}
+    for param_name, param_config in passive_info.get("params", {}).items():
+        if param_config["type"] == "int":
+            value = get_int(
+                f"  {param_name}",
+                min_val=param_config.get("min", 1),
+                max_val=param_config.get("max", 5),
+                default=param_config.get("default", 1)
+            )
+            passive_params[param_name] = value
+        elif param_config["type"] == "list":
+            passive_params[param_name] = param_config.get("default", [])
+
+    # Select faction power from existing types
+    print("\n=== FACTION POWER (from existing) ===")
+    power_types = get_faction_power_types()
+    power_names = list(power_types.keys())
+
+    for i, (name, info) in enumerate(power_types.items(), 1):
+        print(f"  {i}. {info['desc']} - like {info['example']}")
+
+    power_choice = get_int("Select power type", min_val=1, max_val=len(power_names)) - 1
+    power_type = power_names[power_choice]
+    power_info = power_types[power_type]
+
+    power_name = get_input("Power Name", default=f"{faction_name} {power_info['desc'].split()[0]}")
+    power_desc = get_input("Power Description", default=power_info['desc'])
+
+    # Configure power parameters
+    power_params = {}
+    for param_name, param_config in power_info.get("params", {}).items():
+        if param_config["type"] == "int":
+            value = get_int(
+                f"  {param_name}",
+                min_val=param_config.get("min", 1),
+                max_val=param_config.get("max", 10),
+                default=param_config.get("default", 2)
+            )
+            power_params[param_name] = value
+
+    # Author
+    author = get_input("Author", default="Unknown")
+
+    # Preview
+    print("\n" + "=" * 50)
+    print("=== PREVIEW ===")
+    print("=" * 50)
+    print(f"  Faction: {faction_name} ({constant})")
+    print(f"  Colors: {primary_color} / {secondary_color} / {glow_color}")
+    print(f"  Passive: {passive_name} - {passive_type}")
+    print(f"  Power: {power_name} - {power_type}")
+    print("=" * 50)
+
+    if not confirm("\nCreate this faction?"):
+        print("Cancelled.")
+        return
+
+    # Create faction directory
+    faction_dir_name = faction_name.lower().replace("'", "").replace(" ", "_")
+    faction_dir = factions_dir / faction_dir_name
+    faction_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create subdirectories
+    (faction_dir / "cards").mkdir(exist_ok=True)
+    (faction_dir / "leaders").mkdir(exist_ok=True)
+
+    faction_data = {
+        "name": faction_name,
+        "constant": constant,
+        "primary_color": list(primary_color),
+        "secondary_color": list(secondary_color),
+        "glow_color": list(glow_color),
+        "passive_name": passive_name,
+        "passive_type": passive_type,
+        "passive_params": passive_params,
+        "passive_desc": passive_desc,
+        "power_name": power_name,
+        "power_type": power_type,
+        "power_params": power_params,
+        "power_desc": power_desc,
+        "author": author
+    }
+
+    # Save faction.json
+    faction_json = faction_dir / "faction.json"
+    faction_json.write_text(json.dumps(faction_data, indent=2))
+    log(f"Created user faction: {faction_name}")
+
+    print(f"\n[OK] Faction created in {faction_dir}/")
+    print(f"\nNext steps:")
+    print(f"  1. Add cards in {faction_dir}/cards/")
+    print(f"  2. Add leaders in {faction_dir}/leaders/")
+    print(f"  3. A minimum of 15 cards and 3 leaders recommended")
+
+    # Offer to create starter content
+    if confirm("Create starter leaders now?", default=True):
+        for i in range(3):
+            print(f"\n--- Creating Base Leader {i+1}/3 ---")
+            # Simplified leader creation for faction
+            lid = get_input(f"Leader {i+1} ID (e.g., {faction_dir_name}_leader{i+1})")
+            if not lid.startswith("user_"):
+                lid = f"user_{lid}"
+            lname = get_input(f"Leader {i+1} Name")
+
+            # Quick ability type selection
+            ability_types = get_leader_ability_types()
+            type_names = list(ability_types.keys())
+            print("Ability types: " + ", ".join(f"{i+1}={n}" for i, n in enumerate(type_names[:5])))
+            type_idx = get_int("Ability type (1-5)", min_val=1, max_val=5, default=1) - 1
+            ability_type = type_names[type_idx]
+
+            leader_data = {
+                "card_id": lid,
+                "name": lname,
+                "faction": faction_name,
+                "ability": f"{lname}'s Ability",
+                "ability_desc": ability_types[ability_type]["desc"],
+                "ability_type": ability_type,
+                "ability_params": {},
+                "is_base": True,
+                "author": author
+            }
+
+            leader_subdir = faction_dir / "leaders" / lid.replace("user_", "")
+            leader_subdir.mkdir(parents=True, exist_ok=True)
+            (leader_subdir / "leader.json").write_text(json.dumps(leader_data, indent=2))
+            print(f"[OK] Created leader: {lid}")
+
+    # Auto-enable
+    try:
+        from user_content_loader import get_loader
+        loader = get_loader()
+        loader.enable_content("faction", faction_name)
+        print(f"\n[OK] Faction enabled - will be available next game start")
+    except (ImportError, AttributeError):
+        print("\n[INFO] Faction created. Enable it in 'Manage User Content' menu.")
+
+
+def user_import_content_pack():
+    """Import a content pack from a .zip file."""
+    print_header("IMPORT CONTENT PACK")
+
+    import zipfile
+
+    zip_path = get_input("Path to .zip file")
+    zip_path = Path(zip_path).expanduser()
+
+    if not zip_path.exists():
+        print(f"[ERROR] File not found: {zip_path}")
+        return
+
+    if not zipfile.is_zipfile(zip_path):
+        print(f"[ERROR] Not a valid zip file: {zip_path}")
+        return
+
+    packs_dir = USER_CONTENT_DIR / "packs"
+    packs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Extract and validate
+    print("\nValidating pack...")
+
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            # Check for manifest
+            if 'manifest.json' not in zf.namelist():
+                print("[ERROR] No manifest.json found in pack")
+                return
+
+            # Read manifest
+            manifest = json.loads(zf.read('manifest.json').decode('utf-8'))
+            pack_name = manifest.get('name', zip_path.stem)
+            pack_version = manifest.get('version', '1.0')
+            pack_author = manifest.get('author', 'Unknown')
+
+            # Count content
+            card_count = len([n for n in zf.namelist() if '/cards/' in n and n.endswith('card.json')])
+            leader_count = len([n for n in zf.namelist() if '/leaders/' in n and n.endswith('leader.json')])
+
+            print(f"[OK] manifest.json found")
+            print(f"[OK] {card_count} cards found")
+            print(f"[OK] {leader_count} leaders found")
+
+            # Validate abilities
+            errors = []
+            for name in zf.namelist():
+                if name.endswith('card.json'):
+                    try:
+                        card_data = json.loads(zf.read(name).decode('utf-8'))
+                        ability = card_data.get('ability')
+                        if ability:
+                            valid_abilities = get_valid_abilities_list()
+                            for a in ability.split(','):
+                                if a.strip() not in valid_abilities:
+                                    errors.append(f"Invalid ability '{a.strip()}' in {name}")
+                    except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
+                        errors.append(f"Invalid JSON in {name}")
+
+            if errors:
+                print(f"\n[WARNING] {len(errors)} validation errors found:")
+                for e in errors[:5]:
+                    print(f"  - {e}")
+                if len(errors) > 5:
+                    print(f"  ... and {len(errors) - 5} more")
+
+                if not confirm("Import anyway?", default=False):
+                    print("Cancelled.")
+                    return
+
+            print(f"\nPack Contents:")
+            print(f"  - {pack_name} v{pack_version} by {pack_author}")
+            print(f"  - {card_count} cards, {leader_count} leaders")
+
+            if not confirm("\nInstall this pack?"):
+                print("Cancelled.")
+                return
+
+            # Extract to packs directory
+            pack_dir = packs_dir / pack_name.lower().replace(" ", "_")
+            if pack_dir.exists():
+                if not confirm(f"Pack already exists. Overwrite?", default=False):
+                    print("Cancelled.")
+                    return
+                shutil.rmtree(pack_dir)
+
+            pack_dir.mkdir(parents=True, exist_ok=True)
+            zf.extractall(pack_dir)
+
+            log(f"Imported content pack: {pack_name}")
+            print(f"\n[OK] Extracted to {pack_dir}")
+
+            # Enable pack
+            try:
+                from user_content_loader import get_loader
+                loader = get_loader()
+                loader.enable_content("pack", pack_name)
+                print(f"[OK] Pack enabled")
+            except (ImportError, AttributeError):
+                pass
+
+    except Exception as e:
+        print(f"[ERROR] Failed to import pack: {e}")
+
+
+def user_export_content_pack():
+    """Export user content as a shareable .zip pack."""
+    print_header("EXPORT CONTENT PACK")
+
+    import zipfile
+
+    # Get content to export
+    try:
+        from user_content_loader import get_loader
+        loader = get_loader()
+        content = loader.list_content()
+    except (ImportError, AttributeError):
+        content = {"cards": [], "leaders": [], "factions": [], "packs": []}
+        # Manual scan
+        for card_dir in (USER_CONTENT_DIR / "cards").iterdir() if (USER_CONTENT_DIR / "cards").exists() else []:
+            if card_dir.is_dir():
+                content["cards"].append({"id": card_dir.name, "name": card_dir.name})
+        for leader_dir in (USER_CONTENT_DIR / "leaders").iterdir() if (USER_CONTENT_DIR / "leaders").exists() else []:
+            if leader_dir.is_dir():
+                content["leaders"].append({"id": leader_dir.name, "name": leader_dir.name})
+
+    total_items = len(content["cards"]) + len(content["leaders"]) + len(content["factions"])
+    if total_items == 0:
+        print("No user content to export.")
+        return
+
+    print(f"Found {len(content['cards'])} cards, {len(content['leaders'])} leaders, {len(content['factions'])} factions\n")
+
+    # Pack metadata
+    pack_name = get_input("Pack Name", default="My Content Pack")
+    pack_version = get_input("Version", default="1.0")
+    pack_author = get_input("Author", default="Unknown")
+    pack_desc = get_input("Description", default="User-created content pack")
+
+    # Output path
+    default_output = ROOT / f"{pack_name.lower().replace(' ', '_')}.zip"
+    output_path = get_input("Output path", default=str(default_output))
+    output_path = Path(output_path).expanduser()
+
+    if output_path.exists():
+        if not confirm("File exists. Overwrite?", default=False):
+            print("Cancelled.")
+            return
+
+    print("\nCreating pack...")
+
+    try:
+        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Write manifest
+            manifest = {
+                "name": pack_name,
+                "version": pack_version,
+                "author": pack_author,
+                "description": pack_desc,
+                "cards": [c["id"] for c in content["cards"]],
+                "leaders": [l["id"] for l in content["leaders"]],
+                "factions": [f["id"] for f in content["factions"]]
+            }
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+            # Add cards
+            cards_dir = USER_CONTENT_DIR / "cards"
+            if cards_dir.exists():
+                for card_dir in cards_dir.iterdir():
+                    if card_dir.is_dir():
+                        for f in card_dir.iterdir():
+                            arcname = f"cards/{card_dir.name}/{f.name}"
+                            zf.write(f, arcname)
+                            print(f"  Added: {arcname}")
+
+            # Add leaders
+            leaders_dir = USER_CONTENT_DIR / "leaders"
+            if leaders_dir.exists():
+                for leader_dir in leaders_dir.iterdir():
+                    if leader_dir.is_dir():
+                        for f in leader_dir.iterdir():
+                            arcname = f"leaders/{leader_dir.name}/{f.name}"
+                            zf.write(f, arcname)
+                            print(f"  Added: {arcname}")
+
+            # Add factions
+            factions_dir = USER_CONTENT_DIR / "factions"
+            if factions_dir.exists():
+                for faction_dir in factions_dir.iterdir():
+                    if faction_dir.is_dir():
+                        for root, dirs, files in os.walk(faction_dir):
+                            for f in files:
+                                fpath = Path(root) / f
+                                rel = fpath.relative_to(factions_dir)
+                                arcname = f"factions/{rel}"
+                                zf.write(fpath, arcname)
+
+        log(f"Exported content pack: {pack_name}")
+        print(f"\n[OK] Pack exported to: {output_path}")
+        print(f"Share this file with other players!")
+
+    except Exception as e:
+        print(f"[ERROR] Failed to export pack: {e}")
+
+
+def user_manage_content():
+    """Manage (enable/disable) user content."""
+    while True:
+        print_header("MANAGE USER CONTENT")
+
+        try:
+            from user_content_loader import get_loader
+            loader = get_loader()
+            content = loader.list_content()
+        except Exception as e:
+            print(f"[ERROR] Cannot load user content: {e}")
+            return
+
+        total = sum(len(v) for v in content.values())
+        if total == 0:
+            print("No user content found.")
+            print("\nUse options 15-17 to create content, or 18 to import a pack.")
+            return
+
+        # Display content
+        idx = 1
+        content_map = {}
+
+        for content_type, items in content.items():
+            if items:
+                print(f"\n  === {content_type.upper()} ===")
+                for item in items:
+                    status = "[x]" if item.get("enabled", True) else "[ ]"
+                    print(f"  {status} {idx}. {item['name']} ({item['id']}) by {item.get('author', 'Unknown')}")
+                    content_map[idx] = (content_type[:-1], item['id'], item.get('enabled', True))  # Remove 's' from type
+                    idx += 1
+
+        print("\n  Actions:")
+        print("  E. Enable/disable content (enter number)")
+        print("  R. Refresh list")
+        print("  D. Delete content")
+        print("  0. Back")
         print()
 
         choice = get_input("Choice", default="0")
 
         if choice == "0":
+            break
+        elif choice.upper() == "R":
+            continue
+        elif choice.upper() == "E":
+            num = get_int("Enter content number to toggle", min_val=1, max_val=len(content_map))
+            content_type, content_id, is_enabled = content_map[num]
+            if is_enabled:
+                loader.disable_content(content_type, content_id)
+                print(f"[OK] Disabled {content_id}")
+            else:
+                loader.enable_content(content_type, content_id)
+                print(f"[OK] Enabled {content_id}")
+        elif choice.upper() == "D":
+            num = get_int("Enter content number to delete", min_val=1, max_val=len(content_map))
+            content_type, content_id, _ = content_map[num]
+            if confirm(f"Delete {content_id}? This cannot be undone!", default=False):
+                # Delete the content directory
+                if content_type == "card":
+                    path = USER_CONTENT_DIR / "cards" / content_id.replace("user_", "")
+                elif content_type == "leader":
+                    path = USER_CONTENT_DIR / "leaders" / content_id.replace("user_", "")
+                elif content_type == "faction":
+                    path = USER_CONTENT_DIR / "factions" / content_id.lower().replace(" ", "_")
+                elif content_type == "pack":
+                    path = USER_CONTENT_DIR / "packs" / content_id.lower().replace(" ", "_")
+                else:
+                    path = None
+
+                if path and path.exists():
+                    shutil.rmtree(path)
+                    log(f"Deleted user content: {content_id}")
+                    print(f"[OK] Deleted {content_id}")
+                else:
+                    print(f"[ERROR] Content not found at {path}")
+        else:
+            # Try to parse as number for quick toggle
+            try:
+                num = int(choice)
+                if num in content_map:
+                    content_type, content_id, is_enabled = content_map[num]
+                    if is_enabled:
+                        loader.disable_content(content_type, content_id)
+                        print(f"[OK] Disabled {content_id}")
+                    else:
+                        loader.enable_content(content_type, content_id)
+                        print(f"[OK] Enabled {content_id}")
+            except ValueError:
+                pass
+
+        input("\nPress Enter to continue...")
+
+
+def user_validate_content():
+    """Validate all user content for errors."""
+    print_header("VALIDATE USER CONTENT")
+
+    try:
+        from user_content_loader import get_loader
+        loader = get_loader()
+        errors = loader.validate_all()
+    except Exception as e:
+        print(f"[ERROR] Cannot validate: {e}")
+        return
+
+    if not errors:
+        print("[OK] All user content is valid!")
+        return
+
+    print(f"Found {len(errors)} validation errors:\n")
+
+    # Group by content
+    by_content = defaultdict(list)
+    for error in errors:
+        key = f"{error.content_type}:{error.content_id}"
+        by_content[key].append(error)
+
+    for key, errs in by_content.items():
+        content_type, content_id = key.split(":", 1)
+        print(f"\n  {content_type.upper()}: {content_id}")
+        for err in errs:
+            severity = "[WARNING]" if "Missing" in err.message or "placeholder" in err.message.lower() else "[ERROR]"
+            print(f"    {severity} {err.field}: {err.message}")
+
+    # Summary
+    error_count = len([e for e in errors if "Missing" not in e.message])
+    warning_count = len(errors) - error_count
+
+    print(f"\n=== SUMMARY ===")
+    print(f"  Errors: {error_count}")
+    print(f"  Warnings: {warning_count}")
+
+    if error_count > 0:
+        print("\n  Fix errors to ensure content loads correctly.")
+    else:
+        print("\n  Warnings are non-critical - content will still load.")
+
+
+# ============================================================================
+# MAIN MENU
+# ============================================================================
+
+def show_role_selection():
+    """Show role selection menu (Developer or User)."""
+    clear_screen()
+    print()
+    print("+" + "=" * 50 + "+")
+    print("|        STARGWENT CONTENT MANAGER                  |")
+    print("+" + "=" * 50 + "+")
+    print("|                                                   |")
+    print("|  Welcome! Please select your role:                |")
+    print("|                                                   |")
+    print("|   1. Developer                                    |")
+    print("|      (Modify game source code, add abilities,     |")
+    print("|       create official content)                    |")
+    print("|                                                   |")
+    print("|   2. User / Player                                |")
+    print("|      (Create custom content using existing        |")
+    print("|       abilities, manage saves and decks)          |")
+    print("|                                                   |")
+    print("|   0. Exit                                         |")
+    print("+" + "=" * 50 + "+")
+    print()
+    return get_input("Choice", default="0")
+
+
+def show_developer_menu():
+    """Show developer tools menu."""
+    clear_screen()
+    print()
+    print("+" + "=" * 50 + "+")
+    print("|        DEVELOPER TOOLS                            |")
+    print("+" + "=" * 50 + "+")
+    print("|                                                   |")
+    print("|  WARNING: These tools modify game source code!    |")
+    print("|                                                   |")
+    print("|  === CONTENT CREATION ===                         |")
+    print("|   1. Add a new CARD                               |")
+    print("|   2. Add a new LEADER                             |")
+    print("|   3. Add a new FACTION (comprehensive)            |")
+    print("|   4. Add/Edit ABILITY                             |")
+    print("|                                                   |")
+    print("|  === ASSET MANAGEMENT ===                         |")
+    print("|   5. Generate placeholder images                  |")
+    print("|   6. Regenerate all documentation                 |")
+    print("|   7. Asset Checker (find missing images)          |")
+    print("|  12. Audio Manager                                |")
+    print("|                                                   |")
+    print("|  === ANALYSIS & TOOLS ===                         |")
+    print("|   8. Balance Analyzer (power stats)               |")
+    print("|  11. Batch Import (from JSON)                     |")
+    print("|  13. Leader Ability Generator                     |")
+    print("|  14. Card Rename/Delete Tool                      |")
+    print("|                                                   |")
+    print("|   0. Back to role selection                       |")
+    print("+" + "=" * 50 + "+")
+    print()
+    return get_input("Choice", default="0")
+
+
+def show_user_menu():
+    """Show user/player tools menu."""
+    clear_screen()
+    print()
+    print("+" + "=" * 50 + "+")
+    print("|        USER / PLAYER TOOLS                        |")
+    print("+" + "=" * 50 + "+")
+    print("|                                                   |")
+    print("|  === SAVE & DECK MANAGEMENT ===                   |")
+    print("|   1. Save Manager (backup/restore saves)          |")
+    print("|   2. Deck Import/Export (share decks)             |")
+    print("|                                                   |")
+    print("|  === CUSTOM CONTENT CREATION ===                  |")
+    print("|   (Uses ONLY existing game abilities)             |")
+    print("|                                                   |")
+    print("|   3. Create Custom Card (wizard)                  |")
+    print("|   4. Create Custom Leader (wizard)                |")
+    print("|   5. Create Custom Faction (wizard)               |")
+    print("|                                                   |")
+    print("|  === CONTENT PACK MANAGEMENT ===                  |")
+    print("|   6. Import Content Pack (.zip)                   |")
+    print("|   7. Export Content Pack (.zip)                   |")
+    print("|   8. Manage User Content (enable/disable)         |")
+    print("|   9. Validate User Content                        |")
+    print("|                                                   |")
+    print("|   0. Back to role selection                       |")
+    print("+" + "=" * 50 + "+")
+    print()
+    return get_input("Choice", default="0")
+
+
+def handle_developer_choice(choice: str) -> bool:
+    """Handle developer menu choice. Returns True to continue, False to go back."""
+    if choice == "0":
+        return False
+
+    start_session()
+
+    try:
+        if choice == "1":
+            add_card_workflow()
+        elif choice == "2":
+            add_leader_workflow()
+        elif choice == "3":
+            add_faction_workflow()
+        elif choice == "4":
+            ability_manager_workflow()
+        elif choice == "5":
+            placeholder_generation_workflow()
+        elif choice == "6":
+            regenerate_documentation()
+        elif choice == "7":
+            asset_checker_workflow()
+        elif choice == "8":
+            balance_analyzer_workflow()
+        elif choice == "11":
+            batch_import_workflow()
+        elif choice == "12":
+            audio_manager_workflow()
+        elif choice == "13":
+            leader_ability_generator_workflow()
+        elif choice == "14":
+            card_rename_delete_workflow()
+        else:
+            print("Invalid choice")
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled.")
+    except Exception as e:
+        print(f"\n[ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+
+    save_session_log()
+    input("\nPress Enter to continue...")
+    return True
+
+
+def handle_user_choice(choice: str) -> bool:
+    """Handle user menu choice. Returns True to continue, False to go back."""
+    if choice == "0":
+        return False
+
+    start_session()
+
+    try:
+        if choice == "1":
+            save_manager_workflow()
+        elif choice == "2":
+            deck_import_export_workflow()
+        elif choice == "3":
+            user_create_card_wizard()
+        elif choice == "4":
+            user_create_leader_wizard()
+        elif choice == "5":
+            user_create_faction_wizard()
+        elif choice == "6":
+            user_import_content_pack()
+        elif choice == "7":
+            user_export_content_pack()
+        elif choice == "8":
+            user_manage_content()
+        elif choice == "9":
+            user_validate_content()
+        else:
+            print("Invalid choice")
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled.")
+    except Exception as e:
+        print(f"\n[ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+
+    save_session_log()
+    input("\nPress Enter to continue...")
+    return True
+
+
+def main_menu():
+    """Display and handle main menu with role-based separation."""
+    while True:
+        role_choice = show_role_selection()
+
+        if role_choice == "0":
             save_session_log()
             print("\nGoodbye!")
             break
-
-        start_session()
-
-        try:
-            if choice == "1":
-                add_card_workflow()
-            elif choice == "2":
-                add_leader_workflow()
-            elif choice == "3":
-                add_faction_workflow()
-            elif choice == "4":
-                ability_manager_workflow()
-            elif choice == "5":
-                placeholder_generation_workflow()
-            elif choice == "6":
-                regenerate_documentation()
-            elif choice == "7":
-                asset_checker_workflow()
-            elif choice == "8":
-                balance_analyzer_workflow()
-            elif choice == "9":
-                save_manager_workflow()
-            elif choice == "10":
-                deck_import_export_workflow()
-            elif choice == "11":
-                batch_import_workflow()
-            elif choice == "12":
-                audio_manager_workflow()
-            elif choice == "13":
-                leader_ability_generator_workflow()
-            elif choice == "14":
-                card_rename_delete_workflow()
-            else:
-                print("Invalid choice")
-        except KeyboardInterrupt:
-            print("\n\nOperation cancelled.")
-        except Exception as e:
-            print(f"\n[ERROR] {e}")
-            import traceback
-            traceback.print_exc()
-
-        save_session_log()
-
-        input("\nPress Enter to continue...")
+        elif role_choice == "1":
+            # Developer mode
+            while True:
+                dev_choice = show_developer_menu()
+                if not handle_developer_choice(dev_choice):
+                    break
+        elif role_choice == "2":
+            # User mode
+            while True:
+                user_choice = show_user_menu()
+                if not handle_user_choice(user_choice):
+                    break
+        else:
+            print("Invalid choice")
 
 
 # ============================================================================

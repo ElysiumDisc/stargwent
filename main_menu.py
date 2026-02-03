@@ -17,9 +17,10 @@ from lan_menu import run_lan_menu
 from stats_menu import run_stats_menu
 from dhd_button import DHDButtonManager
 import board_renderer
+from save_paths import get_deck_save_path
 
-# Save file for custom decks
-CUSTOM_DECKS_FILE = "player_decks.json"
+# Save file for custom decks (using XDG Base Directory path)
+CUSTOM_DECKS_FILE = get_deck_save_path()
 MENU_MUSIC_PATH = os.path.join("assets", "audio", "main_menu_music.ogg")
 STARGATE_SEQUENCE_PATH = os.path.join("assets", "audio", "stargate_sequence.ogg")
 STARGATE_SEQUENCE_DURATION_MS = 16000  # Match the 16s audio clip
@@ -135,7 +136,7 @@ class DeckManager:
             try:
                 with open(CUSTOM_DECKS_FILE, 'r') as f:
                     self.custom_decks = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
                 self.custom_decks = {}
         else:
             self.custom_decks = {}

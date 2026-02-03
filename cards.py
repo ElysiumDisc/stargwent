@@ -491,3 +491,35 @@ def load_card_image(card):
     card.hover_image = pygame.Surface((int(card_width * 1.08), int(card_height * 1.08)), pygame.SRCALPHA)
     card.hover_image.fill((80, 80, 100, 200))
     return False
+
+
+# ============================================================================
+# USER CONTENT LOADING
+# ============================================================================
+
+def load_user_cards():
+    """
+    Load user-created cards from user_content folder.
+
+    This function is called at game startup to inject user cards
+    into the ALL_CARDS registry. User cards are created using
+    ONLY existing game abilities.
+    """
+    try:
+        from user_content_loader import load_user_content, get_user_cards
+
+        # Load all user content (cards, leaders, factions)
+        load_user_content()
+
+        # Get user cards and add to ALL_CARDS
+        user_cards = get_user_cards()
+        for card_id, card in user_cards.items():
+            if card_id not in ALL_CARDS:
+                ALL_CARDS[card_id] = card
+                print(f"[CARDS] Registered user card: {card_id}")
+
+    except ImportError:
+        # user_content_loader not available - skip
+        pass
+    except Exception as e:
+        print(f"[CARDS] Error loading user cards: {e}")

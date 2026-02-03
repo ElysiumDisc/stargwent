@@ -6,10 +6,14 @@ import json
 import os
 from typing import Dict, List, Optional
 from content_registry import iter_unlockable_leader_ids
+from save_paths import get_deck_save_path, get_unlock_save_path, ensure_migration
 
-# File paths for save data
-DECK_SAVE_FILE = "player_decks.json"
-UNLOCK_SAVE_FILE = "player_unlocks.json"
+# Ensure legacy saves are migrated to XDG directory on first access
+ensure_migration()
+
+# File paths for save data (using XDG Base Directory paths)
+DECK_SAVE_FILE = get_deck_save_path()
+UNLOCK_SAVE_FILE = get_unlock_save_path()
 
 class DeckPersistence:
     """Manages persistent deck storage across game sessions"""
@@ -27,15 +31,26 @@ class DeckPersistence:
     def _migrate_card_ids(self, deck_data: Dict) -> tuple:
         """Migrate old card IDs to new ones. Returns (data, was_migrated)."""
         migrated = False
+        # Import ALL_CARDS for validation (fail gracefully if unavailable)
+        try:
+            from cards import ALL_CARDS
+        except ImportError:
+            ALL_CARDS = None
+
         for faction, faction_data in deck_data.items():
             if isinstance(faction_data, dict) and "cards" in faction_data:
                 new_cards = []
                 for card_id in faction_data["cards"]:
                     if card_id in self.CARD_ID_MIGRATIONS:
                         new_id = self.CARD_ID_MIGRATIONS[card_id]
-                        new_cards.append(new_id)
-                        print(f"  Migrated card ID: {card_id} -> {new_id}")
-                        migrated = True
+                        # Validate target ID exists before migrating
+                        if ALL_CARDS is None or new_id in ALL_CARDS:
+                            new_cards.append(new_id)
+                            print(f"  Migrated card ID: {card_id} -> {new_id}")
+                            migrated = True
+                        else:
+                            # Target doesn't exist, keep original
+                            new_cards.append(card_id)
                     else:
                         new_cards.append(card_id)
                 faction_data["cards"] = new_cards
@@ -147,7 +162,16 @@ class DeckPersistence:
                 "most_drafted_card": None,
                 "card_draft_counts": {}  # card_id: count
             },
-            "active_draft_run": None  # Stores current run state if active
+            "active_draft_run": None,  # Stores current run state if active
+            # User Content Stats (custom cards/leaders/factions created by players)
+            "user_content_stats": {
+                "games_with_user_cards": 0,
+                "games_with_user_leaders": 0,
+                "games_with_user_factions": 0,
+                "user_cards_played": {},  # card_id: times_played
+                "user_leaders_used": {},  # leader_id: times_used
+                "user_factions_used": {},  # faction: times_used
+            }
         }
     
     def get_active_draft_run(self) -> Optional[Dict]:
@@ -245,8 +269,62 @@ class DeckPersistence:
         max_streak = self.unlock_data.get("max_streak", 0)
         if current_streak > max_streak:
             self.unlock_data["max_streak"] = current_streak
-        
+
         self.save_unlocks()
+
+    def record_user_content_usage(self, deck_ids: List[str], leader_id: str, faction: str):
+        """
+        Track user content usage in games.
+
+        Checks deck for user-created cards, leaders, and factions and
+        updates the stats accordingly. Call this when starting a game.
+        """
+        try:
+            from user_content_loader import is_user_card, is_user_leader, is_user_faction
+        except ImportError:
+            return  # No user content loader available
+
+        stats = self.unlock_data.setdefault("user_content_stats", {
+            "games_with_user_cards": 0,
+            "games_with_user_leaders": 0,
+            "games_with_user_factions": 0,
+            "user_cards_played": {},
+            "user_leaders_used": {},
+            "user_factions_used": {},
+        })
+
+        # Check for user cards in deck
+        user_cards = [cid for cid in deck_ids if is_user_card(cid)]
+        if user_cards:
+            stats["games_with_user_cards"] = stats.get("games_with_user_cards", 0) + 1
+            for card_id in user_cards:
+                stats.setdefault("user_cards_played", {})[card_id] = \
+                    stats.get("user_cards_played", {}).get(card_id, 0) + 1
+
+        # Check for user leader
+        if is_user_leader(leader_id):
+            stats["games_with_user_leaders"] = stats.get("games_with_user_leaders", 0) + 1
+            stats.setdefault("user_leaders_used", {})[leader_id] = \
+                stats.get("user_leaders_used", {}).get(leader_id, 0) + 1
+
+        # Check for user faction
+        if is_user_faction(faction):
+            stats["games_with_user_factions"] = stats.get("games_with_user_factions", 0) + 1
+            stats.setdefault("user_factions_used", {})[faction] = \
+                stats.get("user_factions_used", {}).get(faction, 0) + 1
+
+        self.save_unlocks()
+
+    def get_user_content_stats(self) -> Dict:
+        """Get user content statistics for the stats menu."""
+        return self.unlock_data.get("user_content_stats", {
+            "games_with_user_cards": 0,
+            "games_with_user_leaders": 0,
+            "games_with_user_factions": 0,
+            "user_cards_played": {},
+            "user_leaders_used": {},
+            "user_factions_used": {},
+        })
     
     def get_consecutive_wins(self) -> int:
         """Get current win streak"""

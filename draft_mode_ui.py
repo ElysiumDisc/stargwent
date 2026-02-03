@@ -80,7 +80,7 @@ class DraftModeUI:
                 self.draft_bg = pygame.image.load(draft_bg_path).convert()
                 self.draft_bg = pygame.transform.scale(self.draft_bg, (screen_width, screen_height))
                 print(f"✓ Loaded draft mode background from {draft_bg_path}")
-            except Exception as e:
+            except (pygame.error, FileNotFoundError, OSError) as e:
                 print(f"Warning: Could not load draft background: {e}")
                 self.draft_bg = None
         else:
@@ -211,7 +211,7 @@ class DraftModeUI:
                     try:
                         leader_image = pygame.image.load(leader_image_path).convert_alpha()
                         leader_image = pygame.transform.smoothscale(leader_image, (self.card_width, self.card_height))
-                    except Exception as e:
+                    except (pygame.error, FileNotFoundError, OSError) as e:
                         print(f"Warning: Could not load {leader_image_path}: {e}")
                         leader_image = None
 
@@ -501,7 +501,7 @@ class DraftModeUI:
                 try:
                     leader_image = pygame.image.load(leader_image_path).convert_alpha()
                     leader_image = pygame.transform.smoothscale(leader_image, (leader_card_width, leader_card_height))
-                except Exception:
+                except (pygame.error, FileNotFoundError, OSError):
                     leader_image = None
 
             if leader_image is None and leader_card_id in ALL_CARDS:

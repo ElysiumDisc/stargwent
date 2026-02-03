@@ -108,18 +108,19 @@ FACTION_BACKGROUND_ASSET_IDS = {
 
 class DeckBuilderUI:
     """Deck builder interface with Accordion Preview and Split Layout."""
-    
-    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False, unlock_system=None):
+
+    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False, unlock_system=None, exclude_user_content=False):
         reload_card_images()
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.for_new_game = for_new_game  # Track if this is for new game or deck customization
         self.unlock_override = unlock_override
         self.unlock_system = unlock_system or CardUnlockSystem()
+        self.exclude_user_content = exclude_user_content  # CRITICAL: Filter user content for multiplayer
         self.selected_faction = None
         self.selected_leader = None
         self.state = "faction_select"  # faction_select, leader_select, deck_review, complete
-        self.deck_preview_ids = None
+        self.deck_preview_ids = []  # Initialize as empty list to avoid None checks
         self.custom_deck_ids = []  # Player's custom deck being built
         self.deck_scroll_offset = 0
         self.pool_scroll_offset = 0  # Horizontal scroll for bottom accordion
@@ -608,7 +609,7 @@ class DeckBuilderUI:
                 # Dropped on Deck List (right side) - add to deck
                 if self.deck_list_rect.collidepoint(mouse_pos) and self.drag_from_pool:
                     if len(self.deck_preview_ids or []) < MAX_DECK_SIZE:
-                        if self.deck_preview_ids is None:
+                        if not self.deck_preview_ids:
                             self.deck_preview_ids = []
                         if self.dragging_card not in self.deck_preview_ids:
                             self.deck_preview_ids.append(self.dragging_card)
@@ -735,8 +736,8 @@ class DeckBuilderUI:
                                         break
                             if not self.selected_leader and available_leaders:
                                 self.selected_leader = available_leaders[0]
-                            self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                            self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
+                            self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
+                            self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override, exclude_user_content=self.exclude_user_content)
                             self.current_tab = "all"
                             self.inspected_card_id = None
                             self.state = "deck_review"
@@ -760,15 +761,15 @@ class DeckBuilderUI:
                         leader_id = self.selected_leader.get('card_id')
                         self.set_leader_background(leader_id)
                         self._ensure_leader_visible(idx)
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                         return
                 # Review Deck button - FIXED position, no scroll offset
                 if self.selected_leader and self.review_deck_button.collidepoint(mouse_pos):
                     stop_faction_theme()  # Stop music when entering deck review
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                    self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
+                    self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override, exclude_user_content=self.exclude_user_content)
                     self.current_tab = "all"
                     self.inspected_card_id = None
                     self.deck_scroll_offset = 0
@@ -864,14 +865,15 @@ class DeckBuilderUI:
 
                     elif event.key in [pygame.K_f, pygame.K_RETURN] and self.keyboard_focus == "pool":
                         if pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
-                            if self.deck_preview_ids is None:
+                            if not self.deck_preview_ids:
                                 self.deck_preview_ids = []
                             self.deck_preview_ids.append(pool_ids[self.keyboard_pool_cursor])
 
                     elif event.key in [pygame.K_DELETE, pygame.K_BACKSPACE] and self.keyboard_focus == "deck":
                         if self.deck_preview_ids and self.keyboard_deck_cursor >= 0:
                             from collections import Counter
-                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            valid_ids = [x for x in set(self.deck_preview_ids) if x in ALL_CARDS]
+                            unique_ids = sorted(valid_ids, key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
                             if self.keyboard_deck_cursor < len(unique_ids):
                                 self.deck_preview_ids.remove(unique_ids[self.keyboard_deck_cursor])
                                 if self.keyboard_deck_cursor >= len(set(self.deck_preview_ids)):
@@ -883,7 +885,8 @@ class DeckBuilderUI:
                         elif self.keyboard_focus == "pool" and pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
                             self.inspected_card_id = pool_ids[self.keyboard_pool_cursor]
                         elif self.keyboard_focus == "deck" and self.deck_preview_ids:
-                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            valid_ids = [x for x in set(self.deck_preview_ids) if x in ALL_CARDS]
+                            unique_ids = sorted(valid_ids, key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
                             if 0 <= self.keyboard_deck_cursor < len(unique_ids):
                                 self.inspected_card_id = unique_ids[self.keyboard_deck_cursor]
             
@@ -902,7 +905,7 @@ class DeckBuilderUI:
                     self.selected_leader = self.leader_buttons[new_idx]['leader']
                     self._ensure_leader_visible(new_idx)
                     if not self.deck_preview_ids:
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                 
                 elif event.key in [pygame.K_DOWN, pygame.K_s]:
                     # Find current selection
@@ -917,7 +920,7 @@ class DeckBuilderUI:
                     self.selected_leader = self.leader_buttons[new_idx]['leader']
                     self._ensure_leader_visible(new_idx)
                     if not self.deck_preview_ids:
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                 
                 elif event.key == pygame.K_RETURN and self.selected_leader:
                     # Enter to confirm and start
@@ -960,8 +963,8 @@ class DeckBuilderUI:
                             self.selected_leader = available_leaders[0]
                         
                         # Generate deck and go to review
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                        self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
+                        self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override, exclude_user_content=self.exclude_user_content)
                         self.current_tab = "all"
                         self.inspected_card_id = None
                         self.state = "deck_review"
@@ -1050,14 +1053,15 @@ class DeckBuilderUI:
 
                     elif event.key in [pygame.K_f, pygame.K_RETURN] and self.keyboard_focus == "pool":
                         if pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
-                            if self.deck_preview_ids is None:
+                            if not self.deck_preview_ids:
                                 self.deck_preview_ids = []
                             self.deck_preview_ids.append(pool_ids[self.keyboard_pool_cursor])
 
                     elif event.key in [pygame.K_DELETE, pygame.K_BACKSPACE] and self.keyboard_focus == "deck":
                         if self.deck_preview_ids and self.keyboard_deck_cursor >= 0:
                             from collections import Counter
-                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            valid_ids = [x for x in set(self.deck_preview_ids) if x in ALL_CARDS]
+                            unique_ids = sorted(valid_ids, key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
                             if self.keyboard_deck_cursor < len(unique_ids):
                                 self.deck_preview_ids.remove(unique_ids[self.keyboard_deck_cursor])
                                 if self.keyboard_deck_cursor >= len(set(self.deck_preview_ids)):
@@ -1069,7 +1073,8 @@ class DeckBuilderUI:
                         elif self.keyboard_focus == "pool" and pool_ids and 0 <= self.keyboard_pool_cursor < len(pool_ids):
                             self.inspected_card_id = pool_ids[self.keyboard_pool_cursor]
                         elif self.keyboard_focus == "deck" and self.deck_preview_ids:
-                            unique_ids = sorted(list(set(self.deck_preview_ids)), key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
+                            valid_ids = [x for x in set(self.deck_preview_ids) if x in ALL_CARDS]
+                            unique_ids = sorted(valid_ids, key=lambda x: (ALL_CARDS[x].row, -ALL_CARDS[x].power))
                             if 0 <= self.keyboard_deck_cursor < len(unique_ids):
                                 self.inspected_card_id = unique_ids[self.keyboard_deck_cursor]
             
@@ -1088,7 +1093,7 @@ class DeckBuilderUI:
                     self.selected_leader = self.leader_buttons[new_idx]['leader']
                     self._ensure_leader_visible(new_idx)
                     if not self.deck_preview_ids:
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                 
                 elif event.key in [pygame.K_DOWN, pygame.K_s]:
                     # Find current selection
@@ -1103,7 +1108,7 @@ class DeckBuilderUI:
                     self.selected_leader = self.leader_buttons[new_idx]['leader']
                     self._ensure_leader_visible(new_idx)
                     if not self.deck_preview_ids:
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                 
                 elif event.key == pygame.K_RETURN and self.selected_leader:
                     # Enter to confirm and start
@@ -1146,8 +1151,8 @@ class DeckBuilderUI:
                             self.selected_leader = available_leaders[0]
                         
                         # Generate deck and go to review
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                        self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
+                        self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override, exclude_user_content=self.exclude_user_content)
                         self.current_tab = "all"
                         self.inspected_card_id = None
                         self.state = "deck_review"
@@ -1187,8 +1192,8 @@ class DeckBuilderUI:
                                 self.selected_leader = available_leaders[0]
                             
                             # Generate deck and go to review
-                            self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
-                            self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
+                            self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
+                            self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override, exclude_user_content=self.exclude_user_content)
                             self.current_tab = "all"
                             self.inspected_card_id = None
                             self.state = "deck_review"
@@ -1218,16 +1223,16 @@ class DeckBuilderUI:
                         self._ensure_leader_visible(idx)
 
                         # Generate deck preview
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                         return
 
                 # Review deck button - FIXED position, no scroll offset
                 if self.selected_leader and self.review_deck_button.collidepoint(mouse_pos):
                     self.state = "deck_review"
                     if not self.deck_preview_ids:
-                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader)
+                        self.deck_preview_ids = build_faction_deck(self.selected_faction, self.selected_leader, exclude_user_content=self.exclude_user_content)
                     # Build card pool (all available cards for faction)
-                    self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override)
+                    self.card_pool_ids = get_faction_card_pool(self.selected_faction, self.unlock_system, self.unlock_override, exclude_user_content=self.exclude_user_content)
                     self.current_tab = "all"
                     self.inspected_card_id = None
                     self.deck_scroll_offset = 0
@@ -1428,7 +1433,7 @@ class DeckBuilderUI:
             self.draw_deck_review(surface)
         
         # Draw dragging card (follows mouse smoothly)
-        if self.dragging_card:
+        if self.dragging_card and self.dragging_card in ALL_CARDS:
             card = ALL_CARDS[self.dragging_card]
             card_width = 130  # Slightly larger when dragging
             card_height = 195
@@ -1454,7 +1459,7 @@ class DeckBuilderUI:
             pygame.draw.rect(surface, (255, 255, 150), card_rect, width=2, border_radius=8)
         
         # Draw inspected card overlay (on top of everything)
-        if self.inspected_card_id:
+        if self.inspected_card_id and self.inspected_card_id in ALL_CARDS:
             card = ALL_CARDS[self.inspected_card_id]
             self.draw_card_inspection(surface, card)
     
@@ -2064,7 +2069,7 @@ class DeckBuilderUI:
         try:
             scaled_image = pygame.transform.scale(card.image, (preview_card_width, preview_card_height))
             surface.blit(scaled_image, (preview_x, preview_y))
-        except:
+        except (pygame.error, AttributeError):
             pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(preview_x, preview_y, preview_card_width, preview_card_height), border_radius=8)
 
         # Determine border color based on card type/rarity
@@ -2265,40 +2270,76 @@ def validate_deck(deck):
     return True, "Deck valid"
 
 
-def build_faction_deck(faction, leader=None, *, unlock_system=None, unlock_override=False):
+def build_faction_deck(faction, leader=None, *, unlock_system=None, unlock_override=False, exclude_user_content=False):
     """
     Build a deck for the specified faction following Gwent rules.
     First checks if there's a saved deck, otherwise creates a new random one.
     Returns a list of card IDs from the faction.
     Ensures minimum deck size of 25 cards and maximum of 40 cards.
+
+    Args:
+        faction: The faction to build a deck for
+        leader: Optional leader data
+        unlock_system: Card unlock system instance
+        unlock_override: If True, ignore unlock requirements
+        exclude_user_content: If True, filter out all user-created content (for multiplayer)
     """
     # First, try to load saved deck
     saved_deck_data = load_player_deck(faction)
     if saved_deck_data and saved_deck_data.get("cards"):
-        print(f"✓ Loading saved deck for {faction} ({len(saved_deck_data['cards'])} cards)")
-        return list(saved_deck_data["cards"])
+        deck_cards = list(saved_deck_data["cards"])
+
+        # CRITICAL: Filter out user content for multiplayer
+        if exclude_user_content:
+            try:
+                from user_content_loader import filter_out_user_cards
+                original_count = len(deck_cards)
+                deck_cards = filter_out_user_cards(deck_cards)
+                if len(deck_cards) < original_count:
+                    print(f"[MULTIPLAYER] Filtered {original_count - len(deck_cards)} user cards from saved deck")
+            except ImportError:
+                pass
+
+        if deck_cards:  # Only use saved deck if it still has cards after filtering
+            print(f"✓ Loading saved deck for {faction} ({len(deck_cards)} cards)")
+            return deck_cards
     
     # No saved deck found, build a new random one
     print(f"Building new default deck for {faction}...")
-    
+
     unlock_system = unlock_system or CardUnlockSystem()
 
-    # Get all card IDs from the selected faction (respect unlocks)
+    # Helper to check if card should be included
+    def should_include_card(card_id: str) -> bool:
+        """Check if card passes all filters (unlocks and user content)."""
+        if not is_card_available(card_id, unlock_system, unlock_override):
+            return False
+        # CRITICAL: Filter out user content for multiplayer
+        if exclude_user_content:
+            try:
+                from user_content_loader import is_user_card
+                if is_user_card(card_id):
+                    return False
+            except ImportError:
+                pass
+        return True
+
+    # Get all card IDs from the selected faction (respect unlocks and user content filter)
     faction_card_ids = [
         card.id for card in ALL_CARDS.values()
-        if card.faction == faction and is_card_available(card.id, unlock_system, unlock_override)
+        if card.faction == faction and should_include_card(card.id)
     ]
-    
+
     # If faction has more than 40 cards, randomly select 35 of them to leave room for neutrals
     if len(faction_card_ids) > 35:
         faction_card_ids = random.sample(faction_card_ids, 35)
-    
+
     # Add some neutral cards (randomly select 3-5 neutral card IDs)
     neutral_card_ids = [
         card.id for card in ALL_CARDS.values()
         if card.faction == FACTION_NEUTRAL
         and not is_hero(card)
-        and is_card_available(card.id, unlock_system, unlock_override)
+        and should_include_card(card.id)
     ]
     # Filter out Legendary Commander neutrals to keep balance, but allow all rows
     useful_neutrals = neutral_card_ids
@@ -2329,7 +2370,8 @@ def build_faction_deck(faction, leader=None, *, unlock_system=None, unlock_overr
     # Shuffle the deck
     random.shuffle(deck_ids)
     
-    # Validate deck
+    # Validate deck - filter out any invalid card IDs
+    deck_ids = [id for id in deck_ids if id in ALL_CARDS]
     deck = [ALL_CARDS[id] for id in deck_ids]
     is_valid, message = validate_deck(deck)
     if not is_valid:
@@ -2351,19 +2393,40 @@ def is_card_available(card_id: str, unlock_system, unlock_override: bool) -> boo
     return False
 
 
-def get_faction_card_pool(faction, unlock_system=None, unlock_override=False):
+def get_faction_card_pool(faction, unlock_system=None, unlock_override=False, exclude_user_content=False):
     """
     Get all available cards for a faction (card pool).
     Returns a list of card IDs including all neutral cards, filtered by unlocks.
+
+    Args:
+        faction: The faction to get cards for
+        unlock_system: Card unlock system instance
+        unlock_override: If True, ignore unlock requirements
+        exclude_user_content: If True, filter out all user-created content (for multiplayer)
     """
     unlock_system = unlock_system or CardUnlockSystem()
+
+    # Helper to check if card passes all filters
+    def should_include_card(card_id: str) -> bool:
+        if not is_card_available(card_id, unlock_system, unlock_override):
+            return False
+        # CRITICAL: Filter out user content for multiplayer
+        if exclude_user_content:
+            try:
+                from user_content_loader import is_user_card
+                if is_user_card(card_id):
+                    return False
+            except ImportError:
+                pass
+        return True
+
     faction_card_ids = [
         card.id for card in ALL_CARDS.values()
-        if card.faction == faction and is_card_available(card.id, unlock_system, unlock_override)
+        if card.faction == faction and should_include_card(card.id)
     ]
     neutral_card_ids = [
         card.id for card in ALL_CARDS.values()
-        if card.faction == FACTION_NEUTRAL and is_card_available(card.id, unlock_system, unlock_override)
+        if card.faction == FACTION_NEUTRAL and should_include_card(card.id)
     ]
 
     # Combine and deduplicate
@@ -2444,29 +2507,31 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     return sorted_ids
 
 
-def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None):
+def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None, exclude_user_content=False):
     """
     Run the deck builder interface.
     Args:
         screen: Pygame screen surface
         for_new_game: If True, full flow with leader selection for starting a new game.
                      If False, skip directly to deck customization (from main menu deck building).
+        exclude_user_content: If True, filter out all user-created content (for multiplayer/LAN).
     Returns the selected faction and leader, or None if cancelled.
     """
     # CRITICAL: Reload card images to ensure they're loaded with proper screen dimensions
     print("Deck Builder: Reloading card images...")
     reload_card_images()
     print("Deck Builder: Card images reloaded successfully!")
-    
+
     screen_width = screen.get_width()
     screen_height = screen.get_height()
-    
+
     deck_builder = DeckBuilderUI(
         screen_width,
         screen_height,
         for_new_game=for_new_game,
         unlock_override=unlock_override,
-        unlock_system=unlock_system
+        unlock_system=unlock_system,
+        exclude_user_content=exclude_user_content
     )
     clock = pygame.time.Clock()
     

@@ -574,13 +574,6 @@ class Player:
             
             # Rya'c: Draw 2 extra cards at start of round 3 (handled in end_round())
 
-            # (Master Bra'tac removed - duplicate)
-            elif False:  # Old Master Bra'tac code
-                if getattr(self, 'current_round_number', 1) == 3:
-                    for row_cards in self.board.values():
-                        for card in row_cards:
-                            card.displayed_power += 3
-            
             # Loki: Steal 1 power from opponent's strongest (done per turn, tracked separately)
             # This is applied when card is played, not in score calculation
 
@@ -616,16 +609,21 @@ class Player:
                             right_card.displayed_power += 1
 
         # Apply Commander's Horn (doubles non-Legendary Commander units)
+        # Track which cards have been multiplied to avoid double-stacking with ZPM
+        horn_multiplied = set()
         for row_name, row_cards in self.board.items():
             if self.horn_effects[row_name]:
                 for card in row_cards:
                     if not is_hero(card):
                         card.displayed_power *= 2
-        
+                        horn_multiplied.add(id(card))
+
         # Apply ZPM Power (doubles ALL siege units for the round)
+        # Skip cards already multiplied by horn to prevent 4x stacking
         if self.zpm_active:
             for card in self.board.get("siege", []):
-                card.displayed_power *= 2
+                if id(card) not in horn_multiplied:
+                    card.displayed_power *= 2
         
         # Apply Faction Abilities that affect score
         if self.faction_ability:
@@ -660,7 +658,7 @@ class Player:
         
         # Apply Neutral Penalty (Mercenary Tax)
         if self.neutral_penalty_active:
-            self.score = int(self.score * 0.75)
+            self.score = round(self.score * 0.75)
 
         return activated_combos
 
@@ -709,7 +707,7 @@ class Player:
             for card in list(row_cards):
                 if getattr(card, "is_oneill_clone", False):
                     card.clone_turns_remaining -= 1
-                    if card.clone_turns_remaining <= 1:
+                    if card.clone_turns_remaining <= 0:
                         row_cards.remove(card)
                         self.discard_pile.append(card)
 
@@ -935,7 +933,6 @@ class Game:
 
     def switch_turn(self):
         """Switches the turn to the other player, handling passed players."""
-        print(f"[DEBUG switch_turn] p1.has_passed={self.player1.has_passed}, p2.has_passed={self.player2.has_passed}, round={self.round_number}")
         # Check if Hathor's ability animation is complete
         if hasattr(self.current_player, 'hathor_ability_pending'):
             pending = self.current_player.hathor_ability_pending
@@ -1027,7 +1024,6 @@ class Game:
             # Record card play for stats
             if self.current_player == self.player1:
                 card_id = getattr(card, "id", None)
-                print(f"[stats-debug] Playing card: {card.name}, id={card_id}, current_total={len(self.cards_played_ids)}")
                 if card_id:
                     self.cards_played_ids.append(card_id)
                 elif hasattr(card, "name"):
@@ -1217,7 +1213,6 @@ class Game:
                         friendly_units = [c for row in player.board.values() for c in row if not is_hero(c)]
                         if friendly_units:
                             self.rng.choice(friendly_units).power += 1
-                        print(f"Loki stole 1 power from {strongest.name} (now {strongest.power})")
 
 
             # Trigger Gate Reinforcement ability
@@ -1253,7 +1248,6 @@ class Game:
 
     def pass_turn(self):
         """The current player passes their turn."""
-        print(f"[DEBUG pass_turn] {self.current_player.name} passing, round={self.round_number}")
         if not self.current_player.has_passed:
             passing_player = self.current_player
             passing_player.has_passed = True
@@ -1305,7 +1299,7 @@ class Game:
         total_mustered = len(cards_from_hand) + len(cards_from_deck) + 1
         
         if total_mustered > 1:
-             self.add_history_event(
+            self.add_history_event(
                 "ability",
                 f"{player.name} mustered {total_mustered-1} reinforcements!",
                 self._owner_label(player),
@@ -1550,7 +1544,7 @@ class Game:
             # Clears all weather
             self.discard_active_weather_cards()
             self.weather_active = {"close": False, "ranged": False, "siege": False}
-            self.current_weather_types = {"close": "Wormhole Stabilization", "ranged": "Wormhole Stabilization", "siege": "Wormhole Stabilization"}
+            self.current_weather_types = {"close": None, "ranged": None, "siege": None}
             self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
             for p in [self.player1, self.player2]:
                 p.weather_effects = {"close": False, "ranged": False, "siege": False}
@@ -2703,7 +2697,6 @@ class Game:
                 "neutral",
                 icon="=="
             )
-        print(f"[DEBUG end_round COMPLETE] round={self.round_number}, p1.has_passed={self.player1.has_passed}, p2.has_passed={self.player2.has_passed}")
 
     def surrender(self, surrendering_player):
         """Handle player surrender / give up.
@@ -2952,7 +2945,6 @@ class Game:
                 "neutral",
                 icon="=="
             )
-        print(f"[DEBUG end_round COMPLETE] round={self.round_number}, p1.has_passed={self.player1.has_passed}, p2.has_passed={self.player2.has_passed}")
 
     def decrement_all_clone_tokens(self):
         """Reduce lifetime on all O'Neill clones for both players and remove expired ones."""

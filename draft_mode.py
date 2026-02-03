@@ -75,11 +75,12 @@ class DraftPool:
             rarity_weights: Dict mapping rarity to weight multiplier
 
         Returns:
-            List of card objects
+            List of card objects (guaranteed unique)
         """
         if rarity_weights:
-            # Weight cards by rarity
-            weighted_pool = []
+            # Weight cards by rarity using weighted random selection
+            # Build list of (card, weight) tuples
+            weighted_cards = []
             for card in self.available_cards:
                 power = card.power
                 # Higher power = rarer = lower weight for balanced drafts
@@ -91,9 +92,25 @@ class DraftPool:
                     weight = rarity_weights.get('rare', 3)
                 else:
                     weight = rarity_weights.get('common', 4)
-                weighted_pool.extend([card] * weight)
+                weighted_cards.append((card, weight))
 
-            choices = random.sample(weighted_pool, min(count, len(weighted_pool)))
+            # Select unique cards using weighted random without replacement
+            choices = []
+            remaining = weighted_cards.copy()
+            for _ in range(min(count, len(remaining))):
+                if not remaining:
+                    break
+                # Calculate total weight
+                total_weight = sum(w for _, w in remaining)
+                # Pick random point
+                pick = random.uniform(0, total_weight)
+                cumulative = 0
+                for idx, (card, weight) in enumerate(remaining):
+                    cumulative += weight
+                    if pick <= cumulative:
+                        choices.append(card)
+                        remaining.pop(idx)
+                        break
         else:
             choices = random.sample(self.available_cards, min(count, len(self.available_cards)))
 

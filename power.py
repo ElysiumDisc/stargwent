@@ -144,9 +144,6 @@ class LucianFactionPower(FactionPower):
                         card.power = max(0, card.power - 5)
                         card.displayed_power = card.power
                         damaged_count += 1
-                        print(f"Unstable Naquadah: {card.name} power {old_power} -> {card.power}")
-        
-        print(f"Unstable Naquadah activated! Damaged {damaged_count} units")
         
         # Recalculate scores to apply all effects
         game.player1.calculate_score()
@@ -170,7 +167,6 @@ class JaffaFactionPower(FactionPower):
 
         # Draw 3 cards
         player.draw_cards(3)
-        print(f"{player.name} drew 3 cards from Rebel Alliance Aid")
 
         # Log the draw
         owner_label = "player" if player == game.player1 else "opponent"
@@ -191,14 +187,12 @@ class JaffaFactionPower(FactionPower):
                 player.hand.remove(card)
                 player.discard_pile.append(card)
                 discarded_cards.append(card)
-                print(f"  Discarded: {card.name}")
         else:
             # If fewer than 3 cards, discard all
             while player.hand:
                 card = player.hand.pop()
                 player.discard_pile.append(card)
                 discarded_cards.append(card)
-                print(f"  Discarded: {card.name}")
 
         # Log each discarded card to history
         for card in discarded_cards:
@@ -221,8 +215,6 @@ class AsgardFactionPower(FactionPower):
             "Swap opponent's entire close combat and ranged rows",
             "Asgard"
         )
-        self.pending_selection = False
-        self.selected_cards = []
     
     def activate(self, game, player):
         if not super().activate(game, player):
@@ -233,58 +225,11 @@ class AsgardFactionPower(FactionPower):
         
         # Swap the entire rows
         opponent.board["close"], opponent.board["ranged"] = opponent.board["ranged"], opponent.board["close"]
-        
-        print(f"Asgard Holographic Decoy: Swapped opponent's close combat and ranged rows!")
-        print(f"  Close row now has {len(opponent.board['close'])} units")
-        print(f"  Ranged row now has {len(opponent.board['ranged'])} units")
-        
+
         # Recalculate scores after swap (row-specific bonuses might have changed)
         opponent.calculate_score()
         player.calculate_score()
-        
-        return True
-    
-    def select_card(self, card):
-        """Select a card to swap."""
-        if len(self.selected_cards) < 2:
-            self.selected_cards.append(card)
-            return True
-        return False
-    
-    def can_execute_swap(self):
-        """Check if we have 2 cards selected."""
-        return len(self.selected_cards) == 2
-    
-    def execute_swap(self, game, player):
-        """Swap the two selected cards."""
-        if not self.can_execute_swap():
-            return False
-        
-        card1, card2 = self.selected_cards
-        opponent = game.player2 if player == game.player1 else game.player1
-        
-        # Find which rows the cards are in
-        row1, row2 = None, None
-        idx1, idx2 = None, None
-        
-        for row_name, row_cards in opponent.board.items():
-            if card1 in row_cards:
-                row1 = row_name
-                idx1 = row_cards.index(card1)
-            if card2 in row_cards:
-                row2 = row_name
-                idx2 = row_cards.index(card2)
-        
-        if row1 and row2:
-            # Swap cards
-            opponent.board[row1][idx1], opponent.board[row2][idx2] = opponent.board[row2][idx2], opponent.board[row1][idx1]
-            
-            # Disable abilities (mark with temporary flag)
-            card1.abilities_disabled = True
-            card2.abilities_disabled = True
-        
-        self.pending_selection = False
-        self.selected_cards = []
+
         return True
 
 

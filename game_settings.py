@@ -6,8 +6,13 @@ import json
 import os
 import pygame
 import board_renderer
+from save_paths import get_settings_path, ensure_migration
 
-SETTINGS_FILE = "game_settings.json"
+# Ensure legacy saves are migrated to XDG directory on first access
+ensure_migration()
+
+# Settings file path (using XDG Base Directory path)
+SETTINGS_FILE = get_settings_path()
 
 class GameSettings:
     """Manages persistent game settings"""
