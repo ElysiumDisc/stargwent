@@ -1095,14 +1095,15 @@ class RulesMenuScreen:
     def _handle_scroll(self, delta: int):
         tab_title = self.tab_titles[self.active_tab]
         behavior = TAB_BEHAVIOR.get(tab_title, "text")
-        step = 35 if behavior in {"text", "abilities", "lore"} else 45
+        # Smoother scroll steps for better reading experience
+        step = 25 if behavior in {"text", "abilities", "lore"} else 35
         if behavior in {"text", "abilities", "lore", "faction"}:
             self.scroll_offsets[self.active_tab] = max(
                 0, self.scroll_offsets.get(self.active_tab, 0) - delta * step
             )
         elif behavior == "cards":
             self.scroll_offsets[self.active_tab] = max(
-                0, self.scroll_offsets.get(self.active_tab, 0) - delta * 40
+                0, self.scroll_offsets.get(self.active_tab, 0) - delta * 30
             )
 
     # ---------- Drawing ----------
@@ -1283,7 +1284,7 @@ class RulesMenuScreen:
                 self.body_font,
                 self.text_color,
                 align_center=True,
-            ) + 20
+            ) + 28  # Increased paragraph spacing for better readability
             content_height += y - start_y
         for item in data.get("items", []):
             start_y = y
@@ -1527,15 +1528,16 @@ class RulesMenuScreen:
                 self.body_font,
                 text_color,
                 align_center=True,
-            ) + 30  # Extra spacing between sections
+            ) + 36  # Extra spacing between sections for better readability
             content_height += y - start_y
         self._update_scroll_limit(content_height, area_height)
 
     def _viewport_safe_area(self, view: pygame.Surface) -> Tuple[int, int, int, int]:
         width = view.get_width()
         radius = width // 2
-        margin = max(50, int(radius * 0.32))
-        column_width = max(220, width - margin * 2)
+        # Increased margins for cleaner look inside the portal
+        margin = max(60, int(radius * 0.38))
+        column_width = max(200, width - margin * 2)
         column_x = (width - column_width) // 2
         available_height = width - margin * 2
         return column_x, column_width, margin, available_height

@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.4.0-blue)
+![Version](https://img.shields.io/badge/version-5.5.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -106,41 +106,6 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
 - **Comprehensive Stats Menu** - Win rates, round breakdowns, matchup history
 - **Persistent Saves** - All progress saved to JSON
-
-### 🆕 Recent Updates
-
-#### v5.4.0 - Major Content Update
-- **New Alliance Combos** - Asgard High Council (+2 to Asgard), Jaffa Uprising (+1 to all), Lucian Network (spy draw)
-- **Space Shooter Power-ups** - 5 power-up types: Shield, Rapid Fire, Drones, Naquadah Core, Cloak
-- **Space Shooter High Scores** - Per-faction leaderboards with full score tracking
-- **Naquadah Budget System** - 150 Naquadah deck limit with crystalline UI display
-- **Ori Corruption Penalty** - Over-budget decks suffer 50% score reduction
-- **Draft Mode Rare Events** - 5% chance for Stargate Anomaly (5 picks) or Ancient Cache (guaranteed rare)
-- **Scaled Draft Rewards** - Better rewards at 3/5/8 win milestones
-- **New Animations** - Dakara Pulse, Atlantis Shield, Hyperspace Jump, Wraith Culling Beam, Ori Prior Flame
-
-#### v5.1.0 - Code Quality & Bug Fixes
-- **Clone Token Fix** - O'Neill clones now correctly live 4 turns (was 3 due to off-by-one error)
-- **Horn + ZPM Stacking** - Fixed 4x multiplier bug when both effects applied to siege cards
-- **Card Validation** - Deck builder now validates card IDs preventing crashes during drag-drop
-- **Exception Handling** - Replaced 15+ bare `except:` clauses with specific exception types
-- **Debug Cleanup** - Removed debug print statements from production code
-- **AI Calculation Fix** - Fixed Tactical Formation double-counting in AI evaluation
-
-#### v5.0.0 - Deck Builder UI
-- **Witcher-Style Deck Builder** - Complete redesign inspired by The Witcher 3's Gwent interface:
-  - **Bottom Accordion**: Horizontal scrolling card pool with 2x sized cards, hover lift animation, and card name tooltips
-  - **Circular Icon Tabs**: New high-resolution circular buttons for filtering cards by type (Close, Ranged, Siege, Special, etc.).
-  - **Right Deck List**: Vertical list view showing power, name, quantity, and row-type color indicators
-  - **Holographic Stats Panel**: Translucent top-left panel with deck validity, card counts, and total strength
-  - **DHD Back Button**: Circular Dial Home Device button with metallic ring, glowing chevrons, and cyan center crystal (top-left in all menus)
-  - **Top-Center Faction Tabs**: Filter cards by type (All, Close, Ranged, Siege, etc.)
-- **Elite AI Strategy** - The AI now uses Gwent-style "bleeding" and hero preservation tactics to challenge even experienced players.
-- **Draft Mode Polish** - "Your Deck" list is now scrollable, groups duplicates (e.g. "3x Alpha Team"), and features a centered "Start Battle" layout.
-- **Integrated Comms** - Chat and Game History are now unified. Press 'T' to open a non-intrusive input box directly below the history panel.
-- **Options Menu Alignment** — All labels/status text are perfectly centered above/below their toggles with consistent spacing.
-- **Deck Builder Layout** — Type headers removed; cards use a simple grid with unified positioning and click detection for hover, inspect, and drag/drop; compact stats now sit in a clean box at the top-right of **Your Deck**.
-- **Smooth Dragging Everywhere** — Deck builder runs at 144 FPS with lerped card dragging, subtle shadows, and glow borders for a buttery feel; in-match rendering already uses the same smooth follow/hover easing.
 
 ### 💾 Persistent Progression
 - **Automatic Deck Saving** - Your deck is saved every time you finish customizing

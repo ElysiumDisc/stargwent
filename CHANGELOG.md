@@ -1,3 +1,34 @@
+### Version 5.5.0 (February 2026)
+**AI Improvements, Bug Fixes, Expanded Lore & Deck Builder Enhancements**
+
+#### AI Deck System
+- ✅ **Curated AI Decks** – AI opponents now use pre-built, faction-appropriate decks from `docs/default_faction_decks.json`
+- ✅ **Balanced Strategy** – Each faction deck (26 cards) follows optimal playstyle with proper Naquadah budget
+- ✅ **AI Penalty Exemption** – AI players skip Mercenary Tax and Ori Corruption checks (they use curated decks)
+
+#### Deck Builder Enhancements
+- ✅ **Reset to Default Button** – New button in deck builder to reset your deck to the curated default deck for that faction
+- ✅ **Available in Both Modes** – Reset button appears in standalone deck builder and when starting a new game
+
+#### Bug Fixes
+- ✅ **Quantum Mirror Fix** – Fixed bug where shuffling hand into deck drew one fewer card than expected (hand size was captured after card removal)
+
+#### Animation Improvements
+- ✅ **Quantum Mirror Card Shuffle** – New animation shows cards flying from hand to mirror and back, with staggered timing, arc motion, and sparkle effects
+
+#### Rule Compendium Improvements
+- ✅ **Better Margins** – Increased viewport margins (0.32 → 0.38) for cleaner text presentation inside the Stargate portal
+- ✅ **Smoother Scrolling** – Reduced scroll step (35 → 25) for more precise navigation
+- ✅ **Improved Spacing** – Increased paragraph spacing (20 → 28) and section spacing (30 → 36) for better readability
+
+#### Expanded Lore Content
+- ✅ **Faction Lore** – Detailed backstories for all 5 factions covering origins, motivations, and playstyle identity
+- ✅ **Key Synergies** – Strategic tips highlighting powerful card combinations for each faction
+- ✅ **Iconic Quotes** – Memorable quotes from the Stargate series for each faction
+- ✅ **Leader Biographies** – Full bios for all 35 leaders (7 per faction) including backstory, notable achievements, and ability explanations
+
+---
+
 ### Version 5.4.0 (February 2026)
 **Major Content Update: Alliance Combos, Space Shooter, Naquadah System & Draft Enhancements**
 

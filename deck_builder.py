@@ -370,7 +370,15 @@ class DeckBuilderUI:
             200,
             50
         )
-        
+
+        # Reset to Default button (next to save button)
+        self.reset_default_button = pygame.Rect(
+            self.screen_width // 2 + 120,
+            self.screen_height - accordion_height - 60,
+            180,
+            50
+        )
+
         # Faction tabs positioning (Top Center)
         self.faction_tab_rects = {}
 
@@ -387,6 +395,34 @@ class DeckBuilderUI:
             print(f"✓ {reason} | {self.last_save_message}")
         else:
             print(f"✓ Deck saved: {self.selected_faction} with {len(card_ids)} cards")
+        return True
+
+    def reset_deck_to_default(self):
+        """Reset the current deck to the curated default deck for this faction."""
+        if not self.selected_faction:
+            return False
+
+        # Load default deck from JSON
+        default_cards = load_default_faction_deck(self.selected_faction)
+
+        if not default_cards:
+            self.last_save_message = f"No default deck found for {self.selected_faction}"
+            self.last_save_time = pygame.time.get_ticks()
+            print(f"✗ {self.last_save_message}")
+            return False
+
+        # Update the deck preview
+        self.deck_preview_ids = list(default_cards)
+
+        # Update the card pool (remove cards that are now in deck)
+        self.card_pool_ids = self._build_card_pool()
+
+        # Auto-save the reset deck
+        self.save_current_deck("Reset to default")
+
+        self.last_save_message = f"Reset to default: {len(default_cards)} cards"
+        self.last_save_time = pygame.time.get_ticks()
+        print(f"✓ Deck reset to default for {self.selected_faction} ({len(default_cards)} cards)")
         return True
 
     def refresh_for_surface(self, screen):
@@ -1296,7 +1332,12 @@ class DeckBuilderUI:
                     if not self.for_new_game and self.save_button.collidepoint(mouse_pos):
                         self.save_current_deck()
                         return
-                
+
+                    # Reset to Default button
+                    if self.reset_default_button.collidepoint(mouse_pos):
+                        self.reset_deck_to_default()
+                        return
+
                 # RIGHT CLICK = ZOOM/INSPECT (works on accordion and deck list)
                 if event.button == 3:  # Right click
                     # Close inspection if already open
@@ -1644,11 +1685,13 @@ class DeckBuilderUI:
         self.draw_bottom_accordion(surface, faction_color)
 
         # 6. Save/Action Buttons (positioned above accordion)
+        mouse_pos = pygame.mouse.get_pos()
+
         if self.for_new_game:
             # START GAME button - positioned above accordion on the right
             start_btn_rect = pygame.Rect(
-                self.screen_width - 220, 
-                self.accordion_area_rect.top - 70, 
+                self.screen_width - 220,
+                self.accordion_area_rect.top - 70,
                 200, 50
             )
             pygame.draw.rect(surface, (50, 200, 50), start_btn_rect, border_radius=8)
@@ -1656,18 +1699,38 @@ class DeckBuilderUI:
             start_text = self.button_font.render("START GAME", True, (255, 255, 255))
             surface.blit(start_text, start_text.get_rect(center=start_btn_rect.center))
             self.continue_button = start_btn_rect
+
+            # RESET TO DEFAULT button (left of START GAME)
+            reset_btn_rect = pygame.Rect(
+                self.screen_width - 440,
+                self.accordion_area_rect.top - 70,
+                200, 50
+            )
+            self.reset_default_button = reset_btn_rect
         else:
             # SAVE DECK button
             pygame.draw.rect(surface, (50, 180, 50), self.save_button, border_radius=8)
             pygame.draw.rect(surface, (100, 255, 100), self.save_button, width=2, border_radius=8)
             save_text = self.button_font.render("SAVE DECK", True, (255, 255, 255))
             surface.blit(save_text, save_text.get_rect(center=self.save_button.center))
-            
-            # Show temporary confirmation message near the save button
-            if self.last_save_message and pygame.time.get_ticks() - self.last_save_time < 3000:
-                confirm_text = self.small_font.render(self.last_save_message, True, (200, 255, 200))
-                confirm_rect = confirm_text.get_rect(midtop=(self.save_button.centerx, self.save_button.bottom + 10))
-                surface.blit(confirm_text, confirm_rect)
+
+        # RESET TO DEFAULT button (shown in both modes)
+        reset_hovered = self.reset_default_button.collidepoint(mouse_pos)
+        reset_bg_color = (180, 100, 50) if reset_hovered else (140, 80, 40)
+        reset_border_color = (255, 150, 80) if reset_hovered else (200, 120, 60)
+        pygame.draw.rect(surface, reset_bg_color, self.reset_default_button, border_radius=8)
+        pygame.draw.rect(surface, reset_border_color, self.reset_default_button, width=2, border_radius=8)
+        reset_text = self.small_font.render("RESET DEFAULT", True, (255, 255, 255))
+        surface.blit(reset_text, reset_text.get_rect(center=self.reset_default_button.center))
+
+        # Show temporary confirmation message near the buttons
+        if self.last_save_message and pygame.time.get_ticks() - self.last_save_time < 3000:
+            # Color based on message type
+            msg_color = (255, 200, 150) if "Reset" in self.last_save_message else (200, 255, 200)
+            confirm_text = self.small_font.render(self.last_save_message, True, msg_color)
+            msg_x = self.reset_default_button.centerx if self.for_new_game else self.save_button.centerx + 50
+            confirm_rect = confirm_text.get_rect(midtop=(msg_x, self.reset_default_button.bottom + 10))
+            surface.blit(confirm_text, confirm_rect)
         
         # Instructions at bottom of deck list area
         if self.inspected_card_id:
@@ -2330,6 +2393,33 @@ def validate_deck(deck):
         return False, f"Need at least 15 unit cards (have {len(unit_cards)})"
     
     return True, "Deck valid"
+
+
+def load_default_faction_deck(faction):
+    """
+    Load a pre-defined deck from JSON for AI opponents.
+
+    Args:
+        faction: The faction name to load a deck for
+
+    Returns:
+        List of card IDs, or empty list if faction not found
+    """
+    import json
+    import os
+
+    json_path = os.path.join(os.path.dirname(__file__), "docs", "default_faction_decks.json")
+    try:
+        with open(json_path, "r") as f:
+            decks = json.load(f)
+        faction_data = decks.get(faction, {})
+        cards = faction_data.get("cards", [])
+        if cards:
+            print(f"✓ Loading default AI deck for {faction} ({len(cards)} cards)")
+        return cards
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"[WARNING] Could not load default faction deck: {e}")
+        return []
 
 
 def build_faction_deck(faction, leader=None, *, unlock_system=None, unlock_override=False, exclude_user_content=False):

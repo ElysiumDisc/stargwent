@@ -438,20 +438,82 @@ Generated on 2026-01-16 13:40 UTC using cards.py, content_registry.py, unlocks.p
 **Layout:** Storybook presentation with faction splash art followed by expandable leader dossiers. Each dossier includes biography, notable episodes, and a recommended strategy tip derived from ability notes.
 
 ### Tau'ri
-- Lore: Earth's SGC forces blend human ingenuity with reverse-engineered technology, relying on flexible combined-arms tactics and SG-1 heroics.
-- Signature Strategy: Lean on balanced rows, SG-1 alliances, and reliable medic loops to outlast opponents. Iris Defense and DHD recursion make them resilient.
+- Lore: Earth's Stargate Command represents humanity's first line of defense against galactic threats. Operating from the depths of Cheyenne Mountain, the SGC fields elite SG teams through the Stargate network. Despite being technological newcomers, the Tau'ri have defeated System Lords, repelled Replicators, and earned a seat at the galactic table through sheer determination, adaptability, and the heroics of SG-1.
+- Signature Strategy: Lean on balanced rows, SG-1 alliances, and reliable medic loops to outlast opponents. Iris Defense and DHD recursion make them resilient. Use Tactical Formation units to build overwhelming board presence.
+- Key Synergies: SG-1 Commandos + Alpha Team Troopers chain via Gate Reinforcement. Tok'ra Operatives provide Tactical Formation buffs. Medical Teams recover fallen heroes for repeated value.
+- Iconic Quote: "We don't leave our people behind." — Col. Jack O'Neill
+
+#### Tau'ri Leaders
+- **Col. Jack O'Neill**: The wise-cracking commander of SG-1 who defeated Apophis, Ra, and countless Goa'uld. His tactical genius and refusal to surrender made him Earth's greatest champion. Ability: Summons a temporary clone to bolster close combat strength.
+- **Gen. George Hammond**: The steady hand guiding the SGC through impossible decisions. His leadership inspired loyalty and excellence in every team under his command. Ability: Empowers your first unit each round with command authority.
+- **Dr. Samantha Carter**: Brilliant astrophysicist and warrior who can hotwire alien technology and outshoot most soldiers. Her scientific genius has saved Earth countless times. Ability: Enhances all siege units with technological mastery.
+- **Gen. Landry**: Hammond's successor who maintained SGC excellence through the Ori crisis. A pragmatic leader who knows when to bend the rules. Ability: Units grow stronger the longer they survive.
+- **Dr. McKay**: Pegasus galaxy's resident genius whose arrogance is matched only by his brilliance. He's saved Atlantis more times than he'll let anyone forget. Ability: Draws extra cards when passing, representing last-minute genius solutions.
+- **Jonas Quinn**: The Kelownan who replaced Daniel Jackson and proved his worth through dedication and an eidetic memory. Ability: Foresees opponent's next move through pattern recognition.
+- **Catherine Langford**: The woman who dedicated her life to unlocking the Stargate's secrets. Her archaeological insight spans decades of research. Ability: Neutral cards cost nothing under her guidance.
+
 ### Goa'uld
-- Lore: System Lords rule through fear, fielding relentless waves of Jaffa legions, Ha'tak fleets, and sinister weather manipulation.
-- Signature Strategy: Stack Gate Reinforcement cohorts, weaponize Naquadah Overload, and leverage Sarcophagus revival to grind foes down.
+- Lore: For millennia, the Goa'uld System Lords posed as gods across the galaxy, enslaving billions to fuel their endless wars. These parasitic beings command vast fleets of Ha'tak vessels, legions of Jaffa warriors, and technology stolen from the Ancients. Though their empire has crumbled, individual System Lords remain terrifying threats—cunning, immortal, and utterly ruthless.
+- Signature Strategy: Stack Gate Reinforcement cohorts, weaponize Naquadah Overload, and leverage Sarcophagus revival to grind foes down. Life Force Drain weakens enemies while strengthening your forces.
+- Key Synergies: Serpent Guards + Kull Warriors chain Gate Reinforcement. Council cards trigger System Lord's Curse. Horus and Bastet Guards drain life from enemies.
+- Iconic Quote: "Kneel before your god." — Apophis
+
+#### Goa'uld Leaders
+- **Apophis**: Once Ra's ambitious underling, Apophis became Earth's first major nemesis. His relentless attacks on the SGC and multiple resurrections made him legendary among System Lords. Ability: Unleashes devastating weather storms across the battlefield.
+- **Lord Yu**: The oldest and wisest System Lord who maintained his empire through cunning rather than brute force. His strategic patience and vast experience make him formidable. Ability: Reveals enemy hands to anticipate their strategy.
+- **Sokar**: The System Lord who ruled Netu, a moon transformed into literal hell. His cruelty and power made other Goa'uld fear him. Ability: Strengthens close combat forces through sheer intimidation.
+- **Ba'al**: The sophisticated schemer who outlasted all other System Lords through clone technology and pragmatic adaptation. His multiple backups make him nearly impossible to permanently defeat. Ability: Copies your strongest unit through advanced cloning.
+- **Anubis**: The half-ascended abomination who combined Ancient knowledge with Goa'uld ruthlessness. His Kull Warriors and superweapons nearly conquered the galaxy. Ability: Automatically triggers devastating Naquadah Overloads.
+- **Hathor**: The seductive goddess who can bend minds to her will. Her pheromone control makes even enemies serve her purposes. Ability: Steals enemy units through irresistible influence.
+- **Cronus**: An ancient System Lord whose power grew with his reign. His methodical approach rewards patient, long-game strategies. Ability: Units grow stronger each round.
+
 ### Jaffa Rebellion
-- Lore: Former slaves turned freedom fighters who rely on Brotherhood cohesion and tactical discipline.
-- Signature Strategy: Use Brotherhood buffs, Agile flexibility, and leadership bursts in round 3 to overwhelm larger armies.
+- Lore: For generations, the Jaffa served as the Goa'uld's warrior caste, their bodies hosting larval symbiotes while their spirits yearned for freedom. Led by Teal'c and Bra'tac, the rebellion united former enemies under a single banner: Jaffa kree! Their Brotherhood bonds, forged in shared slavery and liberation, make them more than soldiers—they are family.
+- Signature Strategy: Use Brotherhood buffs, Agile flexibility, and leadership bursts in round 3 to overwhelm larger armies. Stack units in single rows for maximum Brotherhood bonuses.
+- Key Synergies: Free Jaffa + Tok'ra Infiltrators chain Gate Reinforcement. Rebel Infantry provides Agile row flexibility. Jaffa Cadets multiply quickly for Brotherhood stacking.
+- Iconic Quote: "I die free." — Teal'c
+
+#### Jaffa Rebellion Leaders
+- **Teal'c**: The First Prime who betrayed Apophis to save SG-1 and sparked a galaxy-wide revolution. His unwavering honor and warrior prowess inspire all Free Jaffa. Ability: Victory in combat rewards additional resources.
+- **Bra'tac**: The legendary Master who trained Teal'c and countless other warriors. Over 130 years old, his wisdom and combat skills remain unmatched. Ability: Enhances Agile units with battlefield experience.
+- **Rak'nor**: The fierce young warrior who joined Teal'c's rebellion and proved his dedication through countless battles. His aggressive tactics favor quick, decisive strikes. Ability: Enables double-unit deployment for overwhelming first strikes.
+- **Rya'c**: Teal'c's son who grew from hostage pawn to dedicated warrior. His hope for a free Jaffa future drives his determination. Ability: Provides crucial reinforcements in decisive final rounds.
+- **Ka'lel**: A disciplined female warrior who rose through rebellion ranks through skill and dedication. Her training methods forge elite fighters. Ability: First units each round receive enhanced training bonuses.
+- **Gerak**: The pragmatic leader who briefly led the Free Jaffa Nation before the Ori corruption. His organizational skills built armies. Ability: Large deployments generate additional resources.
+- **Ishta**: Leader of the Hak'tyl resistance, she protected female Jaffa from symbiote dependency. Her guerrilla tactics specialize in rapid reinforcement. Ability: All Gate Reinforcement units fight harder.
+
 ### Lucian Alliance
-- Lore: Pirates, smugglers, and mercenaries profiting from chaos across the galaxy.
-- Signature Strategy: Spam spies for card advantage, abuse Medical Evac mobility, and hijack neutral tech to surprise opponents.
+- Lore: In the power vacuum left by the System Lords' fall, criminal organizations united to form the Lucian Alliance. These pirates, smugglers, and mercenaries control the kassa trade and prey on weakened worlds. While lacking Goa'uld technology or Jaffa discipline, they compensate with cunning, ruthlessness, and a willingness to adopt any tactic that turns a profit.
+- Signature Strategy: Spam spies for card advantage, abuse Medical Evac mobility, and hijack neutral tech to surprise opponents. Deep Cover Agents disrupt enemy plans while building your hand.
+- Key Synergies: Deep Cover Agents + Smugglers draw massive card advantage. Enforcers + Foot Soldiers form Tactical Formations. Medical Evac enables unit recycling.
+- Iconic Quote: "Everyone has a price. Everyone." — Netan
+
+#### Lucian Alliance Leaders
+- **Vulkar**: A ruthless crime lord who treats war like business—invest in intelligence, maximize returns. His network of informants is unmatched. Ability: Spy operations yield greater intelligence dividends.
+- **Sodan Master**: A legendary warrior from the hidden Sodan monastery. His ancient fighting techniques devastate individual targets. Ability: Identifies and enhances key units in each combat zone.
+- **Ba'al Clone**: One of Ba'al's many backup copies who went rogue to build his own criminal empire. He inherited the original's cunning if not his resources. Ability: Specializes in ranged unit enhancement.
+- **Netan**: The cold-blooded leader who unified the Alliance's scattered criminal factions. His smuggling networks span the galaxy. Ability: Acquires neutral assets through black market connections.
+- **Vala Mal Doran**: The charming thief who eventually joined SG-1 after years of profitable crime. Her treasure-hunting instincts always find the best options. Ability: Scouts ahead to cherry-pick optimal resources.
+- **Anateo**: A calculating commander who treats medical assets as strategic advantages rather than humanitarian concerns. Ability: Enables repeated unit recovery without dedicated cards.
+- **Kiva**: The aggressive second leader who launched bold strikes against Earth itself. Her tactical aggression favors overwhelming early pressure. Ability: Enables devastating opening salvos.
+
 ### Asgard
-- Lore: Ancient protectors wielding holograms, cloning vats, and superior battleships.
-- Signature Strategy: Control the board with weather immunity, clone swarms, and precise shield tricks while powering up Legendary commanders.
+- Lore: Once the galaxy's great protectors, the Asgard civilization reached technological heights beyond human comprehension. Their Ida galaxy headquarters housed cloning facilities, holographic systems, and the mighty O'Neill-class battleships. Though they ultimately chose extinction over genetic degradation, their legacy lives on through the Asgard Core gifted to Earth—and in the battles where their technology still defends the innocent.
+- Signature Strategy: Control the board with weather immunity, clone swarms, and precise shield tricks while powering up Legendary commanders. Deploy Clones ability creates overwhelming numerical advantage.
+- Key Synergies: Clone Troopers + Deploy Clones rapidly multiply. Elite Warriors form Tactical Formations. Transport Ships provide Gate Reinforcement backup.
+- Iconic Quote: "The Asgard would never invent a weapon that propels small weights at high velocity." — Thor
+
+#### Asgard Leaders
+- **Freyr**: The Asgard diplomat who navigated the Protected Planets Treaty with the System Lords. His shields deflect any environmental hazard. Ability: Complete immunity to weather effects.
+- **Loki**: The rogue scientist whose unethical experiments nearly doomed his people. His energy-draining technology weakens opponents over time. Ability: Siphons power from enemy forces.
+- **Heimdall**: The Asgard geneticist desperately seeking a cure for cloning degradation. His research enhanced Legendary beings. Ability: Empowers Legendary Commander units.
+- **Thor Supreme Commander**: The Asgard's greatest military mind and humanity's staunchest ally. His tactical genius commands respect across galaxies. Ability: Advanced beam technology repositions units freely.
+- **Hermiod**: The technician assigned to Daedalus who mastered shield harmonics. His grumpy efficiency made Earth's ships nearly invincible. Ability: Shields allies while weather devastates enemies.
+- **Penegal**: A cloning specialist who perfected resurrection protocols. His vats can restore fallen warriors to service. Ability: Automatically revives fallen units between rounds.
+- **Aegir**: A High Council member whose authority enhances all Legendary commanders under his leadership. Ability: All Legendary Commanders fight with enhanced power.
+
 ### Neutral
-- Lore: Ancient technology, Ori zealotry, Wraith bio-ships, and other forces any faction can recruit.
-- Signature Strategy: Slot into any deck to cover weaknesses—be it Scorch insurance, horn bait, or extra Legendary anchors.
+- Lore: Beyond faction allegiances exist powers that serve no master—or serve whoever pays. Ancient technology left by the Alterans, Ori zealots spreading the flames of Origin, Wraith feeding on human life force, and countless other forces drift between conflicts. Any commander willing to pay the Naquadah cost can recruit these wild cards.
+- Signature Strategy: Slot into any deck to cover weaknesses—be it Scorch insurance, horn bait, or extra Legendary anchors. Weather cards control the battlefield regardless of faction.
+- Key Synergies: Naquadah Bombs clear dangerous enemy rows. Ring Transports enable tactical retreats. Weather cards can swing entire rounds.
+- Iconic Quote: "We are the Ori. And we are your gods."

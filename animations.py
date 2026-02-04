@@ -4104,8 +4104,13 @@ class DakaraShockwaveEffect(Animation):
 
 
 class QuantumMirrorEffect(Animation):
-    """Quantum Mirror portal effect - rectangular mirror with shimmering reflective surface."""
-    def __init__(self, x, y, screen_width, screen_height, duration=1600):
+    """Quantum Mirror portal effect with card shuffle animation.
+
+    Phase 1 (0-0.35): Cards fly from hand to mirror
+    Phase 2 (0.35-0.65): Mirror effect with reality distortion
+    Phase 3 (0.65-1.0): Cards fly from mirror back to hand
+    """
+    def __init__(self, x, y, screen_width, screen_height, duration=2200, num_cards=8):
         super().__init__(duration=duration)
         self.x = x
         self.y = y
@@ -4114,90 +4119,219 @@ class QuantumMirrorEffect(Animation):
         self.mirror_width = 280
         self.mirror_height = 400
 
+        # Card shuffle animation properties
+        self.card_width = 60
+        self.card_height = 85
+        self.num_cards = max(1, min(num_cards, 25))  # Clamp to reasonable range
+
+        # Hand position (bottom center of screen)
+        self.hand_y = screen_height - 120
+        self.hand_center_x = screen_width // 2
+
+        # Calculate spacing based on number of cards
+        max_spread = min(screen_width * 0.6, self.num_cards * 50)
+        card_spacing = max_spread / max(1, self.num_cards - 1) if self.num_cards > 1 else 0
+
+        # Generate random card start positions (spread across hand area)
+        self.card_offsets = []
+        for i in range(self.num_cards):
+            # Center the cards and spread them out
+            offset_x = (i - (self.num_cards - 1) / 2) * card_spacing + random.randint(-10, 10)
+            delay = random.uniform(0, 0.2) * (i / max(1, self.num_cards))  # Staggered timing
+            rotation = random.randint(-15, 15)
+            self.card_offsets.append((offset_x, delay, rotation))
+
+    def _draw_card_silhouette(self, surface, x, y, alpha, rotation=0, scale=1.0):
+        """Draw a glowing card silhouette."""
+        w = int(self.card_width * scale)
+        h = int(self.card_height * scale)
+
+        # Create card surface
+        card_surf = pygame.Surface((w + 20, h + 20), pygame.SRCALPHA)
+        card_rect = pygame.Rect(10, 10, w, h)
+
+        # Outer glow
+        glow_color = (180, 200, 255, alpha // 3)
+        pygame.draw.rect(card_surf, glow_color, card_rect.inflate(8, 8), border_radius=6)
+
+        # Card body
+        body_color = (220, 230, 255, alpha)
+        pygame.draw.rect(card_surf, body_color, card_rect, border_radius=4)
+
+        # Card border
+        border_color = (255, 255, 255, min(255, alpha + 30))
+        pygame.draw.rect(card_surf, border_color, card_rect, width=2, border_radius=4)
+
+        # Inner detail lines (card face suggestion)
+        if alpha > 100:
+            line_alpha = alpha // 2
+            pygame.draw.line(card_surf, (200, 210, 230, line_alpha),
+                           (15, 20), (w + 5, 20), 1)
+            pygame.draw.line(card_surf, (200, 210, 230, line_alpha),
+                           (15, h - 5), (w + 5, h - 5), 1)
+
+        # Rotate if needed
+        if rotation != 0:
+            card_surf = pygame.transform.rotate(card_surf, rotation)
+
+        # Center the card at position
+        rect = card_surf.get_rect(center=(x, y))
+        surface.blit(card_surf, rect)
+
     def draw(self, surface):
         if self.finished:
             return
         progress = self.get_progress()
         overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
 
-        # Mirror rectangle centered at effect position
-        mx = self.x - self.mirror_width // 2
-        my = self.y - self.mirror_height // 2
-
-        # Phase 1: Mirror appears and activates (0-0.3)
-        # Phase 2: Reality ripples across surface (0.3-0.7)
-        # Phase 3: Flash and fade (0.7-1.0)
-
-        # Outer frame (dark metallic border - possibly Naquadah)
-        frame_alpha = int(220 * (1 - progress * 0.5))
-        frame_rect = pygame.Rect(mx - 12, my - 12, self.mirror_width + 24, self.mirror_height + 24)
-        pygame.draw.rect(overlay, (60, 65, 75, frame_alpha), frame_rect, border_radius=6)
-        pygame.draw.rect(overlay, (100, 110, 130, frame_alpha), frame_rect, width=4, border_radius=6)
-
-        # Inner reflective surface (silvery blue gradient effect)
-        mirror_alpha = int(180 * (1 - progress * 0.6))
-        mirror_rect = pygame.Rect(mx, my, self.mirror_width, self.mirror_height)
-
-        # Base mirror surface - silvery with slight blue tint
-        mirror_surf = pygame.Surface((self.mirror_width, self.mirror_height), pygame.SRCALPHA)
-
-        # Gradient bands to simulate reflection
-        for i in range(self.mirror_height):
-            # Oscillating silver/blue gradient
-            wave = math.sin((i / 30.0) + progress * 12) * 0.3 + 0.7
-            r = int(180 * wave)
-            g = int(190 * wave)
-            b = int(210 * wave + 30)
-            pygame.draw.line(mirror_surf, (r, g, b, mirror_alpha), (0, i), (self.mirror_width, i))
-
-        # Horizontal shimmer waves across the mirror surface
-        for i in range(5):
-            wave_y = int((progress * 3 + i * 0.2) % 1.0 * self.mirror_height)
-            wave_alpha = int(100 * (1 - abs(wave_y / self.mirror_height - 0.5) * 2))
-            if wave_alpha > 0:
-                pygame.draw.line(mirror_surf, (255, 255, 255, wave_alpha),
-                               (0, wave_y), (self.mirror_width, wave_y), 3)
-
-        # Vertical shimmer for that mirror sheen
-        for i in range(3):
-            wave_x = int((progress * 2 + i * 0.33) % 1.0 * self.mirror_width)
-            wave_alpha = int(60 * (1 - progress))
-            pygame.draw.line(mirror_surf, (220, 230, 255, wave_alpha),
-                           (wave_x, 0), (wave_x, self.mirror_height), 2)
-
-        overlay.blit(mirror_surf, (mx, my))
-
-        # Ripple effect emanating from center (reality distortion)
         center_x, center_y = self.x, self.y
-        for i in range(4):
-            ripple_progress = (progress * 2 + i * 0.25) % 1.0
-            ripple_size = int(ripple_progress * 250)
-            ripple_alpha = max(0, int(120 * (1 - ripple_progress)))
-            if ripple_size > 10:
-                # Elliptical ripples to match mirror shape
-                ripple_rect = pygame.Rect(center_x - ripple_size // 2,
-                                         center_y - int(ripple_size * 0.7),
-                                         ripple_size, int(ripple_size * 1.4))
-                pygame.draw.ellipse(overlay, (200, 210, 230, ripple_alpha), ripple_rect, width=2)
 
-        # Central singularity glow (the quantum core)
-        if progress < 0.8:
-            glow_alpha = int(150 * (1 - progress / 0.8))
-            glow_radius = int(30 + 20 * math.sin(progress * 15))
+        # === PHASE 1: Cards fly from hand to mirror (0 - 0.35) ===
+        if progress < 0.35:
+            phase_progress = progress / 0.35
+            for i, (offset_x, delay, rotation) in enumerate(self.card_offsets):
+                # Staggered card animation
+                card_progress = max(0, min(1, (phase_progress - delay) / (1 - delay)))
+                if card_progress <= 0:
+                    continue
+
+                # Ease out cubic
+                eased = 1 - pow(1 - card_progress, 3)
+
+                # Start position (hand)
+                start_x = self.hand_center_x + offset_x
+                start_y = self.hand_y
+
+                # End position (mirror center with slight spread)
+                end_x = center_x + (i - self.num_cards // 2) * 15
+                end_y = center_y
+
+                # Interpolate position
+                card_x = start_x + (end_x - start_x) * eased
+                card_y = start_y + (end_y - start_y) * eased
+
+                # Arc motion
+                arc = math.sin(card_progress * math.pi) * -80
+                card_y += arc
+
+                # Rotation animation
+                current_rotation = rotation * (1 - eased) + random.randint(-5, 5) * (1 - card_progress)
+
+                # Alpha (fade in at start, stay visible)
+                alpha = int(200 * min(1, card_progress * 3))
+
+                # Scale (slightly smaller as they approach mirror)
+                scale = 1.0 - 0.2 * eased
+
+                self._draw_card_silhouette(overlay, int(card_x), int(card_y), alpha, current_rotation, scale)
+
+        # === PHASE 2: Mirror effect (0.2 - 0.8) ===
+        if 0.2 < progress < 0.8:
+            mirror_progress = (progress - 0.2) / 0.6
+
+            # Mirror rectangle centered at effect position
+            mx = self.x - self.mirror_width // 2
+            my = self.y - self.mirror_height // 2
+
+            # Outer frame (dark metallic border)
+            frame_alpha = int(220 * (1 - mirror_progress * 0.3))
+            frame_rect = pygame.Rect(mx - 12, my - 12, self.mirror_width + 24, self.mirror_height + 24)
+            pygame.draw.rect(overlay, (60, 65, 75, frame_alpha), frame_rect, border_radius=6)
+            pygame.draw.rect(overlay, (100, 110, 130, frame_alpha), frame_rect, width=4, border_radius=6)
+
+            # Inner reflective surface
+            mirror_alpha = int(180 * (1 - mirror_progress * 0.4))
+            mirror_surf = pygame.Surface((self.mirror_width, self.mirror_height), pygame.SRCALPHA)
+
+            # Gradient bands
+            for i in range(self.mirror_height):
+                wave = math.sin((i / 30.0) + mirror_progress * 12) * 0.3 + 0.7
+                r = int(180 * wave)
+                g = int(190 * wave)
+                b = int(210 * wave + 30)
+                pygame.draw.line(mirror_surf, (r, g, b, mirror_alpha), (0, i), (self.mirror_width, i))
+
+            # Shimmer waves
+            for i in range(5):
+                wave_y = int((mirror_progress * 3 + i * 0.2) % 1.0 * self.mirror_height)
+                wave_alpha = int(100 * (1 - abs(wave_y / self.mirror_height - 0.5) * 2))
+                if wave_alpha > 0:
+                    pygame.draw.line(mirror_surf, (255, 255, 255, wave_alpha),
+                                   (0, wave_y), (self.mirror_width, wave_y), 3)
+
+            overlay.blit(mirror_surf, (mx, my))
+
+            # Ripple effect
+            for i in range(4):
+                ripple_progress = (mirror_progress * 2 + i * 0.25) % 1.0
+                ripple_size = int(ripple_progress * 250)
+                ripple_alpha = max(0, int(120 * (1 - ripple_progress)))
+                if ripple_size > 10:
+                    ripple_rect = pygame.Rect(center_x - ripple_size // 2,
+                                             center_y - int(ripple_size * 0.7),
+                                             ripple_size, int(ripple_size * 1.4))
+                    pygame.draw.ellipse(overlay, (200, 210, 230, ripple_alpha), ripple_rect, width=2)
+
+            # Central glow
+            glow_alpha = int(150 * (1 - mirror_progress * 0.5))
+            glow_radius = int(30 + 20 * math.sin(mirror_progress * 15))
             pygame.draw.circle(overlay, (230, 240, 255, glow_alpha), (center_x, center_y), glow_radius)
-            pygame.draw.circle(overlay, (255, 255, 255, glow_alpha // 2), (center_x, center_y), glow_radius // 2)
 
-        # Bright flash when "passing through" (mid animation)
-        if 0.4 < progress < 0.6:
-            flash_intensity = 1 - abs(progress - 0.5) * 5
-            flash_alpha = int(200 * flash_intensity)
-            flash_surf = pygame.Surface((self.mirror_width + 40, self.mirror_height + 40), pygame.SRCALPHA)
-            flash_surf.fill((255, 255, 255, flash_alpha))
-            overlay.blit(flash_surf, (mx - 20, my - 20))
+            # Flash at midpoint
+            if 0.4 < mirror_progress < 0.6:
+                flash_intensity = 1 - abs(mirror_progress - 0.5) * 5
+                flash_alpha = int(200 * flash_intensity)
+                flash_surf = pygame.Surface((self.mirror_width + 40, self.mirror_height + 40), pygame.SRCALPHA)
+                flash_surf.fill((255, 255, 255, flash_alpha))
+                overlay.blit(flash_surf, (mx - 20, my - 20))
 
-        # Edge glow effect (energy from the singularity)
-        edge_alpha = int(100 * (1 - progress * 0.7))
-        pygame.draw.rect(overlay, (180, 200, 255, edge_alpha), mirror_rect, width=2, border_radius=2)
+        # === PHASE 3: Cards fly from mirror back to hand (0.65 - 1.0) ===
+        if progress > 0.65:
+            phase_progress = (progress - 0.65) / 0.35
+            for i, (offset_x, delay, rotation) in enumerate(self.card_offsets):
+                # Staggered card animation (reverse order for visual interest)
+                adjusted_delay = delay * 0.5
+                card_progress = max(0, min(1, (phase_progress - adjusted_delay) / (1 - adjusted_delay)))
+                if card_progress <= 0:
+                    continue
+
+                # Ease out cubic
+                eased = 1 - pow(1 - card_progress, 3)
+
+                # Start position (mirror center)
+                start_x = center_x + (i - self.num_cards // 2) * 15
+                start_y = center_y
+
+                # End position (hand) - slightly different positions for "new" cards
+                new_offset = (i - self.num_cards // 2) * 70 + random.randint(-10, 10)
+                end_x = self.hand_center_x + new_offset
+                end_y = self.hand_y
+
+                # Interpolate position
+                card_x = start_x + (end_x - start_x) * eased
+                card_y = start_y + (end_y - start_y) * eased
+
+                # Arc motion (opposite direction)
+                arc = math.sin(card_progress * math.pi) * 80
+                card_y += arc
+
+                # Rotation
+                current_rotation = -rotation * (1 - eased)
+
+                # Alpha (visible, fade out at end)
+                alpha = int(220 * (1 - max(0, card_progress - 0.7) * 3.33))
+
+                # Scale (grow slightly as they return)
+                scale = 0.8 + 0.2 * eased
+
+                # Glow effect on returning cards (they're "new")
+                self._draw_card_silhouette(overlay, int(card_x), int(card_y), alpha, current_rotation, scale)
+
+                # Extra sparkle on returning cards
+                if card_progress > 0.3:
+                    sparkle_alpha = int(100 * (1 - card_progress))
+                    pygame.draw.circle(overlay, (255, 255, 200, sparkle_alpha),
+                                      (int(card_x), int(card_y - 20)), 4)
 
         surface.blit(overlay, (0, 0))
 

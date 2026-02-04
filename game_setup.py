@@ -4,7 +4,7 @@ import random
 import os
 import copy
 from game import Game
-from deck_builder import run_deck_builder, build_faction_deck, FACTION_LEADERS
+from deck_builder import run_deck_builder, build_faction_deck, load_default_faction_deck, FACTION_LEADERS
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
 from ai_opponent import AIController
 from lan_opponent import NetworkController, NetworkPlayerProxy
@@ -63,9 +63,11 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
                 player_deck = [copy.deepcopy(ALL_CARDS[id]) for id in player_deck_ids]
             random.shuffle(player_deck)
 
-            # AI deck
-            ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
-            ai_deck = [copy.deepcopy(ALL_CARDS[id]) for id in ai_deck_ids]
+            # AI deck - use curated default deck
+            ai_deck_ids = load_default_faction_deck(ai_faction)
+            if not ai_deck_ids:
+                ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
+            ai_deck = [copy.deepcopy(ALL_CARDS[id]) for id in ai_deck_ids if id in ALL_CARDS]
 
             # Create game
             game = Game(
@@ -74,7 +76,8 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
                 player1_leader=player_leader,
                 player2_faction=ai_faction,
                 player2_deck=ai_deck,
-                player2_leader=ai_leader
+                player2_leader=ai_leader,
+                player2_is_ai=True
             )
 
             # Create AI controller
@@ -138,8 +141,11 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
             ai_faction = random.choice([f for f in factions if f != player_faction])
             ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))
             ai_leader.setdefault('faction', ai_faction)
-            ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
-            ai_deck = [copy.deepcopy(ALL_CARDS[id]) for id in ai_deck_ids]
+            # AI deck - use curated default deck
+            ai_deck_ids = load_default_faction_deck(ai_faction)
+            if not ai_deck_ids:
+                ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
+            ai_deck = [copy.deepcopy(ALL_CARDS[id]) for id in ai_deck_ids if id in ALL_CARDS]
 
             # Store draft run object in game for progression
             # We need to pass this to the Game object somehow or handle post-game
@@ -192,9 +198,12 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
         ai_faction = random.choice([f for f in factions if f != player_faction])
         ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))
         ai_leader.setdefault('faction', ai_faction)
-        ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
-        ai_deck = [copy.deepcopy(ALL_CARDS[id]) for id in ai_deck_ids]
-        
+        # AI deck - use curated default deck
+        ai_deck_ids = load_default_faction_deck(ai_faction)
+        if not ai_deck_ids:
+            ai_deck_ids = build_faction_deck(ai_faction, ai_leader)
+        ai_deck = [copy.deepcopy(ALL_CARDS[id]) for id in ai_deck_ids if id in ALL_CARDS]
+
     # LAN Game
     elif menu_action == 'lan_game' and lan_data:
         # LAN Setup is complex, handled by lan_game.py logic usually
@@ -229,6 +238,8 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
             game_seed = context.seed
             
     # Initialize Game Object
+    # Player 2 is AI for new_game and draft_mode, not for LAN
+    is_ai_game = menu_action in ('new_game', 'draft_mode')
     game = Game(
         player1_faction=player_faction,
         player1_deck=player_deck,
@@ -236,7 +247,8 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
         player2_faction=ai_faction,
         player2_deck=ai_deck,
         player2_leader=ai_leader,
-        seed=game_seed
+        seed=game_seed,
+        player2_is_ai=is_ai_game
     )
     
     # Flag draft mode if applicable

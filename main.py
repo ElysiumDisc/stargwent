@@ -338,7 +338,7 @@ def _draw_drag_trail(surface, trail_entries):
         )
 
 
-def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width, screen_height):
+def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width, screen_height, game=None):
     """Trigger unique animations for special cards matching lore/logic."""
     name_lower = (card.name or "").lower()
     ability_lower = (card.ability or "").lower()
@@ -354,7 +354,11 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         anim_manager.add_effect(CommunicationRevealEffect(effect_x, effect_y, screen_width, screen_height))
         return True
     if "quantum mirror" in name_lower or "shuffle your hand into deck" in ability_lower:
-        anim_manager.add_effect(QuantumMirrorEffect(effect_x, effect_y, screen_width, screen_height))
+        # Get actual hand size from game state (card is already removed, so +1)
+        num_cards = 8  # Default fallback
+        if game and hasattr(game, 'current_player'):
+            num_cards = len(game.current_player.hand) + 1  # +1 for the card being played
+        anim_manager.add_effect(QuantumMirrorEffect(effect_x, effect_y, screen_width, screen_height, num_cards=num_cards))
         return True
     if "merlin" in name_lower or "anti-ori" in name_lower:
         anim_manager.add_effect(MerlinAntiOriEffect(effect_x, effect_y, screen_width, screen_height))
@@ -2375,7 +2379,7 @@ def main(lan_game_data=None):
                                                 game.last_scorch_positions = []
                                             
                                             # Trigger other special visuals
-                                            if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT):
+                                            if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
                                                 stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE)
                                                 anim_manager.add_effect(stargate_effect)
                                             break
@@ -2485,7 +2489,8 @@ def main(lan_game_data=None):
                                             effect_y,
                                             anim_manager,
                                             SCREEN_WIDTH,
-                                            SCREEN_HEIGHT
+                                            SCREEN_HEIGHT,
+                                            game=game
                                         )
                                     
                                     # Add ship to space battle if siege card is PLAYED
@@ -2509,7 +2514,7 @@ def main(lan_game_data=None):
                                     # Add special card effects for unit cards too
                                     effect_x = rect.centerx
                                     effect_y = rect.centery
-                                    if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT):
+                                    if not add_special_card_effect(dragging_card, effect_x, effect_y, anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
                                         # Default stargate effect if no special effect
                                         anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
                                     
@@ -2750,7 +2755,8 @@ def main(lan_game_data=None):
                                 effect_y,
                                 anim_manager,
                                 SCREEN_WIDTH,
-                                SCREEN_HEIGHT
+                                SCREEN_HEIGHT,
+                                game=game
                             )
                 
                 ai_turn_anim.start_resolving()
@@ -2845,9 +2851,10 @@ def main(lan_game_data=None):
                         effect_y,
                         anim_manager,
                         SCREEN_WIDTH,
-                        SCREEN_HEIGHT
+                        SCREEN_HEIGHT,
+                        game=game
                     )
-    
+
                 weather_visual_applied = False
                 if card_to_play.row == "weather":
                     weather_visual_applied = True
