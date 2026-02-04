@@ -411,18 +411,26 @@ class DeckBuilderUI:
             print(f"✗ {self.last_save_message}")
             return False
 
-        # Update the deck preview
-        self.deck_preview_ids = list(default_cards)
+        # Filter to only include valid cards that exist in ALL_CARDS
+        valid_cards = [cid for cid in default_cards if cid in ALL_CARDS]
 
-        # Update the card pool (remove cards that are now in deck)
-        self.card_pool_ids = self._build_card_pool()
+        # Update the deck preview
+        self.deck_preview_ids = list(valid_cards)
+
+        # Rebuild the card pool for this faction
+        self.card_pool_ids = get_faction_card_pool(
+            self.selected_faction,
+            self.unlock_system,
+            self.unlock_override,
+            exclude_user_content=self.exclude_user_content
+        )
 
         # Auto-save the reset deck
         self.save_current_deck("Reset to default")
 
-        self.last_save_message = f"Reset to default: {len(default_cards)} cards"
+        self.last_save_message = f"Reset to default: {len(valid_cards)} cards"
         self.last_save_time = pygame.time.get_ticks()
-        print(f"✓ Deck reset to default for {self.selected_faction} ({len(default_cards)} cards)")
+        print(f"✓ Deck reset to default for {self.selected_faction} ({len(valid_cards)} cards)")
         return True
 
     def refresh_for_surface(self, screen):
@@ -1763,7 +1771,7 @@ class DeckBuilderUI:
         total_power = sum(c.power for c in deck_cards if c.row not in ["special", "weather"])
 
         # Calculate Naquadah cost
-        NAQUADAH_BUDGET = 150
+        NAQUADAH_BUDGET = 230
         total_naquadah = sum(c.naquadah_cost for c in deck_cards)
         naquadah_over = total_naquadah > NAQUADAH_BUDGET
 

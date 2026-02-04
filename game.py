@@ -34,7 +34,7 @@ BALANCE_CONFIG = {
     "artifact_scorch_threshold": 8,  # Asgard Beam threshold
 
     # Naquadah budget system
-    "naquadah_budget": 150,  # Max Naquadah for a deck
+    "naquadah_budget": 230,  # Max Naquadah for a deck
     "ori_corruption_penalty": 0.5,  # 50% power reduction for over-budget decks
 }
 
