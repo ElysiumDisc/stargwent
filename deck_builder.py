@@ -341,7 +341,8 @@ class DeckBuilderUI:
         self.back_button = pygame.Rect(20, 20, 80, 104)  # DHD button size
 
         # Stats Box (Top Left below back button - Holographic style)
-        self.stats_box_rect = pygame.Rect(20, 130, 320, 180)
+        # Expanded to fit Naquadah bar
+        self.stats_box_rect = pygame.Rect(20, 130, 320, 240)
         
         # Deck List Panel (Right Side - vertical list)
         deck_list_width = 380
@@ -1697,37 +1698,98 @@ class DeckBuilderUI:
         weather_count = len([c for c in deck_cards if c.row == "weather"])
         neutral_count = len([c for c in deck_cards if c.faction == FACTION_NEUTRAL])
         total_power = sum(c.power for c in deck_cards if c.row not in ["special", "weather"])
-        
+
+        # Calculate Naquadah cost
+        NAQUADAH_BUDGET = 150
+        total_naquadah = sum(c.naquadah_cost for c in deck_cards)
+        naquadah_over = total_naquadah > NAQUADAH_BUDGET
+
         # Deck validity check
         is_valid, status_msg = validate_deck(deck_cards)
-        
+
         # Check for Mercenary Tax (Neutral Penalty)
         mercenary_tax = False
         if len(deck_cards) > 0 and neutral_count > len(deck_cards) / 2:
             mercenary_tax = True
-        
+
         stats = [
             (f"Total Cards: {len(deck_cards)} / {MAX_DECK_SIZE}", (255, 255, 255)),
             (f"Unit Cards: {unit_count} (Min 15)", (100, 255, 100) if unit_count >= 15 else (255, 100, 100)),
             (f"Spec: {special_count} | Weath: {weather_count} | Neut: {neutral_count}", (200, 200, 200)),
             (f"Total Strength: {total_power}", (255, 215, 0)),
         ]
-        
+
         if mercenary_tax:
             stats.append(("! MERCENARY TAX ACTIVE !", (255, 50, 50)))
-            stats.append(("(-25% Final Score)", (255, 100, 100)))
 
         y_offset = self.stats_box_rect.y + 55
         for text, color in stats:
             txt_surf = self.stat_font.render(text, True, color)
             surface.blit(txt_surf, (self.stats_box_rect.x + 20, y_offset))
-            y_offset += 28
-        
+            y_offset += 24
+
+        # Naquadah bar - styled as mineral/crystal (silvery-blue)
+        y_offset += 8
+        # Naquadah has a grayish-silver crystalline appearance
+        naquadah_color = (180, 195, 210) if not naquadah_over else (255, 120, 120)
+        naquadah_label = self.stat_font.render(f"Naquadah: {total_naquadah}/{NAQUADAH_BUDGET}", True, naquadah_color)
+        surface.blit(naquadah_label, (self.stats_box_rect.x + 20, y_offset))
+        y_offset += 22
+
+        # Draw Naquadah bar (crystalline mineral style)
+        bar_x = self.stats_box_rect.x + 20
+        bar_width = self.stats_box_rect.width - 40
+        bar_height = 14
+
+        # Dark rocky background
+        pygame.draw.rect(surface, (30, 35, 40), (bar_x, y_offset, bar_width, bar_height), border_radius=2)
+
+        # Fill with crystalline naquadah appearance
+        fill_pct = min(1.0, total_naquadah / NAQUADAH_BUDGET)
+        if fill_pct > 0:
+            fill_width = int(bar_width * fill_pct)
+            if naquadah_over:
+                # Over budget: reddish unstable glow
+                fill_color = (180, 80, 80)
+                highlight_color = (220, 120, 120)
+            else:
+                # Normal: silvery-blue mineral color
+                fill_color = (120, 140, 160)
+                highlight_color = (180, 200, 220)
+
+            # Main fill (mineral base)
+            pygame.draw.rect(surface, fill_color,
+                           (bar_x, y_offset, fill_width, bar_height), border_radius=2)
+
+            # Crystalline highlight (top edge shimmer)
+            pygame.draw.rect(surface, highlight_color,
+                           (bar_x, y_offset, fill_width, 3), border_radius=1)
+
+            # Add crystal facet lines for texture
+            for i in range(fill_width // 20):
+                facet_x = bar_x + 10 + i * 20
+                if facet_x < bar_x + fill_width - 5:
+                    pygame.draw.line(surface, highlight_color,
+                                   (facet_x, y_offset + 3),
+                                   (facet_x + 8, y_offset + bar_height - 2), 1)
+
+        # Border (rocky edge)
+        pygame.draw.rect(surface, (80, 90, 100), (bar_x, y_offset, bar_width, bar_height), width=1, border_radius=2)
+
+        y_offset += bar_height + 8
+
+        # Warning if over budget (soft warning, not hard block)
+        if naquadah_over:
+            over_amount = total_naquadah - NAQUADAH_BUDGET
+            warning_surf = self.small_font.render(f"! Unstable - Over by {over_amount}!", True, (255, 150, 120))
+            surface.blit(warning_surf, (self.stats_box_rect.x + 20, y_offset))
+            y_offset += 20
+
         # Status indicator
         status_color = (100, 255, 100) if is_valid else (255, 100, 100)
         status_icon = "✓" if is_valid else "!"
         status_surf = self.stat_font.render(f"{status_icon} {status_msg}", True, status_color)
-        surface.blit(status_surf, (self.stats_box_rect.x + 20, y_offset + 5))
+        surface.blit(status_surf, (self.stats_box_rect.x + 20, y_offset))
 
     def draw_vertical_deck_list(self, surface, faction_color):
         """Draws a sleek vertical list of card names on the right side."""

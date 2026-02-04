@@ -601,6 +601,101 @@ class DeckPersistence:
         self.save_unlocks()
         print(f"✓ Draft run recorded: {leader_name} ({'Win' if won else 'Loss'}), Deck Power: {deck_power}")
 
+    # === SPACE SHOOTER HIGH SCORES ===
+
+    def get_space_shooter_scores(self) -> Dict:
+        """Get all space shooter high scores organized by faction."""
+        return self.unlock_data.get("space_shooter_scores", {})
+
+    def get_faction_high_scores(self, faction: str, limit: int = 10) -> List[Dict]:
+        """Get top scores for a specific faction."""
+        scores = self.unlock_data.get("space_shooter_scores", {})
+        faction_scores = scores.get(faction, [])
+        return sorted(faction_scores, key=lambda x: x.get("score", 0), reverse=True)[:limit]
+
+    def get_all_time_high_score(self) -> Optional[Dict]:
+        """Get the highest score ever across all factions."""
+        scores = self.unlock_data.get("space_shooter_scores", {})
+        all_scores = []
+        for faction_scores in scores.values():
+            all_scores.extend(faction_scores)
+        if not all_scores:
+            return None
+        return max(all_scores, key=lambda x: x.get("score", 0))
+
+    def save_space_shooter_score(self, faction: str, score: int, waves_cleared: int,
+                                  enemies_defeated: int, won: bool) -> int:
+        """
+        Save a space shooter game score.
+
+        Args:
+            faction: Player's faction
+            score: Total points earned
+            waves_cleared: Number of waves completed
+            enemies_defeated: Total enemies destroyed
+            won: Whether player won the game
+
+        Returns:
+            Rank position (1 = top score, 0 = not in top 10)
+        """
+        import time as time_module
+        scores = self.unlock_data.setdefault("space_shooter_scores", {})
+        faction_scores = scores.setdefault(faction, [])
+
+        new_entry = {
+            "score": score,
+            "waves_cleared": waves_cleared,
+            "enemies_defeated": enemies_defeated,
+            "won": won,
+            "timestamp": time_module.time(),
+            "faction": faction
+        }
+
+        faction_scores.append(new_entry)
+        # Sort by score descending
+        faction_scores.sort(key=lambda x: x.get("score", 0), reverse=True)
+        # Keep only top 10
+        scores[faction] = faction_scores[:10]
+
+        # Determine rank (1-indexed)
+        rank = 0
+        for i, entry in enumerate(scores[faction]):
+            if entry.get("timestamp") == new_entry["timestamp"] and entry.get("score") == score:
+                rank = i + 1
+                break
+
+        self.save_unlocks()
+        if rank > 0:
+            print(f"✓ Space shooter score saved: {score} pts (Rank #{rank} for {faction})")
+        return rank
+
+    def get_space_shooter_stats(self) -> Dict:
+        """Get aggregate space shooter statistics."""
+        scores = self.unlock_data.get("space_shooter_scores", {})
+        all_scores = []
+        for faction_scores in scores.values():
+            all_scores.extend(faction_scores)
+
+        if not all_scores:
+            return {
+                "games_played": 0,
+                "total_score": 0,
+                "highest_score": 0,
+                "total_enemies": 0,
+                "total_waves": 0,
+                "wins": 0
+            }
+
+        return {
+            "games_played": len(all_scores),
+            "total_score": sum(s.get("score", 0) for s in all_scores),
+            "highest_score": max(s.get("score", 0) for s in all_scores),
+            "total_enemies": sum(s.get("enemies_defeated", 0) for s in all_scores),
+            "total_waves": sum(s.get("waves_cleared", 0) for s in all_scores),
+            "wins": sum(1 for s in all_scores if s.get("won", False))
+        }
+
+
 # Global instance
 _persistence = None
 

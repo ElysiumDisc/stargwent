@@ -4495,8 +4495,415 @@ class ReplicatorCrawlEffect(Animation):
                                (int(end_x), int(end_y)), 2)
         
         surface.blit(overlay, (0, 0))
-        
+
         surface.blit(overlay, (0, 0))
+
+
+# ============================================================================
+# NEW STARGATE-THEMED ANIMATIONS (v5.4.0)
+# ============================================================================
+
+class DakaraPulseAnimation(Animation):
+    """
+    Dakara Superweapon pulse effect.
+    Expanding golden shockwave rings emanating from the card's position.
+    Triggered when playing the Dakara Superweapon card.
+    """
+    def __init__(self, x, y, duration=1500):
+        super().__init__(duration)
+        self.x = x
+        self.y = y
+        self.rings = []  # List of active rings
+        self.ring_spawn_timer = 0
+        self.max_rings = 4
+        self.max_radius = 400
+
+    def update(self, dt):
+        active = super().update(dt)
+        progress = self.get_progress()
+
+        # Spawn new rings periodically
+        self.ring_spawn_timer += dt
+        if self.ring_spawn_timer > 200 and len(self.rings) < self.max_rings:
+            self.ring_spawn_timer = 0
+            self.rings.append({
+                'radius': 0,
+                'alpha': 255,
+                'width': 6
+            })
+
+        # Update existing rings
+        for ring in self.rings:
+            ring['radius'] += dt * 0.4  # Expand outward
+            ring['alpha'] = max(0, ring['alpha'] - dt * 0.15)
+            ring['width'] = max(1, int(6 - ring['radius'] / 100))
+
+        # Remove faded rings
+        self.rings = [r for r in self.rings if r['alpha'] > 0]
+
+        return active
+
+    def draw(self, surface):
+        if self.finished:
+            return
+
+        for ring in self.rings:
+            if ring['radius'] <= 0 or ring['alpha'] <= 0:
+                continue
+
+            # Create ring surface
+            size = int(ring['radius'] * 2) + 20
+            if size < 10:
+                continue
+
+            ring_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+            center = size // 2
+
+            # Golden shockwave color with gradient
+            inner_color = (255, 215, 100, int(ring['alpha']))
+            outer_color = (255, 180, 50, int(ring['alpha'] * 0.5))
+
+            # Draw multiple rings for depth
+            if ring['radius'] > 5:
+                pygame.draw.circle(ring_surf, outer_color, (center, center),
+                                 int(ring['radius']), int(ring['width'] + 2))
+                pygame.draw.circle(ring_surf, inner_color, (center, center),
+                                 int(ring['radius']), int(ring['width']))
+                # Bright core
+                pygame.draw.circle(ring_surf, (255, 255, 200, int(ring['alpha'] * 0.8)),
+                                 (center, center), int(ring['radius']), max(1, ring['width'] // 2))
+
+            surface.blit(ring_surf, (int(self.x - center), int(self.y - center)))
+
+
+class AtlantisShieldAnimation(Animation):
+    """
+    Atlantis city shield dome effect.
+    Blue hexagonal shield bubble that expands and pulses.
+    Triggered when playing the City of Atlantis card.
+    """
+    def __init__(self, x, y, duration=2000):
+        super().__init__(duration)
+        self.x = x
+        self.y = y
+        self.dome_radius = 0
+        self.max_radius = 150
+        self.pulse = 0
+        self.hexagons = []  # Hexagonal pattern points
+
+        # Pre-calculate hexagon pattern
+        for ring in range(3):
+            radius = 30 + ring * 35
+            hex_count = 6 + ring * 6
+            for i in range(hex_count):
+                angle = (i / hex_count) * math.pi * 2
+                self.hexagons.append({
+                    'angle': angle,
+                    'radius': radius,
+                    'phase': random.uniform(0, math.pi * 2)
+                })
+
+    def update(self, dt):
+        active = super().update(dt)
+        progress = self.get_progress()
+
+        # Expand dome
+        if progress < 0.3:
+            self.dome_radius = self.max_radius * (progress / 0.3)
+        else:
+            self.dome_radius = self.max_radius
+
+        # Pulse effect
+        self.pulse += dt * 0.01
+
+        return active
+
+    def draw(self, surface):
+        if self.finished or self.dome_radius < 5:
+            return
+
+        progress = self.get_progress()
+        alpha = int(200 * (1 - progress * 0.5))
+
+        # Create dome surface
+        size = int(self.dome_radius * 2) + 40
+        dome_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        center = size // 2
+
+        # Outer glow
+        pygame.draw.circle(dome_surf, (50, 150, 255, alpha // 4),
+                          (center, center), int(self.dome_radius + 10))
+
+        # Main dome (semi-transparent)
+        pygame.draw.circle(dome_surf, (100, 180, 255, alpha // 2),
+                          (center, center), int(self.dome_radius))
+
+        # Hexagonal pattern overlay
+        for hex_info in self.hexagons:
+            if hex_info['radius'] > self.dome_radius:
+                continue
+
+            angle = hex_info['angle'] + math.sin(self.pulse + hex_info['phase']) * 0.1
+            hx = center + math.cos(angle) * hex_info['radius']
+            hy = center + math.sin(angle) * hex_info['radius'] * 0.6  # Flatten for 3D effect
+
+            # Draw hexagon
+            hex_size = 12 + math.sin(self.pulse * 2 + hex_info['phase']) * 3
+            hex_alpha = int(alpha * 0.7)
+
+            # Simple hexagon points
+            hex_points = []
+            for i in range(6):
+                pa = (i / 6) * math.pi * 2
+                px = hx + math.cos(pa) * hex_size
+                py = hy + math.sin(pa) * hex_size * 0.6
+                hex_points.append((px, py))
+
+            if len(hex_points) >= 3:
+                pygame.draw.polygon(dome_surf, (150, 220, 255, hex_alpha), hex_points, 1)
+
+        # Dome edge highlight
+        pygame.draw.circle(dome_surf, (200, 240, 255, alpha),
+                          (center, center), int(self.dome_radius), 2)
+
+        surface.blit(dome_surf, (int(self.x - center), int(self.y - center)))
+
+
+class HyperspaceJumpAnimation(Animation):
+    """
+    Hyperspace jump effect for round transitions.
+    Stars stretch into lines as the view accelerates to hyperspace.
+    """
+    def __init__(self, screen_width, screen_height, duration=1000):
+        super().__init__(duration)
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.center_x = screen_width // 2
+        self.center_y = screen_height // 2
+        self.stars = []
+
+        # Create stars distributed around center
+        for _ in range(150):
+            angle = random.uniform(0, math.pi * 2)
+            dist = random.uniform(50, max(screen_width, screen_height) // 2)
+            self.stars.append({
+                'angle': angle,
+                'base_dist': dist,
+                'dist': dist,
+                'brightness': random.randint(150, 255),
+                'size': random.randint(1, 3)
+            })
+
+    def update(self, dt):
+        active = super().update(dt)
+        progress = self.get_progress()
+
+        # Accelerate stars outward
+        stretch_factor = 1 + progress * 8  # Stars stretch 8x by end
+
+        for star in self.stars:
+            star['dist'] = star['base_dist'] * stretch_factor
+
+        return active
+
+    def draw(self, surface):
+        progress = self.get_progress()
+        if progress >= 1.0:
+            return
+
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+
+        # Fade to white at end
+        flash_alpha = 0
+        if progress > 0.8:
+            flash_alpha = int(255 * ((progress - 0.8) / 0.2))
+            overlay.fill((255, 255, 255, flash_alpha))
+
+        for star in self.stars:
+            # Calculate stretched star position
+            end_x = self.center_x + math.cos(star['angle']) * star['dist']
+            end_y = self.center_y + math.sin(star['angle']) * star['dist']
+
+            # Starting point (closer to center for stretch effect)
+            stretch = progress * 50
+            start_x = self.center_x + math.cos(star['angle']) * (star['base_dist'] - stretch)
+            start_y = self.center_y + math.sin(star['angle']) * (star['base_dist'] - stretch)
+
+            # Skip if off screen
+            if (end_x < -50 or end_x > self.screen_width + 50 or
+                end_y < -50 or end_y > self.screen_height + 50):
+                continue
+
+            # Draw star as line (stretched)
+            alpha = int(star['brightness'] * (1 - progress * 0.3))
+            color = (star['brightness'], star['brightness'], 255, alpha)
+
+            if progress < 0.2:
+                # Just dots at start
+                pygame.draw.circle(overlay, color, (int(end_x), int(end_y)), star['size'])
+            else:
+                # Stretched lines
+                line_width = max(1, int(star['size'] * (1 + progress * 2)))
+                pygame.draw.line(overlay, color,
+                               (int(start_x), int(start_y)),
+                               (int(end_x), int(end_y)), line_width)
+
+        surface.blit(overlay, (0, 0))
+
+
+class WraithCullingBeamAnimation(Animation):
+    """
+    Wraith culling beam effect (for future Wraith faction).
+    Blue energy beam descending from the top of the screen.
+    """
+    def __init__(self, x, y, duration=1200):
+        super().__init__(duration)
+        self.target_x = x
+        self.target_y = y
+        self.beam_width = 0
+        self.max_width = 60
+        self.particles = []
+
+    def update(self, dt):
+        active = super().update(dt)
+        progress = self.get_progress()
+
+        # Beam expands then contracts
+        if progress < 0.3:
+            self.beam_width = self.max_width * (progress / 0.3)
+        elif progress > 0.7:
+            self.beam_width = self.max_width * (1 - (progress - 0.7) / 0.3)
+        else:
+            self.beam_width = self.max_width
+
+        # Spawn particles
+        if random.random() < 0.3 and progress < 0.8:
+            self.particles.append({
+                'x': self.target_x + random.uniform(-self.beam_width / 2, self.beam_width / 2),
+                'y': random.uniform(0, self.target_y),
+                'vy': random.uniform(3, 8),
+                'alpha': 200,
+                'size': random.randint(2, 5)
+            })
+
+        # Update particles
+        for p in self.particles[:]:
+            p['y'] += p['vy']
+            p['alpha'] -= 3
+            if p['alpha'] <= 0 or p['y'] > self.target_y + 50:
+                self.particles.remove(p)
+
+        return active
+
+    def draw(self, surface):
+        if self.finished or self.beam_width < 1:
+            return
+
+        progress = self.get_progress()
+        alpha = int(180 * (1 - progress * 0.3))
+
+        # Draw particles first
+        for p in self.particles:
+            p_surf = pygame.Surface((p['size'] * 2, p['size'] * 2), pygame.SRCALPHA)
+            pygame.draw.circle(p_surf, (100, 180, 255, int(p['alpha'])),
+                             (p['size'], p['size']), p['size'])
+            surface.blit(p_surf, (int(p['x'] - p['size']), int(p['y'] - p['size'])))
+
+        # Main beam
+        beam_surf = pygame.Surface((int(self.beam_width) + 40, int(self.target_y) + 40), pygame.SRCALPHA)
+        center_x = beam_surf.get_width() // 2
+
+        # Outer glow
+        pygame.draw.rect(beam_surf, (50, 100, 200, alpha // 3),
+                        (center_x - self.beam_width // 2 - 10, 0,
+                         self.beam_width + 20, self.target_y))
+
+        # Main beam
+        pygame.draw.rect(beam_surf, (100, 180, 255, alpha),
+                        (center_x - self.beam_width // 2, 0,
+                         self.beam_width, self.target_y))
+
+        # Bright core
+        core_width = max(2, self.beam_width // 3)
+        pygame.draw.rect(beam_surf, (200, 240, 255, alpha),
+                        (center_x - core_width // 2, 0,
+                         core_width, self.target_y))
+
+        surface.blit(beam_surf, (int(self.target_x - center_x), 0))
+
+
+class OriPriorFlameAnimation(Animation):
+    """
+    Ori Prior flame effect (for future Ori faction).
+    Holy fire eruption effect with rising flames.
+    """
+    def __init__(self, x, y, duration=1500):
+        super().__init__(duration)
+        self.x = x
+        self.y = y
+        self.flames = []
+        self.max_flames = 30
+
+    def update(self, dt):
+        active = super().update(dt)
+        progress = self.get_progress()
+
+        # Spawn flames
+        if progress < 0.7 and random.random() < 0.4 and len(self.flames) < self.max_flames:
+            self.flames.append({
+                'x': self.x + random.uniform(-40, 40),
+                'y': self.y,
+                'vy': random.uniform(-3, -8),
+                'vx': random.uniform(-1, 1),
+                'size': random.randint(10, 25),
+                'life': 1.0,
+                'color_shift': random.uniform(0, 1)
+            })
+
+        # Update flames
+        for flame in self.flames[:]:
+            flame['y'] += flame['vy']
+            flame['x'] += flame['vx']
+            flame['vy'] *= 0.98  # Slow down
+            flame['life'] -= 0.02
+            flame['size'] = max(2, flame['size'] - 0.3)
+
+            if flame['life'] <= 0:
+                self.flames.remove(flame)
+
+        return active
+
+    def draw(self, surface):
+        if self.finished:
+            return
+
+        for flame in self.flames:
+            if flame['life'] <= 0:
+                continue
+
+            alpha = int(255 * flame['life'])
+            size = int(flame['size'])
+
+            flame_surf = pygame.Surface((size * 2, size * 3), pygame.SRCALPHA)
+
+            # Gradient from yellow to orange to red
+            t = flame['color_shift']
+            r = int(255)
+            g = int(200 * (1 - t) + 100 * t)
+            b = int(50 * (1 - t))
+
+            # Draw flame shape (teardrop)
+            pygame.draw.ellipse(flame_surf, (r, g, b, alpha),
+                              (0, size, size * 2, size * 2))
+            pygame.draw.polygon(flame_surf, (r, g, b, alpha),
+                              [(size, 0), (0, size), (size * 2, size)])
+
+            # Bright core
+            core_alpha = int(alpha * 0.8)
+            pygame.draw.ellipse(flame_surf, (255, 255, 200, core_alpha),
+                              (size // 2, size + size // 2, size, size))
+
+            surface.blit(flame_surf, (int(flame['x'] - size), int(flame['y'] - size)))
 
 
 class AnimationManager:

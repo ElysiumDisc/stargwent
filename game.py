@@ -32,6 +32,10 @@ BALANCE_CONFIG = {
     # Artifact power
     "artifact_neutral_bonus": 2,  # Ancient Chair bonus
     "artifact_scorch_threshold": 8,  # Asgard Beam threshold
+
+    # Naquadah budget system
+    "naquadah_budget": 150,  # Max Naquadah for a deck
+    "ori_corruption_penalty": 0.5,  # 50% power reduction for over-budget decks
 }
 
 # ===== FACTION ABILITIES =====
@@ -351,16 +355,16 @@ class AllianceCombo:
         self.required_cards = required_cards  # List of card names
         self.bonus = bonus
         self.description = description
-    
+
     def check_active(self, player):
         """Check if all required cards are on the board."""
         cards_on_board = set()
         for row in player.board.values():
             for card in row:
                 cards_on_board.add(card.name)
-        
+
         return all(required in cards_on_board for required in self.required_cards)
-    
+
     def apply_bonus(self, player):
         """Apply the alliance bonus. Returns True if combo was active."""
         if self.check_active(player):
@@ -371,6 +375,93 @@ class AllianceCombo:
                         card.displayed_power += self.bonus
             return True
         return False
+
+
+class FactionAllianceCombo:
+    """Alliance combo based on faction unit count (e.g., 3+ Asgard heroes)."""
+    def __init__(self, name, faction, min_count, bonus, description, hero_only=False):
+        self.name = name
+        self.faction = faction  # Faction to count
+        self.min_count = min_count  # Minimum units required
+        self.bonus = bonus  # Power bonus to apply
+        self.description = description
+        self.hero_only = hero_only  # If True, only count heroes
+
+    def check_active(self, player):
+        """Check if enough units of the faction are on board."""
+        count = 0
+        for row in player.board.values():
+            for card in row:
+                if card.faction == self.faction:
+                    if self.hero_only:
+                        if is_hero(card):
+                            count += 1
+                    else:
+                        count += 1
+        return count >= self.min_count
+
+    def apply_bonus(self, player):
+        """Apply bonus to all faction units. Returns True if combo was active."""
+        if self.check_active(player):
+            for row in player.board.values():
+                for card in row:
+                    if card.faction == self.faction:
+                        card.displayed_power += self.bonus
+            return True
+        return False
+
+
+class JaffaUprisingCombo:
+    """Special combo for Jaffa Uprising: 5+ Jaffa units = +1 power to ALL units."""
+    def __init__(self):
+        self.name = "Jaffa Uprising"
+        self.min_count = 5
+        self.bonus = 1
+        self.description = "When 5+ Jaffa units are on board, ALL your units get +1 power"
+
+    def check_active(self, player):
+        """Check if 5+ Jaffa units on board."""
+        count = 0
+        for row in player.board.values():
+            for card in row:
+                if card.faction == FACTION_JAFFA:
+                    count += 1
+        return count >= self.min_count
+
+    def apply_bonus(self, player):
+        """Apply +1 to ALL units if active. Returns True if combo was active."""
+        if self.check_active(player):
+            for row in player.board.values():
+                for card in row:
+                    card.displayed_power += self.bonus
+            return True
+        return False
+
+
+class LucianNetworkCombo:
+    """Lucian Network: 2+ spies played this round = draw 1 card.
+    Note: The draw effect is triggered separately, not in score calculation."""
+    def __init__(self):
+        self.name = "Lucian Network"
+        self.min_spies = 2
+        self.description = "When 2+ spies are played in a round, draw 1 card"
+        self.triggered_this_round = False  # Track if already triggered
+
+    def check_active(self, player):
+        """Check if 2+ spies were played this round."""
+        spies_this_round = getattr(player, 'spies_played_this_round', 0)
+        return spies_this_round >= self.min_spies and not self.triggered_this_round
+
+    def apply_bonus(self, player):
+        """Draw effect is handled separately. Returns True if should trigger draw."""
+        if self.check_active(player):
+            self.triggered_this_round = True
+            return True
+        return False
+
+    def reset_round(self):
+        """Reset the trigger flag for new round."""
+        self.triggered_this_round = False
 
 
 # Alliance combo definitions
@@ -393,7 +484,20 @@ ALLIANCE_COMBOS = [
         4,  # +4 to each
         "System Lords united get +4 power each"
     ),
+    # NEW: Faction-based alliance combos
+    FactionAllianceCombo(
+        "Asgard High Council",
+        FACTION_ASGARD,
+        3,  # 3+ Asgard heroes
+        2,  # +2 to all Asgard units
+        "When 3+ Asgard heroes are on board, all Asgard units get +2 power",
+        hero_only=True
+    ),
+    JaffaUprisingCombo(),  # 5+ Jaffa = +1 to ALL units
 ]
+
+# Special combo that triggers card draw (handled separately from score calculation)
+LUCIAN_NETWORK_COMBO = LucianNetworkCombo()
 
 
 # ===== END OF MERGED STARGATE MECHANICS =====
@@ -425,6 +529,7 @@ class Player:
         self.yu_ability_used = False  # Track if Lord Yu's ability has been used (once per game)
         self.plays_this_turn = 0  # Track plays for Rak'nor ability
         self.zpm_active = False  # Track if ZPM was played this round
+        self.spies_played_this_round = 0  # Track spies for Lucian Network combo
         
         # Stargate mechanics
         self.faction_ability = FACTION_ABILITIES.get(faction, None)
@@ -437,6 +542,14 @@ class Player:
             neutral_count = sum(1 for c in self.deck if c.faction == FACTION_NEUTRAL)
             if neutral_count > len(self.deck) / 2:
                 self.neutral_penalty_active = True
+
+        # Check for Ori Corruption (Naquadah over-budget penalty)
+        # If deck exceeds Naquadah budget, apply 50% power reduction
+        self.ori_corrupted = False
+        if self.deck:
+            total_naquadah = sum(c.naquadah_cost for c in self.deck)
+            if total_naquadah > BALANCE_CONFIG["naquadah_budget"]:
+                self.ori_corrupted = True
         
         # Iris Defense (Tau'ri Only)
         if faction == FACTION_TAURI:
@@ -660,6 +773,10 @@ class Player:
         if self.neutral_penalty_active:
             self.score = round(self.score * 0.75)
 
+        # Apply Ori Corruption (Naquadah over-budget penalty)
+        if self.ori_corrupted:
+            self.score = round(self.score * BALANCE_CONFIG["ori_corruption_penalty"])
+
         return activated_combos
 
     def draw_cards(self, num=1, track_for_jonas=False):
@@ -794,6 +911,23 @@ class Game:
                 f"{self.player2.name} suffers Mercenary Tax! Score reduced by 25%",
                 self._owner_label(self.player2),
                 icon="!"
+            )
+
+        # Log Ori Corruption penalties
+        if self.player1.ori_corrupted:
+            self.add_history_event(
+                "ability",
+                f"{self.player1.name} suffers Ori Corruption! Score reduced by 50%",
+                self._owner_label(self.player1),
+                icon="⚠"
+            )
+
+        if self.player2.ori_corrupted:
+            self.add_history_event(
+                "ability",
+                f"{self.player2.name} suffers Ori Corruption! Score reduced by 50%",
+                self._owner_label(self.player2),
+                icon="⚠"
             )
 
         # Log alliance combo activations
@@ -1092,7 +1226,21 @@ class Game:
                     target_player = self.player2
                 else:
                     target_player = self.player1
-                
+
+                # Track spies played this round for Lucian Network combo
+                player.spies_played_this_round += 1
+
+                # Check for Lucian Network combo (2+ spies = draw 1 extra card)
+                if LUCIAN_NETWORK_COMBO.check_active(player):
+                    LUCIAN_NETWORK_COMBO.apply_bonus(player)
+                    player.draw_cards(1)
+                    self.add_history_event(
+                        "combo",
+                        "Lucian Network activated! Drew 1 extra card.",
+                        self._owner_label(player),
+                        icon="🕵️"
+                    )
+
                 # Check for Lucian piracy bonus OR Vulkar leader ability
                 draw_amount = 2
                 if player.faction_ability and hasattr(player.faction_ability, 'get_spy_draw_amount'):
@@ -2532,6 +2680,7 @@ class Game:
             p.hand_revealed = pending_reveal
             p.reveal_next_round = False
             p.zpm_active = False
+            p.spies_played_this_round = 0  # Reset spy counter for Lucian Network
 
             # Reset Ring Transportation for new round (Goa'uld)
             if p.ring_transportation:
@@ -2539,6 +2688,9 @@ class Game:
 
             # Reset score (board is empty at this point)
             p.score = 0
+
+        # Reset Lucian Network combo for new round
+        LUCIAN_NETWORK_COMBO.reset_round()
 
         # Clear weather cards from board and move to discard
         self.discard_active_weather_cards()

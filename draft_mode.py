@@ -124,10 +124,15 @@ class DraftRun:
     CARDS_TO_DRAFT = 30
     CHOICES_PER_PICK = 3
     MAX_WINS = 8
-    
+
     # Milestone constants
     MILESTONE_REDRAFT_CARDS = 3
     MILESTONE_REDRAFT_LEADER = 5
+
+    # Rare event constants
+    RARE_EVENT_CHANCE = 0.05  # 5% chance per pick
+    EVENT_STARGATE_ANOMALY = "stargate_anomaly"  # Pick from 5 cards instead of 3
+    EVENT_ANCIENT_CACHE = "ancient_cache"  # One card guaranteed Epic/Legendary
 
     def __init__(self, pool: DraftPool):
         """
@@ -142,11 +147,15 @@ class DraftRun:
         self.current_pick = 0
         self.phase = "leader_select"  # leader_select, draft, review, battle, redraft_cards_select, redraft_cards_pick, redraft_leader
         self.pick_history: List[Tuple[Card, List[Card]]] = []  # For undo feature
-        
+
         # Run progress
         self.wins = 0
         self.losses = 0
         self.cards_to_remove_count = 0
+
+        # Rare events
+        self.current_event: Optional[str] = None  # Active rare event for current pick
+        self.event_message: str = ""  # Message to display for rare event
 
         # Rarity weights for balanced drafting
         # Lower weight = rarer appearance
@@ -209,17 +218,49 @@ class DraftRun:
     def get_current_choices(self) -> List[Card]:
         """
         Get card choices for current pick.
+        May trigger rare events for bonus cards.
 
         Returns:
-            List of 3 card options
+            List of card options (3-5 depending on events)
         """
         if self.phase not in ["draft", "redraft_cards_pick"]:
             return []
 
-        return self.pool.get_card_choices(
-            count=self.CHOICES_PER_PICK,
+        # Check for rare events (only during main draft, not redraft)
+        self.current_event = None
+        self.event_message = ""
+
+        if self.phase == "draft" and random.random() < self.RARE_EVENT_CHANCE:
+            # Roll which event
+            if random.random() < 0.5:
+                self.current_event = self.EVENT_STARGATE_ANOMALY
+                self.event_message = "⚡ Stargate Anomaly! Choose from 5 cards!"
+            else:
+                self.current_event = self.EVENT_ANCIENT_CACHE
+                self.event_message = "✨ Ancient Cache! One card is guaranteed Epic/Legendary!"
+
+        # Determine card count
+        card_count = self.CHOICES_PER_PICK
+        if self.current_event == self.EVENT_STARGATE_ANOMALY:
+            card_count = 5
+
+        # Get base choices
+        choices = self.pool.get_card_choices(
+            count=card_count,
             rarity_weights=self.rarity_weights
         )
+
+        # If Ancient Cache event, ensure at least one high-power card
+        if self.current_event == self.EVENT_ANCIENT_CACHE and choices:
+            has_epic = any(c.power >= 7 for c in choices)
+            if not has_epic:
+                # Replace weakest card with a guaranteed epic/legendary
+                epic_cards = [c for c in self.pool.available_cards if c.power >= 7]
+                if epic_cards:
+                    weakest_idx = min(range(len(choices)), key=lambda i: choices[i].power)
+                    choices[weakest_idx] = copy.deepcopy(random.choice(epic_cards))
+
+        return choices
 
     def pick_card(self, card: Card, all_choices: List[Card] = None):
         """
@@ -427,3 +468,77 @@ class DraftRun:
                     stats['medic_count'] += 1
 
         return stats
+
+    def get_scaled_rewards(self) -> Dict:
+        """
+        Calculate rewards based on win count.
+
+        Reward tiers:
+        - 3 wins: 1 random card unlock
+        - 5 wins: Choice of 2 cards to unlock
+        - 8 wins: Legendary card + leader unlock chance
+
+        Returns:
+            Dict with reward info:
+            - tier: 0, 1, 2, or 3
+            - rewards: list of reward descriptions
+            - card_choices: list of card IDs to choose from (if applicable)
+            - leader_unlock_chance: float (0-1)
+        """
+        rewards = {
+            'tier': 0,
+            'rewards': [],
+            'card_choices': [],
+            'leader_unlock_chance': 0.0
+        }
+
+        if self.wins >= 8:
+            # Perfect run: Legendary + leader unlock chance
+            rewards['tier'] = 3
+            rewards['rewards'] = [
+                "Legendary card unlock!",
+                "Leader unlock chance (25%)!"
+            ]
+            # Get available legendary cards
+            legendary_cards = [c.id for c in self.pool.available_cards if c.power >= 10]
+            if legendary_cards:
+                rewards['card_choices'] = random.sample(legendary_cards, min(1, len(legendary_cards)))
+            rewards['leader_unlock_chance'] = 0.25
+
+        elif self.wins >= 5:
+            # Good run: Choice of 2 cards
+            rewards['tier'] = 2
+            rewards['rewards'] = ["Choose 1 of 2 cards to unlock!"]
+            # Get 2 random epic+ cards
+            epic_cards = [c.id for c in self.pool.available_cards if c.power >= 7]
+            if epic_cards:
+                rewards['card_choices'] = random.sample(epic_cards, min(2, len(epic_cards)))
+
+        elif self.wins >= 3:
+            # Decent run: 1 random card
+            rewards['tier'] = 1
+            rewards['rewards'] = ["1 random card unlocked!"]
+            # Get 1 random card
+            all_cards = [c.id for c in self.pool.available_cards]
+            if all_cards:
+                rewards['card_choices'] = random.sample(all_cards, 1)
+
+        return rewards
+
+    def get_synergy_tier(self, synergy_score: int) -> str:
+        """
+        Get synergy tier label for display.
+
+        Args:
+            synergy_score: The calculated synergy score
+
+        Returns:
+            Tier string: "none", "low", "medium", "high"
+        """
+        if synergy_score >= 5:
+            return "high"
+        elif synergy_score >= 2:
+            return "medium"
+        elif synergy_score >= 1:
+            return "low"
+        return "none"

@@ -1,3 +1,53 @@
+### Version 5.4.0 (February 2026)
+**Major Content Update: Alliance Combos, Space Shooter, Naquadah System & Draft Enhancements**
+
+#### New Alliance Combos
+- ✅ **Asgard High Council** – 3+ Asgard heroes on board grants +2 power to all Asgard units
+- ✅ **Jaffa Uprising** – 5+ Jaffa units on board grants +1 power to ALL units (both players benefit from the uprising!)
+- ✅ **Lucian Network** – Play 2+ spies in a single round to draw 1 card (spy tracking resets each round)
+
+#### Space Shooter Power-ups
+- ✅ **Shield Boost** (15% spawn) – Instant +50 shields
+- ✅ **Rapid Fire** (10% spawn) – 2x fire rate for 10 seconds
+- ✅ **Drone Swarm** (8% spawn) – Auto-targeting drones for 8 seconds
+- ✅ **Naquadah Core** (12% spawn) – +25% damage for 12 seconds
+- ✅ **Cloak** (5% spawn) – Invisibility (enemies can't target) for 5 seconds
+- ✅ **Power-up UI** – Active power-up indicator with duration timer
+
+#### Space Shooter High Score System
+- ✅ **Scoring** – Enemy: 100pts, Boss: 1000pts, Wave clear: 500pts, No damage bonus: 200pts, Asteroid: 50pts
+- ✅ **Leaderboard** – Top 10 scores per faction, saved to player_unlocks.json
+- ✅ **Stats Tracking** – Enemies defeated, waves cleared, win/loss tracking
+
+#### Naquadah Budget System
+- ✅ **Deck Budget** – 150 Naquadah limit for deck building
+- ✅ **Cost Formula** – Base 4 + (power - 1), heroes get +3 bonus
+- ✅ **Visual Display** – Crystalline mineral bar in deck builder stats panel
+- ✅ **Soft Warning** – "Unstable - Over by X!" message for over-budget decks
+- ✅ **Ori Corruption Penalty** – Over-budget decks suffer 50% score reduction in-game
+
+#### Draft Mode Enhancements
+- ✅ **Rare Events** (5% chance per pick):
+  - "Stargate Anomaly" – Pick from 5 cards instead of 3
+  - "Ancient Cache" – One guaranteed Epic/Legendary card
+- ✅ **Scaled Rewards** based on wins:
+  - 3 wins: 1 random card unlock
+  - 5 wins: Choice of 2 cards
+  - 8 wins: Legendary card + leader unlock chance
+- ✅ **Synergy Tier Display** – Visual indicators for card synergy quality
+
+#### New Animations
+- ✅ **Dakara Pulse** – Golden expanding shockwave rings for Dakara Superweapon
+- ✅ **Atlantis Shield** – Blue hexagonal dome effect for City of Atlantis card
+- ✅ **Hyperspace Jump** – Starfield stretch effect for round transitions
+- ✅ **Wraith Culling Beam** – Blue beam from top of screen (future Wraith cards)
+- ✅ **Ori Prior Flame** – Holy fire eruption effect (future Ori cards)
+
+#### Balance Changes
+- ✅ **Naquadah** prevents power-stacking in deckbuilding (budget constraint)
+- ✅ **Mercenary Tax** still applies in-game (-25% for neutral-heavy decks)
+- ✅ **Ori Corruption** adds severe penalty (-50%) for ignoring Naquadah budget
+
 ### Version 5.3.0 (January 2026)
 **Movie-Accurate Stargate Animation & Rule Compendium Polish**
 

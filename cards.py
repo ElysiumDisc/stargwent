@@ -2,6 +2,11 @@ import pygame
 
 class Card:
     """Represents a single card in the game."""
+
+    # Naquadah cost configuration
+    NAQUADAH_BASE = 4  # Base cost
+    NAQUADAH_HERO_BONUS = 3  # Extra cost for heroes
+
     def __init__(self, id, name, faction, power, row, ability, image_path=None):
         self.id = id
         self.name = name
@@ -11,13 +16,49 @@ class Card:
         self.row = row # close, ranged, siege, agile
         self.ability = ability
         self.image_path = f"assets/{id}.png"
-        
+
         # Default sizes (will be updated by reload_card_images)
         self.image = pygame.Surface((80, 120))
         self.hover_image = pygame.Surface((86, 130))
         self.image.fill((80, 80, 90))
         self.hover_image.fill((100, 100, 110))
         self.rect = pygame.Rect(0, 0, 80, 120)
+
+    @property
+    def naquadah_cost(self) -> int:
+        """
+        Calculate Naquadah cost based on card power.
+
+        Cost formula:
+        - Base: 4 + (power - 1)
+        - Heroes (Legendary Commander): +3 bonus
+
+        Power ranges:
+        - 1-3 (Common): 4-6 Naquadah
+        - 4-6 (Rare): 7-9 Naquadah
+        - 7-9 (Epic): 10-12 Naquadah
+        - 10+ (Legendary): 13-15 Naquadah
+        - Heroes: 13-16+ Naquadah
+        """
+        base_cost = self.NAQUADAH_BASE + max(0, self.power - 1)
+
+        # Hero bonus
+        is_hero = self.ability and "Legendary Commander" in self.ability
+        if is_hero:
+            base_cost += self.NAQUADAH_HERO_BONUS
+
+        return base_cost
+
+    @property
+    def rarity(self) -> str:
+        """Get card rarity based on power level."""
+        if self.power >= 10:
+            return "legendary"
+        elif self.power >= 7:
+            return "epic"
+        elif self.power >= 4:
+            return "rare"
+        return "common"
 
     def __repr__(self):
         return f"Card({self.name}, {self.power})"

@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.3.0-blue)
+![Version](https://img.shields.io/badge/version-5.4.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -108,6 +108,16 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Persistent Saves** - All progress saved to JSON
 
 ### 🆕 Recent Updates
+
+#### v5.4.0 - Major Content Update
+- **New Alliance Combos** - Asgard High Council (+2 to Asgard), Jaffa Uprising (+1 to all), Lucian Network (spy draw)
+- **Space Shooter Power-ups** - 5 power-up types: Shield, Rapid Fire, Drones, Naquadah Core, Cloak
+- **Space Shooter High Scores** - Per-faction leaderboards with full score tracking
+- **Naquadah Budget System** - 150 Naquadah deck limit with crystalline UI display
+- **Ori Corruption Penalty** - Over-budget decks suffer 50% score reduction
+- **Draft Mode Rare Events** - 5% chance for Stargate Anomaly (5 picks) or Ancient Cache (guaranteed rare)
+- **Scaled Draft Rewards** - Better rewards at 3/5/8 win milestones
+- **New Animations** - Dakara Pulse, Atlantis Shield, Hyperspace Jump, Wraith Culling Beam, Ori Prior Flame
 
 #### v5.1.0 - Code Quality & Bug Fixes
 - **Clone Token Fix** - O'Neill clones now correctly live 4 turns (was 3 due to off-by-one error)
@@ -202,6 +212,30 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 5.4.0 (February 2026)
+**Major Content Update: Alliance Combos, Space Shooter, Naquadah System & Draft Enhancements**
+
+#### New Alliance Combos
+- ✅ **Asgard High Council** – 3+ Asgard heroes on board grants +2 power to all Asgard units
+- ✅ **Jaffa Uprising** – 5+ Jaffa units on board grants +1 power to ALL units
+- ✅ **Lucian Network** – Play 2+ spies in a round to draw 1 card
+
+#### Space Shooter Enhancements
+- ✅ **Power-ups** – Shield Boost, Rapid Fire, Drone Swarm, Naquadah Core, Cloak
+- ✅ **High Score System** – Per-faction leaderboards saved to player data
+- ✅ **Scoring** – Enemy: 100pts, Boss: 1000pts, Wave clear: 500pts
+
+#### Naquadah Budget System
+- ✅ **Deck Budget** – 150 Naquadah limit with crystalline UI bar
+- ✅ **Ori Corruption** – 50% score penalty for over-budget decks
+
+#### Draft Mode Enhancements
+- ✅ **Rare Events** – Stargate Anomaly (5 picks) and Ancient Cache (guaranteed rare)
+- ✅ **Scaled Rewards** – Better rewards at 3/5/8 win milestones
+
+#### New Animations
+- ✅ **Dakara Pulse**, **Atlantis Shield**, **Hyperspace Jump**, **Wraith Culling Beam**, **Ori Prior Flame**
 
 ### Version 5.3.0 (January 2026)
 **Movie-Accurate Stargate Animation & Rule Compendium Polish**
@@ -1060,12 +1094,14 @@ See [Audio Assets](#audio-assets) section for full list of supported audio files
 
 ### Deck Customization 🃏
 - **Access**: Main Menu → "DECK BUILDING"
-- **Rules**: 
+- **Rules**:
   - **MINIMUM 20 cards** to start a game
   - Maximum 40 cards
   - At least 15 unit cards
   - Only your faction + Neutral cards
-  - **Mercenary Tax**: If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25% (power penalty).
+  - **Naquadah Budget**: 150 Naquadah limit (cost = 4 + power - 1, heroes +3 bonus)
+  - **Mercenary Tax**: If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25%.
+  - **Ori Corruption**: Decks exceeding 150 Naquadah suffer 50% score reduction in-game!
 - **Features**:
   - Add/remove cards from your unlocked collection
   - Select leader from unlocked leaders

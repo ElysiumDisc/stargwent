@@ -7,6 +7,13 @@ Controls:
 - W/S or UP/DOWN: Move ship
 - SPACE: Fire laser
 - ESC: Exit to main menu
+
+Scoring:
+- Enemy destroyed: 100 pts
+- Boss defeated: 1000 pts (Wave 5 final enemy)
+- Wave clear bonus: 500 pts
+- No damage bonus: 200 pts (per wave, if took no damage)
+- Asteroid destroyed: 50 pts
 """
 
 import pygame
@@ -350,6 +357,191 @@ class Asteroid:
     
     def draw(self, surface):
         surface.blit(self.image, self.rect)
+
+
+class PowerUp:
+    """Collectible power-up that grants temporary or instant effects."""
+
+    # Power-up types with their properties
+    TYPES = {
+        "shield": {
+            "name": "Shield Boost",
+            "color": (100, 200, 255),
+            "duration": 0,  # Instant
+            "spawn_weight": 15,
+            "icon": "S"
+        },
+        "rapid_fire": {
+            "name": "Rapid Fire",
+            "color": (255, 150, 50),
+            "duration": 600,  # 10 seconds at 60 FPS
+            "spawn_weight": 10,
+            "icon": "R"
+        },
+        "drone": {
+            "name": "Drone Swarm",
+            "color": (150, 255, 150),
+            "duration": 480,  # 8 seconds
+            "spawn_weight": 8,
+            "icon": "D"
+        },
+        "damage": {
+            "name": "Naquadah Core",
+            "color": (255, 200, 100),
+            "duration": 720,  # 12 seconds
+            "spawn_weight": 12,
+            "icon": "N"
+        },
+        "cloak": {
+            "name": "Cloak",
+            "color": (180, 100, 255),
+            "duration": 300,  # 5 seconds
+            "spawn_weight": 5,
+            "icon": "C"
+        }
+    }
+
+    def __init__(self, x, y, powerup_type):
+        self.x = x
+        self.y = y
+        self.type = powerup_type
+        self.props = self.TYPES[powerup_type]
+        self.active = True
+        self.size = 30
+        self.pulse = 0
+        self.bob_offset = random.uniform(0, math.pi * 2)
+        self.particles = []
+
+    def update(self):
+        """Update power-up animation and position."""
+        self.pulse += 0.1
+        # Slow horizontal drift
+        self.x -= 1.5
+
+        # Spawn glow particles occasionally
+        if random.random() < 0.15:
+            self.particles.append({
+                'x': self.x + random.uniform(-10, 10),
+                'y': self.y + random.uniform(-10, 10),
+                'vx': random.uniform(-0.5, 0.5),
+                'vy': random.uniform(-1, 0),
+                'life': 1.0,
+                'size': random.randint(2, 4)
+            })
+
+        # Update particles
+        for p in self.particles[:]:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= 0.03
+            if p['life'] <= 0:
+                self.particles.remove(p)
+
+        # Remove if off screen
+        if self.x < -50:
+            self.active = False
+
+    def get_rect(self):
+        """Get collision rectangle."""
+        return pygame.Rect(int(self.x - self.size), int(self.y - self.size),
+                          self.size * 2, self.size * 2)
+
+    def draw(self, surface):
+        """Draw power-up with glow effect."""
+        if not self.active:
+            return
+
+        # Draw particles
+        for p in self.particles:
+            alpha = int(p['life'] * 150)
+            p_surf = pygame.Surface((p['size'] * 2, p['size'] * 2), pygame.SRCALPHA)
+            pygame.draw.circle(p_surf, (*self.props['color'], alpha),
+                             (p['size'], p['size']), p['size'])
+            surface.blit(p_surf, (int(p['x'] - p['size']), int(p['y'] - p['size'])))
+
+        # Pulsing glow effect
+        pulse_size = self.size + int(math.sin(self.pulse) * 5)
+        bob_y = self.y + math.sin(self.pulse * 0.5 + self.bob_offset) * 8
+
+        # Create glow surface
+        glow_size = pulse_size + 15
+        glow_surf = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+        center = glow_size
+
+        # Outer glow
+        pygame.draw.circle(glow_surf, (*self.props['color'], 60), (center, center), glow_size)
+        pygame.draw.circle(glow_surf, (*self.props['color'], 100), (center, center), pulse_size + 5)
+
+        # Main circle
+        pygame.draw.circle(glow_surf, self.props['color'], (center, center), pulse_size)
+
+        # White core
+        pygame.draw.circle(glow_surf, (255, 255, 255), (center, center), pulse_size // 2)
+
+        # Icon letter
+        font = pygame.font.SysFont("Arial", pulse_size, bold=True)
+        icon_surf = font.render(self.props['icon'], True, (0, 0, 0))
+        icon_rect = icon_surf.get_rect(center=(center, center))
+        glow_surf.blit(icon_surf, icon_rect)
+
+        surface.blit(glow_surf, (int(self.x - glow_size), int(bob_y - glow_size)))
+
+    @classmethod
+    def spawn_random(cls, screen_width, screen_height):
+        """Spawn a random power-up based on spawn weights."""
+        # Calculate total weight
+        total_weight = sum(t['spawn_weight'] for t in cls.TYPES.values())
+        roll = random.uniform(0, total_weight)
+
+        cumulative = 0
+        chosen_type = "shield"  # Default
+        for ptype, props in cls.TYPES.items():
+            cumulative += props['spawn_weight']
+            if roll <= cumulative:
+                chosen_type = ptype
+                break
+
+        # Spawn on right side, random Y
+        x = screen_width + 30
+        y = random.randint(100, screen_height - 100)
+        return cls(x, y, chosen_type)
+
+
+class Drone:
+    """Auto-targeting drone that orbits the player and shoots enemies."""
+
+    def __init__(self, owner, angle_offset):
+        self.owner = owner
+        self.angle = angle_offset
+        self.orbit_radius = 80
+        self.x = owner.x
+        self.y = owner.y
+        self.fire_cooldown = 0
+        self.fire_rate = 30  # frames between shots
+
+    def update(self, enemies):
+        """Update drone position and firing."""
+        # Orbit around owner
+        self.angle += 0.05
+        self.x = self.owner.x + self.owner.width // 2 + math.cos(self.angle) * self.orbit_radius
+        self.y = self.owner.y + math.sin(self.angle) * self.orbit_radius
+
+        self.fire_cooldown = max(0, self.fire_cooldown - 1)
+
+        # Auto-target nearest enemy
+        if enemies and self.fire_cooldown <= 0:
+            nearest = min(enemies, key=lambda e: math.hypot(e.x - self.x, e.y - self.y))
+            if math.hypot(nearest.x - self.x, nearest.y - self.y) < 500:
+                self.fire_cooldown = self.fire_rate
+                return Laser(self.x, self.y, 1, (100, 255, 100), speed=20)
+        return None
+
+    def draw(self, surface):
+        """Draw the drone."""
+        drone_surf = pygame.Surface((20, 20), pygame.SRCALPHA)
+        pygame.draw.polygon(drone_surf, (100, 255, 100), [(10, 0), (20, 20), (0, 20)])
+        pygame.draw.polygon(drone_surf, (255, 255, 255), [(10, 0), (20, 20), (0, 20)], 2)
+        surface.blit(drone_surf, (int(self.x - 10), int(self.y - 10)))
 
 
 class Ship:
@@ -805,25 +997,47 @@ class StarField:
 
 class SpaceShooterGame:
     """Main space shooter mini-game with waves of enemies."""
+
+    # Scoring constants
+    SCORE_ENEMY = 100
+    SCORE_BOSS = 1000  # Final wave enemy bonus
+    SCORE_WAVE_CLEAR = 500
+    SCORE_NO_DAMAGE = 200  # Per wave, if took no damage during wave
+    SCORE_ASTEROID = 50
+
     def __init__(self, screen_width, screen_height, player_faction, ai_faction):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.player_faction = player_faction
         self.ai_faction = ai_faction
-        
+
         # Game state
         self.running = True
         self.game_over = False
         self.winner = None
         self.exit_to_menu = False
-        
+
         # Wave system
         self.current_wave = 1
         self.max_waves = 5
         self.wave_complete = False
         self.wave_transition_timer = 0
         self.enemies_defeated = 0
-        
+
+        # Scoring system
+        self.score = 0
+        self.wave_damage_taken = False  # Track if damage taken this wave
+        self.asteroids_destroyed = 0
+
+        # Power-up system
+        self.powerups = []
+        self.powerup_spawn_timer = 0
+        self.powerup_spawn_rate = 400  # frames between spawn chances
+        self.active_powerups = {}  # type -> remaining_frames
+        self.drones = []  # Active drone swarm
+        self.base_fire_rate = None  # Store original fire rate
+        self.base_damage_mult = 1.0
+
         # All faction options for variety
         self.all_factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance"]
         
@@ -925,7 +1139,70 @@ class SpaceShooterGame:
             if event.key == pygame.K_SPACE:
                 self.player_firing = False
                 self.player_ship.stop_beam()
-    
+
+    def _save_score(self):
+        """Save the score to the high score table."""
+        try:
+            from deck_persistence import get_persistence
+            persistence = get_persistence()
+            rank = persistence.save_space_shooter_score(
+                faction=self.player_faction,
+                score=self.score,
+                waves_cleared=self.current_wave if self.winner == "player" else self.current_wave - 1,
+                enemies_defeated=self.enemies_defeated,
+                won=(self.winner == "player")
+            )
+            self.final_rank = rank
+        except Exception as e:
+            print(f"[space_shooter] Failed to save score: {e}")
+            self.final_rank = 0
+
+    def _apply_powerup(self, powerup):
+        """Apply the effect of a collected power-up."""
+        ptype = powerup.type
+        props = powerup.props
+
+        if ptype == "shield":
+            # Instant: +50 shields
+            self.player_ship.shields = min(self.player_ship.max_shields,
+                                          self.player_ship.shields + 50)
+        elif ptype == "rapid_fire":
+            # Store original fire rate if not already stored
+            if self.base_fire_rate is None:
+                self.base_fire_rate = self.player_ship.fire_rate
+            self.player_ship.fire_rate = max(5, self.base_fire_rate // 2)
+            self.active_powerups["rapid_fire"] = props["duration"]
+        elif ptype == "drone":
+            # Spawn 3 drones
+            self.drones = []
+            for i in range(3):
+                angle = (i * 2 * math.pi / 3)
+                self.drones.append(Drone(self.player_ship, angle))
+            self.active_powerups["drone"] = props["duration"]
+        elif ptype == "damage":
+            # +25% damage
+            self.base_damage_mult = 1.25
+            self.active_powerups["damage"] = props["duration"]
+        elif ptype == "cloak":
+            # Player becomes invisible to enemies
+            self.active_powerups["cloak"] = props["duration"]
+
+    def _expire_powerup(self, ptype):
+        """Handle expiration of a power-up effect."""
+        if ptype == "rapid_fire":
+            if self.base_fire_rate is not None:
+                self.player_ship.fire_rate = self.base_fire_rate
+        elif ptype == "drone":
+            self.drones = []
+        elif ptype == "damage":
+            self.base_damage_mult = 1.0
+        elif ptype == "cloak":
+            pass  # Just expires, no special handling
+
+    def is_cloaked(self):
+        """Check if player is currently cloaked."""
+        return self.active_powerups.get("cloak", 0) > 0
+
     def update(self):
         """Update game state."""
         # Handle wave transition
@@ -936,6 +1213,7 @@ class SpaceShooterGame:
                 if self.current_wave > self.max_waves:
                     self.game_over = True
                     self.winner = "player"
+                    self._save_score()
                 else:
                     self.spawn_wave_enemies()
                     self.wave_complete = False
@@ -957,13 +1235,18 @@ class SpaceShooterGame:
         # Update all AI ships with smart behavior
         for ai_ship in self.ai_ships:
             ai_ship.update_ai(self.player_ship, self.asteroids, self.ai_ships)
-            
-            # AI firing
+
+            # AI firing - but not if player is cloaked!
+            if self.is_cloaked():
+                # Stop any active beams when player cloaks
+                ai_ship.stop_beam()
+                continue  # Skip firing logic
+
             if not hasattr(ai_ship, 'ai_fire_timer'):
                 ai_ship.ai_fire_timer = 0
             ai_ship.ai_fire_timer -= 1
             y_diff = abs(ai_ship.y - self.player_ship.y)
-            
+
             # Handle beam weapons - continuous fire when aligned
             if ai_ship.weapon_type == "beam":
                 if y_diff < 80:  # AI aims beam when close to player's Y
@@ -988,6 +1271,8 @@ class SpaceShooterGame:
             else:
                 projectile = self.player_ship.fire()
                 if projectile:
+                    # Apply damage multiplier from power-ups
+                    projectile.damage = int(projectile.damage * self.base_damage_mult)
                     self.projectiles.append(projectile)
         
         # Spawn asteroids
@@ -995,12 +1280,50 @@ class SpaceShooterGame:
         if self.asteroid_spawn_timer >= self.asteroid_spawn_rate:
             self.asteroid_spawn_timer = 0
             self.asteroids.append(Asteroid(self.screen_width, self.screen_height))
-        
+
         # Update asteroids
         for asteroid in self.asteroids[:]:
             asteroid.update()
             if not asteroid.active:
                 self.asteroids.remove(asteroid)
+
+        # Spawn power-ups
+        self.powerup_spawn_timer += 1
+        if self.powerup_spawn_timer >= self.powerup_spawn_rate:
+            self.powerup_spawn_timer = 0
+            # Random chance to spawn (50% total, distributed by weight)
+            if random.random() < 0.5:
+                self.powerups.append(PowerUp.spawn_random(self.screen_width, self.screen_height))
+
+        # Update power-ups
+        for powerup in self.powerups[:]:
+            powerup.update()
+            if not powerup.active:
+                self.powerups.remove(powerup)
+                continue
+
+            # Check collision with player
+            if powerup.get_rect().colliderect(self.player_ship.get_rect()):
+                self._apply_powerup(powerup)
+                self.powerups.remove(powerup)
+
+        # Update active power-up timers
+        expired = []
+        for ptype, remaining in self.active_powerups.items():
+            if remaining > 0:
+                self.active_powerups[ptype] = remaining - 1
+                if self.active_powerups[ptype] <= 0:
+                    expired.append(ptype)
+
+        for ptype in expired:
+            self._expire_powerup(ptype)
+            del self.active_powerups[ptype]
+
+        # Update drones
+        for drone in self.drones:
+            proj = drone.update(self.ai_ships)
+            if proj:
+                self.projectiles.append(proj)
         
         # Update projectiles
         for proj in self.projectiles[:]:
@@ -1025,18 +1348,30 @@ class SpaceShooterGame:
                                 ai_ship.x + ai_ship.width // 2, ai_ship.y))
                             self.ai_ships.remove(ai_ship)
                             self.enemies_defeated += 1
+                            # Award score for enemy kill
+                            if self.current_wave == self.max_waves and len(self.ai_ships) == 0:
+                                self.score += self.SCORE_BOSS  # Final boss bonus
+                            else:
+                                self.score += self.SCORE_ENEMY
                             # Check if wave complete
                             if len(self.ai_ships) == 0:
                                 self.wave_complete = True
+                                self.score += self.SCORE_WAVE_CLEAR
+                                # No damage bonus
+                                if not self.wave_damage_taken:
+                                    self.score += self.SCORE_NO_DAMAGE
+                                self.wave_damage_taken = False  # Reset for next wave
                         break
             else:  # AI projectile hitting player
                 if proj_rect.colliderect(self.player_ship.get_rect()):
                     if proj in self.projectiles:
                         self.projectiles.remove(proj)
                     self.player_hit_flash = 10
+                    self.wave_damage_taken = True  # Track damage for no-damage bonus
                     if self.player_ship.take_damage(proj.damage):
                         self.game_over = True
                         self.winner = "ai"
+                        self._save_score()
                         self.explosions.append(Explosion(
                             self.player_ship.x + self.player_ship.width // 2,
                             self.player_ship.y))
@@ -1051,6 +1386,10 @@ class SpaceShooterGame:
                         self.explosions.append(Explosion(asteroid.x, asteroid.y))
                         if asteroid in self.asteroids:
                             self.asteroids.remove(asteroid)
+                        # Award points for asteroid destruction (player projectiles only)
+                        if proj.direction == 1:
+                            self.score += self.SCORE_ASTEROID
+                            self.asteroids_destroyed += 1
                     break
         
         # Check beam collision
@@ -1104,6 +1443,8 @@ class SpaceShooterGame:
                         self.explosions.append(Explosion(hit_target.x, hit_target.y))
                         if hit_target in self.asteroids:
                             self.asteroids.remove(hit_target)
+                        self.score += self.SCORE_ASTEROID
+                        self.asteroids_destroyed += 1
                 else:
                     hit_target.hit_flash = 3
                     if hit_target.take_damage(beam.damage_per_frame):
@@ -1111,8 +1452,17 @@ class SpaceShooterGame:
                             hit_target.x + hit_target.width // 2, hit_target.y))
                         self.ai_ships.remove(hit_target)
                         self.enemies_defeated += 1
+                        # Award score
+                        if self.current_wave == self.max_waves and len(self.ai_ships) == 0:
+                            self.score += self.SCORE_BOSS
+                        else:
+                            self.score += self.SCORE_ENEMY
                         if len(self.ai_ships) == 0:
                             self.wave_complete = True
+                            self.score += self.SCORE_WAVE_CLEAR
+                            if not self.wave_damage_taken:
+                                self.score += self.SCORE_NO_DAMAGE
+                            self.wave_damage_taken = False
         
         # Check AI beam collision with player
         for ai_ship in self.ai_ships:
@@ -1152,9 +1502,11 @@ class SpaceShooterGame:
                                 self.asteroids.remove(hit_target)
                     else:
                         self.player_hit_flash = 3
+                        self.wave_damage_taken = True  # Track damage
                         if self.player_ship.take_damage(beam.damage_per_frame):
                             self.game_over = True
                             self.winner = "ai"
+                            self._save_score()
                             self.explosions.append(Explosion(
                                 self.player_ship.x + self.player_ship.width // 2,
                                 self.player_ship.y))
@@ -1207,7 +1559,11 @@ class SpaceShooterGame:
         # Draw asteroids
         for asteroid in self.asteroids:
             asteroid.draw(surface)
-        
+
+        # Draw power-ups
+        for powerup in self.powerups:
+            powerup.draw(surface)
+
         # Draw projectiles
         for proj in self.projectiles:
             proj.draw(surface)
@@ -1229,8 +1585,19 @@ class SpaceShooterGame:
                 flash_surf.blit(flash_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
                 surface.blit(flash_surf, (0, 0))
             else:
-                self.player_ship.draw(surface, time_tick)
-        
+                # Apply cloak effect if active
+                if self.is_cloaked():
+                    cloak_surf = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+                    self.player_ship.draw(cloak_surf, time_tick)
+                    cloak_surf.set_alpha(100)  # Semi-transparent
+                    surface.blit(cloak_surf, (0, 0))
+                else:
+                    self.player_ship.draw(surface, time_tick)
+
+        # Draw drones
+        for drone in self.drones:
+            drone.draw(surface)
+
         # Draw all AI ships
         for ai_ship in self.ai_ships:
             hit_flash = getattr(ai_ship, 'hit_flash', 0)
@@ -1257,19 +1624,56 @@ class SpaceShooterGame:
         # Title
         title = self.title_font.render("STARGATE SPACE BATTLE", True, (255, 215, 0))
         surface.blit(title, (self.screen_width // 2 - title.get_width() // 2, 20))
-        
+
         # Wave info
         wave_text = self.ui_font.render(f"WAVE {self.current_wave}/{self.max_waves}", True, (255, 200, 100))
         surface.blit(wave_text, (self.screen_width // 2 - wave_text.get_width() // 2, 80))
-        
+
         # Enemies remaining
         enemies_text = self.small_font.render(f"Enemies: {len(self.ai_ships)}", True, (255, 100, 100))
         surface.blit(enemies_text, (self.screen_width // 2 - enemies_text.get_width() // 2, 115))
-        
+
+        # Score display (top-left)
+        score_text = self.ui_font.render(f"SCORE: {self.score:,}", True, (255, 215, 0))
+        surface.blit(score_text, (20, 20))
+
+        # Score breakdown hint
+        score_hint = self.small_font.render(f"Enemies: {self.enemies_defeated} | Asteroids: {self.asteroids_destroyed}", True, (180, 180, 180))
+        surface.blit(score_hint, (20, 55))
+
+        # Active power-ups indicator (top-right)
+        if self.active_powerups:
+            powerup_y = 20
+            for ptype, remaining in self.active_powerups.items():
+                if remaining > 0:
+                    props = PowerUp.TYPES.get(ptype, {})
+                    name = props.get("name", ptype)
+                    duration = props.get("duration", 1)
+                    pct = remaining / max(duration, 1)
+
+                    # Draw power-up indicator box
+                    box_width = 150
+                    box_height = 30
+                    box_x = self.screen_width - box_width - 20
+
+                    # Background
+                    pygame.draw.rect(surface, (30, 30, 50),
+                                   (box_x, powerup_y, box_width, box_height), border_radius=5)
+                    # Progress bar
+                    bar_width = int((box_width - 10) * pct)
+                    color = props.get("color", (100, 200, 255))
+                    pygame.draw.rect(surface, color,
+                                   (box_x + 5, powerup_y + 5, bar_width, box_height - 10), border_radius=3)
+                    # Text
+                    text = self.small_font.render(name, True, (255, 255, 255))
+                    surface.blit(text, (box_x + 10, powerup_y + 5))
+
+                    powerup_y += box_height + 5
+
         # Player faction label
         player_label = self.ui_font.render(self.player_faction.upper(), True, self.player_ship.laser_color)
         surface.blit(player_label, (50, self.screen_height - 50))
-        
+
         # Controls hint
         controls = self.small_font.render("W/S or ↑/↓: Move  |  SPACE: Fire  |  ESC: Exit", True, (150, 150, 150))
         surface.blit(controls, (self.screen_width // 2 - controls.get_width() // 2, self.screen_height - 30))
@@ -1295,7 +1699,7 @@ class SpaceShooterGame:
             overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 150))
             surface.blit(overlay, (0, 0))
-            
+
             if self.winner == "player":
                 result_text = "VICTORY!"
                 result_color = (255, 215, 0)
@@ -1304,17 +1708,35 @@ class SpaceShooterGame:
                 result_text = "DEFEAT"
                 result_color = (255, 50, 50)
                 sub_text = f"Destroyed on wave {self.current_wave}. {self.enemies_defeated} enemies defeated."
-            
+
             result_surf = self.title_font.render(result_text, True, result_color)
             sub_surf = self.ui_font.render(sub_text, True, (200, 200, 200))
+
+            # Score display
+            score_surf = self.title_font.render(f"SCORE: {self.score:,}", True, (255, 215, 0))
+
+            # Show rank if saved
+            rank_text = ""
+            if hasattr(self, 'final_rank') and self.final_rank > 0:
+                if self.final_rank == 1:
+                    rank_text = "NEW HIGH SCORE!"
+                else:
+                    rank_text = f"Rank #{self.final_rank} for {self.player_faction}"
+            rank_surf = self.ui_font.render(rank_text, True, (100, 255, 100)) if rank_text else None
+
             restart_surf = self.ui_font.render("Press R to play again or ESC to exit", True, (150, 150, 150))
-            
-            surface.blit(result_surf, (self.screen_width // 2 - result_surf.get_width() // 2, 
-                                       self.screen_height // 2 - 80))
-            surface.blit(sub_surf, (self.screen_width // 2 - sub_surf.get_width() // 2,
-                                    self.screen_height // 2))
-            surface.blit(restart_surf, (self.screen_width // 2 - restart_surf.get_width() // 2,
-                                        self.screen_height // 2 + 60))
+
+            y_offset = self.screen_height // 2 - 120
+            surface.blit(result_surf, (self.screen_width // 2 - result_surf.get_width() // 2, y_offset))
+            y_offset += 70
+            surface.blit(score_surf, (self.screen_width // 2 - score_surf.get_width() // 2, y_offset))
+            y_offset += 60
+            if rank_surf:
+                surface.blit(rank_surf, (self.screen_width // 2 - rank_surf.get_width() // 2, y_offset))
+                y_offset += 40
+            surface.blit(sub_surf, (self.screen_width // 2 - sub_surf.get_width() // 2, y_offset))
+            y_offset += 50
+            surface.blit(restart_surf, (self.screen_width // 2 - restart_surf.get_width() // 2, y_offset))
 
 
 class ShipSelectScreen:
