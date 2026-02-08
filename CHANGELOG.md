@@ -1,3 +1,26 @@
+### Version 5.7.0 (February 2026)
+**Main Game Loop Refactor & Draft Mode Penalty Fix**
+
+Refactored the 4150-line `main.py` monolith into a modular architecture with a centralized state dataclass, extracted event handling and rendering, and fixed a bug where draft mode decks were unfairly penalized.
+
+#### Bug Fix: Draft Mode Penalties
+- ✅ **Draft Penalty Exemption** -- Draft mode decks are cross-faction by design but were getting hit by Mercenary Tax (-25%) and Ori Corruption (-50%); now correctly exempted via `exempt_penalties` parameter
+- ✅ **Player.__init__ `exempt_penalties`** -- New parameter to skip Mercenary Tax and Ori Corruption checks for designated players
+- ✅ **Game.__init__ `player1_exempt_penalties`** -- Passed through to Player 1 creation, set `True` for draft mode in `game_setup.py`
+
+#### Main Loop Architecture Refactor
+- ✅ **GameLoopState Dataclass** -- New `game_loop_state.py` replaces ~100 local variables in `main()` with a single organized `GameLoopState` dataclass
+- ✅ **Event Handler Extraction** -- New `event_handler.py` with `handle_events()` function (~1210 lines of keyboard, mouse, and UI event processing)
+- ✅ **Rendering Extraction** -- New `frame_renderer.py` with `render_frame()` function (~1158 lines of board, card, overlay, and debug rendering)
+- ✅ **Dead Code Removal** -- Removed duplicate `_draw_card_details` and `_draw_drag_trail` functions (already in `render_engine.py`) and dead `main()` stub
+- ✅ **LAN Entry Point Fix** -- `run_game_with_context()` now properly delegates to `main()` instead of being a broken `pass` stub
+
+#### Size Reduction
+- `main.py`: 4150 → 1580 lines (62% reduction)
+- New modules: `game_loop_state.py` (132), `event_handler.py` (1268), `frame_renderer.py` (1219)
+
+---
+
 ### Version 5.6.0 (February 2026)
 **Content Manager Modular Refactor & User Content System**
 

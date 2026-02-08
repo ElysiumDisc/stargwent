@@ -504,12 +504,13 @@ LUCIAN_NETWORK_COMBO = LucianNetworkCombo()
 
 class Player:
     """Represents a player in the game."""
-    def __init__(self, name, faction, custom_deck=None, leader=None, rng=None, is_ai=False):
+    def __init__(self, name, faction, custom_deck=None, leader=None, rng=None, is_ai=False, exempt_penalties=False):
         self.name = name
         self.faction = faction
         self.leader = leader  # Leader selection with special ability
         self._rng = rng if rng is not None else random
         self.is_ai = is_ai  # True if this player is controlled by AI (skips Mercenary Tax/Ori Corruption)
+        self.exempt_penalties = exempt_penalties  # True for draft mode (cross-faction by design)
         self.deck = custom_deck if custom_deck else self.build_deck()
         self.hand = []
         self.board = { "close": [], "ranged": [], "siege": [] }
@@ -538,18 +539,18 @@ class Player:
 
         # Check for Neutral Penalty (Mercenary Tax)
         # If deck has > 50% neutral cards, apply 25% power penalty
-        # AI players are exempt from this penalty (they use curated decks)
+        # AI players and draft mode players are exempt (curated/cross-faction by design)
         self.neutral_penalty_active = False
-        if self.deck and not self.is_ai:
+        if self.deck and not self.is_ai and not self.exempt_penalties:
             neutral_count = sum(1 for c in self.deck if c.faction == FACTION_NEUTRAL)
             if neutral_count > len(self.deck) / 2:
                 self.neutral_penalty_active = True
 
         # Check for Ori Corruption (Naquadah over-budget penalty)
         # If deck exceeds Naquadah budget, apply 50% power reduction
-        # AI players are exempt from this penalty (they use curated decks)
+        # AI players and draft mode players are exempt (curated/cross-faction by design)
         self.ori_corrupted = False
-        if self.deck and not self.is_ai:
+        if self.deck and not self.is_ai and not self.exempt_penalties:
             total_naquadah = sum(c.naquadah_cost for c in self.deck)
             if total_naquadah > BALANCE_CONFIG["naquadah_budget"]:
                 self.ori_corrupted = True
@@ -846,13 +847,13 @@ class Game:
 
     def __init__(self, player1_faction=FACTION_TAURI, player1_deck=None, player1_leader=None,
                  player2_faction=FACTION_GOAULD, player2_deck=None, player2_leader=None, seed=None,
-                 player2_is_ai=False):
+                 player2_is_ai=False, player1_exempt_penalties=False):
         self.seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = random.Random(self.seed)
 
         player1_name = self._get_leader_display_name(player1_leader, player1_faction, "Player 1")
         player2_name = self._get_leader_display_name(player2_leader, player2_faction, "Player 2")
-        self.player1 = Player(player1_name, player1_faction, player1_deck, player1_leader, rng=self.rng, is_ai=False)
+        self.player1 = Player(player1_name, player1_faction, player1_deck, player1_leader, rng=self.rng, is_ai=False, exempt_penalties=player1_exempt_penalties)
         self.player2 = Player(player2_name, player2_faction, player2_deck, player2_leader, rng=self.rng, is_ai=player2_is_ai)
 
         # Store faction info for stats tracking

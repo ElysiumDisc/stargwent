@@ -240,6 +240,8 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
     # Initialize Game Object
     # Player 2 is AI for new_game and draft_mode, not for LAN
     is_ai_game = menu_action in ('new_game', 'draft_mode')
+    # Draft mode decks are cross-faction by design, exempt from penalties
+    is_draft = menu_action == 'draft_mode'
     game = Game(
         player1_faction=player_faction,
         player1_deck=player_deck,
@@ -248,7 +250,8 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
         player2_deck=ai_deck,
         player2_leader=ai_leader,
         seed=game_seed,
-        player2_is_ai=is_ai_game
+        player2_is_ai=is_ai_game,
+        player1_exempt_penalties=is_draft
     )
     
     # Flag draft mode if applicable
