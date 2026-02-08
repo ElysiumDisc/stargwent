@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.6.0-blue)
+![Version](https://img.shields.io/badge/version-5.8.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -60,7 +60,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
 
 ### 🎨 Stargate-Authentic UI
-- **MALP Feed History Panel** - Military monitor aesthetic with scan-lines and terminal font
+- **MALP Feed History Panel** - Military monitor aesthetic with scan-lines, score delta badges, turn numbers, round separators, and latest-entry pulse
 - **DHD Buttons** - Authentic Dial Home Device styling with glowing chevrons and cyan crystals
 - **Iris Defense Overlay** - Metallic titanium shutter pattern when Tau'ri shield is active
 - **Retro Neon Leader Nameplates** - Cyberpunk font with faction-colored glow and scanlines
@@ -84,7 +84,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Room Codes** - Share easy codes like "GATE-7K3M" instead of IP addresses
 - **Tailscale Support** - Smart IP detection prioritizes VPN addresses for remote play
 - **Rematch System** - Play again with new faction/leader or disconnect
-- **Integrated Chat** - Press 'T' to chat, quick chat keys 1-5, sound notifications
+- **Integrated Chat** - Press 'T' to chat, quick chat keys 1-0 (Stargate quotes!), message bubbles, opponent name display
 - **Connection Quality** - Real-time latency indicator (green/yellow/red) in HUD
 - **Reliable Connections** - JSON error recovery, host timeout, graceful disconnect handling
 
@@ -104,14 +104,14 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop
 - **Card Unlock System** - Win games to unlock 20+ powerful cards
 - **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
-- **Comprehensive Stats Menu** - Win rates, round breakdowns, matchup history
+- **Comprehensive Stats Menu** - Win rate bars, achievements, fun facts, top 3 leaders with hover preview
 - **Persistent Saves** - All progress saved to JSON
 
 ### 💾 Persistent Progression
 - **Automatic Deck Saving** - Your deck is saved every time you finish customizing
 - **Per-Faction Customization** - Each faction remembers your leader and deck choices
 - **Win Tracking** - Track your wins, losses, and win streaks
-- **Stats Menu** - View comprehensive statistics: overall record, AI vs LAN breakdown, leader usage, matchups, turn counts, and draft mode history
+- **Stats Menu** - Visual win rate bars, earned achievements, fun facts, top 3 leaders, overall record, AI vs LAN breakdown, matchups, turn counts, and draft mode history
 - **Leader Unlocks** - Earn new leaders every 3 consecutive wins
 - **Cross-Session Saves** - All progress saved in `player_decks.json` and `player_unlocks.json`
 

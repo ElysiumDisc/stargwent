@@ -271,7 +271,7 @@ class GameHistoryEntry:
         "transport": "o",
     }
     
-    def __init__(self, event_type, description, owner, card_ref=None, icon=None, row=None, delta=0, targets=None):
+    def __init__(self, event_type, description, owner, card_ref=None, icon=None, row=None, delta=0, targets=None, turn_number=0, scores=None):
         self.event_type = event_type
         self.description = description
         self.owner = owner  # 'player' or 'ai'
@@ -281,6 +281,8 @@ class GameHistoryEntry:
         self.row = row
         self.delta = delta      # How much the score changed (e.g., +5 or -10)
         self.targets = targets  # List of cards/rows affected
+        self.turn_number = turn_number  # Which turn this event occurred on
+        self.scores = scores    # Tuple of (player1_score, player2_score) at time of event
         self.timestamp = time.time()
     
     def apply_effect(self, game, player):
@@ -954,7 +956,8 @@ class Game:
 
     def add_history_event(self, event_type, description, owner, card_ref=None, icon=None, row=None, delta=0, targets=None):
         """Append a new entry to the history log."""
-        entry = GameHistoryEntry(event_type, description, owner, card_ref=card_ref, icon=icon, row=row, delta=delta, targets=targets)
+        scores = (self.player1.score, self.player2.score)
+        entry = GameHistoryEntry(event_type, description, owner, card_ref=card_ref, icon=icon, row=row, delta=delta, targets=targets, turn_number=self.turn_count, scores=scores)
         self.history.append(entry)
         if len(self.history) > 200:
             self.history.pop(0)
@@ -969,18 +972,20 @@ class Game:
     def _log_card_play(self, player, card, row_name=None, note=None):
         """Helper to log standard card plays with power info."""
         # Include power for unit cards
+        delta = 0
         if card.row in ["close", "ranged", "siege", "agile"]:
             power_str = f" [{card.power}]"
+            delta = card.displayed_power if card.displayed_power else card.power
         else:
             power_str = ""
-        
+
         desc = f"{player.name} deployed {card.name}{power_str}"
         if row_name:
             row_display = {"close": "Close", "ranged": "Ranged", "siege": "Siege"}.get(row_name, row_name.title())
             desc += f" → {row_display}"
         if note:
             desc += f" ({note})"
-        
+
         # Select appropriate icon based on card type
         if is_hero(card):
             icon = "*"
@@ -992,8 +997,8 @@ class Game:
             icon = "*"
         else:
             icon = ">"
-        
-        self.add_history_event("card_play", desc, self._owner_label(player), card_ref=card, row=row_name, icon=icon)
+
+        self.add_history_event("card_play", desc, self._owner_label(player), card_ref=card, row=row_name, icon=icon, delta=delta)
 
     def _apply_leader_round_start_effects(self, player):
         """Handle leader-specific triggers that occur at round start."""
@@ -2434,8 +2439,10 @@ class Game:
 
         destroyed_positions = []
         destroyed_cards = []
+        total_power_lost = 0
         for card, player, row_name in units_to_destroy:
             if card in player.board[row_name]:
+                total_power_lost += card.displayed_power
                 player.board[row_name].remove(card)
                 player.discard_pile.append(card)
                 destroyed_positions.append((player, row_name))
@@ -2448,7 +2455,9 @@ class Game:
                 "scorch",
                 f"Naquadah Overload destroyed: {cards_text}",
                 "neutral",
-                icon="X"
+                icon="X",
+                delta=-total_power_lost,
+                targets=[c[0] for c in destroyed_cards]
             )
 
         return destroyed_positions
@@ -2561,7 +2570,8 @@ class Game:
                 f"Destroyed {victim.name}",
                 target_label,
                 card_ref=victim,
-                icon="X"
+                icon="X",
+                delta=-victim.displayed_power
             )
 
             return [victim_row]

@@ -834,10 +834,11 @@ def main(lan_game_data=None):
             game.add_history_event("chat", f"{prefix}: {text}", owner, icon='"')
 
         lan_chat_panel = LanChatPanel(
-            LAN_CONTEXT.session, 
-            LAN_CONTEXT.role, 
-            max_lines=12, 
-            on_message=push_chat_to_history
+            LAN_CONTEXT.session,
+            LAN_CONTEXT.role,
+            max_lines=12,
+            on_message=push_chat_to_history,
+            peer_name=game.player2.name,
         )
         
         lan_chat_panel.add_message("System", f"Connected as {LAN_CONTEXT.role}. Type 'T' to chat!")

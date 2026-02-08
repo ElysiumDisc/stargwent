@@ -1,3 +1,31 @@
+### Version 5.8.0 (February 2026)
+**LAN Chat, Game History & Stats UI Improvements**
+
+UX polish across three systems: enhanced LAN chat with message bubbles and opponent names, richer game history tracking with score deltas and visual separators, and an upgraded stats screen with win rate bars, achievements, and fun facts.
+
+#### LAN Chat Improvements
+- ✅ **Message Length Limit** -- 200-character cap with live counter that changes color (dim -> gold -> red)
+- ✅ **Expanded Quick Chats** -- 10 quick chat messages (keys 1-0) including Stargate quotes like "Indeed.", "Kree!", and "Undomesticated equines could not drag me away"
+- ✅ **Opponent Name Display** -- Chat shows actual opponent name instead of "Peer"; typing indicator reads "{Name} is dialing..."
+- ✅ **Message Bubbles** -- Right-aligned dark blue bubbles for your messages, left-aligned dark purple for opponent, centered gold for system messages with colored borders and sender labels
+
+#### Game History Enhancements
+- ✅ **Turn & Score Tracking** -- Every history entry now records turn number and current scores at time of event
+- ✅ **Score Delta Badges** -- Card plays show "+5" green badges, scorch/destroy events show "-10" red badges at entry edge
+- ✅ **Turn Number Labels** -- Small "T3" badge in bottom-right of each entry
+- ✅ **Running Score Display** -- Tiny "45|32" score indicator in top-right corner of entries
+- ✅ **Round Separators** -- Round start/end entries render as gold horizontal dividers with centered text and score display
+- ✅ **Latest Entry Pulse** -- Most recent entry has a subtle white sine-wave pulse overlay
+
+#### Stats UI Improvements
+- ✅ **Win Rate Bars** -- Faction win rates, game modes, and leader stats now show colored progress bars below text
+- ✅ **Highlights/Achievements** -- Earned badges at top of stats: Recruit/Veteran/Centurion, On Fire/Unstoppable, Dominator, Faction Master, Perfect Draft, Comeback King
+- ✅ **Section Visual Hierarchy** -- Glowing gradient underlines on section headers, alternating row backgrounds for better readability
+- ✅ **Top 3 Leaders** -- Shows top 3 most-played leaders with win rate bars and hover preview (was top 1)
+- ✅ **Fun Facts Section** -- Total cards played, cards per game, most used ability, avg mulligans, draft battles per run
+
+---
+
 ### Version 5.7.0 (February 2026)
 **Main Game Loop Refactor & Draft Mode Penalty Fix**
 

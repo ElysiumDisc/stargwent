@@ -354,10 +354,70 @@ def run_stats_menu(screen):
             rows.append({"type": "section", "text": text})
         def add_row(label, value, meta=None):
             rows.append({"type": "row", "label": label, "value": value, "meta": meta})
+        def add_bar_row(label, value, pct, bar_color, meta=None):
+            rows.append({"type": "bar_row", "label": label, "value": value, "pct": pct, "bar_color": bar_color, "meta": meta})
+
+        # Faction color mapping for bars and dots
+        faction_bar_colors = {
+            "Tau'ri": (100, 150, 255),
+            "Goa'uld": (255, 180, 50),
+            "Jaffa Rebellion": (200, 150, 100),
+            "Lucian Alliance": (200, 80, 200),
+            "Asgard": (100, 255, 255),
+        }
+
+        # === Highlights / Achievements ===
+        total_games = computed["total_games"]
+        total_wins = computed["total_wins"]
+        streak = computed["streak"]
+        max_streak_val = computed.get("max_streak", 0)
+        winrate = (total_wins / total_games * 100) if total_games > 0 else 0
+        comebacks = stats.get("round_stats", {}).get("comebacks", 0)
+        draft = stats.get("draft_stats", {})
+        perfect_draft_runs = draft.get("perfect_runs", 0) if draft else 0
+
+        achievements = []
+        # Games milestones
+        if total_games >= 100:
+            achievements.append("* Centurion (100+ games)")
+        elif total_games >= 50:
+            achievements.append("* Veteran (50+ games)")
+        elif total_games >= 10:
+            achievements.append("* Recruit (10+ games)")
+        # Streak
+        best_streak = max(streak, max_streak_val)
+        if best_streak >= 10:
+            achievements.append("* Unstoppable (10+ win streak)")
+        elif best_streak >= 5:
+            achievements.append("* On Fire (5+ win streak)")
+        # Win rate
+        if winrate >= 70 and total_games >= 10:
+            achievements.append("* Dominator (70%+ WR)")
+        # Faction mastery
+        faction_wins_data = stats.get("faction_wins", {})
+        matchups_data = stats.get("matchups", {})
+        for fname in ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard"]:
+            fg = 0
+            if fname in matchups_data:
+                for opp, rec in matchups_data[fname].items():
+                    fg += rec.get("games", 0)
+            if fg >= 20:
+                achievements.append(f"* {fname} Master (20+ games)")
+                break  # Only show one faction mastery
+        # Perfect Draft
+        if perfect_draft_runs > 0:
+            achievements.append("* Perfect Draft (8-0 run)")
+        # Comeback King
+        if comebacks >= 5:
+            achievements.append("* Comeback King (5+ comebacks)")
+
+        if achievements:
+            add_section("Highlights")
+            for ach in achievements:
+                rows.append({"type": "achievement", "text": ach})
 
         # Overall
         add_section("Overall")
-        winrate = (computed["total_wins"] / computed["total_games"] * 100) if computed["total_games"] > 0 else 0
         add_row("Games Played", str(computed["total_games"]))
         add_row("Wins / Losses", f"{computed['total_wins']} / {computed['total_losses']}")
         add_row("Win Rate", f"{winrate:.1f}%")
@@ -371,48 +431,46 @@ def run_stats_menu(screen):
             add_row("Cards Unlocked", "20 / 20 (Unlock All ON)")
         else:
             unlocked_leaders = stats.get("unlocked_leaders", {})
-            # Handle list vs dict format for legacy compatibility
             if isinstance(unlocked_leaders, list):
                 leader_count = len(unlocked_leaders)
             else:
                 leader_count = sum(len(leaders) for leaders in unlocked_leaders.values())
-                
             unlocked_cards = stats.get("unlocked_cards", [])
             add_row("Leaders Unlocked", f"{leader_count} / 20")
             add_row("Cards Unlocked", f"{len(unlocked_cards)} / 20")
 
-        # Faction Win Rates
+        # Faction Win Rates (with bars)
         add_section("Faction Win Rates")
         faction_wins = stats.get("faction_wins", {})
         for faction_name in ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard"]:
             wins = faction_wins.get(faction_name, 0)
-            # Calculate games played with this faction from matchups
             matchups = stats.get("matchups", {})
             games = 0
             if faction_name in matchups:
                 for opp, rec in matchups[faction_name].items():
                     games += rec.get("games", 0)
-            
-            # Show games played
             if games > 0:
                 faction_wr = (wins / games) * 100
-                add_row(faction_name, f"{wins}W / {games - wins}L ({faction_wr:.0f}%)", meta={"games": games})
+                bar_color = faction_bar_colors.get(faction_name, (150, 150, 150))
+                add_bar_row(faction_name, f"{wins}W / {games - wins}L ({faction_wr:.0f}%)", faction_wr / 100.0, bar_color, meta={"faction": faction_name, "games": games})
             elif wins > 0:
                 add_row(faction_name, f"{wins} wins (Games data incomplete)")
-            else:
-                 # Optional: hide if no games, or show 0
-                 pass
 
-        # By Mode
+        # By Mode (with bars)
         add_section("By Mode")
         ai_losses = max(0, computed["ai_games"] - computed["ai_wins"])
         lan_losses = max(0, computed["lan_games"] - computed["lan_wins"])
         ai_wr = (computed["ai_wins"] / computed["ai_games"] * 100) if computed["ai_games"] > 0 else 0
         lan_wr = (computed["lan_wins"] / computed["lan_games"] * 100) if computed["lan_games"] > 0 else 0
-        add_row("AI Games", f"{computed['ai_wins']}W / {ai_losses}L ({ai_wr:.0f}%)" if computed["ai_games"] > 0 else "No games")
-        add_row("LAN Games", f"{computed['lan_wins']}W / {lan_losses}L ({lan_wr:.0f}%)" if computed["lan_games"] > 0 else "No games")
-        
-        # New: First Turn Advantage
+        if computed["ai_games"] > 0:
+            add_bar_row("AI Games", f"{computed['ai_wins']}W / {ai_losses}L ({ai_wr:.0f}%)", ai_wr / 100.0, (100, 180, 255))
+        else:
+            add_row("AI Games", "No games")
+        if computed["lan_games"] > 0:
+            add_bar_row("LAN Games", f"{computed['lan_wins']}W / {lan_losses}L ({lan_wr:.0f}%)", lan_wr / 100.0, (100, 255, 180))
+        else:
+            add_row("LAN Games", "No games")
+
         if computed.get("first_turn_games", 0) > 0:
             add_row("First Turn WR", f"{computed['first_turn_wins']} / {computed['first_turn_games']} ({computed['first_turn_wr']:.1f}%)")
 
@@ -421,50 +479,44 @@ def run_stats_menu(screen):
         round_stats = stats.get("round_stats", {})
         sweeps = round_stats.get("sweeps_for", 0)
         close_wins = round_stats.get("close_wins", 0)
-        comebacks = round_stats.get("comebacks", 0)
+        comebacks_val = round_stats.get("comebacks", 0)
         sweeps_against = round_stats.get("sweeps_against", 0)
         close_losses = round_stats.get("close_losses", 0)
         add_row("Perfect Games (2-0)", str(sweeps))
         add_row("Close Wins (2-1)", str(close_wins))
-        add_row("Comeback Wins", str(comebacks))
+        add_row("Comeback Wins", str(comebacks_val))
         add_row("Swept (0-2)", str(sweeps_against))
         add_row("Close Losses (1-2)", str(close_losses))
 
-        # Leaders
-        add_section("Leaders")
-        top_leader = computed.get("top_leader") or "No data"
-        leader_meta = None
-        leader_wr_text = ""
-        if computed.get("top_leader"):
-            # FACTION_LEADERS values are lists of leader dicts
-            for faction_id, leader_list in FACTION_LEADERS.items():
-                for ldata in leader_list:
-                    if ldata.get("name") == computed["top_leader"]:
-                        leader_meta = {"leader_id": ldata.get("card_id"), "faction": faction_id, "name": ldata.get("name")}
-                        break
-                if leader_meta:
-                    break
-            
-            # Fallback: Search ALL_CARDS if registry match failed (defensive coding)
-            if not leader_meta:
-                for cid, card in ALL_CARDS.items():
-                    if card.name == computed["top_leader"]:
-                        leader_meta = {
-                            "leader_id": cid, 
-                            "faction": card.faction, 
-                            "name": card.name
-                        }
-                        break
-
-            # Get leader win rate
-            leader_stats = computed.get("leader_stats", {})
-            if computed["top_leader"] in leader_stats:
-                ls = leader_stats[computed["top_leader"]]
+        # Leaders - Top 3 with bars
+        add_section("Top Leaders")
+        leader_stats_data = computed.get("leader_stats", {})
+        if leader_stats_data:
+            # Sort by games played, take top 3
+            sorted_leaders = sorted(leader_stats_data.items(), key=lambda kv: kv[1].get("games", 0), reverse=True)[:3]
+            for leader_name, ls in sorted_leaders:
                 lg = ls.get("games", 0)
                 lw = ls.get("wins", 0)
-                if lg > 0:
-                    leader_wr_text = f" ({lw}/{lg} = {lw/lg*100:.0f}%)"
-        add_row("Most Played Leader", top_leader + leader_wr_text, meta=leader_meta)
+                if lg == 0:
+                    continue
+                lr = lw / lg
+                # Find leader meta for hover preview
+                leader_meta = None
+                for faction_id, leader_list in FACTION_LEADERS.items():
+                    for ldata in leader_list:
+                        if ldata.get("name") == leader_name:
+                            leader_meta = {"leader_id": ldata.get("card_id"), "faction": faction_id, "name": leader_name}
+                            break
+                    if leader_meta:
+                        break
+                if not leader_meta:
+                    for cid, card in ALL_CARDS.items():
+                        if card.name == leader_name:
+                            leader_meta = {"leader_id": cid, "faction": card.faction, "name": card.name}
+                            break
+                add_bar_row(leader_name, f"{lw}W / {lg - lw}L ({lr*100:.0f}%) - {lg} games", lr, (200, 180, 100), meta=leader_meta)
+        else:
+            add_row("Top Leaders", "No data")
 
         # Matchups
         add_section("Matchups")
@@ -473,16 +525,15 @@ def run_stats_menu(screen):
             add_row("Best Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L")
         else:
             add_row("Best Matchup", "No data")
-        # Add worst matchup
         if computed.get("worst_matchup"):
             pf, of, wins, games = computed["worst_matchup"]
             add_row("Worst Matchup", f"{pf} vs {of}: {wins}W / {games - wins}L")
 
-        # Form - Visual W/L display
+        # Form
         add_section("Recent Form")
         last10 = computed.get("last_results", [])
         if last10:
-            add_row("Last 10 Games", "".join(last10)) # logic handled in rendering
+            add_row("Last 10 Games", "".join(last10))
         else:
             add_row("Last 10 Games", "No games yet")
 
@@ -507,15 +558,32 @@ def run_stats_menu(screen):
         add_section("Top Cards")
         if computed.get("top_cards"):
             for name_key, rec in computed["top_cards"]:
-                # name_key is now the card name
                 plays = rec.get('plays', 0)
                 wins = rec.get('wins', 0)
-                # Use the representative ID stored during recording for the hover preview
                 rep_id = rec.get('id')
                 card_wr = (wins / plays * 100) if plays > 0 else 0
                 add_row(name_key, f"{plays} plays ({card_wr:.0f}% WR)", meta={"card_id": rep_id})
         else:
             add_row("Top Cards", "No data", meta={"card_id": "no_card_data"})
+
+        # Fun Facts
+        add_section("Fun Facts")
+        top_cards_data = stats.get("top_cards", {})
+        total_cards_played = sum(r.get("plays", 0) for r in top_cards_data.values()) if top_cards_data else 0
+        add_row("Total Cards Played", str(total_cards_played))
+        if total_games > 0:
+            add_row("Cards Per Game", f"{total_cards_played / total_games:.1f}" if total_cards_played else "N/A")
+        ab_data = computed.get("abilities", {})
+        if ab_data:
+            most_ability = max(ab_data.items(), key=lambda kv: kv[1], default=None)
+            if most_ability and most_ability[1] > 0:
+                add_row("Most Used Ability", f"{most_ability[0].replace('_', ' ').title()} ({most_ability[1]}x)")
+        add_row("Avg Mulligans/Game", f"{computed['mull_avg']:.1f}" if computed.get("mull_avg") else "N/A")
+        if draft and draft.get("runs_started", 0) > 0:
+            battles_total = draft.get("battles_won", 0) + draft.get("battles_lost", 0)
+            runs_started = draft.get("runs_started", 0)
+            if runs_started > 0:
+                add_row("Draft Battles/Run", f"{battles_total / runs_started:.1f}")
 
         # LAN reliability
         add_section("LAN Reliability")
@@ -525,50 +593,41 @@ def run_stats_menu(screen):
 
         # Draft Mode (Arena)
         add_section("Draft Mode (Arena)")
-        draft = stats.get("draft_stats", {})
         if draft and draft.get("runs_started", 0) > 0:
-            # Draft run stats
             runs_started = draft.get("runs_started", 0)
             runs_completed = draft.get("runs_completed", 0)
             add_row("Runs Started", str(runs_started))
             add_row("Runs Completed", str(runs_completed))
 
-            # Win/loss record
             battles_won = draft.get("battles_won", 0)
             battles_lost = draft.get("battles_lost", 0)
             total_battles = battles_won + battles_lost
             if total_battles > 0:
                 draft_winrate = (battles_won / total_battles) * 100
-                add_row("Battle Record", f"{battles_won}W / {battles_lost}L ({draft_winrate:.1f}%)")
+                add_bar_row("Battle Record", f"{battles_won}W / {battles_lost}L ({draft_winrate:.1f}%)", draft_winrate / 100.0, (255, 200, 80))
             else:
                 add_row("Battle Record", "No battles yet")
 
-            # Best run
             best_run = draft.get("best_run_wins", 0)
             add_row("Best Run", f"{best_run} win{'s' if best_run != 1 else ''}")
-            
-            # Perfect runs
+
             perfect_runs = draft.get("perfect_runs", 0)
             if perfect_runs > 0:
                 add_row("Perfect Runs (8 Wins)", str(perfect_runs))
 
-            # Deck power stats
             avg_power = draft.get("avg_deck_power", 0.0)
             highest_power = draft.get("highest_deck_power", 0)
             add_row("Avg Deck Power", f"{avg_power:.1f}")
             add_row("Highest Deck Power", str(highest_power))
 
-            # Deck stats
-            total_cards = draft.get("total_cards_drafted", 0)
+            total_cards_draft = draft.get("total_cards_drafted", 0)
             if runs_completed > 0:
-                avg_cards = total_cards / runs_completed
+                avg_cards = total_cards_draft / runs_completed
                 add_row("Avg Cards/Run", f"{avg_cards:.1f}")
 
-            # Most drafted leader (with hover preview)
             drafted_leaders = draft.get("drafted_leaders", {})
             if drafted_leaders:
                 most_leader = max(drafted_leaders.items(), key=lambda x: x[1])
-                # Find leader_id for hover preview
                 leader_id = None
                 for lid, ldata in ALL_CARDS.items():
                     if ldata.name == most_leader[0]:
@@ -576,13 +635,11 @@ def run_stats_menu(screen):
                         break
                 add_row("Favorite Leader", f"{most_leader[0]} ({most_leader[1]}x)", meta={"card_id": leader_id} if leader_id else None)
 
-            # Most drafted faction
             drafted_factions = draft.get("drafted_factions", {})
             if drafted_factions:
                 most_faction = max(drafted_factions.items(), key=lambda x: x[1])
                 add_row("Favorite Faction", f"{most_faction[0]} ({most_faction[1]}x)")
 
-            # Most drafted card
             most_card = draft.get("most_drafted_card")
             if most_card and most_card in ALL_CARDS:
                 card_counts = draft.get("card_draft_counts", {})
@@ -593,36 +650,124 @@ def run_stats_menu(screen):
             add_row("Draft Runs", "Play Draft Mode to see stats!")
 
         # Build content surface
-        content_height = max(800, len(rows) * row_gap + 200)
+        # bar_row needs extra height (label + bar), and achievements have their own height
+        bar_row_gap = 56  # Taller for bar rows
+        achievement_gap = 36
+        estimated_height = 0
+        for r in rows:
+            if r["type"] == "bar_row":
+                estimated_height += bar_row_gap
+            elif r["type"] == "achievement":
+                estimated_height += achievement_gap
+            elif r["type"] == "section":
+                estimated_height += row_gap + 8  # Extra padding after section headers
+            else:
+                estimated_height += row_gap
+        content_height = max(800, estimated_height + 200)
         content = pygame.Surface((panel_rect.width, content_height), pygame.SRCALPHA)
         y_cursor = 20
         hover_targets = []
+        data_row_index = 0  # For alternating row backgrounds
+        achievement_font = pygame.font.SysFont("Arial", 26, bold=True)
+
         for entry in rows:
             if entry["type"] == "section":
+                # Extra padding before section (except first)
+                if y_cursor > 30:
+                    y_cursor += 8
                 section = section_font.render(entry["text"], True, (150, 210, 255))
                 content.blit(section, (40, y_cursor))
+                # Glowing underline gradient
+                underline_y = y_cursor + section.get_height() + 2
+                underline_width = min(section.get_width() + 40, panel_rect.width - 80)
+                for ux in range(underline_width):
+                    alpha = max(0, 255 - int(ux * 255 / underline_width))
+                    line_color = (100, 170, 255, alpha)
+                    line_surf = pygame.Surface((1, 2), pygame.SRCALPHA)
+                    line_surf.fill(line_color)
+                    content.blit(line_surf, (40 + ux, underline_y))
+                y_cursor += row_gap + 8
+                data_row_index = 0
+
+            elif entry["type"] == "achievement":
+                # Tinted background strip
+                ach_rect = pygame.Rect(40, y_cursor, panel_rect.width - 80, achievement_gap - 4)
+                ach_bg = pygame.Surface((ach_rect.width, ach_rect.height), pygame.SRCALPHA)
+                ach_bg.fill((80, 70, 20, 60))
+                content.blit(ach_bg, ach_rect.topleft)
+                ach_text = achievement_font.render(entry["text"], True, (255, 215, 0))
+                content.blit(ach_text, (60, y_cursor + 4))
+                y_cursor += achievement_gap
+
+            elif entry["type"] == "bar_row":
+                # Alternating row background
+                if data_row_index % 2 == 1:
+                    alt_bg = pygame.Surface((panel_rect.width - 40, bar_row_gap - 4), pygame.SRCALPHA)
+                    alt_bg.fill((255, 255, 255, 10))
+                    content.blit(alt_bg, (20, y_cursor))
+
+                # Faction color dot for faction rows
+                faction_name = entry.get("meta", {}).get("faction") if entry.get("meta") else None
+                label_x = 60
+                if faction_name and faction_name in faction_bar_colors:
+                    dot_color = faction_bar_colors[faction_name]
+                    pygame.draw.circle(content, dot_color, (50, y_cursor + 10), 5)
+                    label_x = 62
+
+                lbl = label_font.render(entry["label"], True, (180, 200, 230))
+                lbl_rect = lbl.get_rect(topleft=(label_x, y_cursor))
+                content.blit(lbl, lbl_rect)
+
+                # Value text on right
+                val = value_font.render(entry["value"], True, (220, 240, 255))
+                val_rect = val.get_rect(topright=(panel_rect.width - 60, y_cursor))
+                content.blit(val, val_rect)
+
+                # Progress bar below label
+                bar_y = y_cursor + lbl.get_height() + 4
+                bar_width = panel_rect.width - 120
+                bar_height = 12
+                bar_bg_rect = pygame.Rect(60, bar_y, bar_width, bar_height)
+                pygame.draw.rect(content, (40, 50, 70), bar_bg_rect, border_radius=6)
+                fill_width = max(0, int(bar_width * min(1.0, entry["pct"])))
+                if fill_width > 0:
+                    fill_rect = pygame.Rect(60, bar_y, fill_width, bar_height)
+                    pygame.draw.rect(content, entry["bar_color"], fill_rect, border_radius=6)
+
+                meta = entry.get("meta")
+                if meta:
+                    hover_targets.append({
+                        "meta": meta,
+                        "rect": pygame.Rect(lbl_rect.left, lbl_rect.top, val_rect.right - lbl_rect.left, lbl_rect.height + bar_height + 4),
+                    })
+                data_row_index += 1
+                y_cursor += bar_row_gap
+
             else:
+                # Standard row with alternating background
+                if data_row_index % 2 == 1:
+                    alt_bg = pygame.Surface((panel_rect.width - 40, row_gap - 4), pygame.SRCALPHA)
+                    alt_bg.fill((255, 255, 255, 10))
+                    content.blit(alt_bg, (20, y_cursor))
+
                 lbl = label_font.render(entry["label"], True, (180, 200, 230))
                 lbl_rect = lbl.get_rect(topleft=(60, y_cursor))
                 content.blit(lbl, lbl_rect)
-                
+
                 # Special rendering for "Last 10 Games"
                 if entry["label"] == "Last 10 Games" and entry["value"] != "No games yet":
                     value = entry["value"]
                     x_start = lbl_rect.right + 20
-                    # Render each character with spacing
-                    char_spacing = 28  # Increased spacing for better readability
+                    char_spacing = 28
                     for i, ch in enumerate(value):
                         if ch == "W":
-                            color = (100, 255, 100) # Green
+                            color = (100, 255, 100)
                         elif ch == "L":
-                            color = (255, 100, 100) # Red
+                            color = (255, 100, 100)
                         else:
                             color = (220, 240, 255)
-                        
                         ch_surf = value_font.render(ch, True, color)
                         content.blit(ch_surf, (x_start + i * char_spacing, y_cursor))
-                        
                     val_rect = pygame.Rect(x_start, y_cursor, len(value)*char_spacing, ch_surf.get_height())
                 else:
                     val = value_font.render(entry["value"], True, (220, 240, 255))
@@ -635,7 +780,8 @@ def run_stats_menu(screen):
                         "meta": meta,
                         "rect": pygame.Rect(lbl_rect.left, lbl_rect.top, val_rect.right - lbl_rect.left, lbl_rect.height),
                     })
-            y_cursor += row_gap
+                data_row_index += 1
+                y_cursor += row_gap
 
         max_scroll = max(0, content_height - viewport_height)
         scroll_offset = max(0, min(max_scroll, scroll_offset))

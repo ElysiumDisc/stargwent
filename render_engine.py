@@ -620,6 +620,12 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
     player_color = cfg.FACTION_GLOW_COLORS.get(game.player1.faction, (100, 200, 255))
     ai_color = cfg.FACTION_GLOW_COLORS.get(game.player2.faction, (255, 120, 120))
 
+    # Small fonts for badges
+    badge_font = _get_cached_font(max(9, int(10 * display_manager.SCALE_FACTOR)), bold=True)
+    score_font = _get_cached_font(max(9, int(10 * display_manager.SCALE_FACTOR)))
+    last_entry = entries[-1] if entries else None
+    now_ticks = pygame.time.get_ticks()
+
     for entry, entry_height, wrapped_lines in reversed(formatted_entries):
         y_cursor -= entry_height
         entry_rect = pygame.Rect(panel_rect.x + padding, y_cursor, panel_rect.width - 2 * padding, entry_height - 4)
@@ -627,6 +633,8 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
             continue
         if entry_rect.top > panel_rect.bottom:
             continue
+
+        is_round_separator = entry.event_type in ("round_start", "round_end")
 
         owner_color = player_color if entry.owner == "player" else ai_color
         if entry.event_type == "system":
@@ -637,25 +645,70 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
             else: owner_color = (200, 200, 255)
         elif entry.event_type in ["scorch", "destroy"]:
              owner_color = (255, 80, 80)
-        
+
         hovered = hover_pos and entry_rect.collidepoint(hover_pos)
         entry_surface = pygame.Surface((entry_rect.width, entry_rect.height), pygame.SRCALPHA)
-        entry_surface.fill((owner_color[0], owner_color[1], owner_color[2], 160 if hovered else 120))
-        pygame.draw.rect(entry_surface, owner_color, entry_surface.get_rect(), width=2, border_radius=8)
 
-        icon_rect = pygame.Rect(8, 6, icon_width, entry_rect.height - 12)
-        pygame.draw.rect(entry_surface, (255, 255, 255, 90), icon_rect, border_radius=4)
-        
-        if entry.icon:
-            icon_surf = history_font.render(entry.icon, True, (255, 255, 255))
-            icon_dest = icon_surf.get_rect(center=icon_rect.center)
-            entry_surface.blit(icon_surf, icon_dest)
+        if is_round_separator:
+            # Round separator: full-width divider with centered gold text
+            entry_surface.fill((50, 50, 30, 180))
+            # Gold horizontal lines top and bottom
+            pygame.draw.line(entry_surface, (255, 215, 0, 180), (4, 2), (entry_rect.width - 4, 2), 1)
+            pygame.draw.line(entry_surface, (255, 215, 0, 180), (4, entry_rect.height - 3), (entry_rect.width - 4, entry_rect.height - 3), 1)
 
-        for idx, line in enumerate(wrapped_lines):
-            text_surface = history_font.render(line, True, cfg.WHITE)
-            text_rect = text_surface.get_rect()
-            text_rect.topleft = (icon_rect.right + 8, 6 + idx * line_height)
-            entry_surface.blit(text_surface, text_rect)
+            # Centered text
+            sep_text = entry.description
+            # Add score display for round_end entries
+            if entry.event_type == "round_end" and entry.scores:
+                sep_text += f"  [{entry.scores[0]}|{entry.scores[1]}]"
+            sep_surf = history_font.render(sep_text, True, (255, 215, 0))
+            sep_dest = sep_surf.get_rect(center=(entry_rect.width // 2, entry_rect.height // 2))
+            entry_surface.blit(sep_surf, sep_dest)
+        else:
+            entry_surface.fill((owner_color[0], owner_color[1], owner_color[2], 160 if hovered else 120))
+            pygame.draw.rect(entry_surface, owner_color, entry_surface.get_rect(), width=2, border_radius=8)
+
+            icon_rect = pygame.Rect(8, 6, icon_width, entry_rect.height - 12)
+            pygame.draw.rect(entry_surface, (255, 255, 255, 90), icon_rect, border_radius=4)
+
+            if entry.icon:
+                icon_surf = history_font.render(entry.icon, True, (255, 255, 255))
+                icon_dest = icon_surf.get_rect(center=icon_rect.center)
+                entry_surface.blit(icon_surf, icon_dest)
+
+            for idx, line in enumerate(wrapped_lines):
+                text_surface = history_font.render(line, True, cfg.WHITE)
+                text_rect = text_surface.get_rect()
+                text_rect.topleft = (icon_rect.right + 8, 6 + idx * line_height)
+                entry_surface.blit(text_surface, text_rect)
+
+            # Score delta badge (right edge)
+            if entry.delta != 0:
+                delta_text = f"+{entry.delta}" if entry.delta > 0 else str(entry.delta)
+                delta_color = (100, 255, 120) if entry.delta > 0 else (255, 100, 100)
+                delta_surf = badge_font.render(delta_text, True, delta_color)
+                delta_bg = pygame.Rect(entry_rect.width - delta_surf.get_width() - 12, 4, delta_surf.get_width() + 8, delta_surf.get_height() + 4)
+                pygame.draw.rect(entry_surface, (0, 0, 0, 160), delta_bg, border_radius=4)
+                entry_surface.blit(delta_surf, (delta_bg.x + 4, delta_bg.y + 2))
+
+            # Turn number badge (bottom-right)
+            if entry.turn_number > 0:
+                turn_text = f"T{entry.turn_number}"
+                turn_surf = badge_font.render(turn_text, True, (120, 120, 140))
+                entry_surface.blit(turn_surf, (entry_rect.width - turn_surf.get_width() - 6, entry_rect.height - turn_surf.get_height() - 2))
+
+            # Running score display (top-right corner, only if no delta badge)
+            if entry.scores and entry.delta == 0:
+                score_text = f"{entry.scores[0]}|{entry.scores[1]}"
+                score_surf = score_font.render(score_text, True, (140, 160, 180))
+                entry_surface.blit(score_surf, (entry_rect.width - score_surf.get_width() - 6, 4))
+
+        # Most recent entry pulse
+        if entry is last_entry:
+            pulse_alpha = int(40 + 30 * math.sin(now_ticks / 400.0))
+            pulse_overlay = pygame.Surface((entry_rect.width, entry_rect.height), pygame.SRCALPHA)
+            pulse_overlay.fill((255, 255, 255, pulse_alpha))
+            entry_surface.blit(pulse_overlay, (0, 0))
 
         surface.blit(entry_surface, entry_rect.topleft)
         hitboxes.append((entry, entry_rect.copy()))

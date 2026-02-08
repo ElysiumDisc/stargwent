@@ -7,22 +7,30 @@ from lan_protocol import LanMessageType, build_chat_message, parse_message
 import game_config as cfg
 
 
-# Quick chat messages (number keys 1-5)
+MAX_MESSAGE_LENGTH = 200
+
+# Quick chat messages (number keys 1-0)
 QUICK_CHATS = {
     pygame.K_1: "Good game!",
     pygame.K_2: "Nice play!",
     pygame.K_3: "Good luck!",
     pygame.K_4: "One moment...",
     pygame.K_5: "Well played!",
+    pygame.K_6: "Impressive!",
+    pygame.K_7: "Indeed.",
+    pygame.K_8: "For the glory of the System Lords!",
+    pygame.K_9: "Kree!",
+    pygame.K_0: "Undomesticated equines could not drag me away",
 }
 
 
 class LanChatPanel:
     """Reusable chat panel for LAN matches with scrolling, notifications, and quick chat."""
 
-    def __init__(self, session: LanSession, role: str, *, max_lines: int = 20, on_message=None):
+    def __init__(self, session: LanSession, role: str, *, max_lines: int = 20, on_message=None, peer_name: str = "Peer"):
         self.session = session
         self.role = role
+        self.peer_name = peer_name
         self.max_lines = max_lines  # Visible lines
         self.max_history = 100  # Total messages kept in memory
         self.full_history: List[dict] = []  # All messages
@@ -122,7 +130,7 @@ class LanChatPanel:
             self.unread_count += 1
 
         # Play notification sound for peer messages
-        if prefix == "Peer":
+        if prefix == self.peer_name:
             self._get_sound_manager().play_chat_notification("peer", volume=0.4)
         elif prefix == "System":
             self._get_sound_manager().play_chat_notification("system", volume=0.3)
@@ -220,11 +228,12 @@ class LanChatPanel:
             elif event.key == pygame.K_END:
                 self.scroll_to_bottom()
             elif event.unicode and event.unicode.isprintable():
-                self.input_text += event.unicode
-                # Started typing
-                if not self.local_is_typing and self.input_text:
-                    self.local_is_typing = True
-                    self.session.send(LanMessageType.TYPING.value, {"typing": True})
+                if len(self.input_text) < MAX_MESSAGE_LENGTH:
+                    self.input_text += event.unicode
+                    # Started typing
+                    if not self.local_is_typing and self.input_text:
+                        self.local_is_typing = True
+                        self.session.send(LanMessageType.TYPING.value, {"typing": True})
 
         elif event.type == pygame.MOUSEWHEEL and self.active:
             # Mouse wheel scrolling
@@ -261,9 +270,9 @@ class LanChatPanel:
         payload = parsed.get("payload", {})
 
         if msg_type == LanMessageType.CHAT.value:
-            text = payload.get("text", "")
+            text = payload.get("text", "")[:MAX_MESSAGE_LENGTH]
             msg_id = payload.get("msg_id")
-            self.add_message("Peer", text, msg_id=msg_id)
+            self.add_message(self.peer_name, text, msg_id=msg_id)
             # Send ACK if message has ID
             if msg_id:
                 self._send_ack(msg_id)
@@ -277,7 +286,7 @@ class LanChatPanel:
         elif msg_type == LanMessageType.TYPING.value:
             self.peer_is_typing = payload.get("typing", False)
         elif msg_type == "disconnect":
-            self.add_message("System", "Peer disconnected.")
+            self.add_message("System", f"{self.peer_name} disconnected.")
             self.active = False
             self.peer_is_typing = False
         else:
@@ -290,8 +299,8 @@ class LanChatPanel:
         base_x = input_rect.x + 10
         base_y = input_rect.y - 25
 
-        # 1. "Incoming Wormhole..." text
-        text_surf = self.font_small.render("Incoming Wormhole...", True, cfg.HIGHLIGHT_CYAN)
+        # 1. Typing indicator text with peer name
+        text_surf = self.font_small.render(f"{self.peer_name} is dialing...", True, cfg.HIGHLIGHT_CYAN)
         surface.blit(text_surf, (base_x, base_y))
 
         # 2. Animated Chevrons (>>>)
@@ -322,11 +331,14 @@ class LanChatPanel:
             pygame.draw.polygon(surface, color, points)
 
     def _draw_quick_chat_hints(self, surface, rect):
-        """Draw quick chat key hints below chat."""
+        """Draw quick chat key hints below chat in two rows."""
         hint_y = rect.bottom + 55
-        hint_text = "[1-5] Quick: GG | Nice! | GL | Wait | WP"
-        hint_surf = self.font_small.render(hint_text, True, cfg.TEXT_MUTED)
-        surface.blit(hint_surf, (rect.x + 5, hint_y))
+        row1 = "[1-5] GG | Nice! | GL | Wait | WP"
+        row2 = "[6-0] Impressive | Indeed | Glory | Kree! | Equines"
+        hint_surf1 = self.font_small.render(row1, True, cfg.TEXT_MUTED)
+        hint_surf2 = self.font_small.render(row2, True, cfg.TEXT_MUTED)
+        surface.blit(hint_surf1, (rect.x + 5, hint_y))
+        surface.blit(hint_surf2, (rect.x + 5, hint_y + 16))
 
     def _draw_scroll_indicator(self, surface, rect):
         """Draw scroll indicator showing new messages below."""
@@ -358,44 +370,102 @@ class LanChatPanel:
             visible_messages = []
 
         y = rect.y + 10
+        bubble_margin = 8
+        bubble_padding_x = 10
+        bubble_padding_y = 4
+        max_bubble_width = rect.width - 40
+        line_height = 32
+
+        # Bubble background colors
+        bubble_colors = {
+            "You": (30, 60, 90),
+            "System": (50, 50, 30),
+        }
+        # Border colors matching message text color
+        border_colors = {
+            "You": cfg.HIGHLIGHT_GREEN,
+            "System": cfg.GOLD,
+        }
+        default_bubble_color = (40, 40, 60)  # Peer
+        default_border_color = cfg.TEXT_LIGHT
+
+        prev_prefix = None
         for entry in visible_messages:
-            # Handle legacy string entries if any exist
             if isinstance(entry, str):
                 text = entry
                 color = cfg.TEXT_LIGHT
                 timestamp = ""
                 confirmed = True
+                prefix = "System"
             else:
                 text = entry["text"]
                 color = entry["color"]
                 timestamp = entry.get("timestamp", "")
                 confirmed = entry.get("confirmed", True)
+                prefix = entry.get("prefix", "System")
 
             # Dim unconfirmed messages
             if not confirmed:
                 color = tuple(max(0, c - 80) for c in color[:3])
 
-            # Draw timestamp in dim color first
-            if timestamp:
-                ts_color = cfg.TEXT_TIMESTAMP  # Dim gray for timestamp
-                ts_surf = self.timestamp_font.render(f"[{timestamp}]", True, ts_color)
-                surface.blit(ts_surf, (rect.x + 8, y + 2))
-                text_x = rect.x + 55  # Offset for message after timestamp
-            else:
-                text_x = rect.x + 10
+            # Strip "Prefix: " from display text to show in bubble
+            display_text = text
+            colon_idx = text.find(": ")
+            if colon_idx != -1 and colon_idx < 20:
+                display_text = text[colon_idx + 2:]
 
-            # Draw confirmation checkmark for sent messages
-            if entry.get("prefix") == "You":
-                if confirmed:
-                    check_surf = self.font_small.render("v", True, cfg.HIGHLIGHT_GREEN)
+            # Render display text
+            text_surf = self.font.render(display_text, True, color)
+            text_w = min(text_surf.get_width(), max_bubble_width - 2 * bubble_padding_x)
+            bubble_w = text_w + 2 * bubble_padding_x
+            bubble_h = text_surf.get_height() + 2 * bubble_padding_y
+
+            bg_color = bubble_colors.get(prefix, default_bubble_color)
+            brd_color = border_colors.get(prefix, default_border_color)
+
+            # Draw sender name above bubble group when sender changes
+            if prefix != prev_prefix and prefix != "System":
+                sender_name = "You" if prefix == "You" else self.peer_name
+                name_surf = self.font_small.render(sender_name, True, color)
+                if prefix == "You":
+                    surface.blit(name_surf, (rect.right - bubble_margin - name_surf.get_width() - 4, y))
                 else:
-                    check_surf = self.font_small.render("...", True, cfg.TEXT_MUTED)
-                surface.blit(check_surf, (text_x - 18, y + 4))
+                    surface.blit(name_surf, (rect.x + bubble_margin + 4, y))
+                y += 14
 
-            # Draw message text
-            surf = self.font.render(text, True, color)
-            surface.blit(surf, (text_x, y))
-            y += 26
+            if prefix == "System":
+                # System: centered bubble
+                bx = rect.x + (rect.width - bubble_w) // 2
+            elif prefix == "You":
+                # You: right-aligned
+                bx = rect.right - bubble_margin - bubble_w
+            else:
+                # Peer: left-aligned
+                bx = rect.x + bubble_margin
+
+            bubble_rect = pygame.Rect(bx, y, bubble_w, bubble_h)
+            pygame.draw.rect(surface, bg_color, bubble_rect, border_radius=8)
+            pygame.draw.rect(surface, brd_color, bubble_rect, width=1, border_radius=8)
+
+            # Clip text to bubble width
+            surface.blit(text_surf, (bx + bubble_padding_x, y + bubble_padding_y), area=pygame.Rect(0, 0, text_w, text_surf.get_height()))
+
+            # Timestamp + confirmation in corner
+            if timestamp:
+                ts_text = f"[{timestamp}]"
+                if prefix == "You":
+                    if confirmed:
+                        ts_text += " v"
+                    else:
+                        ts_text += " ..."
+                ts_surf = self.timestamp_font.render(ts_text, True, cfg.TEXT_TIMESTAMP)
+                if prefix == "You":
+                    surface.blit(ts_surf, (bubble_rect.x - ts_surf.get_width() - 4, y + bubble_padding_y + 2))
+                else:
+                    surface.blit(ts_surf, (bubble_rect.right + 4, y + bubble_padding_y + 2))
+
+            prev_prefix = prefix
+            y += line_height
 
         # Draw scroll indicator if scrolled up and new messages
         self._draw_scroll_indicator(surface, rect)
@@ -409,10 +479,23 @@ class LanChatPanel:
 
         pygame.draw.rect(surface, (30, 35, 60), input_rect)
         pygame.draw.rect(surface, cfg.BG_BORDER, input_rect, 2)
-        placeholder = self.input_text or "Type message... (1-5 for quick chat)"
+        placeholder = self.input_text or "Type message... (1-0 for quick chat)"
         text_color = cfg.TEXT_LIGHT if self.input_text else cfg.TEXT_DIM
         surf = self.font.render(placeholder, True, text_color)
         surface.blit(surf, (input_rect.x + 8, input_rect.y + 8))
+
+        # Character counter
+        if self.input_text:
+            char_count = len(self.input_text)
+            counter_text = f"{char_count}/{MAX_MESSAGE_LENGTH}"
+            if char_count >= 180:
+                counter_color = cfg.HIGHLIGHT_RED
+            elif char_count >= 150:
+                counter_color = cfg.GOLD
+            else:
+                counter_color = cfg.TEXT_MUTED
+            counter_surf = self.font_small.render(counter_text, True, counter_color)
+            surface.blit(counter_surf, (input_rect.right - counter_surf.get_width() - 8, input_rect.y + 12))
 
         # Draw scroll position indicator if scrolled
         if self.scroll_offset > 0:
