@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.5.0-blue)
+![Version](https://img.shields.io/badge/version-5.6.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -177,6 +177,22 @@ All abilities renamed and themed around Stargate lore:
 ---
 
 ## 📝 Changelog
+
+### Version 5.6.0 (February 2026)
+**Content Manager Modular Refactor & User Content System**
+
+- ✅ **Modular Package** -- Refactored 6000-line monolith into `scripts/content_manager/` package (36 modules)
+- ✅ **CLI Flags** -- `--dev`, `--user`, `--dry-run`, `--non-interactive` for streamlined workflows
+- ✅ **Sequential Dev Menu** -- Developer tools renumbered 1-12 (no gaps)
+- ✅ **User Content Creation** -- Create custom cards, leaders, and factions using existing game abilities
+- ✅ **Content Packs** -- Import/export user content as .zip files with validation
+- ✅ **Full Removability** -- All user content can be enabled, disabled, or deleted without affecting the base game
+- ✅ **Colored Output** -- Terminal output with color-coded headers, errors, warnings, and success messages
+- ✅ **Dry-Run Mode** -- Preview all file changes as unified diffs without writing
+- ✅ **XDG Save Path Fix** -- Save manager and deck I/O now use XDG-compliant paths
+
+### Version 5.5.0 (February 2026)
+**AI Improvements, Bug Fixes, Expanded Lore & Deck Builder Enhancements**
 
 ### Version 5.4.0 (February 2026)
 **Major Content Update: Alliance Combos, Space Shooter, Naquadah System & Draft Enhancements**
@@ -1270,24 +1286,50 @@ See [Audio Assets](#audio-assets) section for full list of supported audio files
 
 
 
-## 🛠️ Content Manager (Developer Tool)
+## 🛠️ Content Manager
 
+A modular CLI tool with separate **Developer** and **User/Player** modes. The tool prevents accidental source code modifications by separating workflows by role.
 
-### Features
+```bash
+python scripts/content_manager.py              # Interactive role selection
+python scripts/content_manager.py --dev        # Jump to developer menu
+python scripts/content_manager.py --user       # Jump to user/player menu
+python scripts/content_manager.py --dry-run    # Preview changes without writing
+python scripts/content_manager.py --non-interactive  # Use defaults (CI/scripting)
+```
 
-| Option | Description |
-|--------|-------------|
-| **1. Add Card** | Interactive wizard to add a new card with automatic file updates |
-| **2. Add Leader** | Create new leader with registry, colors, and portrait generation |
-| **3. Add Faction** | Complete faction creation (colors, powers, leaders, starter cards) |
-| **4. Ability Manager** | Add/edit card abilities, leader abilities, or faction powers |
-| **5. Placeholders** | Generate missing card images and leader portraits |
-| **6. Regenerate Docs** | Rebuild card_catalog.json, leader_catalog.json, rules_menu_spec.md |
-| **7. Asset Checker** | Find missing images, orphaned assets, size validation |
-| **8. Balance Analyzer** | Power distribution, ability frequency, faction balance stats |
-| **9. Save Manager** | Backup/restore player_unlocks.json, player_decks.json, player_stats.json |
-| **10. Deck Import/Export** | Share decks via JSON or text format |
-| **11. Batch Import** | Import multiple cards/leaders from a JSON file |
+### Developer Tools (modifies game source code)
+
+| # | Option | Description |
+|---|--------|-------------|
+| 1 | **Add Card** | Interactive wizard to add a new card with automatic file updates |
+| 2 | **Add Leader** | Create new leader with registry, colors, and portrait generation |
+| 3 | **Add Faction** | Complete faction creation (colors, powers, leaders, starter cards) |
+| 4 | **Ability Manager** | Add/edit card abilities, leader abilities, or faction powers |
+| 5 | **Placeholders** | Generate missing card images and leader portraits |
+| 6 | **Regenerate Docs** | Rebuild card_catalog.json, leader_catalog.json, rules_menu_spec.md |
+| 7 | **Asset Checker** | Find missing images, orphaned assets, size validation |
+| 8 | **Audio Manager** | Manage sound effects, music, and voice clips |
+| 9 | **Balance Analyzer** | Power distribution, ability frequency, faction balance stats |
+| 10 | **Batch Import** | Import multiple cards/leaders from a JSON file |
+| 11 | **Leader Ability Gen** | Generate code stubs for new leader abilities |
+| 12 | **Card Rename/Delete** | Rename, delete, preview, or batch rename cards |
+
+### User/Player Tools (safe - uses only existing abilities)
+
+| # | Option | Description |
+|---|--------|-------------|
+| 1 | **Save Manager** | Backup/restore player saves with timestamped folders |
+| 2 | **Deck Import/Export** | Share decks via JSON or text format |
+| 3 | **Create Custom Card** | Wizard to create cards using existing abilities |
+| 4 | **Create Custom Leader** | Wizard to create leaders using existing ability types |
+| 5 | **Create Custom Faction** | Create a faction with existing passive/power types |
+| 6 | **Import Content Pack** | Install a .zip content pack from another player |
+| 7 | **Export Content Pack** | Package your user content as a shareable .zip |
+| 8 | **Manage User Content** | Enable, disable, or delete any user-created content |
+| 9 | **Validate User Content** | Check all user content for errors |
+
+All user content lives in `user_content/` and can always be enabled, disabled, or fully deleted without affecting the base game. Nothing a user creates touches game source code.
 
 ### Safety Features
 
@@ -1297,7 +1339,9 @@ The Content Manager includes robust safety features to prevent breaking the game
 2. **Step-by-Step Approval** - You see exact code and confirm each file change
 3. **Syntax Validation** - Python files are compiled and import-tested after changes
 4. **Automatic Rollback** - Any error triggers immediate restore from backup
-5. **Session Logging** - All changes logged to `scripts/content_manager.log`
+5. **Dry-Run Mode** - `--dry-run` shows unified diffs without writing any files
+6. **Colored Output** - Headers, errors, warnings, and success messages are color-coded
+7. **Session Logging** - All changes logged to `scripts/content_manager.log`
 
 ### Example: Adding a Card
 
@@ -1440,7 +1484,6 @@ cp backup/2026-01-16_143205/* ./
 - Tournament mode (best-of-3)
 - Achievement system
 - More factions (Wraith, Ori, Atlantis)
-- Custom card creation tools
 - AI-generated content (card art, abilities, flavor text)
 - Internet matchmaking (beyond LAN/VPN)
 

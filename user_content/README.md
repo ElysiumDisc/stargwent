@@ -33,17 +33,23 @@ user_content/
 
 Use the Content Manager CLI tool to create content:
 ```bash
-python scripts/content_manager.py
+python scripts/content_manager.py --user    # Jump directly to user menu
+python scripts/content_manager.py           # Or select "User / Player" from role menu
 ```
 
-Then select from the "USER CONTENT CREATION" section:
-- **15. Create Custom Card (wizard)** - Step-by-step card creation
-- **16. Create Custom Leader (wizard)** - Step-by-step leader creation
-- **17. Create Custom Faction (wizard)** - Create a complete faction
-- **18. Import Content Pack** - Import a .zip content pack
-- **19. Export Content Pack** - Export your content as .zip
-- **20. Manage User Content** - Enable/disable content
-- **21. Validate User Content** - Check for errors
+User menu options:
+- **1. Save Manager** - Backup/restore player saves
+- **2. Deck Import/Export** - Share decks via JSON or text
+- **3. Create Custom Card** - Step-by-step card creation wizard
+- **4. Create Custom Leader** - Step-by-step leader creation wizard
+- **5. Create Custom Faction** - Create a complete faction
+- **6. Import Content Pack** - Install a .zip content pack
+- **7. Export Content Pack** - Package your content as .zip
+- **8. Manage User Content** - Enable, disable, or delete content
+- **9. Validate User Content** - Check for errors
+
+All user content can be freely enabled, disabled, or completely deleted at any time
+without affecting the base game.
 
 ## Important Rules
 

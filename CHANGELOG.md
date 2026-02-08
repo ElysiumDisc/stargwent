@@ -1,3 +1,45 @@
+### Version 5.6.0 (February 2026)
+**Content Manager Modular Refactor & User Content System**
+
+Refactored the 6000-line `content_manager.py` monolith into a clean modular package with role-based menus, CLI flags, colored output, dry-run mode, and a full user content creation system.
+
+#### Content Manager Package Refactor
+- ✅ **Modular Package** -- Split monolithic `scripts/content_manager.py` (6000 lines) into `scripts/content_manager/` package with 36 focused modules
+- ✅ **Foundation Modules** (12) -- config, color, logging, backup, safety, cli, ui, validation, formatting, code_insertion, code_parsing, verification
+- ✅ **Developer Modules** (12) -- add_card, add_leader, add_faction, ability_manager, placeholders, documentation, asset_checker, audio_manager, balance_analyzer, batch_import, leader_ability_gen, card_rename_delete
+- ✅ **User Modules** (7) -- save_manager, deck_io, create_card, create_leader, create_faction, content_packs, manage_content
+- ✅ **Sequential Dev Menu** -- Developer menu renumbered 1-12 (was 1-8, 11-14 with gaps)
+- ✅ **Thin Shim Launcher** -- `scripts/content_manager.py` is now a 3-line launcher that imports from the package
+
+#### CLI Flags
+- ✅ **`--dev`** -- Jump directly to developer menu (skip role selection)
+- ✅ **`--user`** -- Jump directly to user/player menu
+- ✅ **`--dry-run`** -- Preview all file changes as unified diffs without writing
+- ✅ **`--non-interactive`** -- Use defaults for all prompts (for scripting/CI)
+- ✅ **`python -m` support** -- Run as `python -m scripts.content_manager`
+
+#### Terminal Enhancements
+- ✅ **Colored Output** -- Headers in cyan, [OK] in green, [ERROR] in red, [WARNING] in yellow (auto-detects tty)
+- ✅ **Progress Bars** -- Batch import, placeholder generation, asset checking, and batch rename show progress
+- ✅ **Dry-Run Diffs** -- `safe_modify_file` and `safe_modify_json` show colored unified diffs in dry-run mode
+
+#### User Content System
+- ✅ **Create Custom Cards** -- Wizard using only existing game abilities (stored in `user_content/cards/`)
+- ✅ **Create Custom Leaders** -- 16 ability types from existing leaders (DRAW_ON_PASS, ROW_POWER_BOOST, etc.)
+- ✅ **Create Custom Factions** -- Visual identity, passive, and power selection from existing mechanics
+- ✅ **Content Packs** -- Import/export user content as .zip files with manifest.json validation
+- ✅ **Manage User Content** -- Enable, disable, or delete any user-created content at any time
+- ✅ **Validate User Content** -- Check all user content for errors with colored severity levels
+- ✅ **Full Removability** -- All user content can always be toggled off or completely deleted without affecting the base game
+
+#### Bug Fixes
+- ✅ **XDG Save Paths** -- Save manager and deck I/O now use `save_paths.py` for XDG-compliant paths (was hardcoded to ROOT)
+- ✅ **Stale Comment** -- Removed incorrect "Options 15-21" reference from user content section
+- ✅ **Deduplication** -- `find_insertion_point_for_card()` merged into `find_faction_section_end()` in code_insertion.py
+- ✅ **USER_CONTENT_DIR** -- Defined once in `config.py` instead of scattered across modules
+
+---
+
 ### Version 5.5.0 (February 2026)
 **AI Improvements, Bug Fixes, Expanded Lore & Deck Builder Enhancements**
 
