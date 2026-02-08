@@ -15,9 +15,14 @@ Refactored the 4150-line `main.py` monolith into a modular architecture with a c
 - ✅ **Dead Code Removal** -- Removed duplicate `_draw_card_details` and `_draw_drag_trail` functions (already in `render_engine.py`) and dead `main()` stub
 - ✅ **LAN Entry Point Fix** -- `run_game_with_context()` now properly delegates to `main()` instead of being a broken `pass` stub
 
+#### Post-Refactor Fixes
+- ✅ **Renderer/Event Split** -- Moved event-handling code (button clicks) out of `frame_renderer.py` into `event_handler.py`; renderer stores button rects on `state.game_over_buttons` / `state.pause_menu_buttons` and the event handler reads them
+- ✅ **Pause Menu Clicks** -- Pause menu buttons (Resume, Options, Surrender, Main Menu, Quit) and Q-to-surrender now properly handled in event handler
+- ✅ **Dead Code Cleanup** -- Removed 70 lines of unreachable game-over button code from KEYDOWN handler, removed redundant `LAN_MODE = True` assignment, fixed duplicate `pygame.display.flip()`
+
 #### Size Reduction
-- `main.py`: 4150 → 1580 lines (62% reduction)
-- New modules: `game_loop_state.py` (132), `event_handler.py` (1268), `frame_renderer.py` (1219)
+- `main.py`: 4150 → 1575 lines (62% reduction)
+- New modules: `game_loop_state.py` (135), `event_handler.py` (1268), `frame_renderer.py` (1195)
 
 ---
 
