@@ -1,3 +1,29 @@
+### Version 5.9.0 (February 2026)
+**Space Shooter: 4-Directional Combat, Wormhole Escape & Session Leaderboard**
+
+Major upgrade to the space shooter easter egg with full 4-directional ship facing, a wormhole teleport ability, and per-session score tracking that resets on exit.
+
+#### 4-Directional Ship Facing
+- **Ship Rotates to Face Movement Direction** -- Pressing WASD/Arrows rotates the ship sprite to face up, down, left, or right
+- **Weapons Fire in Faced Direction** -- All weapon types (lasers, missiles, energy balls, staff blasts, beams) now fire in the direction the ship is facing
+- **Beam Support** -- Asgard continuous beam works in all 4 directions with correct collision detection
+- **Upgrade Compatibility** -- Rear turret fires opposite to facing, multi-targeting spreads perpendicular, targeting computer homes on the correct axis
+
+#### Wormhole Escape Ability
+- **Press Q to Activate** -- Player vanishes into a swirling blue vortex and reappears at a random screen location
+- **Entry/Exit Vortex Animation** -- Spinning concentric rings with rotating bright spots and a collapsing/expanding effect
+- **Invulnerability During Transit** -- Player is immune to projectiles, beams, and asteroids while in the wormhole
+- **8-Second Cooldown** -- Cooldown bar and status indicator shown in the HUD
+- **Ship Freezes in Transit** -- No movement input during the 0.5s teleport for balanced gameplay
+
+#### Per-Session Leaderboard
+- **Scores No Longer Persist to Disk** -- High scores are session-only, not saved to player_unlocks.json
+- **Survives Restarts** -- Pressing R to restart keeps the session leaderboard intact
+- **Resets on Exit** -- Returning to menu (ESC) clears all scores for a fresh start next time
+- **Session Rank Display** -- Game over screen shows "SESSION BEST!" or "Session Rank #N" with games-played count
+
+---
+
 ### Version 5.8.0 (February 2026)
 **LAN Chat, Game History & Stats UI Improvements**
 

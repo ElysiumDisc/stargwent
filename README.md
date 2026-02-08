@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.8.0-blue)
+![Version](https://img.shields.io/badge/version-5.9.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -78,6 +78,14 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Redraft Milestones** - At 3 wins: redraft 5 cards. At 5 wins: redraft your leader
 - **Synergy Scoring** - Cards highlight when they combo with your current deck
 - **Save & Continue** - Progress persists between sessions
+
+### 🚀 Space Shooter Easter Egg
+- **Unlocked at 8 Draft Wins** - Beat the gauntlet to unlock a full arcade mini-game
+- **5 Playable Factions** - Each with unique ship, weapon type, and passive ability
+- **4-Directional Combat** - Ship faces and fires in all 4 directions (WASD)
+- **Wormhole Escape** - Press Q to vanish through a wormhole and reappear at a random location
+- **20-Wave Campaign** - Boss fights, XP/level-up upgrades, power-ups, and asteroid hazards
+- **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 
 ### 🌐 LAN Multiplayer
 - **Full 2-Player Networked Gameplay** - Host/Join with deck selection and chat
