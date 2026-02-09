@@ -1,11 +1,11 @@
 """
 STARGWENT - SPACE SHOOTER EASTER EGG
-A simple 1v1 arcade-style space shooter mini-game.
+A Vampire Survivors-inspired arcade mini-game.
 Unlocked after achieving 8 wins in Draft Mode.
 
 Controls:
-- WASD or Arrow keys: Move ship (all directions)
-- SPACE: Fire weapon
+- WASD or Arrow keys: Move ship (all directions, auto-fire)
+- Q: Wormhole escape
 - ESC: Exit to main menu
 
 Scoring:
@@ -708,6 +708,7 @@ class Ship:
         # AI behavior
         self.ai_target_y = y
         self.ai_decision_timer = 0
+        self.contact_damage_cooldown = 0
     
     def load_image(self):
         """Load faction ship image."""
@@ -849,91 +850,113 @@ class Ship:
             self.image = new_img
 
     def update_ai(self, player_ship, asteroids, other_ships=None):
-        """Smart AI update - aims at player, dodges asteroids and other ships."""
+        """Space-battle AI: approach to combat range, then strafe/orbit the player."""
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
         if self.beam_cooldown > 0:
             self.beam_cooldown -= 1
+        if self.contact_damage_cooldown > 0:
+            self.contact_damage_cooldown -= 1
 
         # Goa'uld passive: Shield Regeneration (also works for AI)
         if self.passive == "shield_regen":
             self.passive_state["no_hit_timer"] = self.passive_state.get("no_hit_timer", 0) + 1
             if self.passive_state["no_hit_timer"] >= 120 and self.shields < self.max_shields:
                 self.shields = min(self.max_shields, self.shields + 0.3)
-        
-        # AI targeting - try to align with player's Y position
-        target_y = player_ship.y
-        
-        # Check for incoming asteroids from all directions and dodge closest threat
-        dodge_direction = 0
+
+        # --- Vector to player ---
+        player_cx = player_ship.x + player_ship.width // 2
+        player_cy = player_ship.y
+        dx = player_cx - (self.x + self.width // 2)
+        dy = player_cy - self.y
+        dist_to_player = math.hypot(dx, dy)
+
+        # --- Engage-at-range + strafe behaviour ---
+        # Preferred combat range: 200-350px from player
+        preferred_range = 275
+        range_tolerance = 75  # ±75 around preferred = 200..350
+        move_x, move_y = 0.0, 0.0
+
+        if dist_to_player > 1:
+            # Unit vector toward player
+            ux = dx / dist_to_player
+            uy = dy / dist_to_player
+            # Perpendicular (strafe direction) — consistent per-ship via id hash
+            strafe_sign = 1 if id(self) % 2 == 0 else -1
+            perp_x = -uy * strafe_sign
+            perp_y = ux * strafe_sign
+
+            if dist_to_player > preferred_range + range_tolerance:
+                # Too far — close in fast
+                move_x = ux * self.speed * 0.8
+                move_y = uy * self.speed * 0.8
+            elif dist_to_player < preferred_range - range_tolerance:
+                # Too close — back off while strafing
+                move_x = -ux * self.speed * 0.4 + perp_x * self.speed * 0.5
+                move_y = -uy * self.speed * 0.4 + perp_y * self.speed * 0.5
+            else:
+                # In the sweet spot — orbit/strafe with slight drift inward
+                drift = (dist_to_player - preferred_range) / range_tolerance  # -1..1
+                move_x = ux * self.speed * 0.15 * drift + perp_x * self.speed * 0.5
+                move_y = uy * self.speed * 0.15 * drift + perp_y * self.speed * 0.5
+
+        # --- Asteroid dodge (2D push away) ---
+        dodge_x, dodge_y = 0.0, 0.0
         closest_threat_dist = float('inf')
         for asteroid in asteroids:
-            dx = asteroid.x - self.x
-            dy = asteroid.y - self.y
-            dist = math.hypot(dx, dy)
-            threat_radius = asteroid.size + self.height // 2 + 50
+            ax = asteroid.x - self.x
+            ay = asteroid.y - self.y
+            dist = math.hypot(ax, ay)
+            threat_radius = asteroid.size + max(self.width, self.height) // 2 + 50
 
             if dist < 400 and dist < closest_threat_dist:
-                # Check if asteroid is actually heading toward us
-                # Project future position
                 future_x = asteroid.x + asteroid.vx * 30
                 future_y = asteroid.y + asteroid.vy * 30
                 future_dist = math.hypot(future_x - self.x, future_y - self.y)
 
                 if future_dist < dist and dist < threat_radius + 200:
                     closest_threat_dist = dist
-                    # Dodge perpendicular to asteroid movement
-                    if abs(asteroid.vx) > abs(asteroid.vy):
-                        # Asteroid moving mostly horizontally - dodge vertically
-                        dodge_direction = -1 if asteroid.y > self.y else 1
-                    else:
-                        # Asteroid moving mostly vertically - still dodge vertically
-                        # (AI can only move up/down)
-                        dodge_direction = -1 if asteroid.vy > 0 else 1
-        
-        # Separation logic (avoid stacking)
-        separation_force = 0
+                    if dist > 1:
+                        dodge_x = -(ax / dist) * self.speed * 1.0
+                        dodge_y = -(ay / dist) * self.speed * 1.0
+
+        # --- Separation (2D push away from other ships) ---
+        sep_x, sep_y = 0.0, 0.0
         if other_ships:
             for other in other_ships:
-                if other == self:
+                if other is self:
                     continue
-                
-                dist_y = self.y - other.y
-                if abs(dist_y) < 100:  # Too close vertically
-                    # Push away
-                    if dist_y > 0:
-                        separation_force += 3
+                sx = self.x - other.x
+                sy = self.y - other.y
+                sdist = math.hypot(sx, sy)
+                if sdist < 100:
+                    if sdist > 1:
+                        sep_x += (sx / sdist) * 3
+                        sep_y += (sy / sdist) * 3
                     else:
-                        separation_force -= 3
-                    
-                    # If exactly on top, push randomly
-                    if dist_y == 0:
-                        separation_force += random.choice([-3, 3])
+                        sep_x += random.choice([-3, 3])
+                        sep_y += random.choice([-3, 3])
 
-        # Apply dodge or pursue player
-        if dodge_direction != 0:
-            # Dodging asteroid - move faster
-            self.y += dodge_direction * self.speed * 1.0
-        elif separation_force != 0:
-             # Avoiding collision with other ship
-             self.y += separation_force
+        # --- Combine: dodge trumps separation trumps maneuver ---
+        if dodge_x != 0 or dodge_y != 0:
+            self.x += dodge_x
+            self.y += dodge_y
+        elif sep_x != 0 or sep_y != 0:
+            self.x += sep_x + move_x * 0.3
+            self.y += sep_y + move_y * 0.3
         else:
-            # Lazy pursuit — drift toward player, not snap to them
-            y_diff = target_y - self.y
-            if abs(y_diff) > 30:
-                # Slow, capped drift (max ~40% of ship speed)
-                move_speed = min(self.speed * 0.35, abs(y_diff) * 0.03)
-                self.y += move_speed if y_diff > 0 else -move_speed
+            self.x += move_x
+            self.y += move_y
 
-            # Also drift on X toward preferred combat range
-            preferred_x = self.screen_width * 0.7
-            x_diff = preferred_x - self.x
-            if abs(x_diff) > 20:
-                self.x += min(self.speed * 0.2, abs(x_diff) * 0.02) * (1 if x_diff > 0 else -1)
+        # --- Facing: left/right based on player's relative X ---
+        if dx > 0:
+            self.set_facing((1, 0))
+        elif dx < 0:
+            self.set_facing((-1, 0))
 
-        # Keep in bounds
-        self.x = max(self.screen_width * 0.4, min(self.screen_width - self.margin, self.x))
-        self.y = max(self.margin, min(self.screen_height - self.margin, self.y))
+        # --- Keep in bounds (wide, so offscreen-spawned enemies can enter) ---
+        self.x = max(-self.width, min(self.screen_width + self.width, self.x))
+        self.y = max(-self.height, min(self.screen_height + self.height, self.y))
         
         # Update beam if active
         if self.current_beam:
@@ -1487,33 +1510,29 @@ class SpaceShooterGame:
         # Get available enemy types for this wave
         types, weights = self._get_wave_enemy_types()
 
-        # Generate positions with minimum separation
-        min_spacing = 90
-        margin = 100
-        usable_height = self.screen_height - 2 * margin
-
-        y_positions = []
+        # Spawn enemies from random screen edges
         for i in range(num_enemies):
-            attempts = 0
-            while attempts < 50:
-                y_pos = random.randint(margin, self.screen_height - margin)
-                valid = all(abs(y_pos - ey) >= min_spacing for ey in y_positions)
-                if valid:
-                    y_positions.append(y_pos)
-                    break
-                attempts += 1
-            else:
-                spacing = usable_height // (num_enemies + 1)
-                y_positions.append(margin + spacing * (i + 1))
-
-        for i, y_pos in enumerate(y_positions):
             enemy_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
             enemy_type = random.choices(types, weights=weights)[0]
             mods = self.ENEMY_TYPES[enemy_type]
 
+            edge = random.choice(["top", "bottom", "left", "right"])
+            margin = 60
+            if edge == "top":
+                sx = random.randint(0, self.screen_width)
+                sy = -margin
+            elif edge == "bottom":
+                sx = random.randint(0, self.screen_width)
+                sy = self.screen_height + margin
+            elif edge == "left":
+                sx = -margin
+                sy = random.randint(0, self.screen_height)
+            else:  # right
+                sx = self.screen_width + margin
+                sy = random.randint(0, self.screen_height)
+
             ship = Ship(
-                self.screen_width - 250 - (i % 4) * 40,
-                y_pos,
+                sx, sy,
                 enemy_faction, is_player=False,
                 screen_width=self.screen_width, screen_height=self.screen_height
             )
@@ -1538,6 +1557,13 @@ class SpaceShooterGame:
                 tint_surf.fill((*mods["tint"], 60))
                 ship.image.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
+            # Re-cache 4-dir images after scale/tint changes
+            if ship.image:
+                ship.image_right = ship.image.copy()
+                ship.image_left = pygame.transform.flip(ship.image, True, False)
+                ship.image_up = pygame.transform.rotate(ship.image_right, 90)
+                ship.image_down = pygame.transform.rotate(ship.image_right, -90)
+
             ship.xp_value = mods["xp"]
             ship.enemy_type = enemy_type
             ship.ai_fire_timer = random.randint(0, 60)
@@ -1550,9 +1576,23 @@ class SpaceShooterGame:
     def _spawn_boss(self, wave):
         """Spawn a boss enemy for boss waves."""
         boss_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
+        # Spawn boss from a random screen edge
+        edge = random.choice(["top", "bottom", "left", "right"])
+        margin = 80
+        if edge == "top":
+            bx = random.randint(margin, self.screen_width - margin)
+            by = -margin
+        elif edge == "bottom":
+            bx = random.randint(margin, self.screen_width - margin)
+            by = self.screen_height + margin
+        elif edge == "left":
+            bx = -margin
+            by = random.randint(margin, self.screen_height - margin)
+        else:
+            bx = self.screen_width + margin
+            by = random.randint(margin, self.screen_height - margin)
         boss = Ship(
-            self.screen_width - 300,
-            self.screen_height // 2,
+            bx, by,
             boss_faction, is_player=False,
             screen_width=self.screen_width, screen_height=self.screen_height
         )
@@ -1579,6 +1619,13 @@ class SpaceShooterGame:
             tint = pygame.Surface(boss.image.get_size(), pygame.SRCALPHA)
             tint.fill((255, 50, 50, 40))
             boss.image.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        # Re-cache 4-dir images after scale/tint changes
+        if boss.image:
+            boss.image_right = boss.image.copy()
+            boss.image_left = pygame.transform.flip(boss.image, True, False)
+            boss.image_up = pygame.transform.rotate(boss.image_right, 90)
+            boss.image_down = pygame.transform.rotate(boss.image_right, -90)
 
         boss.fire_rate = max(10, boss.fire_rate // 2)  # Bosses fire faster
         boss.xp_value = 200
@@ -1619,13 +1666,6 @@ class SpaceShooterGame:
             if event.key == pygame.K_ESCAPE:
                 self.exit_to_menu = True
                 self.running = False
-            elif event.key == pygame.K_SPACE and not self.game_over:
-                self.player_firing = True
-                # For non-beam weapons, fire immediately
-                if self.player_ship.weapon_type != "beam":
-                    projectile = self.player_ship.fire()
-                    if projectile:
-                        self.projectiles.append(projectile)
             elif event.key == pygame.K_q and not self.game_over:
                 # Wormhole escape ability
                 if self.wormhole_cooldown <= 0 and not self.wormhole_active:
@@ -1644,11 +1684,6 @@ class SpaceShooterGame:
                 self.player_ship.set_facing((-1, 0))
             elif event.key in (pygame.K_d, pygame.K_RIGHT) and not self.game_over:
                 self.player_ship.set_facing((1, 0))
-
-        elif event.type == pygame.KEYUP:
-            if event.key == pygame.K_SPACE:
-                self.player_firing = False
-                self.player_ship.stop_beam()
 
     def _activate_wormhole(self):
         """Activate the wormhole escape: player vanishes and reappears at a random location."""
@@ -2025,17 +2060,20 @@ class SpaceShooterGame:
                 ai_ship.ai_fire_timer = 0
             ai_ship.ai_fire_timer -= 1
             y_diff = abs(ai_ship.y - self.player_ship.y)
+            dx_to_player = self.player_ship.x - ai_ship.x
+            facing_player = (ai_ship.facing[0] > 0 and dx_to_player > 0) or \
+                            (ai_ship.facing[0] < 0 and dx_to_player < 0)
 
-            # Handle beam weapons - continuous fire when aligned
+            # Handle beam weapons - continuous fire when aligned and facing player
             if ai_ship.weapon_type == "beam":
-                if y_diff < 80:
+                if y_diff < 80 and facing_player:
                     if not ai_ship.current_beam:
                         ai_ship.fire()
                 else:
                     ai_ship.stop_beam()
             else:
-                # Regular projectile weapons
-                if ai_ship.ai_fire_timer <= 0 and y_diff < 150:
+                # Regular projectile weapons - fire when roughly aligned and facing
+                if ai_ship.ai_fire_timer <= 0 and y_diff < 150 and facing_player:
                     projectile = ai_ship.fire()
                     if projectile:
                         self.projectiles.append(projectile)
@@ -2049,7 +2087,8 @@ class SpaceShooterGame:
                                 extra = ai_ship.fire()
                                 if extra is None:
                                     fire_x = ai_ship.x
-                                    extra = Laser(fire_x, ai_ship.y + offset, -1,
+                                    extra = Laser(fire_x, ai_ship.y + offset,
+                                                  ai_ship.facing,
                                                   ai_ship.laser_color, speed=16)
                                     extra.damage = 10
                                 extra.is_player_proj = False
@@ -2066,8 +2105,8 @@ class SpaceShooterGame:
                         base_max = max(60, 140 - self.current_wave * 4)
                         ai_ship.ai_fire_timer = random.randint(base_min, base_max)
         
-        # Player continuous firing
-        if self.player_firing:
+        # Player auto-fire (always fires in faced direction)
+        if not self.game_over:
             if self.player_ship.weapon_type == "beam":
                 if not self.player_ship.current_beam:
                     beam = self.player_ship.fire()
@@ -2315,36 +2354,43 @@ class SpaceShooterGame:
 
             beam.set_length(beam_end_dist)
         
-        # Check AI beam collision with player
+        # Check AI beam collision with player (direction-aware)
         for ai_ship in self.ai_ships:
             if ai_ship.current_beam:
                 beam = ai_ship.current_beam
                 beam_start_x, _ = beam.get_start_pos()
-                
+                beam_dir = ai_ship.facing[0]  # -1 or 1
+
                 closest_hit_dist = self.screen_width
                 hit_target = None
                 is_asteroid = False
-                
-                # Check player (AI shoots Left, so dist is Start - Target)
+
+                # Check player
                 beam_y = ai_ship.y
                 if not self.wormhole_active and abs(self.player_ship.y - beam_y) < (self.player_ship.height // 2 + 10):
-                    dist = beam_start_x - (self.player_ship.x + self.player_ship.width)
+                    if beam_dir < 0:
+                        dist = beam_start_x - (self.player_ship.x + self.player_ship.width)
+                    else:
+                        dist = self.player_ship.x - beam_start_x
                     if 0 < dist < closest_hit_dist:
                         closest_hit_dist = dist
                         hit_target = self.player_ship
                         is_asteroid = False
-                
+
                 # Check asteroids
                 for asteroid in self.asteroids:
                     if abs(asteroid.y - beam_y) < (asteroid.size // 2 + 10):
-                        dist = beam_start_x - (asteroid.x + asteroid.size//2)
+                        if beam_dir < 0:
+                            dist = beam_start_x - (asteroid.x + asteroid.size // 2)
+                        else:
+                            dist = (asteroid.x - asteroid.size // 2) - beam_start_x
                         if 0 < dist < closest_hit_dist:
                             closest_hit_dist = dist
                             hit_target = asteroid
                             is_asteroid = True
-                
+
                 beam.set_length(closest_hit_dist)
-                
+
                 if hit_target:
                     if is_asteroid:
                         if hit_target.take_damage(beam.damage_per_frame):
@@ -2379,6 +2425,31 @@ class SpaceShooterGame:
                         self.asteroids.remove(asteroid)
                     break
         
+        # Contact damage: enemy ships touching the player
+        if not self.wormhole_active and not self.game_over:
+            player_rect = self.player_ship.get_rect()
+            for ai_ship in self.ai_ships[:]:
+                if ai_ship.contact_damage_cooldown > 0:
+                    continue
+                if ai_ship.get_rect().colliderect(player_rect):
+                    # Damage to player
+                    contact_dmg = 25 if getattr(ai_ship, 'is_boss', False) else 10
+                    self.player_hit_flash = 5
+                    self.wave_damage_taken = True
+                    if self.player_ship.take_damage(contact_dmg):
+                        self.game_over = True
+                        self.winner = "ai"
+                        self._save_score()
+                        self.explosions.append(Explosion(
+                            self.player_ship.x + self.player_ship.width // 2,
+                            self.player_ship.y))
+                    # Damage to enemy (attrition)
+                    ai_ship.hit_flash = 3
+                    if ai_ship.take_damage(5):
+                        self._on_enemy_killed(ai_ship)
+                    # Per-ship cooldown (30 frames ≈ 0.5s)
+                    ai_ship.contact_damage_cooldown = 30
+
         # Update XP orbs
         collection_radius = 30 + self.upgrades.get("tractor_beam", 0) * 15
         player_cx = self.player_ship.x + self.player_ship.width // 2
@@ -2704,7 +2775,7 @@ class SpaceShooterGame:
             surface.blit(wh_label, (wh_x, wh_y))
 
         # Controls hint
-        controls = self.small_font.render("WASD / Arrows: Move  |  SPACE: Fire  |  Q: Wormhole  |  ESC: Exit", True, (150, 150, 150))
+        controls = self.small_font.render("WASD / Arrows: Move (auto-fire)  |  Q: Wormhole  |  ESC: Exit", True, (150, 150, 150))
         surface.blit(controls, (self.screen_width // 2 - controls.get_width() // 2, self.screen_height - 30))
         
         # Wave transition message
