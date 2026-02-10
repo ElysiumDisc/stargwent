@@ -471,6 +471,28 @@ class SoundEffectManager:
             print(f"[audio] Failed to play symbiote sound: {exc}")
             return False
 
+    def play_asgard_beam_sound(self, volume=0.7):
+        """
+        Play Asgard transporter beam sound effect.
+        Looks for assets/audio/asgard_beamup.ogg
+
+        Args:
+            volume: Volume level from 0.0 to 1.0
+
+        Returns:
+            True if sound was played, False otherwise
+        """
+        sound = self._load_generic_sound("asgard_beam", "asgard_beamup.ogg")
+        if not sound:
+            return False
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play asgard beam sound: {exc}")
+            return False
+
     def play_chat_notification(self, msg_type="peer", volume=0.5):
         """
         Play chat notification sound.

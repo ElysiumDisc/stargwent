@@ -22,6 +22,12 @@ class DeckPersistence:
     # When cards are renamed or split into multiple copies, add mappings here
     CARD_ID_MIGRATIONS = {
         "goauld_alkesh": "goauld_alkesh_1",  # Split into _1, _2, _3 for Gate Reinforcement
+        "asgard_fifth": "asgard_thor",  # Fifth (Asgard Android) replaced by Thor
+        "asgard_elite_warrior_1": "asgard_elite_1",  # Asgard Elite Warrior -> Asgard Elite
+        "asgard_elite_warrior_2": "asgard_elite_2",
+        "asgard_medic_drone": "asgard_medic",  # Medical Bay Drone -> Asgard Healing Pod
+        "asgard_transport_1": "asgard_beam_1",  # Asgard Transport Ship -> Asgard Beam Tech
+        "asgard_transport_2": "asgard_beam_2",
     }
 
     def __init__(self):

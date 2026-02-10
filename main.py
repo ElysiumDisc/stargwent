@@ -78,6 +78,7 @@ from animations import (
     QuantumMirrorEffect,
     ReplicatorCrawlEffect,
     GoauldSymbioteAnimation,
+    AsgardBeamTransportEffect,
     CardRevealAnimation,
     AbilityBurstEffect,
     RowScoreAnimation,
@@ -287,8 +288,14 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
     ability_lower = (card.ability or "").lower()
     card_id = getattr(card, 'card_id', '') or ''
 
-    if "thor" in name_lower or "remove all goa'uld" in ability_lower:
+    if "thor's hammer" in name_lower or "remove all goa'uld" in ability_lower:
         anim_manager.add_effect(ThorsHammerPurgeEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    # Asgard Beam Tech — white transporter beam flash with sound
+    if "beam tech" in name_lower:
+        anim_manager.add_effect(AsgardBeamTransportEffect(effect_x, effect_y, screen_height))
+        from sound_manager import get_sound_manager
+        get_sound_manager().play_asgard_beam_sound()
         return True
     if "zero point module" in name_lower or "zpm" in name_lower or "double all your siege" in ability_lower:
         anim_manager.add_effect(ZPMSurgeEffect(effect_x, effect_y))

@@ -1,3 +1,40 @@
+### Version 6.1.0 (February 2026)
+**Asgard Faction Overhaul — Card Rework, Beam Animation & Audio**
+
+Reworked the Asgard faction roster with renamed/rebalanced cards, a new Asgard Beam Tech unit with transporter beam animation and sound effect, and Thor promoted to Legendary Commander.
+
+#### Asgard Card Changes
+- **Thor** -- New hero card (Power 12, Siege) replacing Fifth (Asgard Android); has Legendary Commander + Inspiring Leadership
+- **Asgard Beam Tech** (x3) -- Replaces Asgard Transport Ship (x2); ranged Gate Reinforcement unit with new beam-in animation
+- **Asgard Healing Pod** -- Replaces Medical Bay Drone (renamed, same ability)
+- **Asgard Elite** -- Replaces Asgard Elite Warrior (shortened name)
+- **Energy Drone** -- Replaces Energy Pistol Drone; moved from ranged to siege row
+- **Asgard Scientist** -- Moved from close to ranged row
+- **Freyr** -- Ability changed to Legendary Commander (lost Deploy Clones)
+- **Loki** -- Gained Deploy Clones ability
+- **Asgard Defense Platform** -- Power buffed from 4 to 7
+- **Daedalus-Class Ship** (x2) -- Power buffed from 6 to 8
+- **Total card count**: 247 (up from 246, net +1 from 3rd Beam Tech)
+
+#### New Animation: Asgard Transporter Beam
+- **AsgardBeamTransportEffect** -- Bright white-blue column of light materializes from above, peaks with a blinding flash, then fades with shimmering particles rising upward
+- **4-phase animation** -- Beam materializes (0–25%), full flash (25–50%), fade (50–80%), particle shimmer (80–100%)
+- Triggered when any Asgard Beam Tech card is played
+
+#### Audio
+- **asgard_beamup.ogg** -- Transporter beam sound effect plays alongside the beam animation
+- **asgard_thor.ogg** -- Commander voice snippet for Thor (added to commander snippets roster)
+
+#### Bug Fixes
+- **Fixed Thor's Hammer false trigger** -- Playing the hero card "Thor" no longer triggers the Thor's Hammer purge animation; now correctly requires "Thor's Hammer" in card name
+- **Saved deck migration** -- Added migration mappings for all renamed card IDs (asgard_fifth → asgard_thor, asgard_elite_warrior → asgard_elite, asgard_medic_drone → asgard_medic, asgard_transport → asgard_beam)
+
+#### Documentation
+- Updated card_catalog.json, default_faction_decks.json, rules_menu_spec.md with all Asgard changes
+- Updated README card count from 219 to 247
+
+---
+
 ### Version 6.0.0 (February 2026)
 **Space Shooter: Complete Overhaul — Vampire Survivors-Style Combat**
 

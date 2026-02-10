@@ -6,7 +6,7 @@
   jaffa_bratac.ogg          jaffa_raknor.ogg
   jaffa_master_bratac.ogg   lucian_vulkar.ogg
   lucian_curtis.ogg         lucian_sodan_master.ogg
-  lucian_baal_clone.ogg     asgard_freyr.ogg
+  lucian_baal_clone.ogg     asgard_freyr.ogg           asgard_thor.ogg
   asgard_loki.ogg           asgard_heimdall.ogg
   neutral_ascended_daniel.ogg  neutral_oma_desala.ogg
   neutral_mckay.ogg         neutral_teyla.ogg

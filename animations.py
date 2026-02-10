@@ -5040,6 +5040,133 @@ class OriPriorFlameAnimation(Animation):
             surface.blit(flame_surf, (int(flame['x'] - size), int(flame['y'] - size)))
 
 
+class AsgardBeamTransportEffect(Animation):
+    """Asgard transporter beam — bright white column of light with flash.
+
+    Inspired by the show's iconic beam-in effect: a vertical column of
+    brilliant white-blue light engulfs the target, peaks with a blinding
+    flash, then fades with shimmering particles rising upward.
+
+    Phases:
+      0.0–0.25: Beam column materializes from top, widening
+      0.25–0.50: Full intensity flash, expanding glow halo
+      0.50–0.80: Beam narrows and fades, particles scatter upward
+      0.80–1.00: Residual shimmer particles drift away
+    """
+    def __init__(self, x, y, screen_height, duration=1000):
+        super().__init__(duration=duration)
+        self.x = x
+        self.y = y
+        self.screen_height = screen_height
+        self.particles = []
+        for _ in range(40):
+            self.particles.append({
+                'x': x + random.uniform(-20, 20),
+                'y': y + random.uniform(-40, 40),
+                'vx': random.uniform(-1.5, 1.5),
+                'vy': random.uniform(-4, -1),
+                'size': random.uniform(2, 5),
+                'alpha': random.randint(150, 255),
+                'phase': random.uniform(0, math.pi * 2),
+            })
+
+    def update(self, dt):
+        super().update(dt)
+        progress = self.get_progress()
+        if progress > 0.4:
+            for p in self.particles:
+                p['x'] += p['vx'] * (dt / 16.0)
+                p['y'] += p['vy'] * (dt / 16.0)
+                p['alpha'] = max(0, p['alpha'] - dt * 0.15)
+        return not self.finished
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.get_progress()
+
+        # Beam column dimensions
+        beam_top = max(0, self.y - 300)
+        beam_bottom = self.y + 40
+        beam_height = beam_bottom - beam_top
+
+        if progress < 0.25:
+            # Phase 1: beam materializes from above
+            phase = progress / 0.25
+            draw_height = int(beam_height * phase)
+            beam_width = int(12 + 28 * phase)
+            alpha = int(200 * phase)
+        elif progress < 0.50:
+            # Phase 2: full flash
+            phase = (progress - 0.25) / 0.25
+            draw_height = beam_height
+            beam_width = int(40 + 20 * math.sin(phase * math.pi))
+            alpha = 255
+        elif progress < 0.80:
+            # Phase 3: beam fades and narrows
+            phase = (progress - 0.50) / 0.30
+            draw_height = beam_height
+            beam_width = int(40 * (1 - phase))
+            alpha = int(255 * (1 - phase))
+        else:
+            # Phase 4: just particles
+            draw_height = 0
+            beam_width = 0
+            alpha = 0
+
+        if draw_height > 0 and alpha > 0:
+            # Outer glow (wide, soft)
+            glow_w = beam_width + 50
+            glow_surf = pygame.Surface((glow_w, draw_height), pygame.SRCALPHA)
+            glow_alpha = max(0, alpha // 3)
+            pygame.draw.rect(glow_surf, (180, 210, 255, glow_alpha),
+                             (0, 0, glow_w, draw_height))
+            surface.blit(glow_surf, (int(self.x - glow_w // 2),
+                                     beam_bottom - draw_height))
+
+            # Core beam (bright white-blue)
+            core_surf = pygame.Surface((beam_width, draw_height), pygame.SRCALPHA)
+            core_alpha = min(255, alpha)
+            pygame.draw.rect(core_surf, (230, 240, 255, core_alpha),
+                             (0, 0, beam_width, draw_height))
+            surface.blit(core_surf, (int(self.x - beam_width // 2),
+                                     beam_bottom - draw_height))
+
+            # Hot center line
+            center_w = max(2, beam_width // 4)
+            center_surf = pygame.Surface((center_w, draw_height), pygame.SRCALPHA)
+            pygame.draw.rect(center_surf, (255, 255, 255, core_alpha),
+                             (0, 0, center_w, draw_height))
+            surface.blit(center_surf, (int(self.x - center_w // 2),
+                                       beam_bottom - draw_height))
+
+        # Flash burst at peak (0.25–0.50)
+        if 0.20 < progress < 0.55:
+            flash_phase = (progress - 0.20) / 0.35
+            flash_alpha = int(180 * math.sin(flash_phase * math.pi))
+            flash_radius = int(60 + 80 * flash_phase)
+            flash_surf = pygame.Surface((flash_radius * 2, flash_radius * 2),
+                                        pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 255, 255, flash_alpha),
+                               (flash_radius, flash_radius), flash_radius)
+            surface.blit(flash_surf, (int(self.x - flash_radius),
+                                      int(self.y - flash_radius)))
+
+        # Shimmer particles (after 0.4)
+        if progress > 0.3:
+            particle_alpha_scale = min(1.0, (progress - 0.3) / 0.2)
+            for p in self.particles:
+                pa = int(p['alpha'] * particle_alpha_scale)
+                if pa <= 0:
+                    continue
+                # Shimmer with phase offset
+                shimmer = 0.5 + 0.5 * math.sin(progress * 12 + p['phase'])
+                size = max(1, int(p['size'] * shimmer))
+                color = (220, 235, 255, min(255, pa))
+                pygame.draw.circle(surface, color,
+                                   (int(p['x']), int(p['y'])), size)
+
+
 class AnimationManager:
     """Manages all active animations with object pooling (v4.3.1)."""
     def __init__(self):

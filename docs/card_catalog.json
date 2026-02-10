@@ -1264,12 +1264,12 @@
   ],
   "Asgard": [
     {
-      "card_id": "asgard_fifth",
-      "name": "Fifth (Asgard Android)",
+      "card_id": "asgard_thor",
+      "name": "Thor",
       "faction": "Asgard",
       "power": 12,
-      "row": "agile",
-      "ability": "Inspiring Leadership"
+      "row": "siege",
+      "ability": "Legendary Commander, Inspiring Leadership"
     },
     {
       "card_id": "asgard_freyr",
@@ -1277,7 +1277,7 @@
       "faction": "Asgard",
       "power": 10,
       "row": "close",
-      "ability": "Legendary Commander, Deploy Clones"
+      "ability": "Legendary Commander"
     },
     {
       "card_id": "asgard_diplomat",
@@ -1288,16 +1288,16 @@
       "ability": null
     },
     {
-      "card_id": "asgard_elite_warrior_1",
-      "name": "Asgard Elite Warrior",
+      "card_id": "asgard_elite_1",
+      "name": "Asgard Elite",
       "faction": "Asgard",
       "power": 6,
       "row": "close",
       "ability": "Tactical Formation"
     },
     {
-      "card_id": "asgard_elite_warrior_2",
-      "name": "Asgard Elite Warrior",
+      "card_id": "asgard_elite_2",
+      "name": "Asgard Elite",
       "faction": "Asgard",
       "power": 6,
       "row": "close",
@@ -1340,7 +1340,7 @@
       "name": "Asgard Scientist",
       "faction": "Asgard",
       "power": 4,
-      "row": "close",
+      "row": "ranged",
       "ability": null
     },
     {
@@ -1348,7 +1348,7 @@
       "name": "Asgard Scientist",
       "faction": "Asgard",
       "power": 4,
-      "row": "close",
+      "row": "ranged",
       "ability": null
     },
     {
@@ -1369,23 +1369,23 @@
     },
     {
       "card_id": "asgard_berserker_1",
-      "name": "Test Subject Clone",
+      "name": "Bilskirnir-class ship",
       "faction": "Asgard",
       "power": 4,
-      "row": "close",
-      "ability": "Survival Instinct"
+      "row": "siege",
+      "ability": "Tactical Formation"
     },
     {
       "card_id": "asgard_berserker_2",
-      "name": "Test Subject Clone",
+      "name": "Bilskirnir-class ship",
       "faction": "Asgard",
       "power": 4,
-      "row": "close",
-      "ability": "Survival Instinct"
+      "row": "siege",
+      "ability": "Tactical Formation"
     },
     {
-      "card_id": "asgard_medic_drone",
-      "name": "Medical Bay Drone",
+      "card_id": "asgard_medic",
+      "name": "Asgard Healing Pod",
       "faction": "Asgard",
       "power": 2,
       "row": "close",
@@ -1405,7 +1405,7 @@
       "faction": "Asgard",
       "power": 10,
       "row": "ranged",
-      "ability": "Legendary Commander"
+      "ability": "Legendary Commander, Deploy Clones"
     },
     {
       "card_id": "asgard_heimdall",
@@ -1417,18 +1417,18 @@
     },
     {
       "card_id": "asgard_energy_drone_1",
-      "name": "Energy Pistol Drone",
+      "name": "Energy Drone",
       "faction": "Asgard",
       "power": 6,
-      "row": "ranged",
+      "row": "siege",
       "ability": null
     },
     {
       "card_id": "asgard_energy_drone_2",
-      "name": "Energy Pistol Drone",
+      "name": "Energy Drone",
       "faction": "Asgard",
       "power": 6,
-      "row": "ranged",
+      "row": "siege",
       "ability": null
     },
     {
@@ -1448,16 +1448,24 @@
       "ability": "Naquadah Overload"
     },
     {
-      "card_id": "asgard_transport_1",
-      "name": "Asgard Transport Ship",
+      "card_id": "asgard_beam_1",
+      "name": "Asgard Beam Tech",
       "faction": "Asgard",
       "power": 4,
       "row": "ranged",
       "ability": "Gate Reinforcement"
     },
     {
-      "card_id": "asgard_transport_2",
-      "name": "Asgard Transport Ship",
+      "card_id": "asgard_beam_2",
+      "name": "Asgard Beam Tech",
+      "faction": "Asgard",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "asgard_beam_3",
+      "name": "Asgard Beam Tech",
       "faction": "Asgard",
       "power": 4,
       "row": "ranged",
@@ -1469,7 +1477,7 @@
       "faction": "Asgard",
       "power": 2,
       "row": "ranged",
-      "ability": "Survival Instinct"
+      "ability": "Tactical Formation"
     },
     {
       "card_id": "asgard_imperfect_clone_2",
@@ -1477,13 +1485,13 @@
       "faction": "Asgard",
       "power": 2,
       "row": "ranged",
-      "ability": "Survival Instinct"
+      "ability": "Tactical Formation"
     },
     {
       "card_id": "asgard_daedalus_1",
       "name": "Daedalus-Class Ship (Asgard Upgrades)",
       "faction": "Asgard",
-      "power": 6,
+      "power": 8,
       "row": "siege",
       "ability": "Tactical Formation"
     },
@@ -1491,7 +1499,7 @@
       "card_id": "asgard_daedalus_2",
       "name": "Daedalus-Class Ship (Asgard Upgrades)",
       "faction": "Asgard",
-      "power": 6,
+      "power": 8,
       "row": "siege",
       "ability": "Tactical Formation"
     },
@@ -1499,7 +1507,7 @@
       "card_id": "asgard_defense_platform",
       "name": "Asgard Defense Platform",
       "faction": "Asgard",
-      "power": 4,
+      "power": 7,
       "row": "siege",
       "ability": null
     },
@@ -1507,7 +1515,7 @@
       "card_id": "asgard_oneill_ship",
       "name": "O'Neill-Class Mothership",
       "faction": "Asgard",
-      "power": 2,
+      "power": 8,
       "row": "siege",
       "ability": "Command Network"
     }
