@@ -1,3 +1,68 @@
+### Version 6.0.0 (February 2026)
+**Space Shooter: Complete Overhaul — Vampire Survivors-Style Combat**
+
+Major rewrite of the space shooter mini-game: split the 3000-line monolith into a modular package, added 9 new upgrades with a rarity system, 4 new weapon types, visual juice (parallax, damage numbers, screen shake), enemy variety (kamikaze, formations, boss escorts), and rebalanced combat for fast-paced action.
+
+#### Package Architecture
+- **Modular Package** -- Split `space_shooter.py` (3029 lines) into `space_shooter/` package with 9 focused modules (4100+ lines total)
+- **Modules**: `__init__.py`, `projectiles.py`, `entities.py`, `ship.py`, `effects.py`, `upgrades.py`, `ui.py`, `game.py`, `ship_select.py`
+- **Backward Compatible** -- Old `space_shooter.py` kept as 2-line shim; all imports work unchanged
+
+#### New Weapons (Upgrade-Acquired)
+- **Chain Lightning** (Epic) -- Projectiles chain to nearby enemies; +1 chain target per stack (max 3)
+- **Scatter Shot** (Rare) -- +3 spread pellets per stack in a cone (40% damage each)
+- **Gravity Well** (Epic) -- Auto-deploys a vortex that pulls and damages enemies every 10s
+- **Shield Bash** (Rare) -- Dash damages enemies on contact with afterimage trail
+
+#### New Passive Upgrades
+- **Magnet Field** -- +40 XP orb collection range per stack
+- **Critical Strike** -- +10% chance for double damage per stack
+- **Evasion Matrix** -- +8% dodge chance per stack (with "DODGE!" popup)
+- **Berserker Protocol** -- +5% damage per stack when below 50% HP
+- **Hyperspace Jump** -- -15% wormhole cooldown per stack
+
+#### Rarity System
+- **3 Tiers** -- Common (white), Rare (blue), Epic (purple)
+- **Level-Up Cards** -- Gradient backgrounds, pulsing rarity-colored borders, stats preview on hover
+
+#### Visual Enhancements
+- **3-Layer Parallax Starfield** -- Stars respond to player movement, scaled by depth
+- **Nebula Clouds** -- Pre-rendered semi-transparent colored blobs drifting slowly
+- **Space Debris** -- Tiny polygon shapes floating through as visual flair
+- **Speed Lines** -- Translucent streaks when player moves fast
+- **Damage Numbers** -- Float upward from hits, color-coded (white=normal, yellow=crit, red=player damage)
+- **Screen Shake** -- Triggers on player hit (intensity 5), enemy kill (2), boss kill (8)
+- **Popup Notifications** -- "RAPID FIRE!", "SHIELD BOOST!" etc. near player on power-up pickup
+- **Kill Streak Counter** -- Tracks consecutive kills within 3s; bonus score at 3+ streak
+
+#### Enemy Variety
+- **Kamikaze Type** -- Fast red-tinted ships that charge straight at player (wave 6+)
+- **Formation Spawning** -- V-Formation, Line, and Pincer patterns (wave 8+, 50% chance)
+- **Enemy Warning Indicators** -- Pulsing arrows at screen edges during wave transition
+- **Boss Escorts** -- 2-3 elite ships orbit bosses on boss waves
+
+#### UI Improvements
+- **Mini-Radar** -- 120x90 semi-transparent overlay showing player (green), enemies (red), asteroids (orange), power-ups (blue)
+- **Upgrade Bar with Tooltips** -- Colored icon squares with hover tooltip showing name/stacks/description
+- **Enhanced Level-Up Screen** -- Gradient card backgrounds, click or key selection, rarity glow
+
+#### Combat Rebalance
+- **Faster Player Fire Rate** -- All faction fire rates increased ~40% (e.g., laser 25 -> 14, missile 50 -> 28)
+- **More Frequent Power-Ups** -- Spawn rate doubled (400 -> 200 frames), 75% spawn chance (was 50%)
+- **Faster Level-Ups** -- XP requirement reduced (100 -> 80 base, 1.12x scaling instead of 1.3x)
+- **Increased XP Drops** -- All enemy XP values boosted ~50% (regular 20 -> 30, elite 50 -> 75)
+- **Multi-Directional Fire** -- Multi-Targeting now fires perpendicular at 2+ stacks, backward at 3+, diagonals at 4+
+- **Smooth Ship Rotation** -- Ships interpolate rotation at 12 deg/frame instead of snapping between 4 cached images
+- **Better Enemy Separation** -- 180px range with inverse-distance force (up to 8px push) prevents enemy overlap
+- **Slower Enemies** -- Base enemy speed 4 (half of player's 8), wave speed scaling 0.008 per power level
+
+#### Performance Optimizations
+- **Eliminated SRCALPHA Surfaces** -- Nebulae pre-rendered once, speed lines draw directly, hit flash uses small ship-bounds overlay, cloak uses set_alpha()
+- **Cached Fonts** -- PowerUp and PopupNotification cache fonts in __init__ instead of creating SysFont per frame
+- **Enemy Warnings** -- Direct draw.polygon() instead of full-screen SRCALPHA per arrow
+
+---
+
 ### Version 5.9.0 (February 2026)
 **Space Shooter: 4-Directional Combat, Wormhole Escape & Session Leaderboard**
 

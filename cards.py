@@ -269,9 +269,9 @@ ALL_CARDS = {
     "asgard_pulse_turret_1": Card("asgard_pulse_turret_1", "Energy Pulse Turret", FACTION_ASGARD, 6, "ranged", "Naquadah Overload"),
     "asgard_pulse_turret_2": Card("asgard_pulse_turret_2", "Energy Pulse Turret", FACTION_ASGARD, 6, "ranged", "Naquadah Overload"),
     "asgard_oneill_ship": Card("asgard_oneill_ship", "O'Neill-Class Mothership", FACTION_ASGARD, 8, "siege", "Command Network"),
-    "asgard_defense_platform": Card("asgard_defense_platform", "Asgard Defense Platform", FACTION_ASGARD, 4, "siege", None),
-    "asgard_daedalus_1": Card("asgard_daedalus_1", "Daedalus-Class Ship (Asgard Upgrades)", FACTION_ASGARD, 6, "siege", "Tactical Formation"),
-    "asgard_daedalus_2": Card("asgard_daedalus_2", "Daedalus-Class Ship (Asgard Upgrades)", FACTION_ASGARD, 6, "siege", "Tactical Formation"),
+    "asgard_defense_platform": Card("asgard_defense_platform", "Asgard Defense Platform", FACTION_ASGARD, 7, "siege", None),
+    "asgard_daedalus_1": Card("asgard_daedalus_1", "Daedalus-Class Ship (Asgard Upgrades)", FACTION_ASGARD, 8, "siege", "Tactical Formation"),
+    "asgard_daedalus_2": Card("asgard_daedalus_2", "Daedalus-Class Ship (Asgard Upgrades)", FACTION_ASGARD, 8, "siege", "Tactical Formation"),
 
     # --- Neutral Cards ---
     "neutral_ascended_daniel": Card("neutral_ascended_daniel", "Ascended Daniel Jackson", FACTION_NEUTRAL, 15, "close", "Legendary Commander"),

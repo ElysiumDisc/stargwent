@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-5.9.0-blue)
+![Version](https://img.shields.io/badge/version-6.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -79,12 +79,17 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Synergy Scoring** - Cards highlight when they combo with your current deck
 - **Save & Continue** - Progress persists between sessions
 
-### 🚀 Space Shooter Easter Egg
+### 🚀 Space Shooter Easter Egg (Vampire Survivors-Style)
 - **Unlocked at 8 Draft Wins** - Beat the gauntlet to unlock a full arcade mini-game
 - **5 Playable Factions** - Each with unique ship, weapon type, and passive ability
-- **4-Directional Combat** - Ship faces and fires in all 4 directions (WASD)
+- **Smooth Ship Rotation** - Ships rotate smoothly toward movement direction (12 deg/frame interpolation)
 - **Wormhole Escape** - Press Q to vanish through a wormhole and reappear at a random location
-- **20-Wave Campaign** - Boss fights, XP/level-up upgrades, power-ups, and asteroid hazards
+- **20-Wave Campaign** - Boss fights with escorts, XP/level-up upgrades, power-ups, and asteroid hazards
+- **21 Upgrades (3 Rarities)** - Common, Rare, and Epic upgrades including Chain Lightning, Scatter Shot, Gravity Well, Shield Bash, Critical Strike, Evasion Matrix, Berserker Protocol, and more
+- **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks (perpendicular at 2+, rear at 3+, diagonals at 4+)
+- **Fast-Paced Combat** - High base fire rate, frequent power-up drops, and rapid level-ups for non-stop action
+- **5 Enemy Types** - Regular, Fast, Tank, Elite, and Kamikaze with formation spawning (V, Line, Pincer)
+- **Visual Juice** - Parallax starfield, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 
 ### 🌐 LAN Multiplayer
