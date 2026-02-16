@@ -557,11 +557,39 @@ All abilities renamed and themed around Stargate lore:
 | Zoom Card (Deck Builder) | Right click |
 
 
+### Card Assembler
+
+Automated card image assembly pipeline that composites raw portrait art with faction borders, icons, text, and overlays into finished 200x280 card images.
+
+```bash
+python scripts/card_assembler.py                    # Assemble all cards with raw art
+python scripts/card_assembler.py tauri_oneill       # Specific cards
+python scripts/card_assembler.py --faction tauri    # Entire faction
+python scripts/card_assembler.py --no-overwrite     # Skip existing
+python scripts/card_assembler.py --status           # Show progress per faction
+python scripts/card_assembler.py --list-missing     # Cards without raw art
+python scripts/card_assembler.py --dry-run          # Preview without writing
+```
+
+**Workflow:**
+1. Generate portrait art in ComfyUI
+2. Drop PNGs in `raw_art/` named by card_id (e.g., `tauri_oneill.png`)
+3. Run `python scripts/card_assembler.py` to auto-assemble finished cards
+
+**Asset directories:**
+- `assets/card_assembler/borders/` - Faction border templates (200x280 RGBA)
+- `assets/card_assembler/row_icons/` - Row type icons (close, ranged, siege, agile)
+- `assets/card_assembler/ability_icons/` - Ability icons (12 abilities with icons)
+- `raw_art/` - Raw ComfyUI portrait art input
+- `scripts/card_quotes.json` - Optional flavor text quotes per card
+
+**Dependencies:** Pillow (`pip install Pillow`)
+
+
 ### 📋 Planned
 - Tournament mode (best-of-3)
 - Achievement system
 - More factions (Wraith, Ori, Atlantis)
-- AI-generated content (card art, abilities, flavor text)
 - Internet matchmaking (beyond LAN/VPN)
 
 

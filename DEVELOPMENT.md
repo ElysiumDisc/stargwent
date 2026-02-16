@@ -355,13 +355,68 @@ Located in `assets/audio/leader_voices/`. Leader quotes for draft mode and selec
 
 See [Audio Assets](#audio-assets) section for full list of supported audio files.
 
+### Card Assembler
+
+Automated pipeline for assembling finished card images from raw portrait art. Uses Pillow (PIL) to composite layers.
+
+```bash
+python scripts/card_assembler.py                    # Assemble all cards with raw art
+python scripts/card_assembler.py tauri_oneill       # Specific cards
+python scripts/card_assembler.py --faction tauri    # Entire faction
+python scripts/card_assembler.py --no-overwrite     # Skip existing finished cards
+python scripts/card_assembler.py --status           # Per-faction progress report
+python scripts/card_assembler.py --list-missing     # Cards without raw art
+python scripts/card_assembler.py --dry-run          # Preview without writing files
+```
+
+**Assembly pipeline per card:**
+1. Load raw portrait art from `raw_art/{card_id}.png`
+2. Center-crop/resize portrait to fit border's transparent cutout
+3. Alpha-composite faction border on top
+4. Scale & paste row icon (close/ranged/siege/agile)
+5. Scale & paste ability icons (stacked vertically if multiple)
+6. Render power number (size 24, black)
+7. Render card name (auto-sized 13-7px, black)
+8. Render flavor text from `scripts/card_quotes.json` (size 13, black, word-wrapped)
+9. Save to `assets/{card_id}.png`
+
+**Asset structure:**
+```
+assets/card_assembler/
+    borders/              # Faction border PNGs (200x280 RGBA, transparent portrait cutout)
+        tauri-border.png
+        goauld-border.png
+        jaffa-border.png
+        lucian-border.png
+        asgard-border.png
+        neutral-border.png
+    row_icons/            # Row type icons (high-res, scaled to ~30px)
+        close.png
+        ranged.png
+        siege.png
+        agile.png
+    ability_icons/        # Ability icons (high-res, scaled to ~22px)
+        Legendary commander.png
+        Tactical formations.png
+        Gate Reinforcement.png
+        ... (12 abilities with icons)
+raw_art/                  # Drop ComfyUI portrait PNGs here, named by card_id
+scripts/card_quotes.json  # Optional flavor text mapping (card_id -> quote string)
+```
+
+**Layout constants** (top of `card_assembler.py`) control pixel positions for all overlays. Tweak after visual inspection with your border PNGs.
+
+**Status detection:** `--status` classifies cards as "done" (real art >15KB), "ready" (has raw art), or "needs art" (placeholder only) by comparing file sizes against the placeholder threshold.
+
 ### Assets
-- Placeholder art generated via pygame
+- Card art assembled via Card Assembler pipeline (Pillow)
+- Placeholder art generated via pygame (`scripts/create_placeholders.py`)
 - Color-coded by faction
 
 
 ### Development
 - Built with **Python 3.8+** and **Pygame CE 2.5.6+**
+- Card assembler requires **Pillow** (`pip install Pillow`)
 - Inspired by The Witcher 3: Wild Hunt's Gwent
 - Animation system designed for extensibility
 - Active development

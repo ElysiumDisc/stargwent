@@ -245,7 +245,7 @@ ALL_CARDS = {
     "asgard_loki": Card("asgard_loki", "Loki", FACTION_ASGARD, 10, "ranged", "Legendary Commander, Deploy Clones"),
     "asgard_heimdall": Card("asgard_heimdall", "Heimdall", FACTION_ASGARD, 8, "ranged", "Legendary Commander, Genetic Enhancement"),
     "asgard_thor": Card("asgard_thor", "Thor", FACTION_ASGARD, 12, "siege", "Legendary Commander, Inspiring Leadership"),
-    "asgard_clone_incubator": Card("asgard_clone_incubator", "Skadi (Clone Incubator)", FACTION_ASGARD, 0, "close", "Activate Combat Protocol"),
+    "asgard_clone_incubator": Card("asgard_clone_incubator", "Clone Incubator", FACTION_ASGARD, 0, "close", "Activate Combat Protocol"),
     "asgard_medic": Card("asgard_medic", "Asgard Healing Pod", FACTION_ASGARD, 2, "close", "Medical Evac"),
     "asgard_clone_trooper_1": Card("asgard_clone_trooper_1", "Asgard Clone Trooper", FACTION_ASGARD, 3, "close", "Tactical Formation, Deploy Clones"),
     "asgard_clone_trooper_2": Card("asgard_clone_trooper_2", "Asgard Clone Trooper", FACTION_ASGARD, 3, "close", "Tactical Formation, Deploy Clones"),

@@ -53,12 +53,13 @@ def show_developer_menu():
     print("|   6. Regenerate all documentation                  |")
     print("|   7. Asset Checker (find missing images)           |")
     print("|   8. Audio Manager                                 |")
+    print("|   9. Card Assembler (portrait → finished card)     |")
     print("|                                                    |")
     print("|  " + cyan("=== ANALYSIS & TOOLS ===") + "                         |")
-    print("|   9. Balance Analyzer (power stats)                |")
-    print("|  10. Batch Import (from JSON)                      |")
-    print("|  11. Leader Ability Generator                      |")
-    print("|  12. Card Rename/Delete Tool                       |")
+    print("|  10. Balance Analyzer (power stats)                |")
+    print("|  11. Batch Import (from JSON)                      |")
+    print("|  12. Leader Ability Generator                      |")
+    print("|  13. Card Rename/Delete Tool                       |")
     print("|                                                    |")
     print("|   0. Back to role selection                        |")
     print("+" + "=" * 52 + "+")
@@ -97,6 +98,57 @@ def show_user_menu():
     return get_input("Choice", default="0")
 
 
+def _card_assembler_workflow():
+    """Interactive wrapper for scripts/card_assembler.py."""
+    import subprocess
+    import sys
+    from .config import ROOT
+
+    assembler = ROOT / "scripts" / "card_assembler.py"
+    python = sys.executable
+
+    print_header("CARD ASSEMBLER")
+    print()
+    print("  Assemble finished card images from raw portrait art.")
+    print(f"  Raw art folder: {ROOT / 'raw_art'}/")
+    print()
+
+    # Always show status first
+    print(bold("Current status:"))
+    subprocess.run([python, str(assembler), "--status"], cwd=str(ROOT))
+    print()
+
+    print("  1. Assemble ALL cards with raw art")
+    print("  2. Assemble a specific faction")
+    print("  3. Assemble specific card(s)")
+    print("  4. Generate status report (card_status.txt)")
+    print("  5. List cards needing art")
+    print("  0. Back")
+    print()
+    choice = get_input("Choice", default="0")
+
+    if choice == "0":
+        return
+    elif choice == "1":
+        cmd = [python, str(assembler)]
+        overwrite = get_input("Overwrite existing cards? [y/N]", default="n")
+        if overwrite.lower() != "y":
+            cmd.append("--no-overwrite")
+        subprocess.run(cmd, cwd=str(ROOT))
+    elif choice == "2":
+        faction = get_input("Faction (tauri/goauld/jaffa/lucian/asgard/neutral)")
+        if faction:
+            subprocess.run([python, str(assembler), "--faction", faction], cwd=str(ROOT))
+    elif choice == "3":
+        card_ids = get_input("Card ID(s) (space-separated)")
+        if card_ids:
+            subprocess.run([python, str(assembler)] + card_ids.split(), cwd=str(ROOT))
+    elif choice == "4":
+        subprocess.run([python, str(assembler), "--report"], cwd=str(ROOT))
+    elif choice == "5":
+        subprocess.run([python, str(assembler), "--list-missing"], cwd=str(ROOT))
+
+
 def handle_developer_choice(choice: str) -> bool:
     """Handle developer menu choice. Returns True to continue, False to go back."""
     if choice == "0":
@@ -130,15 +182,17 @@ def handle_developer_choice(choice: str) -> bool:
             from .dev.audio_manager import audio_manager_workflow
             audio_manager_workflow()
         elif choice == "9":
+            _card_assembler_workflow()
+        elif choice == "10":
             from .dev.balance_analyzer import balance_analyzer_workflow
             balance_analyzer_workflow()
-        elif choice == "10":
+        elif choice == "11":
             from .dev.batch_import import batch_import_workflow
             batch_import_workflow()
-        elif choice == "11":
+        elif choice == "12":
             from .dev.leader_ability_gen import leader_ability_generator_workflow
             leader_ability_generator_workflow()
-        elif choice == "12":
+        elif choice == "13":
             from .dev.card_rename_delete import card_rename_delete_workflow
             card_rename_delete_workflow()
         else:

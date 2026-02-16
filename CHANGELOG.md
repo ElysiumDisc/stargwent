@@ -1,3 +1,38 @@
+### Version 6.3.0 (February 2026)
+**Card Assembler Pipeline — Automated Card Image Compositing**
+
+New developer tool that automatically assembles finished card images from raw ComfyUI portrait art, eliminating manual per-card compositing in an image editor.
+
+#### Card Assembler Script (`scripts/card_assembler.py`)
+- **Automated compositing pipeline** -- Takes raw portrait art + card data from `cards.py` and layers: portrait, faction border, row icon, ability icons, power number, card name, and flavor text into finished 200x280 card PNGs
+- **CLI interface** -- Assemble all cards, specific cards by ID, entire factions (`--faction tauri`), with `--no-overwrite`, `--dry-run`, and custom `--input`/`--output` directories
+- **`--status` flag** -- Per-faction progress report classifying all 247 cards as "done" (real art >15KB), "ready" (has raw art in `raw_art/`), or "needs art" (placeholder only)
+- **`--list-missing` flag** -- Lists all cards that still need raw portrait art
+- **Smart portrait fitting** -- Auto-detects transparent cutout in border PNGs for portrait placement; center-crops raw art to match aspect ratio
+- **Ability icon stacking** -- Parses comma-separated abilities, scales each icon to ~22px, stacks vertically on left bar
+- **Auto-sized card names** -- Font shrinks automatically (13-7px) for long names to fit the name plate; black text
+- **Word-wrapped flavor text** -- Optional quotes from `scripts/card_quotes.json` rendered in 13px black text in the parchment text box
+- **Black text styling** -- Power number (24px), card name, and flavor text all render in black to match hand-crafted reference cards
+- **Pygame-independent** -- Uses Pillow (PIL) with a lightweight pygame mock to import card data without requiring a display
+
+#### New Asset Structure
+- `assets/card_assembler/borders/` -- 6 faction border PNGs (copied from Dropbox)
+- `assets/card_assembler/row_icons/` -- 4 high-res row icons (close, ranged, siege, agile)
+- `assets/card_assembler/ability_icons/` -- 12 ability icons (Legendary Commander through Survival Instinct)
+- `raw_art/` -- Input directory for ComfyUI portrait PNGs (named by card_id)
+- `scripts/card_quotes.json` -- 18 starter Stargate quotes for flavor text
+
+#### Files Created
+- `scripts/card_assembler.py` -- Main assembler script (~350 lines)
+- `scripts/card_quotes.json` -- Flavor text quotes mapping
+- `assets/card_assembler/` -- Complete asset directory with borders, row icons, and ability icons
+- `raw_art/` -- Empty input directory for user's ComfyUI art
+
+#### Dependencies
+- Added `Pillow` to `requirements.txt`
+
+---
+
 ### Version 6.2.0 (February 2026)
 **Bug Hunt, Performance & Code Quality Overhaul**
 
