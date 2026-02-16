@@ -708,6 +708,105 @@ Platform detection:
 
 ---
 
+#### GitHub Actions CI/CD — Step-by-Step Setup
+
+GitHub Actions automatically builds your .deb, AppImage, Windows .exe, and macOS .dmg every time you push a version tag. No need to own a Windows or Mac machine.
+
+**Is it free?**
+
+| Repo type | Free minutes/month | Notes |
+|-----------|-------------------|-------|
+| **Public** repo | Unlimited | Completely free, no limits |
+| **Private** repo | 2,000 minutes/month | Linux = 1x, Windows = 2x, macOS = 10x multiplier |
+
+Your repo is currently **private**. A full build (Linux + Windows + macOS) takes ~10-15 min and costs roughly 25 minutes of quota (because macOS has a 10x multiplier). That gives you ~80 full builds/month for free. If you make the repo public, it's unlimited.
+
+**Step 1: Commit and push the workflow file**
+
+The workflow file is already created at `.github/workflows/build.yml`. Push it to GitHub:
+
+```bash
+git add .github/workflows/build.yml
+git commit -m "Add GitHub Actions CI/CD for all platform builds"
+git push origin main
+```
+
+**Step 2: Verify the workflow appears on GitHub**
+
+1. Open your repo in a browser: https://github.com/ElysiumDisc/stargwent
+2. Click the **"Actions"** tab at the top (between "Pull requests" and "Projects")
+3. You should see **"Build Releases"** listed as a workflow on the left sidebar
+4. If you see a yellow banner saying "Workflows aren't being run on this repository" → click **"I understand my workflows, go ahead and enable them"**
+
+**Step 3: Run your first build (manual trigger)**
+
+You don't need to create a tag for your first test — you can trigger it manually:
+
+1. Go to **Actions** tab → click **"Build Releases"** on the left
+2. Click the **"Run workflow"** dropdown button (top right, blue)
+3. Leave the version field empty (it reads from your README.md badge automatically)
+4. Click the green **"Run workflow"** button
+5. A new run appears — click on it to watch the progress
+
+You'll see 4 jobs:
+- **version** — reads the version number (fast, ~10 seconds)
+- **linux** — builds .deb + AppImage (~3-5 min)
+- **windows** — builds .exe zip (~3-5 min)
+- **macos** — builds .dmg (~5-8 min)
+
+**Step 4: Download the built artifacts**
+
+1. Once all jobs show green checkmarks, click on any completed job
+2. Scroll to the bottom — you'll see an **"Artifacts"** section
+3. Download each one:
+   - `Stargwent-X.Y.Z-linux-deb` — the .deb file
+   - `Stargwent-X.Y.Z-linux-appimage` — the AppImage
+   - `Stargwent-X.Y.Z-windows-x64` — the .exe zip
+   - `Stargwent-X.Y.Z-macos` — the .dmg
+
+**Step 5: Automated releases with version tags (recommended workflow)**
+
+Once you've verified the manual build works, use tags for proper releases:
+
+```bash
+# 1. Update version in README.md badge (single source of truth)
+#    Edit the badge line: ![Version](https://img.shields.io/badge/version-6.6.0-blue)
+
+# 2. Commit the version bump
+git add README.md
+git commit -m "Bump version to 6.6.0"
+
+# 3. Create a version tag
+git tag v6.6.0
+
+# 4. Push both the commit and the tag
+git push origin main
+git push origin v6.6.0
+```
+
+This automatically:
+- Triggers all 4 builds (Linux, Windows, macOS)
+- Creates a **draft GitHub Release** at https://github.com/ElysiumDisc/stargwent/releases
+- Attaches all 4 artifacts (.deb, .AppImage, .zip, .dmg) to the release
+- You review the draft → click **"Publish release"** to make it public
+
+**Step 6: Share your game**
+
+After publishing a release, anyone can download the right build for their platform from:
+`https://github.com/ElysiumDisc/stargwent/releases/latest`
+
+**Troubleshooting GitHub Actions:**
+
+| Issue | Fix |
+|-------|-----|
+| "Actions" tab not visible | Go to repo Settings → Actions → General → enable "Allow all actions" |
+| Workflow not triggering on tag push | Make sure you pushed the tag: `git push origin v6.6.0` |
+| Build fails on Windows/macOS | Click the failed job → read the red error log → usually a missing dependency |
+| "Resource not accessible by integration" | Go to Settings → Actions → General → set "Workflow permissions" to "Read and write" |
+| Artifacts expire after 90 days | Published releases are permanent; only workflow artifacts expire |
+
+---
+
 ### Roadmap: Future Targets
 
 #### Web Browser (WebGL / WASM)
