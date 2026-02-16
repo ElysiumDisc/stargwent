@@ -436,6 +436,10 @@ class MainMenu:
                 if event.type == pygame.KEYDOWN:
                     if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                         running = False
+                    elif event.key == pygame.K_F11:
+                        display_manager.toggle_fullscreen_mode()
+                        # Re-enter with fresh geometry after display change
+                        return self.run_options_menu(display_manager.screen)
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if back_rect.collidepoint(event.pos):
                         running = False
@@ -457,8 +461,8 @@ class MainMenu:
                         settings.set_show_fps(not settings.get_show_fps())
                     elif gate_rect.collidepoint(event.pos):
                         display_manager.toggle_fullscreen_mode()
-                        # Update surface reference after toggle
-                        surface = display_manager.screen
+                        # Re-enter with fresh geometry after display change
+                        return self.run_options_menu(display_manager.screen)
                         
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     dragging_slider = False
