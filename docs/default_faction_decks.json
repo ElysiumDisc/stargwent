@@ -56,7 +56,7 @@
       "goauld_glider_swarm_1",
       "goauld_glider_swarm_2",
       "goauld_scout",
-      "goauld_alkesh",
+      "goauld_alkesh_1",
       "goauld_hatak_1",
       "goauld_hatak_2",
       "goauld_plasma_emplacement",
@@ -153,11 +153,9 @@
       "asgard_beam_1",
       "asgard_beam_2",
       "asgard_beam_3",
-      "asgard_imperfect_clone_1",
       "asgard_daedalus_1",
       "asgard_daedalus_2",
-      "asgard_defense_platform",
-      "asgard_oneill_ship"
+      "asgard_defense_platform"
     ]
   }
 }
