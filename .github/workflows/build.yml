@@ -1,0 +1,219 @@
+name: Build Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (leave empty to read from README.md badge)'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # ── Read version from README.md badge ─────────────────────────
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: get_version
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(sed -n 's/.*badge\/version-\([0-9.]\+\)-.*/\1/p' README.md | head -n1)
+            echo "version=$VER" >> "$GITHUB_OUTPUT"
+          fi
+      - run: echo "Building version ${{ steps.get_version.outputs.version }}"
+
+  # ── Linux: .deb + AppImage ────────────────────────────────────
+  linux:
+    needs: version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fuse libfuse2
+
+      - name: Build .deb
+        run: ./build_deb.sh "${{ needs.version.outputs.version }}"
+
+      - name: Build AppImage
+        run: ./build_appimage.sh "${{ needs.version.outputs.version }}"
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stargwent-${{ needs.version.outputs.version }}-linux-deb
+          path: builds/releases/*linux*.deb
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stargwent-${{ needs.version.outputs.version }}-linux-appimage
+          path: builds/releases/*linux*.AppImage
+
+  # ── Windows: .exe ─────────────────────────────────────────────
+  windows:
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pygame-ce moderngl Pillow pyinstaller
+
+      - name: Generate icon
+        run: |
+          python -c "
+          from PIL import Image
+          img = Image.open('assets/tauri_oneill.png')
+          img.save('stargwent.ico', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
+          "
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onedir --name Stargwent --windowed \
+            --icon=stargwent.ico \
+            --add-data "assets;assets" \
+            --add-data "shaders;shaders" \
+            --add-data "docs;docs" \
+            --add-data "user_content;user_content" \
+            --hidden-import moderngl \
+            --hidden-import glcontext \
+            --hidden-import PIL \
+            --noconfirm \
+            main.py
+
+      - name: Package zip
+        run: |
+          mkdir -p builds/releases
+          cd dist
+          7z a -tzip "../builds/releases/Stargwent-${{ needs.version.outputs.version }}-windows-x64.zip" Stargwent/
+        shell: bash
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stargwent-${{ needs.version.outputs.version }}-windows-x64
+          path: builds/releases/*windows*.zip
+
+  # ── macOS: .dmg ──────────────────────────────────────────────
+  macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pygame-ce moderngl Pillow pyinstaller
+
+      - name: Generate icon
+        run: |
+          mkdir -p stargwent.iconset
+          for SIZE in 16 32 64 128 256 512; do
+            sips -z $SIZE $SIZE assets/tauri_oneill.png --out stargwent.iconset/icon_${SIZE}x${SIZE}.png
+          done
+          for SIZE in 16 32 128 256; do
+            DOUBLE=$((SIZE * 2))
+            sips -z $DOUBLE $DOUBLE assets/tauri_oneill.png --out stargwent.iconset/icon_${SIZE}x${SIZE}@2x.png
+          done
+          iconutil -c icns stargwent.iconset -o stargwent.icns
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onedir --name Stargwent --windowed \
+            --icon=stargwent.icns \
+            --add-data "assets:assets" \
+            --add-data "shaders:shaders" \
+            --add-data "docs:docs" \
+            --add-data "user_content:user_content" \
+            --hidden-import moderngl \
+            --hidden-import glcontext \
+            --hidden-import PIL \
+            --noconfirm \
+            main.py
+
+      - name: Create .dmg
+        run: |
+          mkdir -p builds/releases
+          if [[ -d "dist/Stargwent.app" ]]; then
+            SRC="dist/Stargwent.app"
+          else
+            SRC="dist/Stargwent"
+          fi
+          hdiutil create \
+            -volname "Stargwent" \
+            -srcfolder "$SRC" \
+            -ov -format UDZO \
+            "builds/releases/Stargwent-${{ needs.version.outputs.version }}-macos.dmg"
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stargwent-${{ needs.version.outputs.version }}-macos
+          path: builds/releases/*macos*.dmg
+
+  # ── Create GitHub Release (only on tag push) ──────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, linux, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release files
+        run: |
+          mkdir -p release_files
+          find artifacts -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.zip" -o -name "*.dmg" \) -exec cp {} release_files/ \;
+          ls -lh release_files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Stargwent v${{ needs.version.outputs.version }}
+          draft: true
+          files: release_files/*
+          body: |
+            ## Stargwent v${{ needs.version.outputs.version }}
+
+            ### Downloads
+            | Platform | File | Install |
+            |----------|------|---------|
+            | Linux (Debian/Ubuntu) | `.deb` | `sudo dpkg -i stargwent_*.deb` then `stargwent` |
+            | Linux (Universal) | `.AppImage` | `chmod +x` and run directly |
+            | Windows | `.zip` | Extract and run `Stargwent.exe` |
+            | macOS | `.dmg` | Open and drag to Applications |
+
+            All builds support LAN multiplayer cross-play between platforms.

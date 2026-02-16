@@ -50,7 +50,11 @@ from pathlib import Path
 src = Path(sys.argv[1]).resolve()
 dst = Path(sys.argv[2]).resolve()
 
-skip_names = {'.git', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache', 'build', 'dist', 'builds'}
+skip_names = {
+    '.git', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
+    'build', 'dist', 'builds', 'raw_art', 'backup',
+    'build_deb.sh', 'build_appimage.sh', 'build_exe.sh', 'build_dmg.sh', 'build_release.sh',
+}
 ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo', '.DS_Store', '*.swp')
 
 for item in src.iterdir():
@@ -100,9 +104,10 @@ echo "Bundling Python runtime..."
 cp -r "$PYTHON_APPIMAGE_DIR/python/"* "$APPDIR/"
 rm -f "$APPDIR/AppRun"
 
-# Install pygame-ce into the bundled Python
-echo "Installing pygame-ce..."
-"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce >/dev/null 2>&1
+# Install Python dependencies into the bundled runtime
+echo "Installing Python dependencies..."
+"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce moderngl Pillow >/dev/null 2>&1
+echo "    Installed: pygame-ce, moderngl, Pillow"
 
 # Create launcher script
 cat <<LAUNCHER > "$APPDIR/AppRun"
@@ -142,7 +147,7 @@ Keywords=Stargate;Card;Strategy;Game;
 EOF
 
 # Build AppImage
-OUTPUT="$RELEASE_ROOT/${PKG_NAME}-${VERSION}-x86_64.AppImage"
+OUTPUT="$RELEASE_ROOT/Stargwent-${VERSION}-linux-x86_64.AppImage"
 echo "Building AppImage..."
 ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT" >/dev/null 2>&1
 

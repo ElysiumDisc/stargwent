@@ -482,3 +482,319 @@ The game uses a **hybrid rendering approach**: all drawing is done via Pygame to
 - Inspired by The Witcher 3: Wild Hunt's Gwent
 - Animation system designed for extensibility
 - Active development
+
+---
+
+### Building Distributable Packages
+
+Five build scripts automate the entire packaging process. Version is read automatically from the README.md badge.
+
+| Script | Target | Platform | Method |
+|--------|--------|----------|--------|
+| `build_deb.sh` | `.deb` installer | Linux (Debian/Ubuntu) | Bundled Python venv |
+| `build_appimage.sh` | `.AppImage` portable | Linux (any distro) | Bundled Python runtime |
+| `build_exe.sh` | `.exe` (zipped folder) | Windows | PyInstaller |
+| `build_dmg.sh` | `.dmg` disk image | macOS | PyInstaller + hdiutil |
+| `build_release.sh` | Orchestrator | Auto-detects platform | Calls the right script |
+
+All output goes to `builds/releases/`. Staging area is `builds/staging/` (auto-cleaned each build).
+
+#### Quick Start
+
+```bash
+# Build all targets for your current platform
+./build_release.sh
+
+# Build a specific target
+./build_release.sh "" deb           # .deb only
+./build_release.sh "" appimage      # AppImage only
+./build_release.sh "" exe           # Windows .exe only
+./build_release.sh "" dmg           # macOS .dmg only
+./build_release.sh "" linux         # .deb + AppImage
+
+# Override version (instead of reading from README.md badge)
+./build_release.sh 6.5.0
+
+# Run individual scripts directly
+./build_deb.sh
+./build_appimage.sh
+./build_exe.sh
+./build_dmg.sh
+```
+
+---
+
+#### Linux: .deb Package (Debian/Ubuntu)
+
+**Script:** `build_deb.sh`
+
+**Prerequisites:** `dpkg-deb` (pre-installed on Debian/Ubuntu), `python3`, `python3-venv`
+
+**Step by step — what the script does:**
+
+1. Reads version from README.md badge (or accepts `./build_deb.sh 6.5.0`)
+2. Creates staging directory `builds/staging/stargwent_VERSION/`
+3. Copies all game files (Python sources, assets, shaders, docs) — skips dev artifacts (`.git`, `venv`, `builds`, `raw_art`, all `build_*.sh`)
+4. Creates a bundled Python virtual environment at `/usr/share/stargwent/.venv/`
+5. Installs all pip dependencies into the venv: `pygame-ce`, `moderngl`, `Pillow`
+6. Creates a launcher script at `/usr/bin/stargwent` that `cd`s to the game dir and runs `main.py` via the bundled venv's Python
+7. Writes `DEBIAN/control` with system library dependencies (`python3`, `libgl1`, `libsdl2-*`)
+8. Installs icon to `/usr/share/pixmaps/` and `.desktop` file to `/usr/share/applications/`
+9. Builds the `.deb` with `dpkg-deb --build --root-owner-group`
+
+**Build and install:**
+
+```bash
+./build_deb.sh
+sudo dpkg -i builds/releases/Stargwent-6.5.0-linux-amd64.deb
+stargwent                          # run from anywhere
+sudo dpkg -r stargwent             # uninstall
+```
+
+**File layout inside the .deb:**
+
+```
+/usr/bin/stargwent                     # launcher script
+/usr/share/stargwent/                  # game files
+/usr/share/stargwent/.venv/            # bundled Python venv (pygame-ce, moderngl, Pillow)
+/usr/share/stargwent/main.py           # entry point
+/usr/share/stargwent/assets/           # game assets
+/usr/share/stargwent/shaders/          # GLSL shaders
+/usr/share/applications/stargwent.desktop
+/usr/share/pixmaps/stargwent.png
+```
+
+---
+
+#### Linux: AppImage (Universal)
+
+**Script:** `build_appimage.sh`
+
+**Prerequisites:** `wget`, `python3` (for the file copy step), `fuse` or `libfuse2` (to run the AppImage)
+
+**Step by step — what the script does:**
+
+1. Reads version from README.md badge (or accepts `./build_appimage.sh 6.5.0`)
+2. Downloads `appimagetool` if not already cached in `builds/`
+3. Creates AppDir at `builds/staging/stargwent.AppDir/`
+4. Copies all game files — skips dev artifacts (`.git`, `venv`, `builds`, `raw_art`, all `build_*.sh`)
+5. Downloads Python 3.13 AppImage from the `python-appimage` project (cached in `builds/`)
+6. Extracts the Python runtime and copies it into the AppDir at `opt/python3.13/`
+7. Installs all pip dependencies into `usr/lib/python3/site-packages/`: `pygame-ce`, `moderngl`, `Pillow`
+8. Creates `AppRun` launcher that sets `PYTHONPATH`, `PYTHONHOME`, `LD_LIBRARY_PATH`, then runs `main.py`
+9. Copies icon and creates `.desktop` file in the AppDir root
+10. Builds the final `.AppImage` with `appimagetool`
+
+**Build and run:**
+
+```bash
+./build_appimage.sh
+chmod +x builds/releases/Stargwent-6.5.0-linux-x86_64.AppImage
+./builds/releases/Stargwent-6.5.0-linux-x86_64.AppImage
+```
+
+No installation needed — the AppImage is fully self-contained with its own Python runtime and all dependencies.
+
+---
+
+#### Windows: .exe (PyInstaller)
+
+**Script:** `build_exe.sh` (run in Git Bash / MSYS2 on Windows, or via GitHub Actions CI)
+
+**Prerequisites:** Python 3.8+, `pip install pyinstaller pygame-ce moderngl Pillow`
+
+**Step by step — what the script does:**
+
+1. Reads version from README.md badge (or accepts `./build_exe.sh 6.5.0`)
+2. Generates a `.ico` icon from `assets/tauri_oneill.png` using Pillow (multi-size: 256 down to 16px)
+3. Ensures all pip dependencies are installed (`pygame-ce`, `moderngl`, `Pillow`)
+4. Runs PyInstaller in `--onedir --windowed` mode with:
+   - `--add-data "assets;assets"` (note: `;` separator on Windows)
+   - `--add-data "shaders;shaders"`, `"docs;docs"`, `"user_content;user_content"`
+   - `--hidden-import moderngl --hidden-import glcontext --hidden-import PIL`
+5. Packages the `dist/Stargwent/` folder into a `.zip` file
+
+**Build and run (Git Bash on Windows):**
+
+```bash
+./build_exe.sh
+# Output: builds/releases/Stargwent-6.5.0-windows-x64.zip
+# Extract and run Stargwent/Stargwent.exe
+```
+
+**Manual build (PowerShell/CMD):**
+
+```powershell
+pip install -r requirements.txt
+pip install pyinstaller
+python -c "from PIL import Image; Image.open('assets/tauri_oneill.png').save('stargwent.ico', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
+pyinstaller --onedir --name Stargwent --windowed --icon=stargwent.ico ^
+  --add-data "assets;assets" --add-data "shaders;shaders" ^
+  --add-data "docs;docs" --add-data "user_content;user_content" ^
+  --hidden-import moderngl --hidden-import glcontext main.py
+dist\Stargwent\Stargwent.exe
+```
+
+**CI build:** See `.github/workflows/build.yml` for automated Windows builds via GitHub Actions.
+
+---
+
+#### macOS: .dmg (PyInstaller + hdiutil)
+
+**Script:** `build_dmg.sh` (run on macOS, or via GitHub Actions CI with `macos-latest`)
+
+**Prerequisites:** Python 3.8+, `pip install pyinstaller pygame-ce moderngl Pillow`, Xcode command-line tools
+
+**Step by step — what the script does:**
+
+1. Reads version from README.md badge (or accepts `./build_dmg.sh 6.5.0`)
+2. Generates a `.icns` icon from `assets/tauri_oneill.png` using `sips` + `iconutil` (macOS built-in) or Pillow fallback
+3. Ensures all pip dependencies are installed (`pygame-ce`, `moderngl`, `Pillow`)
+4. Runs PyInstaller in `--onedir --windowed` mode with:
+   - `--add-data "assets:assets"` (note: `:` separator on macOS/Linux)
+   - `--add-data "shaders:shaders"`, `"docs:docs"`, `"user_content:user_content"`
+   - `--hidden-import moderngl --hidden-import glcontext --hidden-import PIL`
+5. Verifies the `.app` bundle was created
+6. Creates a `.dmg` disk image with `hdiutil create -format UDZO` (compressed)
+
+**Build and install:**
+
+```bash
+./build_dmg.sh
+# Output: builds/releases/Stargwent-6.5.0-macos.dmg
+# Open the .dmg → drag Stargwent to Applications
+```
+
+**CI build:** See `.github/workflows/build.yml` for automated macOS builds via GitHub Actions.
+
+---
+
+#### Orchestrator: build_release.sh
+
+**Script:** `build_release.sh`
+
+Auto-detects the current platform and builds the appropriate targets.
+
+```bash
+./build_release.sh                     # auto-detect platform, build all
+./build_release.sh "" deb              # .deb only (Linux)
+./build_release.sh "" appimage         # AppImage only (Linux)
+./build_release.sh "" exe              # .exe only (Windows)
+./build_release.sh "" dmg              # .dmg only (macOS)
+./build_release.sh "" linux            # both .deb and AppImage
+./build_release.sh 6.5.0 all          # explicit version, all platform targets
+```
+
+Platform detection:
+- **Linux** → builds `.deb` + `.AppImage`
+- **Windows** (Git Bash/MSYS2) → builds `.exe` zip
+- **macOS** → builds `.dmg`
+
+---
+
+#### Build Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `ModuleNotFoundError: moderngl` at runtime | Add `--hidden-import moderngl --hidden-import glcontext` to PyInstaller |
+| Assets not found | Verify `--add-data` paths — use `:` on Linux/macOS, `;` on Windows |
+| OpenGL errors in AppImage | Ensure `libGL.so` is available on the host (`sudo apt install mesa-utils`) |
+| `.deb` missing SDL2 libs | The `Depends:` field handles this — user needs `libsdl2-*` installed |
+| AppImage won't run | Install FUSE: `sudo apt install fuse libfuse2` or extract with `--appimage-extract` |
+| PyInstaller `--onefile` slow startup | Scripts use `--onedir` — faster launch, slightly larger folder |
+| Windows `--add-data` wrong separator | Must use `;` on Windows, `:` on Linux/macOS |
+| macOS "app is damaged" Gatekeeper | Run `xattr -cr Stargwent.app` or sign with `codesign` |
+| Save data location | Game saves to `~/.local/share/stargwent/` (XDG) — works from any install path |
+
+---
+
+### Roadmap: Future Targets
+
+#### Web Browser (WebGL / WASM)
+
+Play Stargwent in any modern web browser — no install needed.
+
+**Approach: Pygbag (most realistic path)**
+
+[Pygbag](https://github.com/nicegui-community/pygbag) compiles Pygame games to WebAssembly (WASM) via Emscripten. Since Stargwent is already Pygame-based, this is the lowest-friction route to a browser build.
+
+**How it would work:**
+1. `pip install pygbag`
+2. `pygbag main.py` — builds a WASM bundle and serves it locally
+3. Deploy the `build/web/` folder to any static host (GitHub Pages, Netlify, itch.io)
+
+**What works out of the box:**
+- Core game loop and rendering (Pygame surface drawing)
+- All card art, animations, particle effects
+- Menu navigation, deck builder, rules compendium
+- Single-player vs AI gameplay
+
+**What needs adaptation:**
+| Feature | Issue | Solution |
+|---------|-------|----------|
+| GPU shaders (ModernGL) | ModernGL uses desktop OpenGL 3.3 — browsers only support WebGL (GLSL ES) | Detect WASM environment → disable GPU effects or port shaders to WebGL-compatible GLSL ES 3.0 |
+| LAN multiplayer | Raw TCP sockets don't exist in browsers | Replace with WebSocket transport layer; host a lightweight relay server (or use WebRTC for peer-to-peer) |
+| File I/O (saves, decks) | No filesystem access in browser sandbox | Use browser `localStorage` or `IndexedDB` via Pygbag's async storage API |
+| Threading | No `threading` module in WASM/Emscripten | Refactor any threaded code to use `asyncio` (Pygbag requires `async` main loop) |
+| Audio | Pygame mixer works but browser may require user interaction first | Add a "Click to Start" splash to unlock audio context |
+
+**Alternative: Pyodide + Pygbag combo**
+
+Pyodide runs CPython in the browser via Emscripten/WASM. Combined with Pygbag's Pygame-to-canvas bridge, this gives full Python stdlib support. Heavier download (~15MB WASM runtime) but more compatible.
+
+**Shader porting notes:**
+
+The existing GLSL 3.3 core shaders (bloom, vignette, distortion, etc.) would need to be ported to GLSL ES 3.0 for WebGL 2.0:
+- `#version 330 core` → `#version 300 es`
+- Add `precision mediump float;` declarations
+- Replace `texture()` calls if using legacy `texture2D()`
+- FBO handling changes (WebGL framebuffer API differs from ModernGL)
+
+A `shaders/webgl/` directory with ES 3.0 variants + runtime detection (`if PLATFORM == "web": use_webgl_shaders()`) would keep both paths working.
+
+**Web Multiplayer Architecture:**
+
+The current LAN multiplayer uses raw TCP sockets (`socket.AF_INET, SOCK_STREAM`), which browsers cannot access. The web build needs a different transport layer while keeping the same game protocol.
+
+**Option A: WebSocket relay server (recommended)**
+```
+Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player B
+                                    ↕ (also accepts TCP)
+                              Desktop Player C (LAN)
+```
+- A lightweight relay server (Python `websockets` or Node.js `ws`) bridges connections
+- Browser clients connect via `wss://` (secure WebSocket)
+- Desktop clients can also connect via WebSocket OR keep using raw TCP
+- The relay translates between WebSocket frames and the existing JSON+newline protocol
+- Cross-play between browser and desktop players works through the relay
+- Server can be hosted on any VPS, Heroku, Railway, or Fly.io (~$0-5/month)
+
+**Implementation plan:**
+1. Create `network_transport.py` — abstract transport layer with `TCPTransport` and `WebSocketTransport` implementations
+2. Refactor `lan_session.py` to use the transport abstraction instead of raw sockets
+3. Create `relay_server.py` — standalone WebSocket relay that rooms/matchmakes players
+4. Browser build auto-detects WASM environment → uses WebSocket transport
+5. Desktop build defaults to TCP (LAN) but can optionally connect to the relay for internet play
+
+**Option B: WebRTC peer-to-peer (advanced)**
+- No relay server needed — browsers connect directly via WebRTC data channels
+- Requires a signaling server (lightweight, only for initial handshake)
+- Lower latency than relay, but more complex NAT traversal
+- Libraries: `aiortc` (Python), or JavaScript WebRTC API via Pygbag's JS interop
+
+**Option C: Hybrid (best of both)**
+- LAN play: raw TCP sockets (desktop only, existing code)
+- Online play: WebSocket relay server (browser + desktop)
+- Same-network browser play: WebRTC peer-to-peer (no server needed)
+- Transport layer auto-selects based on platform and network conditions
+
+**Matchmaking for web:**
+- Relay server provides a simple lobby: create room → share room code → opponent joins
+- No account system needed — ephemeral room codes (e.g., `STARGATE-7X2K`)
+- Optional: public lobby listing for open matches
+
+**Hosting options:**
+- **GitHub Pages** — free, static hosting for the game client, deploy from CI
+- **itch.io** — game-focused platform, supports HTML5 games natively, built-in audience
+- **Relay server** — Python `websockets` on Fly.io / Railway / any VPS for multiplayer support
+- **All-in-one** — single server hosts both the static game files and the WebSocket relay

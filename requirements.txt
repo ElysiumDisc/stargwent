@@ -1,3 +1,4 @@
 pygame-ce
 Pillow
 moderngl
+pyinstaller
