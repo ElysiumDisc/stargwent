@@ -1,5 +1,6 @@
 import threading
 import pygame
+import display_manager
 import socket
 import subprocess
 import re
@@ -546,7 +547,7 @@ def run_lan_menu(screen):
                     mtype = msg.get("type")
                     add_status(f"[{mtype}] {payload}")
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
     if session:
@@ -681,7 +682,7 @@ def run_lan_rematch(screen, session, role):
         # Instructions
         draw_text(screen, "Press ESC to disconnect", screen_h - 60, (120, 120, 140), 16, center_x)
         
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
     
     return None

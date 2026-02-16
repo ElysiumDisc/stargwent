@@ -5,6 +5,7 @@ Allows players to select a faction and build their deck before starting a game.
 import os
 import pygame
 import random
+import display_manager
 from cards import (
     ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
     FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
@@ -2716,9 +2717,9 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
                     if toggle_fullscreen_callback:
                         toggle_fullscreen_callback()
                     else:
-                        import display_manager; display_manager.toggle_fullscreen_mode()
+                        display_manager.toggle_fullscreen_mode()
                     reload_card_images()
-                    screen = pygame.display.get_surface()
+                    screen = display_manager.screen
                     deck_builder.refresh_for_surface(screen)
                 else:
                     # Pass other keyboard events to deck builder for navigation
@@ -2739,7 +2740,7 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
         
         # Draw
         deck_builder.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(144)  # Higher FPS for buttery smooth card movement
     
     return None

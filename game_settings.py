@@ -53,6 +53,12 @@ class GameSettings:
             "show_fps": False,
             "vsync": True,  # VSync enabled by default for tear-free rendering
             "competitive_mode": False,  # Precise timing for LAN games
+            "gpu_enabled": True,
+            "bloom_enabled": True,
+            "bloom_intensity": 0.6,
+            "bloom_threshold": 0.65,
+            "vignette_enabled": True,
+            "shader_quality": "medium",  # "low" | "medium" | "high"
         }
 
     def get_master_volume(self) -> float:
@@ -134,6 +140,49 @@ class GameSettings:
         """Set competitive mode setting"""
         self.settings["competitive_mode"] = bool(enabled)
         self.save_settings()
+
+    def get_gpu_enabled(self) -> bool:
+        return self.settings.get("gpu_enabled", True)
+
+    def set_gpu_enabled(self, enabled: bool):
+        self.settings["gpu_enabled"] = bool(enabled)
+        self.save_settings()
+
+    def get_bloom_enabled(self) -> bool:
+        return self.settings.get("bloom_enabled", True)
+
+    def set_bloom_enabled(self, enabled: bool):
+        self.settings["bloom_enabled"] = bool(enabled)
+        self.save_settings()
+
+    def get_bloom_intensity(self) -> float:
+        return self.settings.get("bloom_intensity", 0.6)
+
+    def set_bloom_intensity(self, value: float):
+        self.settings["bloom_intensity"] = max(0.0, min(1.0, value))
+        self.save_settings()
+
+    def get_bloom_threshold(self) -> float:
+        return self.settings.get("bloom_threshold", 0.65)
+
+    def set_bloom_threshold(self, value: float):
+        self.settings["bloom_threshold"] = max(0.0, min(1.0, value))
+        self.save_settings()
+
+    def get_vignette_enabled(self) -> bool:
+        return self.settings.get("vignette_enabled", True)
+
+    def set_vignette_enabled(self, enabled: bool):
+        self.settings["vignette_enabled"] = bool(enabled)
+        self.save_settings()
+
+    def get_shader_quality(self) -> str:
+        return self.settings.get("shader_quality", "medium")
+
+    def set_shader_quality(self, quality: str):
+        if quality in ("low", "medium", "high"):
+            self.settings["shader_quality"] = quality
+            self.save_settings()
 
 
 # Global settings instance
@@ -269,7 +318,8 @@ def run_settings_menu(screen):
         hint = hint_font.render("Press ESC or click BACK to return", True, (120, 140, 160))
         screen.blit(hint, (screen_width // 2 - hint.get_width() // 2, screen_height - 60))
 
-        pygame.display.flip()
+        import display_manager
+        display_manager.gpu_flip()
         clock.tick(60)
 
     return

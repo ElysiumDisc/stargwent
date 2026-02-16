@@ -104,6 +104,9 @@ import render_engine as re
 # Initialize display via the new manager
 display_manager.initialize_display()
 
+# Initialize GPU post-processing (graceful fallback if unavailable)
+display_manager.initialize_gpu()
+
 # Load user-created content (cards, leaders, factions)
 # This must happen early, before card images are loaded
 try:
@@ -450,7 +453,7 @@ def _show_disconnect_overlay(screen, screen_width, screen_height, reason="connec
         screen.blit(btn_text, (button_rect.centerx - btn_text.get_width() // 2,
                                button_rect.centery - btn_text.get_height() // 2))
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(30)
 
 
@@ -798,7 +801,7 @@ def main(lan_game_data=None):
         # Draw mulligan button
         board_renderer.draw_mulligan_button(screen, mulligan_selected)
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
 
     # === END MULLIGAN PHASE ===
 
@@ -822,7 +825,7 @@ def main(lan_game_data=None):
 
             matchup_anim.update(dt_matchup)
             matchup_anim.draw(screen)
-            pygame.display.flip()
+            display_manager.gpu_flip()
 
         # Show game start animation
         transitions.show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -902,6 +905,8 @@ def main(lan_game_data=None):
         # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
         screen = display_manager.screen
         dt = state.clock.tick(144)
+        if display_manager.gpu_renderer:
+            display_manager.gpu_renderer.update(dt)
         battle_music.update_battle_music()
 
         # Update hand reveal timers
@@ -1608,5 +1613,7 @@ def run_game():
 
 if __name__ == "__main__":
     run_game()
+    if display_manager.gpu_renderer:
+        display_manager.gpu_renderer.cleanup()
     pygame.quit()
     sys.exit()

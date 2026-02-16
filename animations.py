@@ -1,6 +1,7 @@
 import pygame
 import math
 import random
+import display_manager
 
 # RESOLUTION SCALE FACTOR
 # All hardcoded sizes should be multiplied by this for 4K
@@ -1083,6 +1084,21 @@ class NaquadahExplosionEffect:
             pygame.draw.circle(particle_surf, color, (size*2, size*2), size)
 
             surface.blit(particle_surf, (pos[0]-size*2, pos[1]-size*2))
+
+    def get_gpu_params(self):
+        """Return GPU distortion parameters for shockwave effect."""
+        if self.finished or self.elapsed >= self.duration:
+            return None
+        progress = self.elapsed / self.duration
+        strength = max(0.0, 1.0 - progress * 1.5) * 0.8
+        if strength <= 0.0:
+            return None
+        return {
+            'type': 'distortion',
+            'center': (self.x, self.y),
+            'strength': strength,
+            'radius': self.shockwave_radius / 200.0,
+        }
 
 
 class ScorchEffect:
@@ -3322,6 +3338,32 @@ class StargateOpeningEffect:
             surface.blit(shadow, (text_rect.x + 3, text_rect.y + 3))
             surface.blit(text, text_rect)
 
+    def get_gpu_params(self):
+        """Return GPU parameters for event horizon and kawoosh effects."""
+        if self.finished:
+            return None
+        progress = self.elapsed / self.duration
+        params = {
+            'type': 'stargate',
+            'center': (self.center_x, self.center_y),
+            'radius': self.radius,
+        }
+        # Event horizon phase (after 11s puddle formation)
+        if self.elapsed > 11000:
+            horizon_progress = min(1.0, (self.elapsed - 11000) / 1500)
+            params['event_horizon'] = {
+                'intensity': horizon_progress,
+                'gate_radius': self.inner_ring_radius,
+            }
+        # Kawoosh phase (12.5s - 13.5s)
+        if 12500 <= self.elapsed <= 13500:
+            kawoosh_progress = (self.elapsed - 12500) / 1000.0
+            params['kawoosh'] = {
+                'progress': kawoosh_progress,
+                'strength': 1.0 - kawoosh_progress,
+            }
+        return params
+
 
 class IrisClosingEffect(HeroEntryAnimation):
     """Stargate Iris closing animation - metal segments closing from edges."""
@@ -3663,11 +3705,11 @@ def create_black_hole_defeat_transition(screen, screen_width, screen_height, dur
             dark_surf.fill((0, 0, 0, dark_alpha))
             screen.blit(dark_surf, (0, 0))
         
-        pygame.display.flip()
+        display_manager.gpu_flip()
     
     # Final flash to black
     screen.fill((0, 0, 0))
-    pygame.display.flip()
+    display_manager.gpu_flip()
 
 
 class GoauldSymbioteAnimation(Animation):
@@ -3977,6 +4019,21 @@ class ZPMSurgeEffect(Animation):
 
         # Blit to screen centered at self.x, self.y
         surface.blit(canvas, (self.x - size // 2, self.y - size // 2))
+
+    def get_gpu_params(self):
+        """Return GPU parameters for ZPM electric arc overlay."""
+        if self.finished:
+            return None
+        progress = self.get_progress()
+        intensity = 1.0 - progress
+        if intensity <= 0.0:
+            return None
+        return {
+            'type': 'zpm_surge',
+            'center': (self.x, self.y),
+            'intensity': intensity,
+            'surge_radius': 250 * (1 - pow(1 - progress, 4)),
+        }
 
 
 class CommunicationRevealEffect(Animation):
@@ -5166,6 +5223,28 @@ class AsgardBeamTransportEffect(Animation):
                 pygame.draw.circle(surface, color,
                                    (int(p['x']), int(p['y'])), size)
 
+    def get_gpu_params(self):
+        """Return GPU parameters for Asgard beam volumetric light column."""
+        if self.finished:
+            return None
+        progress = self.get_progress()
+        if progress > 0.8:
+            return None
+        # Beam visible during first 80% of effect
+        beam_bottom = self.y
+        beam_top = beam_bottom - self.screen_height * 0.5
+        intensity = 1.0 if progress < 0.5 else max(0.0, 1.0 - (progress - 0.5) / 0.3)
+        scan_progress = min(1.0, progress / 0.5)
+        return {
+            'type': 'asgard_beam',
+            'beam_x': self.x,
+            'beam_top': beam_top,
+            'beam_bottom': beam_bottom,
+            'intensity': intensity,
+            'scan_progress': scan_progress,
+            'screen_height': self.screen_height,
+        }
+
 
 class AnimationManager:
     """Manages all active animations with object pooling (v4.3.1)."""
@@ -5250,6 +5329,21 @@ class AnimationManager:
                 self.pool.return_animation(effect)
         self.row_weather_effects = active_row_weather
     
+    def collect_gpu_params(self):
+        """Collect GPU shader parameters from all active effects and animations."""
+        params = []
+        for effect in self.effects:
+            if hasattr(effect, 'get_gpu_params'):
+                p = effect.get_gpu_params()
+                if p:
+                    params.append(p)
+        for anim in self.animations:
+            if hasattr(anim, 'get_gpu_params'):
+                p = anim.get_gpu_params()
+                if p:
+                    params.append(p)
+        return params
+
     def draw_effects(self, surface):
         """Draw all visual effects."""
         # Draw effects

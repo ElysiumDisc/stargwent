@@ -10,6 +10,7 @@ import json
 import string
 from dataclasses import dataclass, field
 import math
+import display_manager
 from pathlib import Path
 from textwrap import wrap
 from typing import Dict, List, Optional, Tuple
@@ -1754,13 +1755,13 @@ def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
                     if toggle_fullscreen_callback:
                         toggle_fullscreen_callback()
                     else:
-                        import display_manager; display_manager.toggle_fullscreen_mode()
-                    screen = pygame.display.get_surface()
+                        display_manager.toggle_fullscreen_mode()
+                    screen = display_manager.screen
                     viewer.resize(screen.get_width(), screen.get_height())
                     continue
             result = viewer.handle_event(event)
             if result == "back":
                 return None
         viewer.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)

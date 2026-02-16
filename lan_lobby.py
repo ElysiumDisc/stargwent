@@ -4,6 +4,7 @@ Players can chat while waiting to start the match
 """
 import pygame
 import os
+import display_manager
 from typing import Optional
 from lan_session import LanSession
 from lan_chat import LanChatPanel
@@ -312,7 +313,7 @@ def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
 
         lobby.draw(screen)
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
     return False
@@ -341,7 +342,7 @@ def _show_disconnect_message(screen):
     screen.blit(text2, (screen_width // 2 - text2.get_width() // 2, screen_height // 2))
     screen.blit(text3, (screen_width // 2 - text3.get_width() // 2, screen_height // 2 + 60))
 
-    pygame.display.flip()
+    display_manager.gpu_flip()
 
     # Wait for key press
     waiting = True

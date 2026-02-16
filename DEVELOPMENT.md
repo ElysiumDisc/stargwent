@@ -421,8 +421,63 @@ scripts/card_quotes.json  # Optional flavor text mapping (card_id -> quote strin
 - Color-coded by faction
 
 
+### GPU Post-Processing Architecture
+
+The game uses a **hybrid rendering approach**: all drawing is done via Pygame to an offscreen surface, then the frame is uploaded to a ModernGL shared OpenGL context for GLSL shader post-processing. The final result is rendered directly to the default framebuffer (screen) via a fullscreen quad — no CPU readback needed. The display is created with `pygame.OPENGL | pygame.DOUBLEBUF` and ModernGL shares the context via `moderngl.create_context()`.
+
+**Key files:**
+| File | Purpose |
+|------|---------|
+| `gpu_renderer.py` | `GPURenderer`, `ShaderPass`, `FBOPool` — core bridge |
+| `shaders/__init__.py` | Effect registry, `register_all_effects()` |
+| `shaders/bloom.py` | 3-pass bloom (extract → blur H/V → composite) |
+| `shaders/vignette.py` | Radial edge darkening |
+| `shaders/crt_hologram.py` | MALP panel CRT scanlines/noise |
+| `shaders/distortion.py` | Screen-space shockwave distortion (8 points) |
+| `shaders/event_horizon.py` | Procedural stargate portal surface |
+| `shaders/kawoosh.py` | Vortex pixel displacement |
+| `shaders/hyperspace.py` | Radial motion blur warp |
+| `shaders/asgard_beam.py` | Volumetric light column |
+| `shaders/zpm_surge.py` | Procedural electric arcs |
+
+**Rendering flow:**
+1. Game draws to offscreen `display_manager.screen` (a `pygame.Surface`)
+2. `display_manager.gpu_flip()` calls `gpu_renderer.present(surface)`
+3. Frame uploaded to GPU via `pygame.image.tobytes()` → `texture.write()`
+4. Shader chain runs: each enabled effect reads input texture, renders to FBO, outputs texture
+5. Final result rendered to `ctx.screen` (default framebuffer) via passthrough fullscreen quad
+6. `pygame.display.flip()` swaps OpenGL double buffers
+
+**Adding a new shader effect:**
+1. Create `shaders/my_effect.py` with a `ShaderPass` subclass or factory function
+2. Write GLSL fragment shader (vertex shader is shared fullscreen quad passthrough)
+3. Register in `shaders/__init__.py` `register_all_effects()`
+4. If animation-driven: add `get_gpu_params()` to the animation class, handle in `frame_renderer._apply_gpu_params()`
+
+**Animation → GPU bridge:**
+- Animation classes expose `get_gpu_params() -> dict | None`
+- `AnimationManager.collect_gpu_params()` aggregates from all active effects
+- `frame_renderer._apply_gpu_params()` converts pixel coordinates to UV space and sets shader uniforms
+
+**Fallback chain:**
+- `moderngl` not installed → `MODERNGL_AVAILABLE = False` → pure Pygame
+- OpenGL display creation fails → reverts to `pygame.SCALED` → pure Pygame
+- `create_context()` fails → reverts to `pygame.SCALED` → pure Pygame
+- Shader compilation fails → that effect skipped, others continue
+- Runtime GPU error → `self.enabled = False` → auto-reverts to `pygame.SCALED`
+- Settings `gpu_enabled: false` → skips initialization
+
+**Settings** (in `game_settings.py`):
+- `gpu_enabled` — master GPU toggle
+- `bloom_enabled`, `bloom_intensity` (0.0-1.0), `bloom_threshold` (0.0-1.0)
+- `vignette_enabled`
+- `shader_quality` — "low" / "medium" / "high"
+
+**Circular import note:** `game_settings.py` ↔ `display_manager.py` have a circular dependency. Always use local `import display_manager` inside functions in `game_settings.py`.
+
 ### Development
 - Built with **Python 3.8+** and **Pygame CE 2.5.6+**
+- GPU post-processing requires **ModernGL** (`pip install moderngl`) — optional, graceful fallback
 - Card assembler requires **Pillow** (`pip install Pillow`)
 - Inspired by The Witcher 3: Wild Hunt's Gwent
 - Animation system designed for extensibility

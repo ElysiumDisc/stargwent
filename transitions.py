@@ -3,6 +3,7 @@ import math
 import random
 import os
 import game_config as cfg
+import display_manager
 from game_config import (
     UI_FONT, 
     PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS, 
@@ -93,7 +94,7 @@ def create_card_sweep_animation(screen, game, screen_width, screen_height, direc
                     rect = rotated_img.get_rect(center=(int(card_data['x']), int(card_data['y'])))
                     screen.blit(rotated_img, rect)
         
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
 
@@ -244,7 +245,7 @@ def create_hyperspace_transition(screen, screen_width, screen_height, round_numb
         text_rect = text_surf.get_rect(center=(center_x, center_y))
         screen.blit(text_surf, text_rect)
         
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
 
@@ -300,7 +301,6 @@ def _draw_stargate_chevrons(surface, rect, color, alpha, num_chevrons=9):
 
 def show_round_winner_announcement(screen, game, screen_width, screen_height):
     """Show cinematic announcement of who won the round with detailed scoreboard and screen shake."""
-    import display_manager
     scale = display_manager.SCALE_FACTOR
 
     # Get the round that just completed
@@ -621,7 +621,7 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
         # Apply screen shake by blitting render_surface with offset
         screen.blit(render_surface, (int(shake_offset_x), int(shake_offset_y)))
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
 def show_game_start_animation(screen, game, screen_width, screen_height):
@@ -704,7 +704,7 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
             skip_rect = skip_text.get_rect(center=(center_x, screen_height - 50))
             screen.blit(skip_text, skip_rect)
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
 
@@ -723,7 +723,6 @@ class GameOverAnimation:
     TOPPLE_END = 0.8    # Topple completes at 80%
 
     def __init__(self, game, screen_width, screen_height):
-        import display_manager
         self.game = game
         self.screen_width = screen_width
         self.screen_height = screen_height

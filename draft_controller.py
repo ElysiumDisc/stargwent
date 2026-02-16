@@ -5,6 +5,7 @@ Main controller for Draft Mode that ties together the logic and UI.
 """
 
 import pygame
+import display_manager
 from typing import Optional
 from draft_mode import DraftPool, DraftRun
 from draft_mode_ui import DraftModeUI
@@ -620,7 +621,7 @@ class DraftModeController:
 
             # Render
             self.render(screen)
-            pygame.display.flip()
+            display_manager.gpu_flip()
 
         return None
 

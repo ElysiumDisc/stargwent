@@ -1,5 +1,6 @@
 import random
 import pygame
+import display_manager
 from typing import Optional
 from deck_builder import run_deck_builder, FACTION_LEADERS, build_faction_deck
 from leader_matchup import LeaderMatchupAnimation
@@ -127,7 +128,7 @@ def show_leader_matchup(screen, local_leader, remote_leader):
                 animation.finished = True
         animation.update(dt)
         animation.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
 
 
 def run_lan_match(screen, context: LanContext):
@@ -179,7 +180,7 @@ def run_lan_chat_scene(screen, session: LanSession, role: str):
         screen.blit(title_surf, (40, 40))
         chat_panel.draw(screen, panel_rect, title=None)
         
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
     
     session.close()

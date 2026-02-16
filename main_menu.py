@@ -8,6 +8,7 @@ import json
 import os
 import math
 import random
+import display_manager
 from deck_persistence import get_persistence
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
 from deck_builder import FACTION_LEADERS, MIN_DECK_SIZE, MAX_DECK_SIZE, validate_deck
@@ -455,7 +456,6 @@ class MainMenu:
                     elif fps_gate_rect.collidepoint(event.pos):
                         settings.set_show_fps(not settings.get_show_fps())
                     elif gate_rect.collidepoint(event.pos):
-                        import display_manager
                         display_manager.toggle_fullscreen_mode()
                         # Update surface reference after toggle
                         surface = display_manager.screen
@@ -563,7 +563,7 @@ class MainMenu:
             surface.blit(fs_label, fs_label_rect)
 
             # Fullscreen Stargate Toggle
-            is_fullscreen = (surface.get_flags() & pygame.FULLSCREEN) != 0
+            is_fullscreen = display_manager.FULLSCREEN
             gate_surface = draw_stargate_toggle(is_fullscreen, gate_rect, pulse_phase)
             surface.blit(gate_surface, gate_rect.topleft)
 
@@ -617,7 +617,7 @@ class MainMenu:
             esc_rect = esc_surface.get_rect(center=(center_x, panel_top + panel_height - int(25 * scale)))
             surface.blit(esc_surface, esc_rect)
 
-            pygame.display.flip()
+            display_manager.gpu_flip()
         return None
     def load_background(self):
         """Load menu background image."""
@@ -691,8 +691,7 @@ class MainMenu:
                     self.dhd_manager.activate_button(i)
                     
                     if option['action'] == 'options_menu':
-                        screen_surface = pygame.display.get_surface()
-                        result = self.run_options_menu(screen_surface)
+                        result = self.run_options_menu(display_manager.screen)
                         if isinstance(result, str):
                             return result
                     else:
@@ -1160,11 +1159,11 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                     # Toggle fullscreen using shared callback if available
                     if toggle_fullscreen_callback:
                         toggle_fullscreen_callback()
-                        screen = pygame.display.get_surface()
-                        main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
-                        main_menu.screen_surface = screen
                     else:
-                        import display_manager; display_manager.toggle_fullscreen_mode(); screen = display_manager.screen; main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system); main_menu.screen_surface = screen
+                        display_manager.toggle_fullscreen_mode()
+                    screen = display_manager.screen
+                    main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
+                    main_menu.screen_surface = screen
             
             action = main_menu.handle_event(event)
             if action == 'new_game':
@@ -1203,7 +1202,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
         
         update_menu_music()
         main_menu.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
     
     stop_menu_music()
     return None
@@ -1225,7 +1224,7 @@ def run_deck_customization(screen, deck_manager):
                 return 'back'
         
         deck_ui.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
     
     return None
@@ -1948,6 +1947,6 @@ def show_stargate_opening(screen):
             running = False
         
         animation.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
     
     return True

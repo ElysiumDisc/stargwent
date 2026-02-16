@@ -29,6 +29,107 @@ from deck_persistence import record_victory, record_defeat, get_persistence
 import battle_music
 
 
+def _apply_gpu_params(state, screen):
+    """Collect GPU shader parameters from active effects and apply to renderer."""
+    gpu = display_manager.gpu_renderer
+    if not gpu or not gpu.enabled:
+        return
+
+    if not hasattr(state, 'anim_manager') or not state.anim_manager:
+        return
+
+    params_list = state.anim_manager.collect_gpu_params()
+    if not params_list:
+        # Disable animation-driven effects when no params present
+        gpu.set_effect_enabled("event_horizon", False)
+        gpu.set_effect_enabled("kawoosh", False)
+        gpu.set_effect_enabled("asgard_beam", False)
+        gpu.set_effect_enabled("zpm_surge", False)
+        # Clear distortion points
+        distortion = gpu.get_effect("distortion")
+        if distortion and hasattr(distortion, 'clear_points'):
+            distortion.clear_points()
+        return
+
+    w, h = screen.get_size()
+    distortion_points = []
+
+    for params in params_list:
+        ptype = params.get('type', '')
+
+        if ptype == 'distortion':
+            # Convert pixel coords to UV space
+            cx, cy = params['center']
+            distortion_points.append({
+                'center': (cx / w, 1.0 - cy / h),  # Flip Y for GL
+                'strength': params['strength'],
+                'radius': params['radius'],
+            })
+
+        elif ptype == 'stargate':
+            cx, cy = params['center']
+            radius = params['radius']
+
+            if 'event_horizon' in params:
+                eh = params['event_horizon']
+                eh_pass = gpu.get_effect("event_horizon")
+                if eh_pass:
+                    gpu.set_effect_enabled("event_horizon", True)
+                    eh_pass.set_uniform('time', gpu.time)
+                    eh_pass.set_uniform('gate_center', (cx / w, 1.0 - cy / h))
+                    eh_pass.set_uniform('gate_radius', eh['gate_radius'] / h)
+                    eh_pass.set_uniform('intensity', eh['intensity'])
+                    eh_pass.set_uniform('screen_size', (float(w), float(h)))
+
+            if 'kawoosh' in params:
+                kw = params['kawoosh']
+                kw_pass = gpu.get_effect("kawoosh")
+                if kw_pass:
+                    gpu.set_effect_enabled("kawoosh", True)
+                    kw_pass.set_uniform('time', gpu.time)
+                    kw_pass.set_uniform('gate_center', (cx / w, 1.0 - cy / h))
+                    kw_pass.set_uniform('progress', kw['progress'])
+                    kw_pass.set_uniform('strength', kw['strength'])
+                    kw_pass.set_uniform('screen_size', (float(w), float(h)))
+            else:
+                gpu.set_effect_enabled("kawoosh", False)
+
+        elif ptype == 'asgard_beam':
+            beam_pass = gpu.get_effect("asgard_beam")
+            if beam_pass:
+                gpu.set_effect_enabled("asgard_beam", True)
+                sh = params['screen_height']
+                beam_pass.set_uniform('time', gpu.time)
+                beam_pass.set_uniform('beam_x', params['beam_x'] / w)
+                beam_pass.set_uniform('beam_top', 1.0 - params['beam_top'] / h)
+                beam_pass.set_uniform('beam_bottom', 1.0 - params['beam_bottom'] / h)
+                beam_pass.set_uniform('intensity', params['intensity'])
+                beam_pass.set_uniform('scan_progress', params['scan_progress'])
+
+        elif ptype == 'zpm_surge':
+            zpm_pass = gpu.get_effect("zpm_surge")
+            if zpm_pass:
+                gpu.set_effect_enabled("zpm_surge", True)
+                cx, cy = params['center']
+                zpm_pass.set_uniform('time', gpu.time)
+                zpm_pass.set_uniform('zpm_center', (cx / w, 1.0 - cy / h))
+                zpm_pass.set_uniform('intensity', params['intensity'])
+                zpm_pass.set_uniform('surge_radius', params['surge_radius'] / h)
+
+    # Apply distortion points
+    distortion = gpu.get_effect("distortion")
+    if distortion and hasattr(distortion, 'set_distortion_points'):
+        if distortion_points:
+            distortion.set_distortion_points(distortion_points, (w, h))
+        else:
+            distortion.clear_points()
+
+    # Update CRT time uniform
+    crt = gpu.get_effect("crt_hologram")
+    if crt:
+        crt.set_uniform('time', gpu.time)
+
+
 def render_frame(state, game, screen, dt, drag_visual_state):
     """Render a complete frame of the game.
 
@@ -1027,4 +1128,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         screen.blit(fps_bg, (8, 8))
         screen.blit(fps_text, (13, 11))
 
-    pygame.display.flip()
+    # Pass GPU shader parameters from active effects before presenting
+    _apply_gpu_params(state, screen)
+
+    display_manager.gpu_flip()

@@ -20,9 +20,10 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-6.4.0-blue)
+![Version](https://img.shields.io/badge/version-6.5.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
+![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
 ![Status](https://img.shields.io/badge/status-Optimized-brightgreen)
 
@@ -103,6 +104,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎨 Visual Polish
 - **4K Native Resolution** (3840×2160) with perfect scaling
+- **GPU Post-Processing** - ModernGL shader pipeline with bloom, vignette, screen distortion, and cinematic effects
 - **Persistent Weather Animations** - Ice crystals, fiery meteors, nebula clouds, EMP arcs
 - **Faction Power Cinematics** - Asgard beams, Goa'uld sarcophagus, Lucian EM glitches
 - **Combat Text Pop-ups** - "BUFFED!", "INSPIRED!", "WIPED!" float with score changes
@@ -147,6 +149,19 @@ All abilities renamed and themed around Stargate lore:
 - **Persistent Progress** - All unlocks saved to JSON
 - **Win Streak Tracking** - Stats tracked across sessions
 - **Faction-Specific Unlocks** - Leaders and cards match your chosen faction
+
+### 🔮 GPU Post-Processing (ModernGL)
+- **Bloom/Glow** - 3-pass bloom shader makes all bright pixels genuinely glow (stargate chevrons, explosions, energy waves)
+- **Vignette** - Cinematic edge darkening with smoothstep radial falloff
+- **CRT/Hologram** - MALP panel scanlines, static noise, green tint, flicker
+- **Screen Distortion** - Shockwave ripples from Naquadah explosions (up to 8 concurrent points)
+- **Event Horizon** - Procedural rippling portal surface with animated noise
+- **Kawoosh Vortex** - Pixel displacement during stargate activation
+- **Hyperspace Warp** - Radial motion blur with streak overlay during transitions
+- **Asgard Beam** - Volumetric light column with scan line and shimmer
+- **ZPM Surge** - Procedural electric arcs radiating from ZPM
+- **Graceful Fallback** - All effects auto-disable if GPU unavailable; game runs unchanged on pure Pygame
+- **Configurable** - Toggle bloom, vignette, shader quality in settings
 
 ### 🎨 Stunning Visual Effects
 - **4K Resolution** - Native 3840×2160 support with perfect scaling
@@ -598,6 +613,9 @@ python scripts/card_assembler.py --dry-run          # Preview without writing
 - Achievement system
 - More factions (Wraith, Ori, Atlantis)
 - Internet matchmaking (beyond LAN/VPN)
+- GPU particle system (instanced rendering for heavy particle effects)
+- Texture atlas for cards (single 4096x4096 GPU texture)
+- Direct OpenGL display mode (eliminate CPU-GPU roundtrip)
 
 
 ## 📝 License & Credits

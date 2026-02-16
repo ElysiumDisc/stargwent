@@ -1,3 +1,53 @@
+### Version 6.5.0 (February 2026)
+**GPU Post-Processing with ModernGL**
+
+#### GPU Rendering Pipeline (`gpu_renderer.py`)
+- **Shared OpenGL context** -- Display created with `pygame.OPENGL | pygame.DOUBLEBUF`, game draws to offscreen surface, GPU renders final result directly to default framebuffer via fullscreen quad (no CPU readback)
+- **ShaderPass / FBOPool architecture** -- Reusable framebuffer pool, per-pass VAOs, automatic resource management
+- **Graceful fallback chain** -- moderngl not installed → pure Pygame; context fails → reverts to `pygame.SCALED`; shader fails → effect disabled; runtime error → auto-reverts to Pygame for session; user setting → toggle off
+
+#### 9 Shader Effects (`shaders/` package)
+- **Bloom** (`shaders/bloom.py`) -- 3-pass bright extract → separable Gaussian blur (half-res) → additive composite with clamp. Auto-enhances all bright elements
+- **Vignette** (`shaders/vignette.py`) -- Radial smoothstep edge darkening for cinematic depth
+- **CRT/Hologram** (`shaders/crt_hologram.py`) -- Region-specific MALP panel effect: scanlines, static noise, green tint, flicker, chromatic aberration
+- **Distortion** (`shaders/distortion.py`) -- Up to 8 concurrent ring-shaped shockwave distortion points driven by animations
+- **Event Horizon** (`shaders/event_horizon.py`) -- Procedural rippling portal with fbm noise, blue-white gradient, glowing edge ring
+- **Kawoosh** (`shaders/kawoosh.py`) -- Cone-shaped vortex displacement with additive blue-white energy
+- **Hyperspace** (`shaders/hyperspace.py`) -- Radial motion blur with blue-white streak overlay
+- **Asgard Beam** (`shaders/asgard_beam.py`) -- Vertical volumetric light column with downward scan line and shimmer
+- **ZPM Surge** (`shaders/zpm_surge.py`) -- Procedural multi-octave lightning arcs with cyan-white energy
+
+#### Animation→GPU Bridge
+- **`get_gpu_params()`** on StargateOpeningEffect, NaquadahExplosionEffect, AsgardBeamTransportEffect, ZPMSurgeEffect
+- **`AnimationManager.collect_gpu_params()`** -- Aggregates GPU parameters from all active effects
+- **`frame_renderer._apply_gpu_params()`** -- Maps animation state to shader uniforms each frame
+
+#### GPU Settings (`game_settings.py`)
+- `gpu_enabled`, `bloom_enabled`, `bloom_intensity`, `bloom_threshold`, `vignette_enabled`, `shader_quality` (low/medium/high)
+
+#### Display Pipeline (`display_manager.py`)
+- **`gpu_flip()`** -- Routes all 30 flip calls across 15 files through GPU post-processing or plain Pygame
+- **`initialize_gpu()`** -- Sets OpenGL attributes, recreates display with `pygame.OPENGL`, creates offscreen surface, shared context creation, validation, effect registration
+- **Runtime fallback** -- If GPU fails mid-session, auto-reverts to `pygame.SCALED` rendering
+- **Fullscreen toggle** -- Destroys/recreates entire GL context and re-registers all effects seamlessly
+
+#### Files Created
+- `gpu_renderer.py` -- GPURenderer, ShaderPass, FBOPool core
+- `shaders/__init__.py` -- Package init with `register_all_effects()`
+- `shaders/bloom.py`, `shaders/vignette.py`, `shaders/crt_hologram.py`, `shaders/distortion.py`
+- `shaders/event_horizon.py`, `shaders/kawoosh.py`, `shaders/hyperspace.py`, `shaders/asgard_beam.py`, `shaders/zpm_surge.py`
+
+#### Files Modified
+- `display_manager.py` -- Added `gpu_renderer` global, `initialize_gpu()`, `gpu_flip()`
+- `game_settings.py` -- Added 6 GPU settings with getters/setters
+- `main.py` -- GPU init, update(dt) in game loop, cleanup on exit
+- `frame_renderer.py` -- `_apply_gpu_params()`, replaced flip call
+- `animations.py` -- `get_gpu_params()` on 4 effects, `collect_gpu_params()` on AnimationManager
+- `transitions.py`, `main_menu.py`, `stats_menu.py`, `rules_menu.py`, `deck_builder.py`, `unlocks.py`, `lan_game.py`, `lan_lobby.py`, `lan_menu.py`, `draft_controller.py`, `space_shooter/__init__.py` -- Replaced `pygame.display.flip()` with `display_manager.gpu_flip()`
+- `requirements.txt` -- Added `moderngl`
+
+---
+
 ### Version 6.4.0 (February 2026)
 **Art Assembly Pipeline, Rarity Name Plates & Avenger Token Art**
 

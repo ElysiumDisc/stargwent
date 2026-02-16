@@ -7,6 +7,7 @@ import pygame
 import random
 import json
 import os
+import display_manager
 from cards import Card, FACTION_NEUTRAL
 from content_registry import UNLOCKABLE_LEADERS
 from save_paths import get_unlock_save_path, ensure_migration
@@ -806,7 +807,7 @@ def show_leader_reward_screen(screen, unlock_system, faction):
                 return reward_ui.selected_leader
         
         reward_ui.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
     
     return None
@@ -839,7 +840,7 @@ def show_card_reward_screen(screen, unlock_system, faction=None):
                 return reward_ui.selected_card
         
         reward_ui.draw(screen)
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
     
     return None

@@ -21,6 +21,7 @@ except:
         pass  # Not Windows or already set
 
 screen = None
+gpu_renderer = None  # GPURenderer instance (None if unavailable)
 FULLSCREEN = False
 VSYNC_ENABLED = True  # VSync enabled by default for tear-free rendering
 COMPETITIVE_MODE = False  # Uses tick_busy_loop for precise timing in LAN games
@@ -158,7 +159,10 @@ def set_display_mode(fullscreen_enabled, *, reload_cards=False, vsync=None):
     # Don't override SCREEN_WIDTH/HEIGHT - they're already set by initialize_display()
     # with adaptive resolution logic (native res if < 1440p, else 1440p)
 
-    if fullscreen_enabled:
+    if gpu_renderer and gpu_renderer.enabled:
+        # GPU mode — recreate OPENGL display and reinitialize context
+        _recreate_gpu_display(fullscreen_enabled, vsync_value)
+    elif fullscreen_enabled:
         # Use SCALED + FULLSCREEN for hardware-accelerated 4K output with optional vsync
         screen = pygame.display.set_mode(
             (SCREEN_WIDTH, SCREEN_HEIGHT),
@@ -238,6 +242,249 @@ def set_competitive_mode(enabled):
     global COMPETITIVE_MODE
     COMPETITIVE_MODE = enabled
     print(f"Competitive mode {'enabled' if enabled else 'disabled'} (uses tick_busy_loop)")
+
+
+def _set_gl_attributes():
+    """Set OpenGL context attributes for ModernGL compatibility."""
+    pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 3)
+    pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 3)
+    pygame.display.gl_set_attribute(pygame.GL_CONTEXT_PROFILE_MASK,
+                                     pygame.GL_CONTEXT_PROFILE_CORE)
+
+
+def _revert_to_scaled():
+    """Revert from OPENGL display to SCALED after GPU failure."""
+    global screen
+    print("[GPU] Reverting to Pygame SCALED rendering")
+    use_vsync = VSYNC_ENABLED
+    vsync_value = 1 if use_vsync else 0
+    flags = pygame.SCALED
+    if FULLSCREEN:
+        flags |= pygame.FULLSCREEN
+    screen = pygame.display.set_mode(
+        (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=vsync_value
+    )
+    vsync_status = "VSync ON" if use_vsync else "VSync OFF"
+    mode = "Fullscreen" if FULLSCREEN else "Windowed"
+    pygame.display.set_caption(f"Stargwent - {mode} ({vsync_status})")
+
+
+def _recreate_gpu_display(fullscreen_enabled, vsync_value):
+    """Recreate OPENGL display and GPU context for mode change (e.g. fullscreen toggle)."""
+    global screen, gpu_renderer
+
+    # Cleanup old GPU resources (context will be invalidated by display recreation)
+    if gpu_renderer:
+        try:
+            gpu_renderer.cleanup()
+        except Exception:
+            pass
+        gpu_renderer = None
+
+    _set_gl_attributes()
+
+    flags = pygame.OPENGL | pygame.DOUBLEBUF
+    if fullscreen_enabled:
+        flags |= pygame.FULLSCREEN
+
+    try:
+        pygame.display.set_mode(
+            (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=vsync_value
+        )
+    except pygame.error as e:
+        print(f"[GPU] Failed to recreate OpenGL display: {e}")
+        _revert_to_scaled()
+        return
+
+    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+    from gpu_renderer import GPURenderer
+    renderer = GPURenderer(SCREEN_WIDTH, SCREEN_HEIGHT)
+    if renderer.initialize():
+        gpu_renderer = renderer
+        try:
+            from shaders import register_all_effects
+            register_all_effects(gpu_renderer)
+        except Exception as e:
+            print(f"[GPU] Effect re-registration failed: {e}")
+        _apply_gpu_settings()
+
+        use_vsync = vsync_value == 1
+        vsync_status = "VSync ON" if use_vsync else "VSync OFF"
+        mode = "Fullscreen" if fullscreen_enabled else "Windowed"
+        pygame.display.set_caption(f"Stargwent - {mode} GPU ({vsync_status})")
+    else:
+        print("[GPU] Failed to reinitialize — reverting to Pygame rendering")
+        _revert_to_scaled()
+
+
+def initialize_gpu():
+    """Attempt to create GPURenderer with shared OpenGL context.
+
+    Recreates the display with pygame.OPENGL so ModernGL can share
+    the GL context.  On failure, reverts to SCALED Pygame rendering.
+    """
+    global gpu_renderer, screen
+
+    from gpu_renderer import MODERNGL_AVAILABLE
+    if not MODERNGL_AVAILABLE:
+        print("[GPU] moderngl not installed — using Pygame rendering")
+        return
+
+    # Check if GPU is enabled in settings
+    try:
+        from game_settings import get_settings
+        settings = get_settings()
+        if not settings.get_gpu_enabled():
+            print("[GPU] Disabled in settings — using Pygame rendering")
+            return
+    except (ImportError, AttributeError):
+        pass
+
+    # --- Switch display to OpenGL mode ---
+    _set_gl_attributes()
+
+    flags = pygame.OPENGL | pygame.DOUBLEBUF
+    if FULLSCREEN:
+        flags |= pygame.FULLSCREEN
+
+    use_vsync = VSYNC_ENABLED
+    vsync_value = 1 if use_vsync else 0
+
+    try:
+        pygame.display.set_mode(
+            (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=vsync_value
+        )
+    except pygame.error as e:
+        print(f"[GPU] Failed to create OpenGL display: {e}")
+        print("[GPU] Reverting to Pygame rendering")
+        _revert_to_scaled()
+        return
+
+    # Offscreen surface — all game drawing targets this
+    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+    # --- Create GPU renderer sharing Pygame's GL context ---
+    from gpu_renderer import GPURenderer
+    renderer = GPURenderer(SCREEN_WIDTH, SCREEN_HEIGHT)
+    if not renderer.initialize():
+        print("[GPU] Failed to initialize — reverting to Pygame rendering")
+        _revert_to_scaled()
+        return
+
+    # Validate with actual FBO render test
+    try:
+        import moderngl
+        ctx = renderer.ctx
+
+        test_tex = ctx.texture((16, 16), 4)
+        test_fbo = ctx.framebuffer(color_attachments=[test_tex])
+
+        test_prog = ctx.program(
+            vertex_shader="""
+            #version 330
+            in vec2 in_position;
+            void main() { gl_Position = vec4(in_position, 0.0, 1.0); }
+            """,
+            fragment_shader="""
+            #version 330
+            out vec4 fragColor;
+            void main() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }
+            """,
+        )
+        import struct
+        vbo_data = struct.pack('8f', -1, -1, 1, -1, -1, 1, 1, 1)
+        test_vbo = ctx.buffer(vbo_data)
+        test_vao = ctx.vertex_array(test_prog, [(test_vbo, '2f', 'in_position')])
+
+        test_fbo.use()
+        test_fbo.clear(0.0, 0.0, 0.0, 1.0)
+        test_vao.render(moderngl.TRIANGLE_STRIP)
+        ctx.finish()
+
+        result = test_tex.read()
+        r, g, b, a = result[0], result[1], result[2], result[3]
+
+        test_vao.release()
+        test_vbo.release()
+        test_prog.release()
+        test_fbo.release()
+        test_tex.release()
+
+        if r < 200:
+            print(f"[GPU] Render test failed: expected red, got RGBA=({r},{g},{b},{a})")
+            renderer.cleanup()
+            _revert_to_scaled()
+            return
+        print(f"[GPU] Render test passed: RGBA=({r},{g},{b},{a})")
+    except Exception as e:
+        print(f"[GPU] Render test failed: {e}")
+        renderer.cleanup()
+        _revert_to_scaled()
+        return
+
+    gpu_renderer = renderer
+
+    # Set window caption
+    vsync_status = "VSync ON" if use_vsync else "VSync OFF"
+    mode = "Fullscreen" if FULLSCREEN else "Windowed"
+    pygame.display.set_caption(f"Stargwent - {mode} GPU ({vsync_status})")
+
+    # Register shader effects
+    try:
+        from shaders import register_all_effects
+        register_all_effects(gpu_renderer)
+    except Exception as e:
+        print(f"[GPU] Effect registration failed: {e}")
+
+    # Apply settings to effects
+    _apply_gpu_settings()
+    print("[GPU] Ready")
+
+
+def _apply_gpu_settings():
+    """Apply game settings to GPU effect enable/disable state."""
+    if not gpu_renderer:
+        return
+    try:
+        from game_settings import get_settings
+        settings = get_settings()
+        gpu_renderer.set_effect_enabled("bloom", settings.get_bloom_enabled())
+        gpu_renderer.set_effect_enabled("vignette", settings.get_vignette_enabled())
+
+        # Set bloom parameters
+        bloom_adapter = gpu_renderer.get_effect("bloom")
+        if bloom_adapter and hasattr(bloom_adapter, 'bloom'):
+            bloom_adapter.bloom.extract.threshold = settings.get_bloom_threshold()
+            bloom_adapter.bloom.composite.intensity = settings.get_bloom_intensity()
+    except (ImportError, AttributeError):
+        pass
+
+
+def gpu_flip(surface=None):
+    """Present frame via GPU post-processing or plain Pygame flip.
+
+    Args:
+        surface: Pygame surface to present. If None, uses display_manager.screen.
+    """
+    global gpu_renderer
+    if gpu_renderer and gpu_renderer.enabled:
+        target = surface or screen
+        if target:
+            gpu_renderer.present(target)
+        else:
+            pygame.display.flip()
+    else:
+        if gpu_renderer and not gpu_renderer.enabled:
+            # GPU failed at runtime — revert to SCALED display
+            print("[GPU] Runtime failure — reverting to Pygame rendering")
+            try:
+                gpu_renderer.cleanup()
+            except Exception:
+                pass
+            gpu_renderer = None
+            _revert_to_scaled()
+        pygame.display.flip()
 
 
 def get_clock_tick_func():

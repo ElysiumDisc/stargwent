@@ -1,6 +1,7 @@
 import pygame
 import os
 import math
+import display_manager
 from deck_persistence import get_persistence
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
 from content_registry import get_all_leaders_for_faction
@@ -51,7 +52,7 @@ def show_confirmation_dialog(surface, text, screen_width, screen_height):
     overlay.blit(no_text, no_text.get_rect(center=no_rect.center))
     
     surface.blit(overlay, (0, 0))
-    pygame.display.flip()
+    display_manager.gpu_flip()
     
     while True:
         for event in pygame.event.get():
@@ -849,4 +850,4 @@ def run_stats_menu(screen):
         # DHD back button at top left (drawn on top of everything)
         back_rect = board_renderer.draw_dhd_back_button(screen, 20, 20, 80)
 
-        pygame.display.flip()
+        display_manager.gpu_flip()

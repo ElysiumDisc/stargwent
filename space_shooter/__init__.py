@@ -18,6 +18,7 @@ Scoring:
 
 import pygame
 import random
+import display_manager
 
 from .game import SpaceShooterGame
 from .ship_select import ShipSelectScreen
@@ -59,7 +60,7 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
                     selecting = False
 
             select_screen.draw(screen)
-            pygame.display.flip()
+            display_manager.gpu_flip()
 
     # Pick random AI faction (different from player)
     if ai_faction is None:
@@ -81,7 +82,7 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
         game.update()
         game.draw(screen)
 
-        pygame.display.flip()
+        display_manager.gpu_flip()
         clock.tick(60)
 
     if game.exit_to_menu:
