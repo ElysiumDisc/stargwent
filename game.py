@@ -1573,6 +1573,7 @@ class Game:
         """Activate Combat Protocol: Add 1 Avenger token (5 power) to the row."""
         from cards import Card, load_card_image
         avenger = Card("token_avenger", "Asgard Avenger", player.faction, 5, row_name, None)
+        avenger.image_path = "assets/asgard_clone_incubator.png"
         load_card_image(avenger)
         player.board[row_name].append(avenger)
     

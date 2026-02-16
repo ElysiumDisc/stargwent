@@ -1,3 +1,25 @@
+### Version 6.4.0 (February 2026)
+**Art Assembly Pipeline, Rarity Name Plates & Avenger Token Art**
+
+#### Art Assembler — Full Asset Pipeline (`scripts/card_assembler.py`)
+- **Leader portraits** -- `raw_art/{card_id}_leader.png` → `assets/{card_id}_leader.png` (200x280, stretched)
+- **Leader backgrounds** -- `raw_art/leader_bg_{card_id}.png` → `assets/leader_bg_{card_id}.png` (3840x2160, stretched)
+- **Faction backgrounds** -- `raw_art/faction_bg_{faction}.png` → `assets/faction_bg_{faction}.png` (3840x2160, stretched)
+- **Lobby background** -- `raw_art/lobby_background.png` → `assets/lobby_background.png` (3840x2160, stretched)
+- **Each asset has its own raw art** -- Card art, leader portrait, leader background, faction background, and lobby background are all separate source images with unique filenames
+- **Stretch-to-fit** -- Raw art is always stretched (not cropped) to exactly fit the target dimensions
+- **Rarity name plate overlay** -- Name plate bar reflects card rarity from `unlocks.py` explicit rarity fields: blue (rare), purple (epic), gold (legendary). Cards without explicit rarity keep the original faction border color
+- **Loads leader data** -- Imports `BASE_FACTION_LEADERS` and `UNLOCKABLE_LEADERS` from `content_registry.py` to identify which card_ids are leaders
+
+#### Avenger Token Art
+- **Clone Incubator art for Avenger tokens** -- The Asgard Avenger token spawned by Clone Incubator's "Activate Combat Protocol" now displays Clone Incubator card art instead of a blank grey rectangle
+
+#### Files Modified
+- `scripts/card_assembler.py` -- Art assembly pipeline: leader portraits, leader backgrounds, faction/lobby backgrounds, rarity name plates, stretch-to-fit
+- `game.py` -- Set `avenger.image_path` in `trigger_summon_avenger()` to reuse Clone Incubator art
+
+---
+
 ### Version 6.3.0 (February 2026)
 **Card Assembler Pipeline — Automated Card Image Compositing**
 

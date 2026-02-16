@@ -355,52 +355,59 @@ Located in `assets/audio/leader_voices/`. Leader quotes for draft mode and selec
 
 See [Audio Assets](#audio-assets) section for full list of supported audio files.
 
-### Card Assembler
+### Art Assembler
 
-Automated pipeline for assembling finished card images from raw portrait art. Uses Pillow (PIL) to composite layers.
+Automated pipeline for assembling finished card images, leader portraits, leader backgrounds, and faction/lobby backgrounds from raw art. Uses Pillow (PIL).
 
 ```bash
 python scripts/card_assembler.py                    # Assemble all cards with raw art
 python scripts/card_assembler.py tauri_oneill       # Specific cards
 python scripts/card_assembler.py --faction tauri    # Entire faction
-python scripts/card_assembler.py --no-overwrite     # Skip existing finished cards
+python scripts/card_assembler.py --no-overwrite     # Skip existing finished assets
 python scripts/card_assembler.py --status           # Per-faction progress report
 python scripts/card_assembler.py --list-missing     # Cards without raw art
 python scripts/card_assembler.py --dry-run          # Preview without writing files
 ```
 
-**Assembly pipeline per card:**
+**Card assembly pipeline:**
 1. Load raw portrait art from `raw_art/{card_id}.png`
-2. Center-crop/resize portrait to fit border's transparent cutout
+2. Stretch portrait to fit border's portrait cutout
 3. Alpha-composite faction border on top
 4. Scale & paste row icon (close/ranged/siege/agile)
 5. Scale & paste ability icons (stacked vertically if multiple)
 6. Render power number (size 24, black)
-7. Render card name (auto-sized 13-7px, black)
-8. Render flavor text from `scripts/card_quotes.json` (size 13, black, word-wrapped)
-9. Save to `assets/{card_id}.png`
+7. Draw rarity-colored name plate overlay (blue=rare, purple=epic, gold=legendary; only for cards with explicit rarity in `unlocks.py`)
+8. Render card name (auto-sized 13-7px, black)
+9. Render flavor text from `scripts/card_quotes.json` (size 13, black, word-wrapped)
+10. Save to `assets/{card_id}.png`
+
+**Leader & background assembly (each has its own separate raw art):**
+- `raw_art/{card_id}_leader.png` → `assets/{card_id}_leader.png` (200x280 leader portrait)
+- `raw_art/leader_bg_{card_id}.png` → `assets/leader_bg_{card_id}.png` (3840x2160 leader background)
+- `raw_art/faction_bg_{faction}.png` → `assets/faction_bg_{faction}.png` (3840x2160)
+- `raw_art/lobby_background.png` → `assets/lobby_background.png` (3840x2160)
+
+**Raw art naming — each asset type has its own unique image:**
+| Raw art filename | Output asset |
+|---|---|
+| `raw_art/asgard_loki.png` | `asgard_loki.png` (assembled card with border/icons/text) |
+| `raw_art/asgard_loki_leader.png` | `asgard_loki_leader.png` (leader portrait, stretched) |
+| `raw_art/leader_bg_asgard_loki.png` | `leader_bg_asgard_loki.png` (leader background, stretched) |
+| `raw_art/faction_bg_asgard.png` | `faction_bg_asgard.png` (faction background, stretched) |
+| `raw_art/lobby_background.png` | `lobby_background.png` (lobby background, stretched) |
 
 **Asset structure:**
 ```
 assets/card_assembler/
     borders/              # Faction border PNGs (200x280 RGBA, transparent portrait cutout)
-        tauri-border.png
-        goauld-border.png
-        jaffa-border.png
-        lucian-border.png
-        asgard-border.png
-        neutral-border.png
-    row_icons/            # Row type icons (high-res, scaled to ~30px)
-        close.png
-        ranged.png
-        siege.png
-        agile.png
-    ability_icons/        # Ability icons (high-res, scaled to ~22px)
-        Legendary commander.png
-        Tactical formations.png
-        Gate Reinforcement.png
-        ... (12 abilities with icons)
-raw_art/                  # Drop ComfyUI portrait PNGs here, named by card_id
+    row_icons/            # Row type icons (close, ranged, siege, agile)
+    ability_icons/        # Ability icons (12 abilities with icons)
+raw_art/                  # Drop raw art PNGs here (each output has its own source):
+    {card_id}.png         #   Card art → assembled with border/icons/text
+    {card_id}_leader.png  #   Leader portrait → stretched to 200x280
+    leader_bg_{card_id}.png  # Leader background → stretched to 3840x2160
+    faction_bg_{id}.png   #   Faction background → stretched to 3840x2160
+    lobby_background.png  #   Lobby background → stretched to 3840x2160
 scripts/card_quotes.json  # Optional flavor text mapping (card_id -> quote string)
 ```
 

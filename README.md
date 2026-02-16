@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-6.2.0-blue)
+![Version](https://img.shields.io/badge/version-6.4.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
@@ -557,9 +557,9 @@ All abilities renamed and themed around Stargate lore:
 | Zoom Card (Deck Builder) | Right click |
 
 
-### Card Assembler
+### Art Assembler
 
-Automated card image assembly pipeline that composites raw portrait art with faction borders, icons, text, and overlays into finished 200x280 card images.
+Automated art pipeline that assembles finished card images, leader portraits, leader backgrounds, and faction/lobby backgrounds from raw art.
 
 ```bash
 python scripts/card_assembler.py                    # Assemble all cards with raw art
@@ -572,15 +572,22 @@ python scripts/card_assembler.py --dry-run          # Preview without writing
 ```
 
 **Workflow:**
-1. Generate portrait art in ComfyUI
+1. Generate art in ComfyUI
 2. Drop PNGs in `raw_art/` named by card_id (e.g., `tauri_oneill.png`)
-3. Run `python scripts/card_assembler.py` to auto-assemble finished cards
+3. Run `python scripts/card_assembler.py` to auto-assemble all assets
+
+**Each asset type has its own raw art file:**
+- `raw_art/{card_id}.png` → `assets/{card_id}.png` - Assembled card (200x280, border/icons/text)
+- `raw_art/{card_id}_leader.png` → `assets/{card_id}_leader.png` - Leader portrait (200x280, stretched)
+- `raw_art/leader_bg_{card_id}.png` → `assets/leader_bg_{card_id}.png` - Leader background (3840x2160, stretched)
+- `raw_art/faction_bg_{faction}.png` → `assets/faction_bg_{faction}.png` - Faction background (3840x2160, stretched)
+- `raw_art/lobby_background.png` → `assets/lobby_background.png` - Lobby background (3840x2160, stretched)
 
 **Asset directories:**
 - `assets/card_assembler/borders/` - Faction border templates (200x280 RGBA)
 - `assets/card_assembler/row_icons/` - Row type icons (close, ranged, siege, agile)
 - `assets/card_assembler/ability_icons/` - Ability icons (12 abilities with icons)
-- `raw_art/` - Raw ComfyUI portrait art input
+- `raw_art/` - Raw art input (each output asset has its own unique source image)
 - `scripts/card_quotes.json` - Optional flavor text quotes per card
 
 **Dependencies:** Pillow (`pip install Pillow`)

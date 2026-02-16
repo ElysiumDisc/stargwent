@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Card Assembler — composites finished card images from raw portrait art.
+Art Assembler — composites finished card images and resizes art assets from raw art.
 
-Takes raw ComfyUI portrait art + card data from cards.py and automatically
-assembles finished card images with border, row icon, ability icons, power
-number, name text, and flavor quote.
+Takes raw ComfyUI art + card data from cards.py and automatically assembles:
+  - Card images: portrait + faction border + row icon + ability icons + power + name + quote
+  - Leader portraits: raw art resized to 200x280 (for leaders only)
+  - Leader backgrounds: raw art resized to 3840x2160 (for leaders only)
+  - Faction backgrounds: raw_art/faction_bg_*.png resized to 3840x2160
+  - Lobby background: raw_art/lobby_background.png resized to 3840x2160
 
 Usage:
     python scripts/card_assembler.py                    # All cards with raw art
@@ -19,6 +22,8 @@ Asset structure:
         row_icons/        ← Row type icons (close.png, ranged.png, siege.png, agile.png)
         ability_icons/    ← Ability icons (Legendary commander.png, etc.)
     raw_art/              ← Drop ComfyUI portrait PNGs here, named by card_id
+    raw_art/faction_bg_*  ← Faction backgrounds (resized to 3840x2160)
+    raw_art/lobby_background ← Lobby background (resized to 3840x2160)
 """
 
 import argparse
@@ -50,6 +55,10 @@ QUOTES_FILE = SCRIPT_DIR / "card_quotes.json"
 # ── Card dimensions ────────────────────────────────────────────────────────
 CARD_W, CARD_H = 200, 280
 
+# ── Leader / background dimensions ────────────────────────────────────────
+LEADER_W, LEADER_H = 200, 280         # leader portrait (same as card)
+BG_W, BG_H = 3840, 2160              # leader bg, faction bg, lobby bg (4K)
+
 # ── Layout constants ───────────────────────────────────────────────────────
 # Measured from actual border PNGs and finished card images (2026-02-15).
 # All borders share the same layout; only the faction bar color differs.
@@ -57,7 +66,7 @@ CARD_W, CARD_H = 200, 280
 # Card structure (top to bottom):
 #   y=0-22    Top metallic frame (with transparent rounded corners)
 #   y=25-192  Portrait art (visible through border's transparent cutout)
-#   y=194-210 Name plate (faction-colored bar, ~16px tall)
+#   y=194-210 Name plate (rarity-colored bar, ~16px tall)
 #   y=211-213 Dark transition strip
 #   y=214-264 Parchment text box (~51px tall)
 #   y=265-279 Bottom metallic frame
@@ -109,6 +118,18 @@ TEXT_BOTTOM = 262           # bottom of usable text area
 TEXT_X1, TEXT_X2 = 50, 182  # horizontal text bounds
 TEXT_FONT_SIZE = 13
 
+# Name plate rectangle — visible colored bar to be recolored by rarity
+NAME_PLATE_X1, NAME_PLATE_Y1 = 43, 194
+NAME_PLATE_X2, NAME_PLATE_Y2 = 170, 210
+
+# Rarity colors for name plate (matches unlocks.py / create_placeholders.py)
+RARITY_COLORS = {
+    'common': (200, 200, 200),
+    'rare': (100, 150, 255),
+    'epic': (200, 100, 255),
+    'legendary': (255, 200, 50),
+}
+
 
 # ── Mappings ───────────────────────────────────────────────────────────────
 FACTION_BORDER = {
@@ -155,7 +176,12 @@ ABILITY_ICON = {
 
 # ── Load card data (mock pygame to avoid dependency) ───────────────────────
 def load_cards():
-    """Import ALL_CARDS from cards.py with pygame mocked out."""
+    """Import ALL_CARDS, UNLOCKABLE_CARDS, and leader IDs with pygame mocked out.
+
+    Returns (ALL_CARDS, rarity_map, leader_ids) where:
+      - rarity_map: {card_id: rarity_str} from explicit rarity in unlocks.py
+      - leader_ids: set of card_ids that are leaders (from content_registry.py)
+    """
 
     class _MockSurface:
         def __init__(self, *a, **k):
@@ -171,6 +197,11 @@ def load_cards():
     mock_pg.Surface = _MockSurface
     mock_pg.Rect = _MockRect
     mock_pg.SRCALPHA = 0
+    # unlocks.py uses pygame.font inside class __init__ (not at module level)
+    mock_font = types.ModuleType("pygame.font")
+    mock_font.SysFont = lambda *a, **k: None
+    mock_pg.font = mock_font
+    sys.modules["pygame.font"] = mock_font
 
     prev = sys.modules.get("pygame")
     sys.modules["pygame"] = mock_pg
@@ -179,13 +210,31 @@ def load_cards():
         sys.path.insert(0, str(PROJECT_ROOT))
 
     from cards import ALL_CARDS
+    from unlocks import UNLOCKABLE_CARDS
+    from content_registry import BASE_FACTION_LEADERS, UNLOCKABLE_LEADERS
+
+    # Build rarity lookup from explicit rarity fields only
+    rarity_map = {}
+    for card_id, data in UNLOCKABLE_CARDS.items():
+        if "rarity" in data:
+            rarity_map[card_id] = data["rarity"]
+
+    # Collect all leader card_ids
+    leader_ids = set()
+    for faction_leaders in BASE_FACTION_LEADERS.values():
+        for leader in faction_leaders:
+            leader_ids.add(leader["card_id"])
+    for faction_leaders in UNLOCKABLE_LEADERS.values():
+        for leader in faction_leaders:
+            leader_ids.add(leader["card_id"])
 
     if prev is not None:
         sys.modules["pygame"] = prev
     else:
         del sys.modules["pygame"]
+    sys.modules.pop("pygame.font", None)
 
-    return ALL_CARDS
+    return ALL_CARDS, rarity_map, leader_ids
 
 
 # ── Font loading ───────────────────────────────────────────────────────────
@@ -485,7 +534,7 @@ def fit_quote(quote, max_width, max_height, size_max, size_min=5):
 
 
 # ── Main assembly pipeline ─────────────────────────────────────────────────
-def assemble_card(card, quotes, border_cache, icon_cache):
+def assemble_card(card, quotes, border_cache, icon_cache, rarity_map=None):
     """
     Assemble a single finished card image.
 
@@ -497,6 +546,7 @@ def assemble_card(card, quotes, border_cache, icon_cache):
       5. Scale & paste row icon into golden circle
       6. Scale & paste ability icon(s) (stacked if multiple)
       7. Render power number in inverted triangle
+      7b. Draw rarity-colored name plate overlay (explicit rarity from unlocks.py only)
       8. Render card name on name plate (auto-sized)
       9. Render flavor text in text box (word-wrapped)
 
@@ -546,7 +596,7 @@ def assemble_card(card, quotes, border_cache, icon_cache):
 
     # 4. Create canvas, paste portrait, overlay border
     canvas = Image.new("RGBA", (CARD_W, CARD_H), (0, 0, 0, 255))
-    fitted_portrait = center_crop_resize(portrait, pw, ph)
+    fitted_portrait = portrait.resize((pw, ph), Image.LANCZOS)
     canvas.paste(fitted_portrait, (px1, py1))
     canvas = Image.alpha_composite(canvas, border)
 
@@ -609,6 +659,15 @@ def assemble_card(card, quotes, border_cache, icon_cache):
         px = POWER_CENTER[0] - tw // 2 - bbox[0]
         py = POWER_CENTER[1] - th // 2 - bbox[1]
         draw.text((px, py), power_text, fill=(0, 0, 0, 255), font=power_font)
+
+    # 7b. Rarity-colored name plate overlay (only for cards with explicit rarity)
+    explicit_rarity = (rarity_map or {}).get(card.id)
+    if explicit_rarity and explicit_rarity in RARITY_COLORS:
+        rarity_color = RARITY_COLORS[explicit_rarity]
+        draw.rectangle(
+            [NAME_PLATE_X1, NAME_PLATE_Y1, NAME_PLATE_X2, NAME_PLATE_Y2],
+            fill=(*rarity_color, 255),
+        )
 
     # 8. Card name (auto-sized to fit name plate, ellipsis if still too long)
     name_w = NAME_X2 - NAME_X1
@@ -701,8 +760,10 @@ def main():
 
     # Load card data
     print("Loading card data...")
-    all_cards = load_cards()
+    all_cards, rarity_map, leader_ids = load_cards()
     print(f"  {len(all_cards)} cards in database")
+    print(f"  {len(rarity_map)} cards with explicit rarity")
+    print(f"  {len(leader_ids)} leaders")
 
     # Load quotes
     quotes = {}
@@ -782,10 +843,15 @@ def main():
 
         if args.dry_run:
             print(f"  [DRY] {card_id} — {card.name} ({card.faction}, {card.row}, {card.power})")
+            if card_id in leader_ids:
+                if has_raw_art(f"{card_id}_leader"):
+                    print(f"  [DRY] {card_id}_leader.png (leader portrait)")
+                if has_raw_art(f"leader_bg_{card_id}"):
+                    print(f"  [DRY] leader_bg_{card_id}.png (leader background)")
             assembled += 1
             continue
 
-        result, warnings = assemble_card(card, quotes, border_cache, icon_cache)
+        result, warnings = assemble_card(card, quotes, border_cache, icon_cache, rarity_map)
 
         for w in warnings:
             print(f"  [WARN] {card_id}: {w}")
@@ -798,7 +864,72 @@ def main():
         assembled += 1
         print(f"  [OK] {card_id} -> {output_path.name}")
 
-    print(f"\nDone: {assembled} assembled, {skipped} skipped, {errors} errors")
+        # Leader extras: each has its OWN separate raw art file
+        if card_id in leader_ids:
+            # Leader portrait: raw_art/{card_id}_leader.{ext} -> assets/{card_id}_leader.png
+            for ext in (".png", ".jpg", ".jpeg", ".webp"):
+                leader_raw = RAW_ART_DIR / f"{card_id}_leader{ext}"
+                if leader_raw.exists():
+                    leader_path = OUTPUT_DIR / f"{card_id}_leader.png"
+                    if not (args.no_overwrite and leader_path.exists()):
+                        leader_img = Image.open(leader_raw).convert("RGBA")
+                        leader_img = leader_img.resize((LEADER_W, LEADER_H), Image.LANCZOS)
+                        leader_img.save(leader_path, "PNG")
+                        print(f"  [OK] {leader_raw.name} -> {leader_path.name} (leader portrait)")
+                    break
+
+            # Leader background: raw_art/leader_bg_{card_id}.{ext} -> assets/leader_bg_{card_id}.png
+            for ext in (".png", ".jpg", ".jpeg", ".webp"):
+                bg_raw = RAW_ART_DIR / f"leader_bg_{card_id}{ext}"
+                if bg_raw.exists():
+                    bg_path = OUTPUT_DIR / f"leader_bg_{card_id}.png"
+                    if not (args.no_overwrite and bg_path.exists()):
+                        bg_img = Image.open(bg_raw).convert("RGBA")
+                        bg_img = bg_img.resize((BG_W, BG_H), Image.LANCZOS)
+                        bg_img.save(bg_path, "PNG")
+                        print(f"  [OK] {bg_raw.name} -> {bg_path.name} (leader background)")
+                    break
+
+    print(f"\nCards: {assembled} assembled, {skipped} skipped, {errors} errors")
+
+    # ── Background art assembly ───────────────────────────────────────────
+    bg_count = 0
+
+    # Faction backgrounds: raw_art/faction_bg_*.{ext} -> assets/faction_bg_*.png
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        for raw_bg in RAW_ART_DIR.glob(f"faction_bg_*{ext}"):
+            stem = raw_bg.stem  # e.g. "faction_bg_tauri"
+            out_path = OUTPUT_DIR / f"{stem}.png"
+            if args.no_overwrite and out_path.exists():
+                continue
+            if args.dry_run:
+                print(f"  [DRY] {stem}.png (faction background)")
+            else:
+                bg_img = Image.open(raw_bg).convert("RGBA")
+                bg_img = bg_img.resize((BG_W, BG_H), Image.LANCZOS)
+                bg_img.save(out_path, "PNG")
+                print(f"  [OK] {raw_bg.name} -> {out_path.name} (faction background)")
+            bg_count += 1
+
+    # Lobby background: raw_art/lobby_background.{ext} -> assets/lobby_background.png
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        lobby_raw = RAW_ART_DIR / f"lobby_background{ext}"
+        if lobby_raw.exists():
+            out_path = OUTPUT_DIR / "lobby_background.png"
+            if args.no_overwrite and out_path.exists():
+                break
+            if args.dry_run:
+                print(f"  [DRY] lobby_background.png")
+            else:
+                bg_img = Image.open(lobby_raw).convert("RGBA")
+                bg_img = bg_img.resize((BG_W, BG_H), Image.LANCZOS)
+                bg_img.save(out_path, "PNG")
+                print(f"  [OK] {lobby_raw.name} -> lobby_background.png")
+            bg_count += 1
+            break
+
+    if bg_count:
+        print(f"Backgrounds: {bg_count} processed")
 
 
 if __name__ == "__main__":
