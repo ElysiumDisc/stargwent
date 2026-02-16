@@ -94,15 +94,15 @@ class GoauldFactionPower(FactionPower):
         )
     
     def activate(self, game, player):
-        if not super().activate(game, player):
-            return False
-        
-        # Get valid cards from discard (non-Hero units)
-        valid_cards = [c for c in player.discard_pile 
-                      if not is_hero(c) 
+        # Check for valid cards BEFORE marking as used
+        valid_cards = [c for c in player.discard_pile
+                      if not is_hero(c)
                       and c.row in ["close", "ranged", "siege", "agile"]]
-        
+
         if not valid_cards:
+            return False
+
+        if not super().activate(game, player):
             return False
         
         # Revive up to 2 random cards

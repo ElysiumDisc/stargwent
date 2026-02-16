@@ -66,6 +66,9 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     pct_y = cfg.pct_y
     opponent_hand_area_y = cfg.opponent_hand_area_y
 
+    # Cache mouse position once per frame
+    mouse_pos = pygame.mouse.get_pos()
+
     # --- Drawing ---
     # Use mulligan background during mulligan phase, otherwise board background
     if game.game_state == "mulligan":
@@ -132,6 +135,12 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
                 # Record win/loss using persistence system
                 player_won = (game.winner == game.player1)
+
+                # Derive player_leader and player_deck from game state
+                player_leader = game.player1.leader if game.player1.leader else {}
+                if isinstance(player_leader, str):
+                    player_leader = {'name': player_leader, 'card_id': ''}
+                player_deck = list(game.player1.hand) + [c for row in game.player1.board.values() for c in row] + list(game.player1.discard_pile)
 
                 # Update Draft Run Progress
                 if hasattr(game, 'is_draft_match') and game.is_draft_match:
@@ -311,7 +320,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         # Position score and messages directly below the animation (tighter spacing)
         messages_base_y = content_start_y + int(20 * SCALE_FACTOR)
-        score_font = pygame.font.SysFont("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
+        score_font = cfg.get_font("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
         score_text = score_font.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, cfg.WHITE)
         screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, messages_base_y))
 
@@ -338,9 +347,9 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 y_offset += line_spacing
 
         if getattr(game, 'draft_victory', False):
-            egg_font = pygame.font.SysFont("Arial", max(36, int(48 * SCALE_FACTOR)), bold=True)
+            egg_font = cfg.get_font("Arial", max(36, int(48 * SCALE_FACTOR)), bold=True)
             egg_text = egg_font.render("EASTER EGG UNLOCKED!", True, (255, 0, 255))
-            sub_font = pygame.font.SysFont("Arial", max(16, int(20 * SCALE_FACTOR)))
+            sub_font = cfg.get_font("Arial", max(16, int(20 * SCALE_FACTOR)))
             sub_text = sub_font.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
 
             screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, messages_base_y + y_offset + int(20 * SCALE_FACTOR)))
@@ -365,7 +374,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                     button_height = int(55 * scale)
                     button_spacing = int(15 * scale)
                     start_y = messages_base_y + y_offset + int(30 * scale)
-                    mouse_pos = pygame.mouse.get_pos()
+                    # mouse_pos already cached at frame start
 
                     # Progress message (positioned above button panel)
                     progress_text = cfg.UI_FONT.render(f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", True, cfg.HIGHLIGHT_GREEN)
@@ -413,7 +422,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                     button_height = int(55 * scale)
                     button_spacing = int(20 * scale)
                     start_y = messages_base_y + y_offset + int(30 * scale)
-                    mouse_pos = pygame.mouse.get_pos()
+                    # mouse_pos already cached at frame start
 
                     # Define buttons - different for draft mode end
                     new_draft_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
@@ -455,7 +464,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 button_height = int(55 * scale)
                 button_spacing = int(20 * scale)
                 start_y = messages_base_y + y_offset + int(30 * scale)
-                mouse_pos = pygame.mouse.get_pos()
+                # mouse_pos already cached at frame start
 
                 # Define buttons
                 rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
@@ -496,7 +505,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             button_height = int(55 * scale)
             button_spacing = int(20 * scale)
             start_y = messages_base_y + y_offset + int(30 * scale)
-            mouse_pos = pygame.mouse.get_pos()
+            # mouse_pos already cached at frame start
 
             # Define buttons
             rematch_button = pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, start_y, button_width, button_height)
@@ -544,7 +553,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             game,
             history_rect,
             state.history_scroll_offset,
-            pygame.mouse.get_pos()
+            mouse_pos
         )
 
     if state.ui_state != UIState.LEADER_MATCHUP and game.game_state != "game_over":
@@ -592,12 +601,12 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             game,
             history_rect,
             state.history_scroll_offset,
-            pygame.mouse.get_pos()
+            mouse_pos
         )
 
         # LAN Chat UI - show input box when active, hint when inactive
         if LAN_MODE and state.lan_chat_panel:
-            chat_font = pygame.font.SysFont("Consolas", max(18, int(20 * SCALE_FACTOR)))
+            chat_font = cfg.get_font("Consolas", max(18, int(20 * SCALE_FACTOR)))
             if state.lan_chat_panel.active:
                 # Draw chat input box below history panel
                 input_rect = pygame.Rect(
@@ -625,7 +634,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 screen.blit(hint_text, (history_rect.x, history_rect.bottom + 12))
 
         # Round and Turn indicator in HUD (horizontal layout)
-        round_font = pygame.font.SysFont("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
+        round_font = cfg.get_font("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
         round_text = round_font.render(f"Round {game.round_number}", True, cfg.WHITE)
         turn_color = (120, 255, 160) if game.current_player == game.player1 else (255, 140, 140)
         turn_text = round_font.render("YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN", True, turn_color)
@@ -637,7 +646,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         # LAN Mode: Draw latency indicator
         if LAN_MODE and LAN_CONTEXT and LAN_CONTEXT.session.is_connected():
-            latency_font = pygame.font.SysFont("Arial", max(16, int(18 * SCALE_FACTOR)))
+            latency_font = cfg.get_font("Arial", max(16, int(18 * SCALE_FACTOR)))
             rtt = LAN_CONTEXT.session.get_latency()
             latency_color, latency_label = LAN_CONTEXT.session.get_latency_status()
 
@@ -673,7 +682,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         # Draw keyboard navigation hint when active
         if game.current_player == game.player1 and state.ui_state == UIState.PLAYING:
-            hint_font = pygame.font.SysFont("Arial", max(18, int(20 * SCALE_FACTOR)))
+            hint_font = cfg.get_font("Arial", max(18, int(20 * SCALE_FACTOR)))
             hint_text = None
 
             if state.keyboard_mode_active and state.keyboard_hand_cursor >= 0:
@@ -696,7 +705,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 screen.blit(hint_bg, (hint_x - 8, hint_y - 4))
                 screen.blit(hint_surf, (hint_x, hint_y))
 
-        mouse_pos = pygame.mouse.get_pos()
+        # mouse_pos already cached at frame start
         ai_area = LEADER_TOP_RECT.copy()
         player_area = LEADER_BOTTOM_RECT.copy()
         ai_stack = draw_leader_column(
@@ -726,7 +735,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         state.player_faction_button_rect = player_stack["faction_rect"]
         state.player_special_button_rect = player_stack.get("special_rect")
         state.player_special_button_kind = player_stack.get("special_kind")
-        state.discard_rect = player_stack.get("state.discard_rect") or state.discard_rect
+        state.discard_rect = player_stack.get("discard_rect") or state.discard_rect
 
         state.iris_button_rect = state.player_special_button_rect if state.player_special_button_kind == "iris" else None
         state.ring_transport_button_rect = state.player_special_button_rect if state.player_special_button_kind == "rings" else None
@@ -761,14 +770,14 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         state.ring_transport_animation.draw(screen)
 
     # Draw visual feedback for ring transport selection mode (not during game_over)
-    if state.ring_transport_selection and game.game_state != "game_over":
+    if state.ui_state == UIState.RING_TRANSPORT_SELECT and game.game_state != "game_over":
         # Dim the screen slightly
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 100))
         screen.blit(overlay, (0, 0))
 
         # Draw instruction text
-        hint_font = pygame.font.Font(None, 48)
+        hint_font = cfg.get_font(None, 48)
         hint_text = hint_font.render("Click a CLOSE COMBAT unit to return to hand", True, cfg.HIGHLIGHT_ORANGE)
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, 100))
 
@@ -834,12 +843,10 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     if state.inspected_leader:
         selection_overlays.draw_leader_inspection_overlay(screen, state.inspected_leader, SCREEN_WIDTH, SCREEN_HEIGHT)
 
-    # Medical Evac selection overlay
-    medic_card_rects = []
+    # Medical Evac selection overlay - draw only, clicks handled in event_handler
     if state.ui_state == UIState.MEDIC_SELECT:
         medic_valid_cards = game.get_medic_valid_cards(game.player1)
         if not medic_valid_cards:
-            # No valid targets (discard pile empty) — exit selection and end turn cleanly
             state.ui_state = UIState.PLAYING
             state.medic_card_played = None
             game.add_history_event(
@@ -852,206 +859,39 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             game.player2.calculate_score()
             game.last_turn_actor = game.player1
             game.switch_turn()
+            state.overlay_card_rects = []
         else:
-            medic_card_rects = selection_overlays.draw_medic_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-
-            # Handle clicks on medic cards
-            mouse_pos = pygame.mouse.get_pos()
-            mouse_clicked = pygame.mouse.get_pressed()[0]
-
-            if mouse_clicked:
-                for card, rect in medic_card_rects:
-                    if rect.collidepoint(mouse_pos):
-                        # Player selected this card to revive
-                        game.trigger_medic(game.player1, card)
-                        # Add ability burst effect for Medical Evac
-                        state.anim_manager.add_effect(AbilityBurstEffect(
-                            rect.centerx, rect.centery, ability_name="Medical Evac"
-                        ))
-                        game.player1.calculate_score()
-                        game.player2.calculate_score()
-                        game.last_turn_actor = game.player1
-                        game.switch_turn()
-                        if state.network_proxy:
-                            state.network_proxy.send_medic_choice(card.id)
-                        state.ui_state = UIState.PLAYING
-                        state.medic_card_played = None
-                        pygame.time.wait(200)  # Small delay to prevent double-click
-                        break
-
-    # Ring Transport selection overlay
-    decoy_card_rects = []
-    if state.ui_state == UIState.DECOY_SELECT:
-        decoy_card_rects = selection_overlays.draw_decoy_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-
-        # Handle clicks on decoy cards
-        mouse_pos = pygame.mouse.get_pos()
-        mouse_clicked = pygame.mouse.get_pressed()[0]
-
-        if mouse_clicked:
-            for card, rect in decoy_card_rects:
-                if rect.collidepoint(mouse_pos):
-                    # Player selected this card to return to hand
-                    if game.apply_decoy(card):
-                        # Add ability burst effect for Decoy/Recall
-                        state.anim_manager.add_effect(AbilityBurstEffect(
-                            rect.centerx, rect.centery, ability_name="Decoy Recall"
-                        ))
-                        game.player1.calculate_score()
-                        game.player2.calculate_score()
-                        game.last_turn_actor = game.player1
-                        game.switch_turn()
-                        if state.network_proxy:
-                            state.network_proxy.send_decoy_choice(card.id)
-                        state.ui_state = UIState.PLAYING
-                        state.decoy_card_played = None
-                        pygame.time.wait(200)  # Small delay to prevent double-click
-                    break
-
-    # Jonas Quinn peek/copy overlay - select a card to copy to hand
-    if state.ui_state == UIState.JONAS_PEEK:
-        jonas_card_rects = selection_overlays.draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-
-        # Handle click to select and copy a card
-        mouse_pos = pygame.mouse.get_pos()
-        if pygame.mouse.get_pressed()[0]:
-            card_selected = False
-            if jonas_card_rects:
-                for card, rect in jonas_card_rects:
-                    if rect.collidepoint(mouse_pos):
-                        # Copy this card to player's hand
-                        game.jonas_memorize_card(game.player1, card)
-                        if state.network_proxy:
-                            state.network_proxy.send_leader_ability("Eidetic Memory", {"card_id": card.id})
-                        card_selected = True
-                        break
-
-            # Close overlay and clear tracked cards
-            state.ui_state = UIState.PLAYING
-            game.opponent_drawn_cards = []
-            pygame.time.wait(200)
-
-    # Ba'al Clone selection overlay
-    baal_card_rects = []
-    if state.ui_state == UIState.BAAL_CLONE_SELECT:
-        baal_card_rects = selection_overlays.draw_baal_clone_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-
-        mouse_pos = pygame.mouse.get_pos()
-        if pygame.mouse.get_pressed()[0]:
-            for card, rect in baal_card_rects:
-                if rect.collidepoint(mouse_pos):
-                    # Clone this card - create proper independent copy
-                    import copy
-                    from cards import load_card_image
-                    cloned_card = copy.copy(card)
-                    # Create a new rect for the clone (avoid sharing the same rect object)
-                    cloned_card.rect = pygame.Rect(0, 0, cfg.CARD_WIDTH, cfg.CARD_HEIGHT)
-                    # ALWAYS load image fresh for cloned card to ensure it displays correctly
-                    load_card_image(cloned_card)
-                    # Clear animation flags
-                    cloned_card.in_transit = False
-                    # Find which row the original is in
-                    for row_name, row_cards in game.player1.board.items():
-                        if card in row_cards:
-                            game.player1.board[row_name].append(cloned_card)
-                            break
-                    game.player1.calculate_score()
-                    state.ui_state = UIState.PLAYING
-                    pygame.time.wait(200)
-                    break
-
-    # Vala selection overlay
-    vala_card_rects = []
-    if state.ui_state == UIState.VALA_SELECT:
-        vala_card_rects = selection_overlays.draw_vala_selection_overlay(screen, state.vala_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
-
-        mouse_pos = pygame.mouse.get_pos()
-        if pygame.mouse.get_pressed()[0]:
-            for card, rect in vala_card_rects:
-                if rect.collidepoint(mouse_pos):
-                    # Add chosen card to hand
-                    game.player1.hand.append(card)
-                    # Return unchosen cards to deck
-                    for c in state.vala_cards_to_choose:
-                        if c != card:
-                            game.player1.deck.append(c)
-                    game.rng.shuffle(game.player1.deck)
-                    state.ui_state = UIState.PLAYING
-                    state.vala_cards_to_choose = []
-                    pygame.time.wait(200)
-                    break
-
-    # Catherine Langford selection overlay
-    catherine_card_rects = []
-    if state.ui_state == UIState.CATHERINE_SELECT:
-        catherine_card_rects = selection_overlays.draw_catherine_selection_overlay(screen, state.catherine_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
-        mouse_pos = pygame.mouse.get_pos()
-        if pygame.mouse.get_pressed()[0]:
-            for card, rect in catherine_card_rects:
-                if rect.collidepoint(mouse_pos):
-                    revealed_ids = [c.id for c in state.catherine_cards_to_choose]
-                    game.catherine_play_chosen_card(game.player1, card)
-                    if state.network_proxy:
-                        state.network_proxy.send_leader_ability(
-                            "Ancient Knowledge",
-                            {"choice_id": card.id, "revealed_ids": revealed_ids}
-                        )
-                    state.ui_state = UIState.PLAYING
-                    state.catherine_cards_to_choose = []
-                    pygame.time.wait(200)
-                    break
+            state.overlay_card_rects = selection_overlays.draw_medic_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+    elif state.ui_state == UIState.DECOY_SELECT:
+        state.overlay_card_rects = selection_overlays.draw_decoy_selection_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+    elif state.ui_state == UIState.JONAS_PEEK:
+        state.overlay_card_rects = selection_overlays.draw_jonas_peek_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+    elif state.ui_state == UIState.BAAL_CLONE_SELECT:
+        state.overlay_card_rects = selection_overlays.draw_baal_clone_overlay(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+    elif state.ui_state == UIState.VALA_SELECT:
+        state.overlay_card_rects = selection_overlays.draw_vala_selection_overlay(screen, state.vala_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
+    elif state.ui_state == UIState.CATHERINE_SELECT:
+        state.overlay_card_rects = selection_overlays.draw_catherine_selection_overlay(screen, state.catherine_cards_to_choose, SCREEN_WIDTH, SCREEN_HEIGHT)
+    else:
+        state.overlay_card_rects = []
 
     # Generic leader choice overlay (Jonas Quinn, Ba'al, etc.)
     if state.pending_leader_choice:
         if state.ui_state != UIState.LEADER_CHOICE_SELECT:
             state.ui_state = UIState.LEADER_CHOICE_SELECT
-        # Draw overlay and store rects for event-loop click handling
         state.leader_choice_rects = selection_overlays.draw_leader_choice_overlay(screen, state.pending_leader_choice, SCREEN_WIDTH, SCREEN_HEIGHT)
     else:
         state.leader_choice_rects = []
 
-    # Thor move mode - simple visual indicator
+    # Thor move mode - visual indicator only, clicks handled in event_handler
     if state.ui_state == UIState.THOR_MOVE_SELECT:
-        # Draw indicator
-        indicator_font = pygame.font.Font(None, 48)
+        indicator_font = cfg.get_font(None, 48)
         indicator_text = indicator_font.render("THOR: Click a unit to move, then click destination row", True, (50, 200, 150))
         indicator_rect = indicator_text.get_rect(center=(SCREEN_WIDTH // 2, 50))
-
-        # Semi-transparent background
         bg_surf = pygame.Surface((indicator_rect.width + 40, indicator_rect.height + 20), pygame.SRCALPHA)
         bg_surf.fill((0, 0, 0, 180))
         screen.blit(bg_surf, (indicator_rect.x - 20, indicator_rect.y - 10))
         screen.blit(indicator_text, indicator_rect)
-
-        # Handle clicks
-        if pygame.mouse.get_pressed()[0]:
-            mouse_pos = pygame.mouse.get_pos()
-
-            if not state.thor_selected_unit:
-                # First click: select unit
-                for row_cards in game.player1.board.values():
-                    for card in row_cards:
-                        if hasattr(card, 'rect') and card.rect.collidepoint(mouse_pos):
-                            state.thor_selected_unit = card
-                            pygame.time.wait(200)
-                            break
-                    if state.thor_selected_unit:
-                        break
-            else:
-                # Second click: select destination row
-                for row_name, rect in cfg.PLAYER_ROW_RECTS.items():
-                    if rect.collidepoint(mouse_pos):
-                        # Move the unit
-                        for source_row, row_cards in game.player1.board.items():
-                            if state.thor_selected_unit in row_cards:
-                                row_cards.remove(state.thor_selected_unit)
-                                game.player1.board[row_name].append(state.thor_selected_unit)
-                                game.player1.calculate_score()
-                                state.ui_state = UIState.PLAYING
-                                state.thor_selected_unit = None
-                                pygame.time.wait(200)
-                                break
-                        break
 
     # Discard pile viewer overlay
     if state.ui_state == UIState.DISCARD_VIEW:
@@ -1083,18 +923,18 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         pygame.draw.rect(screen, (100, 150, 200), (menu_x, menu_y, menu_width, menu_height), 5, border_radius=15)
 
         # Title
-        pause_font = pygame.font.SysFont("Arial", 56, bold=True)
+        pause_font = cfg.get_font("Arial", 56, bold=True)
         title_text = pause_font.render("PAUSED", True, cfg.TEXT_DIM)
         title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + 70))
         screen.blit(title_text, title_rect)
 
         # Buttons
-        button_font = pygame.font.SysFont("Arial", 32, bold=True)
+        button_font = cfg.get_font("Arial", 32, bold=True)
         button_width = 350
         button_height = 55
         button_x = (SCREEN_WIDTH - button_width) // 2
         button_spacing = 70
-        mouse_pos = pygame.mouse.get_pos()
+        # mouse_pos already cached at frame start
 
         # Resume button
         resume_button = pygame.Rect(button_x, menu_y + 140, button_width, button_height)
@@ -1146,7 +986,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         screen.blit(quit_text, quit_rect)
 
         # Hint text
-        hint_font = pygame.font.SysFont("Arial", 18)
+        hint_font = cfg.get_font("Arial", 18)
         hint_text = hint_font.render("Press ESC to resume | Q to surrender | F11 fullscreen", True, (140, 140, 160))
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + menu_height - 25))
         screen.blit(hint_text, hint_rect)
@@ -1162,14 +1002,14 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             state.pause_menu_buttons["surrender"] = surrender_button
 
     # LAN: Waiting for Opponent Overlay
-    if LAN_MODE and game.current_player != game.player1 and not game.game_over and state.ui_state == UIState.PLAYING:
+    if LAN_MODE and game.current_player != game.player1 and game.game_state != "game_over" and state.ui_state == UIState.PLAYING:
         # Draw transparent overlay
         wait_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         wait_overlay.fill((0, 0, 0, 100)) # Darken slightly
         screen.blit(wait_overlay, (0, 0))
 
         # Draw Text
-        wait_font = pygame.font.SysFont("Arial", 48, bold=True)
+        wait_font = cfg.get_font("Arial", 48, bold=True)
         wait_text = wait_font.render("WAITING FOR OPPONENT...", True, (255, 255, 255))
         wait_rect = wait_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
 

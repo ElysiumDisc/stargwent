@@ -251,8 +251,10 @@ class Ship:
             self._current_angle -= 360
         while self._current_angle < -180:
             self._current_angle += 360
-        # Rotate from base right-facing image
-        self.image = pygame.transform.rotate(self.image_right, self._current_angle)
+        # Only re-rotate when angle actually changed (avoids Surface alloc every frame)
+        if not hasattr(self, '_cached_draw_angle') or abs(self._current_angle - self._cached_draw_angle) > 1:
+            self.image = pygame.transform.rotate(self.image_right, self._current_angle)
+            self._cached_draw_angle = self._current_angle
 
     def update_ai(self, player_ship, asteroids, other_ships=None):
         """Space-battle AI: approach to combat range, then strafe/orbit the player."""
@@ -454,20 +456,24 @@ class Ship:
         return pygame.Rect(int(self.x), int(self.y - self.height // 2), self.width, self.height)
 
     def take_damage(self, amount, is_asteroid=False):
-        """Take damage - asteroids hit shields first, weapons hit health."""
+        """Take damage - all damage hits shields first, overflow goes to health."""
         # Tau'ri passive: Armor Plating - 15% damage reduction
         if self.passive == "armor_plating":
             amount *= 0.85
 
-        if is_asteroid:
-            self.shields = max(0, self.shields - amount)
+        # Shields absorb damage first (both asteroid and weapon damage)
+        if self.shields > 0:
+            absorbed = min(self.shields, amount)
+            self.shields -= absorbed
+            amount -= absorbed
             self.shield_hit_timer = 60
-            return False
-        else:
+
+        if amount > 0:
             self.health -= amount
             if self.passive == "shield_regen":
                 self.passive_state["no_hit_timer"] = 0
-            return self.health <= 0
+
+        return self.health <= 0
 
     def draw(self, surface, time_tick=0):
         """Draw the ship with shield effects and health/shield bars."""

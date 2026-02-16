@@ -518,9 +518,8 @@ class SpaceShooterGame:
             self.player_ship.shields = min(self.player_ship.max_shields,
                                           self.player_ship.shields + 50)
         elif ptype == "rapid_fire":
-            if self.base_fire_rate is None:
-                self.base_fire_rate = self.player_ship.fire_rate
-            self.player_ship.fire_rate = max(5, self.base_fire_rate // 2)
+            # Use multiplier: halve fire rate, restore by doubling on expiry
+            self.player_ship.fire_rate = max(5, self.player_ship.fire_rate // 2)
             self.active_powerups["rapid_fire"] = duration
         elif ptype == "drone":
             self.drones = []
@@ -529,6 +528,7 @@ class SpaceShooterGame:
                 self.drones.append(Drone(self.player_ship, angle))
             self.active_powerups["drone"] = duration
         elif ptype == "damage":
+            # Intentionally does not stack: picking up another refreshes the timer
             self.base_damage_mult = 1.25
             self.active_powerups["damage"] = duration
         elif ptype == "cloak":
@@ -537,8 +537,8 @@ class SpaceShooterGame:
     def _expire_powerup(self, ptype):
         """Handle expiration of a power-up effect."""
         if ptype == "rapid_fire":
-            if self.base_fire_rate is not None:
-                self.player_ship.fire_rate = self.base_fire_rate
+            # Reverse the halving by doubling (preserves upgrades taken during power-up)
+            self.player_ship.fire_rate = min(self.player_ship.fire_rate * 2, 60)
         elif ptype == "drone":
             self.drones = []
         elif ptype == "damage":
@@ -646,11 +646,14 @@ class SpaceShooterGame:
             self.showing_level_up = False
             self.level_up_choices = []
 
-    def _apply_splash_damage(self, x, y, damage, source_ship):
+    def _apply_splash_damage(self, x, y, damage, source_ship, already_killed=None):
         """Apply Lucian Alliance splash damage to nearby enemies."""
         splash_radius = 60
         splash_damage = damage * 0.4
+        killed_set = already_killed or set()
         for ai_ship in self.ai_ships[:]:
+            if ai_ship in killed_set:
+                continue
             dist = math.hypot(ai_ship.x + ai_ship.width // 2 - x, ai_ship.y - y)
             if dist < splash_radius:
                 ai_ship.hit_flash = 5
@@ -658,6 +661,7 @@ class SpaceShooterGame:
                     ai_ship.x + ai_ship.width // 2, ai_ship.y,
                     splash_damage, (255, 200, 100)))
                 if ai_ship.take_damage(splash_damage):
+                    killed_set.add(ai_ship)
                     self._on_enemy_killed(ai_ship)
 
     def _try_chain_lightning(self, hit_x, hit_y, damage, hit_enemy):
@@ -1201,7 +1205,9 @@ class SpaceShooterGame:
                         dmg_color = (255, 255, 0) if is_crit else (255, 255, 255)
                         self.damage_numbers.append(DamageNumber(hit_x, hit_y, proj.damage, dmg_color))
 
+                        _killed_this_hit = set()
                         if ai_ship.take_damage(proj.damage):
+                            _killed_this_hit.add(ai_ship)
                             self._on_enemy_killed(ai_ship)
 
                         # Chain lightning
@@ -1209,7 +1215,7 @@ class SpaceShooterGame:
 
                         # Lucian Alliance splash damage
                         if self.player_ship.passive == "splash_damage" and isinstance(proj, EnergyBall):
-                            self._apply_splash_damage(hit_x, hit_y, proj.damage, self.player_ship)
+                            self._apply_splash_damage(hit_x, hit_y, proj.damage, self.player_ship, already_killed=_killed_this_hit)
                         break
             else:
                 if not self.wormhole_active and proj_rect.colliderect(self.player_ship.get_rect()):

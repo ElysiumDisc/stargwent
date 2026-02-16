@@ -406,7 +406,7 @@ def get_card_back(width, height):
             try:
                 card_back_img = pygame.image.load(card_back_path)
                 _card_back_cache[key] = pygame.transform.scale(card_back_img, (width, height))
-            except:
+            except Exception:
                 # If loading fails, use procedural generation
                 _card_back_cache[key] = create_card_back(width, height)
         else:

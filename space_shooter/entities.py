@@ -77,13 +77,17 @@ class Asteroid:
 
         self.image = self.original_image
         self.rect = self.image.get_rect(center=(int(self.x), int(self.y)))
+        self._cached_angle = 0  # Track cached rotation angle
 
     def update(self):
         self.x += self.vx
         self.y += self.vy
         self.rotation += self.rotation_speed
 
-        self.image = pygame.transform.rotate(self.original_image, self.rotation)
+        # Only re-rotate when angle changes by >2 degrees (avoids Surface alloc every frame)
+        if abs(self.rotation - self._cached_angle) > 2:
+            self.image = pygame.transform.rotate(self.original_image, self.rotation)
+            self._cached_angle = self.rotation
         self.rect = self.image.get_rect(center=(int(self.x), int(self.y)))
 
         # Remove if fully off any edge
@@ -282,9 +286,12 @@ class Drone:
         # Auto-target nearest enemy
         if enemies and self.fire_cooldown <= 0:
             nearest = min(enemies, key=lambda e: math.hypot(e.x - self.x, e.y - self.y))
-            if math.hypot(nearest.x - self.x, nearest.y - self.y) < 500:
+            dist = math.hypot(nearest.x - self.x, nearest.y - self.y)
+            if dist < 500:
                 self.fire_cooldown = self.fire_rate
-                return Laser(self.x, self.y, 1, (100, 255, 100), speed=20)
+                # Calculate direction toward nearest enemy
+                direction = 1 if nearest.x > self.x else -1
+                return Laser(self.x, self.y, direction, (100, 255, 100), speed=20)
         return None
 
     def draw(self, surface):
@@ -543,7 +550,7 @@ class GravityWell:
             return []
 
         killed = []
-        for enemy in enemies:
+        for enemy in enemies[:]:
             ex = enemy.x + getattr(enemy, 'width', 0) // 2
             ey = enemy.y
             dx = self.x - ex

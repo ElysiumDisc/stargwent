@@ -102,6 +102,7 @@ class GameLoopState:
     hud_pass_button_rect: Optional[pygame.Rect] = None
     game_over_buttons: dict = field(default_factory=dict)   # name -> Rect
     pause_menu_buttons: dict = field(default_factory=dict)  # name -> Rect
+    overlay_card_rects: list = field(default_factory=list)  # [(card, Rect)] from selection overlays
 
     # -- History / column state ----------------------------------------------
     history_scroll_offset: int = 0
@@ -132,3 +133,4 @@ class GameLoopState:
     running: bool = True
     fullscreen: bool = False
     debug_overlay_enabled: bool = False
+    restart_requested: bool = False

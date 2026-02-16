@@ -23,6 +23,7 @@ from animations import (
     MeteorShowerImpactEffect,
     HathorStealAnimation,
     IrisClosingEffect,
+    AbilityBurstEffect,
     create_hero_animation,
     create_ability_animation,
 )
@@ -60,6 +61,31 @@ def handle_events(state, game, screen, dt):
     toggle_fullscreen_mode = _main.toggle_fullscreen_mode
     build_button_info_popup = _main.build_button_info_popup
 
+    def _try_activate_faction_power():
+        """Attempt to activate player 1's faction power. Returns True on success."""
+        if not (game.player1.faction_power and game.player1.faction_power.is_available()):
+            return False
+        if not game.player1.faction_power.activate(game, game.player1):
+            return False
+        state.faction_power_effect = FactionPowerEffect(
+            game.player1.faction,
+            SCREEN_WIDTH // 2,
+            SCREEN_HEIGHT // 2,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT
+        )
+        game.add_history_event(
+            "faction_power",
+            f"{game.player1.name} used {game.player1.faction_power.name}",
+            "player"
+        )
+        if state.network_proxy:
+            state.network_proxy.send_faction_power(game.player1.faction_power.name)
+        game.ability_usage["faction_power"] = game.ability_usage.get("faction_power", 0) + 1
+        game.player1.calculate_score()
+        game.player2.calculate_score()
+        return True
+
     # Event handling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -72,9 +98,9 @@ def handle_events(state, game, screen, dt):
 
             # F3 - Toggle debug overlay (zone boundaries + FPS counter)
             if event.key == pygame.K_F3:
-                # Toggle debug/FPS
-                DEBUG_MODE = not DEBUG_MODE
-                get_settings().set_show_fps(DEBUG_MODE)
+                # Toggle debug/FPS (must modify on _main to affect the global)
+                _main.DEBUG_MODE = not _main.DEBUG_MODE
+                get_settings().set_show_fps(_main.DEBUG_MODE)
 
             # ESC to toggle pause menu or close overlays
             if event.key == pygame.K_ESCAPE:
@@ -170,24 +196,7 @@ def handle_events(state, game, screen, dt):
             # G key = Activate Faction Power
             elif event.key == pygame.K_g:
                 if game.game_state == "playing" and game.current_player == game.player1:
-                    if game.player1.faction_power and game.player1.faction_power.is_available():
-                        if game.player1.faction_power.activate(game, game.player1):
-                            state.faction_power_effect = FactionPowerEffect(
-                                game.player1.faction,
-                                SCREEN_WIDTH // 2,
-                                SCREEN_HEIGHT // 2,
-                                SCREEN_WIDTH,
-                                SCREEN_HEIGHT
-                            )
-                            game.add_history_event(
-                                "faction_power",
-                                f"{game.player1.name} used {game.player1.faction_power.name}",
-                                "player"
-                            )
-                            if state.network_proxy:
-                                state.network_proxy.send_faction_power(game.player1.faction_power.name)
-                            game.player1.calculate_score()
-                            game.player2.calculate_score()
+                    _try_activate_faction_power()
 
             # T key = Toggle LAN Chat Input
             elif event.key == pygame.K_t:
@@ -219,10 +228,8 @@ def handle_events(state, game, screen, dt):
                 state.keyboard_mode_active = False
                 state.keyboard_hand_cursor = -1
                 state.hovered_card = None
-                # Cycle: -1 -> 0 (pass) -> 1 (faction power) -> -1
-                state.keyboard_button_cursor = (state.keyboard_button_cursor + 1) % 3 - 1  # -1, 0, 1, -1...
-                if state.keyboard_button_cursor == -1:
-                    state.keyboard_button_cursor = 0  # Start at pass button
+                # Cycle: 0 (pass) -> 1 (faction power) -> 0
+                state.keyboard_button_cursor = (state.keyboard_button_cursor + 1) % 2
 
             # UP/DOWN to select target row when a card is selected via keyboard
             elif event.key in (pygame.K_UP, pygame.K_DOWN) and game.game_state == "playing" and game.current_player == game.player1 and state.ui_state == UIState.PLAYING:
@@ -274,25 +281,7 @@ def handle_events(state, game, screen, dt):
                             state.network_proxy.send_pass()
                         state.keyboard_button_cursor = -1
                     elif state.keyboard_button_cursor == 1:
-                        # Faction power button
-                        if game.player1.faction_power and game.player1.faction_power.is_available():
-                            if game.player1.faction_power.activate(game, game.player1):
-                                state.faction_power_effect = FactionPowerEffect(
-                                    game.player1.faction,
-                                    SCREEN_WIDTH // 2,
-                                    SCREEN_HEIGHT // 2,
-                                    SCREEN_WIDTH,
-                                    SCREEN_HEIGHT
-                                )
-                                game.add_history_event(
-                                    "faction_power",
-                                    f"{game.player1.name} used {game.player1.faction_power.name}",
-                                    "player"
-                                )
-                                if state.network_proxy:
-                                    state.network_proxy.send_faction_power(game.player1.faction_power.name)
-                                game.player1.calculate_score()
-                                game.player2.calculate_score()
+                        _try_activate_faction_power()
                         state.keyboard_button_cursor = -1
                 elif state.keyboard_mode_active and state.keyboard_hand_cursor >= 0 and game.current_player == game.player1:
                     # Preview the keyboard-selected card
@@ -325,25 +314,7 @@ def handle_events(state, game, screen, dt):
                             state.network_proxy.send_pass()
                         state.keyboard_button_cursor = -1
                     elif state.keyboard_button_cursor == 1:
-                        # Faction power button
-                        if game.player1.faction_power and game.player1.faction_power.is_available():
-                            if game.player1.faction_power.activate(game, game.player1):
-                                state.faction_power_effect = FactionPowerEffect(
-                                    game.player1.faction,
-                                    SCREEN_WIDTH // 2,
-                                    SCREEN_HEIGHT // 2,
-                                    SCREEN_WIDTH,
-                                    SCREEN_HEIGHT
-                                )
-                                game.add_history_event(
-                                    "faction_power",
-                                    f"{game.player1.name} used {game.player1.faction_power.name}",
-                                    "player"
-                                )
-                                if state.network_proxy:
-                                    state.network_proxy.send_faction_power(game.player1.faction_power.name)
-                                game.player1.calculate_score()
-                                game.player2.calculate_score()
+                        _try_activate_faction_power()
                         state.keyboard_button_cursor = -1
 
             # Keyboard navigation for mulligan phase
@@ -393,7 +364,8 @@ def handle_events(state, game, screen, dt):
             if game.game_state == "game_over":
                 if event.key == pygame.K_r and not LAN_MODE:
                     battle_music.stop_battle_music()
-                    _main.main()
+                    state.restart_requested = True
+                    state.running = False
                     return
                 elif event.key == pygame.K_p and LAN_MODE:
                     # Play again in LAN mode - go back to deck selection while staying connected
@@ -415,7 +387,8 @@ def handle_events(state, game, screen, dt):
                                 # Set global LAN context via module and restart game
                                 main_module.LAN_MODE = True
                                 main_module.LAN_CONTEXT = new_context
-                                _main.main()
+                                state.restart_requested = True
+                                state.running = False
                         return
                 elif event.key == pygame.K_ESCAPE:
                     if LAN_MODE and state.network_proxy:
@@ -446,6 +419,109 @@ def handle_events(state, game, screen, dt):
                 continue
             if event.button == 1:
                 state.button_info_popup = None
+
+                # Handle selection overlay clicks (Medic, Decoy, Jonas, Ba'al, Vala, Catherine)
+                if state.ui_state in (UIState.MEDIC_SELECT, UIState.DECOY_SELECT, UIState.JONAS_PEEK,
+                                      UIState.BAAL_CLONE_SELECT, UIState.VALA_SELECT, UIState.CATHERINE_SELECT):
+                    overlay_handled = False
+                    for card, rect in state.overlay_card_rects:
+                        if rect.collidepoint(event.pos):
+                            if state.ui_state == UIState.MEDIC_SELECT:
+                                game.trigger_medic(game.player1, card)
+                                state.anim_manager.add_effect(AbilityBurstEffect(
+                                    rect.centerx, rect.centery, ability_name="Medical Evac"
+                                ))
+                                game.player1.calculate_score()
+                                game.player2.calculate_score()
+                                game.last_turn_actor = game.player1
+                                game.switch_turn()
+                                if state.network_proxy:
+                                    state.network_proxy.send_medic_choice(card.id)
+                                state.ui_state = UIState.PLAYING
+                                state.medic_card_played = None
+                            elif state.ui_state == UIState.DECOY_SELECT:
+                                if game.apply_decoy(card):
+                                    state.anim_manager.add_effect(AbilityBurstEffect(
+                                        rect.centerx, rect.centery, ability_name="Decoy Recall"
+                                    ))
+                                    game.player1.calculate_score()
+                                    game.player2.calculate_score()
+                                    game.last_turn_actor = game.player1
+                                    game.switch_turn()
+                                    if state.network_proxy:
+                                        state.network_proxy.send_decoy_choice(card.id)
+                                    state.ui_state = UIState.PLAYING
+                                    state.decoy_card_played = None
+                            elif state.ui_state == UIState.JONAS_PEEK:
+                                game.jonas_memorize_card(game.player1, card)
+                                if state.network_proxy:
+                                    state.network_proxy.send_leader_ability("Eidetic Memory", {"card_id": card.id})
+                                state.ui_state = UIState.PLAYING
+                                game.opponent_drawn_cards = []
+                            elif state.ui_state == UIState.BAAL_CLONE_SELECT:
+                                import copy
+                                from cards import load_card_image
+                                cloned_card = copy.copy(card)
+                                cloned_card.rect = pygame.Rect(0, 0, cfg.CARD_WIDTH, cfg.CARD_HEIGHT)
+                                load_card_image(cloned_card)
+                                cloned_card.in_transit = False
+                                for row_name, row_cards in game.player1.board.items():
+                                    if card in row_cards:
+                                        game.player1.board[row_name].append(cloned_card)
+                                        break
+                                game.player1.calculate_score()
+                                state.ui_state = UIState.PLAYING
+                            elif state.ui_state == UIState.VALA_SELECT:
+                                game.player1.hand.append(card)
+                                for c in state.vala_cards_to_choose:
+                                    if c != card:
+                                        game.player1.deck.append(c)
+                                game.rng.shuffle(game.player1.deck)
+                                state.ui_state = UIState.PLAYING
+                                state.vala_cards_to_choose = []
+                            elif state.ui_state == UIState.CATHERINE_SELECT:
+                                revealed_ids = [c.id for c in state.catherine_cards_to_choose]
+                                game.catherine_play_chosen_card(game.player1, card)
+                                if state.network_proxy:
+                                    state.network_proxy.send_leader_ability(
+                                        "Ancient Knowledge",
+                                        {"choice_id": card.id, "revealed_ids": revealed_ids}
+                                    )
+                                state.ui_state = UIState.PLAYING
+                                state.catherine_cards_to_choose = []
+                            overlay_handled = True
+                            break
+                    # Jonas peek: clicking outside cards also closes overlay
+                    if not overlay_handled and state.ui_state == UIState.JONAS_PEEK:
+                        state.ui_state = UIState.PLAYING
+                        game.opponent_drawn_cards = []
+                    if overlay_handled:
+                        continue
+
+                # Handle Thor move mode clicks
+                if state.ui_state == UIState.THOR_MOVE_SELECT:
+                    if not state.thor_selected_unit:
+                        for row_cards in game.player1.board.values():
+                            for card in row_cards:
+                                if hasattr(card, 'rect') and card.rect.collidepoint(event.pos):
+                                    state.thor_selected_unit = card
+                                    break
+                            if state.thor_selected_unit:
+                                break
+                    else:
+                        for row_name, rect in cfg.PLAYER_ROW_RECTS.items():
+                            if rect.collidepoint(event.pos):
+                                for source_row, row_cards in game.player1.board.items():
+                                    if state.thor_selected_unit in row_cards:
+                                        row_cards.remove(state.thor_selected_unit)
+                                        game.player1.board[row_name].append(state.thor_selected_unit)
+                                        game.player1.calculate_score()
+                                        game.leader_ability_used[game.player1] = True
+                                        state.ui_state = UIState.PLAYING
+                                        state.thor_selected_unit = None
+                                        break
+                                break
+                    continue
 
                 # Game over screen button clicks
                 if game.game_state == "game_over" and state.game_over_buttons:
@@ -706,9 +782,10 @@ def handle_events(state, game, screen, dt):
                 state.ui_state = UIState.DISCARD_VIEW
                 state.discard_scroll = 0
 
-            # Close discard viewer with click
-            if state.ui_state == UIState.DISCARD_VIEW and event.button == 1:
-                state.ui_state = UIState.PLAYING
+            # Close discard viewer with click (but not on the discard pile button itself)
+            elif state.ui_state == UIState.DISCARD_VIEW and event.button == 1:
+                if not state.discard_rect or not state.discard_rect.collidepoint(event.pos):
+                    state.ui_state = UIState.PLAYING
 
             # Handle discard scroll with mouse wheel
             if state.ui_state == UIState.DISCARD_VIEW and event.button in [4, 5]:
@@ -728,27 +805,7 @@ def handle_events(state, game, screen, dt):
                     and game.current_player == game.player1
                     and state.player_faction_button_rect
                     and state.player_faction_button_rect.collidepoint(event.pos)):
-                if game.player1.faction_power and game.player1.faction_power.is_available():
-                    if game.player1.faction_power.activate(game, game.player1):
-                        state.faction_power_effect = FactionPowerEffect(
-                            game.player1.faction,
-                            SCREEN_WIDTH // 2,
-                            SCREEN_HEIGHT // 2,
-                            SCREEN_WIDTH,
-                            SCREEN_HEIGHT
-                        )
-                        game.add_history_event(
-                            "faction_power",
-                            f"{game.player1.name} used {game.player1.faction_power.name}",
-                            "player"
-                        )
-                        # Send over network in LAN mode
-                        if state.network_proxy:
-                            state.network_proxy.send_faction_power(game.player1.faction_power.name)
-                        # Track ability usage
-                        game.ability_usage["faction_power"] = game.ability_usage.get("faction_power", 0) + 1
-                        game.player1.calculate_score()
-                        game.player2.calculate_score()
+                _try_activate_faction_power()
                 continue
 
             # Check if clicking on leader portraits (for inspection)
@@ -785,7 +842,7 @@ def handle_events(state, game, screen, dt):
                 if state.mulligan_local_done:
                     continue
 
-                # Select cards to mulligan (max 2)
+                # Select cards to mulligan (max 5)
                 for card in game.player1.hand:
                     if card.rect.collidepoint(event.pos):
                         if card in state.mulligan_selected:
@@ -1191,13 +1248,6 @@ def handle_events(state, game, screen, dt):
                                         game.play_card(state.dragging_card, row_name, index=insert_index)
                                 else:
                                     game.play_card(state.dragging_card, row_name, index=insert_index)
-
-                                # Add special card effects for unit cards too
-                                effect_x = rect.centerx
-                                effect_y = rect.centery
-                                if not add_special_card_effect(state.dragging_card, effect_x, effect_y, state.anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
-                                    # Default stargate effect if no special effect
-                                    state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
 
                                 played = True
                                 break

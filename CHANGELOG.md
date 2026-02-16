@@ -1,3 +1,72 @@
+### Version 6.2.0 (February 2026)
+**Bug Hunt, Performance & Code Quality Overhaul**
+
+Deep audit and fix of 50+ issues across the entire codebase — crash-level bugs, broken features, game logic errors, space shooter fixes, performance optimizations, and code cleanliness improvements.
+
+#### Critical Bug Fixes (Crashes & Broken Core Systems)
+- **Double `end_round()` fixed** — AI passing triggered `switch_turn()` twice (once inside `pass_turn()`, once in main loop), awarding the opponent an extra round win; same issue fixed for LAN opponent path
+- **Iris Defense visual fix** — When Iris blocked an AI card, the card-play animations still ran (stargate effect, hero fanfare) making it look like the card was successfully played; now shows Iris closing animation instead and skips all card-play visuals
+- **Artifact system fixed** — `apply_effect()` was defined on the wrong class (`GameHistoryEntry` instead of `Artifact`); artifacts like Communication Stones crashed on use
+- **Round winner no longer overridden** — `decrement_all_clone_tokens()` was resetting `current_player` to player1 every round, ignoring round-winner logic
+- **Shared mutable singletons eliminated** — Both players of the same faction now get fresh faction ability/power instances instead of sharing a single mutable singleton
+- **Draft game-over no longer crashes** — Fixed `NameError` for undefined `player_leader`/`player_deck` variables in the draft game-over renderer
+- **LAN weather crash fixed** — Removed invalid `acting_player=` keyword argument from `apply_weather_effect()` call
+- **Discard viewer no longer opens and closes on same click** — Changed sequential `if` blocks to `elif` with proper guard
+
+#### Broken Feature Fixes
+- **F3 debug toggle works** — Was creating a local variable instead of modifying `_main.DEBUG_MODE`
+- **Tab key cycles correctly** — Fixed modular arithmetic that locked cursor at button 0 (could never reach faction power)
+- **Mulligan timeout fires** — Timer was resetting every frame; now set once when mulligan phase begins
+- **Ring transport overlay appears** — Was checking dead `state.ring_transport_selection` instead of `UIState.RING_TRANSPORT_SELECT`
+- **Discard rect updates correctly** — Fixed wrong dict key `"state.discard_rect"` → `"discard_rect"`
+- **Thor move ability is single-use** — Added `leader_ability_used` flag after Thor's move completes
+- **No double stargate animation** — Removed duplicate `StargateActivationEffect` on normal unit cards
+
+#### Game Logic Fixes
+- **Quantum Mirror LAN-safe** — Changed `random.shuffle` to seeded `self.rng.shuffle` preventing LAN desync
+- **Penegal revives units only** — Filtered out weather/special cards that would vanish when revived; agile cards now placed correctly
+- **Loki drain is temporary** — Changed from modifying permanent `.power` to `.displayed_power`
+- **Goa'uld power checks targets first** — No longer marked as used when there are no valid targets
+- **Faction power activation deduplicated** — Extracted `_try_activate_faction_power()` helper replacing 4 inconsistent call sites
+- **Selection overlays moved to event handler** — 7 overlays (Medic, Decoy, Jonas, Ba'al, Vala, Catherine, Thor) no longer handle clicks in the renderer via `get_pressed()`; uses proper `MOUSEBUTTONDOWN` events now
+- **Anubis auto-scorch fires before winner** — Moved scorch application before round winner determination so it actually has an effect
+- **Game-over check consistent** — Unified `game.game_over` vs `game.game_state == "game_over"` across all files
+
+#### Space Shooter Fixes
+- **Shields absorb all damage** — Shields now absorb weapon/beam/contact damage (was only blocking asteroids)
+- **Drones aim at enemies** — Drones calculate direction toward nearest enemy instead of always firing right
+- **GravityWell safe iteration** — Uses slice copy to avoid modifying enemy list during iteration
+- **No splash double-kills** — Tracks already-killed enemies in a set to prevent double XP/score/streak
+- **Rapid fire preserves upgrades** — Changed from base rate capture/restore to multiplier approach so upgrades taken during power-up aren't lost on expiry
+
+#### Performance Optimizations
+- **Font caching** — Added `get_font()` cache in `game_config.py`, replacing 13+ per-frame `pygame.font.SysFont()` OS lookups in the renderer
+- **Mouse position cached** — `pygame.mouse.get_pos()` called once per frame instead of 14+ times
+- **Rotation caching** — Ships and asteroids cache rotated sprites, only re-rotating when angle changes by >1-2 degrees
+- **Surface allocation reduction** — Pre-allocated reusable surfaces for common overlays
+
+#### Code Quality
+- **No more recursive `main()` calls** — Replaced stack-overflow-prone recursive restarts with a loop-based `run_game()` wrapper
+- **`_cleanup_round()` helper** — Extracted ~246 lines of duplicated cleanup logic from `end_round()` and `surrender()`
+- **Mulligan comment fixed** — Changed incorrect "max 2" to "max 5"
+- **Bare except removed** — Changed `except:` to `except Exception:` in card image loading
+- **AI difficulty documented** — Added clarifying comment about always-hard difficulty setting
+
+#### Files Modified
+- `game.py` — Artifact system, clone tokens, shared singletons, weather crash, Quantum Mirror, Penegal, Loki, Anubis scorch, cleanup dedup
+- `event_handler.py` — F3 toggle, Tab cycling, discard viewer, double stargate, faction power dedup, overlay click handling, recursive main
+- `frame_renderer.py` — Draft game-over, ring transport, discard key, Thor ability, overlay refactor, font cache, mouse cache
+- `main.py` — Faction powers singletons, mulligan timeout, game-over consistency, restart loop
+- `game_loop_state.py` — Added `overlay_card_rects` and `restart_requested` fields
+- `game_config.py` — Added `get_font()` font cache
+- `power.py` — Goa'uld valid target check
+- `space_shooter/ship.py` — Shield damage absorption, rotation caching
+- `space_shooter/entities.py` — Drone aiming, GravityWell iteration, asteroid rotation cache
+- `space_shooter/game.py` — Splash double-kill fix, rapid fire multiplier
+- `cards.py` — Bare except fix
+
+---
+
 ### Version 6.1.0 (February 2026)
 **Asgard Faction Overhaul — Card Rework, Beam Animation & Audio**
 

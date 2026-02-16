@@ -13,7 +13,7 @@ class AIStrategy:
         self.game = game
         self.ai_player = ai_player
         self.opponent = game.player1  # Assume AI is always player2
-        self.difficulty = "hard"  # single top difficulty
+        self.difficulty = "hard"  # Currently always hard; easy/medium branches exist but are unused
         self.power_used = False  # Track if faction power has been used
         self.rng = getattr(game, "rng", random)
     

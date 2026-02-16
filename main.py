@@ -646,11 +646,11 @@ def get_opponent_hand_card_center(total_cards, index):
 def run_game_with_context(screen, context):
     """Run the main game loop initialized with a LAN context.
 
-    Delegates to main(). The caller (lan_game.py) sets LAN_MODE and
+    Delegates to run_game(). The caller (lan_game.py) sets LAN_MODE and
     LAN_CONTEXT globals before calling us, which main() passes through
     to game_setup.initialize_game() via lan_mode/lan_context params.
     """
-    main()
+    run_game()
 
 
 def main(lan_game_data=None):
@@ -716,11 +716,11 @@ def main(lan_game_data=None):
     # Initialize Faction Powers for both players (if not already done by game_setup/game class)
     # The Game class __init__ doesn't set faction_power instances, so we do it here
     from power import FACTION_POWERS as FACTION_POWERS_FACTORY
+    # Create fresh instances for both players (avoid shared mutable state across games)
     if game.player1.faction in FACTION_POWERS_FACTORY and not game.player1.faction_power:
-        game.player1.faction_power = FACTION_POWERS_FACTORY[game.player1.faction]
+        game.player1.faction_power = type(FACTION_POWERS_FACTORY[game.player1.faction])()
 
     if game.player2.faction in FACTION_POWERS_FACTORY and not game.player2.faction_power:
-        # Create separate instance for AI
         game.player2.faction_power = type(FACTION_POWERS_FACTORY[game.player2.faction])()
 
     game.start_game()
@@ -889,12 +889,14 @@ def main(lan_game_data=None):
                 'ai_faction': game.player2.faction,
                 'ai_leader': game.player2.leader,
             }
-            main(lan_game_data=rematch_data)
-            return
+            state.restart_requested = True
+            state.running = False
+            continue
         if getattr(game, 'main_menu_requested', False):
             battle_music.stop_battle_music()
-            main()  # Return to main menu
-            return
+            state.restart_requested = True
+            state.running = False
+            continue
 
         sync_fullscreen_from_surface()
         # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
@@ -926,13 +928,16 @@ def main(lan_game_data=None):
                 )
                 LAN_CONTEXT.session.close()
                 battle_music.stop_battle_music()
-                main()
-                return
+                state.restart_requested = True
+                state.running = False
+                continue
 
         # Handle remote mulligan selections in LAN mode
         if LAN_MODE and LAN_CONTEXT and game.game_state == "mulligan" and not state.mulligan_remote_done:
             mulligan_timeout = cfg.MULLIGAN_TIMEOUT
-            mulligan_start_time = pygame.time.get_ticks()
+            if not hasattr(state, '_mulligan_start_time'):
+                state._mulligan_start_time = pygame.time.get_ticks()
+            mulligan_start_time = state._mulligan_start_time
             max_iterations = 1000
             iteration_count = 0
 
@@ -1154,7 +1159,7 @@ def main(lan_game_data=None):
         
         # Check if waiting for opponent (LAN mode)
         state.waiting_for_opponent = False
-        if LAN_MODE and game.current_player != game.player1 and not game.game_over:
+        if LAN_MODE and game.current_player != game.player1 and game.game_state != "game_over":
             state.waiting_for_opponent = True
     
         # Event handling (extracted to event_handler.py)
@@ -1245,8 +1250,11 @@ def main(lan_game_data=None):
     
                     # AI passes or uses power
                     state.ai_turn_anim.finish()
-                    game.last_turn_actor = game.player2
-                    game.switch_turn()
+                    if not game.player2.has_passed:
+                        # Only switch turn if AI used power (not pass)
+                        # pass_turn() already calls switch_turn() internally
+                        game.last_turn_actor = game.player2
+                        game.switch_turn()
                     state.ai_turn_in_progress = False
             
             elif ai_result == "selecting_done":
@@ -1269,83 +1277,91 @@ def main(lan_game_data=None):
                 # Actually play the card
                 if state.ai_card_to_play and state.ai_row_to_play:
                     ability = state.ai_card_to_play.ability or ""
-                    
+
+                    # Check if player's Iris is active before playing
+                    iris_was_active = (hasattr(game.player1, 'iris_defense') and
+                                       game.player1.iris_defense.is_active())
+
                     # Play the card
                     game.play_card(state.ai_card_to_play, state.ai_row_to_play)
                     state.ai_selected_card_index = None
-                    
-                    # Check if AI played a siege card for space battle
-                    if state.ai_row_to_play == 'siege':
-                        state.ambient_effects.add_ship(game.player2.faction, state.ai_card_to_play.name, is_player=False)
-                    
-                    # Trigger visual effect for the play
-                    target_rect = cfg.OPPONENT_ROW_RECTS.get(state.ai_row_to_play)
-                    effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
-                    effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
-    
-                    weather_visual_applied = False
-                    if state.ai_card_to_play.row == "weather":
-                        weather_visual_applied = True
-                        ability_lower = ability.lower()
-                        if "wormhole stabilization" in ability_lower:
-                            state.anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-                        else:
-                            state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP))
-                            if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
-                                for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
-                                    row_rect = rects.get(state.ai_row_to_play)
-                                    if row_rect:
-                                        state.anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
-    
-                    # Check for Naquadah Overload
-                    if not weather_visual_applied and has_ability(state.ai_card_to_play, Ability.NAQUADAH_OVERLOAD):
-                        # Create blue explosions ONLY on rows where cards were destroyed
-                        for player, destroyed_row in game.last_scorch_positions:
-                            if player == game.player1:
-                                row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
+
+                    # Check if card was blocked by Iris (iris was active, now deactivated)
+                    iris_blocked = iris_was_active and not game.player1.iris_defense.is_active()
+                    if iris_blocked:
+                        # Iris already called switch_turn(); skip animations and resolving
+                        from animations import IrisClosingEffect
+                        iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                        state.anim_manager.add_effect(iris_anim)
+                        state.ai_turn_anim.finish()
+                        state.ai_turn_in_progress = False
+                    else:
+                        # Card was successfully played - show animations
+                        if state.ai_row_to_play == 'siege':
+                            state.ambient_effects.add_ship(game.player2.faction, state.ai_card_to_play.name, is_player=False)
+
+                        target_rect = cfg.OPPONENT_ROW_RECTS.get(state.ai_row_to_play)
+                        effect_x = target_rect.centerx if target_rect else SCREEN_WIDTH // 2
+                        effect_y = target_rect.centery if target_rect else SCREEN_HEIGHT // 4
+
+                        weather_visual_applied = False
+                        if state.ai_card_to_play.row == "weather":
+                            weather_visual_applied = True
+                            ability_lower = ability.lower()
+                            if "wormhole stabilization" in ability_lower:
+                                state.anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
                             else:
-                                row_rect = cfg.OPPONENT_ROW_RECTS.get(destroyed_row)
-                            
-                            if row_rect:
-                                state.anim_manager.add_effect(NaquadahExplosionEffect(
-                                    SCREEN_WIDTH // 2,
-                                    row_rect.centery,
-                                    duration=cfg.ANIM_MAJOR_EFFECT
-                                ))
-                        game.last_scorch_positions = []
-                    elif not weather_visual_applied and is_hero(state.ai_card_to_play):
-                        hero_anim = create_hero_animation(state.ai_card_to_play.name, effect_x, effect_y)
-                        state.anim_manager.add_effect(hero_anim)
-                        state.anim_manager.add_effect(LegendaryLightningEffect(state.ai_card_to_play))
-                    elif not weather_visual_applied:
-                        # Check for special ability animations (same as player)
-                        ability_triggered = False
-                        for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
-                                               "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
-                            if special_ability in ability:
-                                ability_anim = create_ability_animation(ability, effect_x, effect_y)
-                                state.anim_manager.add_effect(ability_anim)
-                                ability_triggered = True
-                                break
-    
-                        # Default stargate effect if no special ability
-                        if not ability_triggered:
-                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP)
-                            state.anim_manager.add_effect(stargate_effect)
-    
-                        # Special card unique visuals
-                        if state.ai_card_to_play.row == "special":
-                            add_special_card_effect(
-                                state.ai_card_to_play,
-                                effect_x,
-                                effect_y,
-                                state.anim_manager,
-                                SCREEN_WIDTH,
-                                SCREEN_HEIGHT,
-                                game=game
-                            )
-                
-                state.ai_turn_anim.start_resolving()
+                                state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP))
+                                if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
+                                    for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
+                                        row_rect = rects.get(state.ai_row_to_play)
+                                        if row_rect:
+                                            state.anim_manager.add_effect(MeteorShowerImpactEffect(row_rect))
+
+                        # Check for Naquadah Overload
+                        if not weather_visual_applied and has_ability(state.ai_card_to_play, Ability.NAQUADAH_OVERLOAD):
+                            for player, destroyed_row in game.last_scorch_positions:
+                                if player == game.player1:
+                                    row_rect = cfg.PLAYER_ROW_RECTS.get(destroyed_row)
+                                else:
+                                    row_rect = cfg.OPPONENT_ROW_RECTS.get(destroyed_row)
+                                if row_rect:
+                                    state.anim_manager.add_effect(NaquadahExplosionEffect(
+                                        SCREEN_WIDTH // 2,
+                                        row_rect.centery,
+                                        duration=cfg.ANIM_MAJOR_EFFECT
+                                    ))
+                            game.last_scorch_positions = []
+                        elif not weather_visual_applied and is_hero(state.ai_card_to_play):
+                            hero_anim = create_hero_animation(state.ai_card_to_play.name, effect_x, effect_y)
+                            state.anim_manager.add_effect(hero_anim)
+                            state.anim_manager.add_effect(LegendaryLightningEffect(state.ai_card_to_play))
+                        elif not weather_visual_applied:
+                            ability_triggered = False
+                            for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
+                                                   "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
+                                if special_ability in ability:
+                                    ability_anim = create_ability_animation(ability, effect_x, effect_y)
+                                    state.anim_manager.add_effect(ability_anim)
+                                    ability_triggered = True
+                                    break
+
+                            if not ability_triggered:
+                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP)
+                                state.anim_manager.add_effect(stargate_effect)
+
+                            if state.ai_card_to_play.row == "special":
+                                add_special_card_effect(
+                                    state.ai_card_to_play,
+                                    effect_x,
+                                    effect_y,
+                                    state.anim_manager,
+                                    SCREEN_WIDTH,
+                                    SCREEN_HEIGHT,
+                                    game=game
+                                )
+
+                        state.ai_turn_anim.start_resolving()
             
             elif ai_result == "resolving_done":
                 # Recalculate scores
@@ -1386,7 +1402,7 @@ def main(lan_game_data=None):
             card_to_play, row_to_play = state.ai_controller.choose_move()
             
             if not was_passed and game.player2.has_passed:
-                game.switch_turn()
+                # pass_turn() already called switch_turn() internally
                 continue
     
             # Check if opponent used faction power
@@ -1572,10 +1588,25 @@ def main(lan_game_data=None):
         # --- Drawing (extracted to frame_renderer.py) ---
         render_frame(state, game, screen, dt, drag_visual_state)
 
-    
+
     battle_music.stop_battle_music()
-    pygame.quit()
-    sys.exit()
+
+    # If restart was requested, signal the outer loop
+    if state.restart_requested:
+        return "restart"
+
+    return "quit"
+
+
+def run_game():
+    """Entry point that loops on restart instead of recursing."""
+    while True:
+        result = main()
+        if result != "restart":
+            break
+
 
 if __name__ == "__main__":
-    main()
+    run_game()
+    pygame.quit()
+    sys.exit()

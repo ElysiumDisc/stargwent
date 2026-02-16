@@ -238,6 +238,10 @@ class Artifact:
         self.description = description
         self.effect_func = effect_func
 
+    def apply_effect(self, game, player):
+        """Apply the artifact's effect."""
+        self.effect_func(game, player)
+
 
 class GameHistoryEntry:
     """Data container describing a single log entry for the HUD history feed."""
@@ -284,10 +288,6 @@ class GameHistoryEntry:
         self.turn_number = turn_number  # Which turn this event occurred on
         self.scores = scores    # Tuple of (player1_score, player2_score) at time of event
         self.timestamp = time.time()
-    
-    def apply_effect(self, game, player):
-        """Apply the artifact's effect."""
-        self.effect_func(game, player)
 
 
 # Artifact definitions
@@ -535,8 +535,15 @@ class Player:
         self.zpm_active = False  # Track if ZPM was played this round
         self.spies_played_this_round = 0  # Track spies for Lucian Network combo
         
-        # Stargate mechanics
-        self.faction_ability = FACTION_ABILITIES.get(faction, None)
+        # Stargate mechanics - create fresh instances per player (avoid shared mutable state)
+        _ability_classes = {
+            FACTION_TAURI: TauriAbility,
+            FACTION_GOAULD: GoauldAbility,
+            FACTION_JAFFA: JaffaAbility,
+            FACTION_ASGARD: AsgardAbility,
+            FACTION_LUCIAN: LucianAbility,
+        }
+        self.faction_ability = _ability_classes[faction]() if faction in _ability_classes else None
         self.dhd_mechanic = DHDMechanic()
 
         # Check for Neutral Penalty (Mercenary Tax)
@@ -576,7 +583,7 @@ class Player:
         self._rng.shuffle(deck)
         return deck
 
-    def calculate_score(self):
+    def calculate_score(self, game=None):
         """Calculates the player's total score, applying all abilities and effects.
         Returns list of activated alliance combos for history logging."""
         # First, reset all card powers to their base value
@@ -756,7 +763,7 @@ class Player:
         
         # Apply Artifact Effects
         for artifact in self.artifacts:
-            artifact.apply_effect(None, self)
+            artifact.apply_effect(game, self)
 
         # Apply weather effects last so nothing can override them
         for row_name, row_cards in self.board.items():
@@ -900,8 +907,8 @@ class Game:
     def calculate_scores_and_log(self):
         """Calculate scores for both players and log any alliance combo activations."""
         # Calculate scores and get activated combos
-        combos_p1 = self.player1.calculate_score()
-        combos_p2 = self.player2.calculate_score()
+        combos_p1 = self.player1.calculate_score(game=self)
+        combos_p2 = self.player2.calculate_score(game=self)
 
         # Log Mercenary Tax penalties
         if self.player1.neutral_penalty_active:
@@ -1357,7 +1364,8 @@ class Game:
                         icon="+2"
                     )
             
-            # Loki ability: Steal 1 power from opponent's strongest unit
+            # Loki ability: Steal 1 displayed_power from opponent's strongest unit
+            # Uses displayed_power (temporary) instead of base power to avoid permanent drain
             if player.leader and "Loki" in player.leader.get('name', ''):
                 opponent = self.player2 if player == self.player1 else self.player1
                 all_opponent_units = []
@@ -1366,11 +1374,11 @@ class Game:
                 if all_opponent_units:
                     strongest = max(all_opponent_units, key=lambda c: c.displayed_power)
                     if strongest.displayed_power > 1:
-                        strongest.power -= 1
+                        strongest.displayed_power -= 1
                         # Add power to a random friendly unit
                         friendly_units = [c for row in player.board.values() for c in row if not is_hero(c)]
                         if friendly_units:
-                            self.rng.choice(friendly_units).power += 1
+                            self.rng.choice(friendly_units).displayed_power += 1
 
 
             # Trigger Gate Reinforcement ability
@@ -1892,7 +1900,7 @@ class Game:
             weather_card = copy.deepcopy(template_candidates[0])
             target_rows = rows or ["close"]
             for row_name in target_rows:
-                self.apply_weather_effect(weather_card, row_name, acting_player=player, target_side="both")
+                self.apply_weather_effect(weather_card, row_name, target_side="both")
                 self._set_weather_slot(row_name, {"card": weather_card, "owner": None})
             self.calculate_scores_and_log()
             # Mark as used only after successful completion
@@ -2274,8 +2282,8 @@ class Game:
             self.current_player.deck.extend(self.current_player.hand)
             self.current_player.hand.clear()
 
-            # Shuffle deck
-            random.shuffle(self.current_player.deck)
+            # Shuffle deck (use seeded rng for LAN sync)
+            self.rng.shuffle(self.current_player.deck)
 
             # Draw same number of cards (these will NOT be revealed)
             self.current_player.draw_cards(hand_size)
@@ -2577,13 +2585,71 @@ class Game:
             return [victim_row]
         return []
 
+    def _cleanup_round(self):
+        """Shared cleanup logic for both end_round() and surrender()."""
+        self.cards_played_this_round = {self.player1: 0, self.player2: 0}
+
+        for p in [self.player1, self.player2]:
+            for row_cards in p.board.values():
+                for card in row_cards:
+                    if hasattr(card, 'hammond_boosted'):
+                        delattr(card, 'hammond_boosted')
+                    if hasattr(card, 'kalel_boosted'):
+                        delattr(card, 'kalel_boosted')
+                    if hasattr(card, 'kiva_boosted'):
+                        delattr(card, 'kiva_boosted')
+                p.discard_pile.extend(row_cards)
+
+            p.board = {"close": [], "ranged": [], "siege": []}
+            p.has_passed = False
+            p.weather_effects = {"close": False, "ranged": False, "siege": False}
+            p.horn_effects = {"close": False, "ranged": False, "siege": False}
+            p.horn_slots = {"close": None, "ranged": None, "siege": None}
+            p.weather_cards_played = 0
+            p.current_round_number = self.round_number
+            p.units_played_this_round = 0
+            pending_reveal = getattr(p, "reveal_next_round", False)
+            p.hand_revealed = pending_reveal
+            p.reveal_next_round = False
+            p.zpm_active = False
+            p.spies_played_this_round = 0
+
+            if p.ring_transportation:
+                p.ring_transportation.reset_round()
+
+            p.score = 0
+
+        LUCIAN_NETWORK_COMBO.reset_round()
+
+        self.discard_active_weather_cards()
+        self.weather_active = {"close": False, "ranged": False, "siege": False}
+        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
+        self.current_weather_types = {"close": None, "ranged": None, "siege": None}
+        self.weather_cards_on_board = {"close": None, "ranged": None, "siege": None}
+
     def end_round(self):
         """Ends the round, determines winner, and resets for the next."""
         print(f"[DEBUG] end_round called: round={self.round_number}, p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
         print(f"[DEBUG] Scores: p1={self.player1.score}, p2={self.player2.score}")
+        # Anubis leader ability: Auto-scorch in rounds 2 & 3 (BEFORE winner determination)
+        for player in [self.player1, self.player2]:
+            if player.leader and "Anubis" in player.leader.get('name', ''):
+                if self.round_number >= 2:
+                    destroyed = self.apply_scorch()
+                    if destroyed:
+                        self.add_history_event(
+                            "ability",
+                            f"{player.name} (Anubis) triggered Ascended Power: Naquadah Overload!",
+                            self._owner_label(player),
+                            icon="X"
+                        )
+                        # Recalculate scores after scorch
+                        self.player1.calculate_score(game=self)
+                        self.player2.calculate_score(game=self)
+
         # Generate thematic round descriptions
         score_diff = abs(self.player1.score - self.player2.score)
-        
+
         # Determine narrative flavor based on score difference
         if score_diff == 0:
             battle_desc = "An intense stalemate"
@@ -2595,7 +2661,7 @@ class Game:
             battle_desc = "A crushing defeat"
         else:
             battle_desc = "Total annihilation"
-        
+
         # Determine winner
         if self.player1.score > self.player2.score:
             self.player1.rounds_won += 1
@@ -2629,19 +2695,6 @@ class Game:
                 icon="=="
             )
         
-        # Anubis leader ability: Auto-scorch in rounds 2 & 3
-        for player in [self.player1, self.player2]:
-            if player.leader and "Anubis" in player.leader.get('name', ''):
-                if self.round_number >= 2:  # Rounds 2 and 3
-                    destroyed = self.apply_scorch()  # Trigger scorch effect
-                    if destroyed:
-                        self.add_history_event(
-                            "ability",
-                            f"{player.name} (Anubis) triggered Ascended Power: Naquadah Overload!",
-                            self._owner_label(player),
-                            icon="X"
-                        )
-
         # Check for game over BEFORE incrementing round number
         print(f"[DEBUG] After round {self.round_number}: p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
         # If both players have 2+ wins, it's a draw (e.g. 1 win each + 1 draw, or 2 draws)
@@ -2666,53 +2719,7 @@ class Game:
 
         self.round_number = min(self.round_number + 1, 3)
 
-        # Reset turn counters for new round
-        self.cards_played_this_round = {self.player1: 0, self.player2: 0}
-
-        # Move all board cards to discard pile
-        for p in [self.player1, self.player2]:
-            for row_cards in p.board.values():
-                # Clear leader ability boost flags before moving to discard
-                for card in row_cards:
-                    if hasattr(card, 'hammond_boosted'):
-                        delattr(card, 'hammond_boosted')
-                    if hasattr(card, 'kalel_boosted'):
-                        delattr(card, 'kalel_boosted')
-                    if hasattr(card, 'kiva_boosted'):
-                        delattr(card, 'kiva_boosted')
-                p.discard_pile.extend(row_cards)
-
-            # Reset for next round
-            p.board = { "close": [], "ranged": [], "siege": [] }
-            p.has_passed = False
-            p.weather_effects = {"close": False, "ranged": False, "siege": False}
-            p.horn_effects = {"close": False, "ranged": False, "siege": False}
-            p.horn_slots = {"close": None, "ranged": None, "siege": None}
-            p.weather_cards_played = 0
-            p.current_round_number = self.round_number
-            p.units_played_this_round = 0
-            pending_reveal = getattr(p, "reveal_next_round", False)
-            p.hand_revealed = pending_reveal
-            p.reveal_next_round = False
-            p.zpm_active = False
-            p.spies_played_this_round = 0  # Reset spy counter for Lucian Network
-
-            # Reset Ring Transportation for new round (Goa'uld)
-            if p.ring_transportation:
-                p.ring_transportation.reset_round()
-
-            # Reset score (board is empty at this point)
-            p.score = 0
-
-        # Reset Lucian Network combo for new round
-        LUCIAN_NETWORK_COMBO.reset_round()
-
-        # Clear weather cards from board and move to discard
-        self.discard_active_weather_cards()
-        self.weather_active = {"close": False, "ranged": False, "siege": False}
-        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
-        self.current_weather_types = {"close": None, "ranged": None, "siege": None}
-        self.weather_cards_on_board = {"close": None, "ranged": None, "siege": None}
+        self._cleanup_round()
 
         # Draw cards for new round
         for p in [self.player1, self.player2]:
@@ -2763,13 +2770,16 @@ class Game:
                         )
                 # Penegal: Revive 1 unit at start of rounds 2 and 3
                 elif "Penegal" in leader_name and self.round_number > 1:
-                    if p.discard_pile:
-                        revived = self.rng.choice(p.discard_pile)
+                    valid_units = [c for c in p.discard_pile
+                                  if not is_hero(c)
+                                  and c.row in ["close", "ranged", "siege", "agile"]]
+                    if valid_units:
+                        revived = self.rng.choice(valid_units)
                         p.discard_pile.remove(revived)
                         if revived.row in ["close", "ranged", "siege"]:
                             p.board[revived.row].append(revived)
                         elif revived.row == "agile":
-                            p.board[self.rng.choice(["close", "ranged", "siege"])].append(revived)
+                            p.board[self.rng.choice(["close", "ranged"])].append(revived)
                         self.add_history_event(
                             "ability",
                             f"{p.name} (Penegal) revived {revived.name} from discard",
@@ -2901,51 +2911,9 @@ class Game:
         )
 
         print(f"[game] {loser_name} surrendered. {winner_name} wins.")
-        
-        # Reset turn counters for new round
-        self.cards_played_this_round = {self.player1: 0, self.player2: 0}
 
-        # Move all board cards to discard pile
-        for p in [self.player1, self.player2]:
-            for row_cards in p.board.values():
-                # Clear leader ability boost flags before moving to discard
-                for card in row_cards:
-                    if hasattr(card, 'hammond_boosted'):
-                        delattr(card, 'hammond_boosted')
-                    if hasattr(card, 'kalel_boosted'):
-                        delattr(card, 'kalel_boosted')
-                    if hasattr(card, 'kiva_boosted'):
-                        delattr(card, 'kiva_boosted')
-                p.discard_pile.extend(row_cards)
-            
-            # Reset for next round
-            p.board = { "close": [], "ranged": [], "siege": [] }
-            p.has_passed = False
-            p.weather_effects = {"close": False, "ranged": False, "siege": False}
-            p.horn_effects = {"close": False, "ranged": False, "siege": False}
-            p.horn_slots = {"close": None, "ranged": None, "siege": None}
-            p.weather_cards_played = 0
-            p.current_round_number = self.round_number  # Update player's round number
-            p.units_played_this_round = 0  # Reset unit counter
-            pending_reveal = getattr(p, "reveal_next_round", False)
-            p.hand_revealed = pending_reveal  # Carry Yu intel into next round
-            p.reveal_next_round = False
-            p.zpm_active = False  # Clear ZPM effect for new round
-            
-            # Reset Ring Transportation for new round (Goa'uld)
-            if p.ring_transportation:
-                p.ring_transportation.reset_round()
+        self._cleanup_round()
 
-            # Reset score (board is empty at this point)
-            p.score = 0
-        
-        # Clear weather cards from board and move to discard
-        self.discard_active_weather_cards()
-        self.weather_active = {"close": False, "ranged": False, "siege": False}
-        self.weather_row_targets = {"close": None, "ranged": None, "siege": None}
-        self.current_weather_types = {"close": None, "ranged": None, "siege": None}
-        self.weather_cards_on_board = {"close": None, "ranged": None, "siege": None}
-        
         # Draw cards for new round
         for p in [self.player1, self.player2]:
             base_draw = 2
@@ -3000,20 +2968,21 @@ class Game:
                         )
                 # NEW: Penegal: Revive 1 unit at start of rounds 2 and 3
                 elif "Penegal" in leader_name and self.round_number > 1:
-                    if p.discard_pile:
-                        revived = self.rng.choice(p.discard_pile)
+                    valid_units = [c for c in p.discard_pile
+                                  if not is_hero(c)
+                                  and c.row in ["close", "ranged", "siege", "agile"]]
+                    if valid_units:
+                        revived = self.rng.choice(valid_units)
                         p.discard_pile.remove(revived)
-                        # Place in appropriate row
                         if revived.row in ["close", "ranged", "siege"]:
                             p.board[revived.row].append(revived)
                         elif revived.row == "agile":
-                            # Place agile in random valid row
-                            p.board[self.rng.choice(["close", "ranged", "siege"])].append(revived)
+                            p.board[self.rng.choice(["close", "ranged"])].append(revived)
                         self.add_history_event(
                             "ability",
                             f"{p.name} (Penegal) revived {revived.name} from discard",
                             self._owner_label(p),
-                            icon="♻️"
+                            icon="+"
                         )
                 # NEW: Netan: Add random Neutral card each round
                 elif "Netan" in leader_name:
@@ -3124,6 +3093,3 @@ class Game:
                         if card.clone_turns_remaining <= 0:
                             row_cards.remove(card)
                             player.discard_pile.append(card)
-
-        # Reset turn to player 1
-        self.current_player = self.player1

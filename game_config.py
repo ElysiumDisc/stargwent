@@ -243,6 +243,19 @@ def rect_from_percent(x_range, y_range):
         max(1, pct_y(y_range[1] - y_range[0])),
     )
 
+# Font cache - avoids expensive pygame.font.SysFont() calls every frame
+_font_cache = {}
+
+def get_font(name, size, bold=False):
+    """Get a cached font. Creates it on first call, returns cached thereafter."""
+    key = (name, size, bold)
+    if key not in _font_cache:
+        if name is None:
+            _font_cache[key] = pygame.font.Font(None, size)
+        else:
+            _font_cache[key] = pygame.font.SysFont(name, size, bold=bold)
+    return _font_cache[key]
+
 # Calculated Dimensions (Initialized to default)
 SCORE_FONT = None
 UI_FONT = None
