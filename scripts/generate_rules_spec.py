@@ -115,7 +115,7 @@ def build_ability_info():
             "synergy": "Amplifies Scorch setups and punishes enemy row stacking, especially when combined with Naquadah Overload.",
         },
         "Deep Cover Agent": {
-            "effect": "Placed on the opponent's side as a spy; draws 2 cards (3 if Lucian Piracy passive or Vulkar leader is active).",
+            "effect": "Placed on the opponent's side as a spy; draws 2 cards (3 if Lucian Piracy passive or Varro leader is active).",
             "timing": "Draw happens as soon as the spy enters the opponent's row.",
             "synergy": "Fuel for combo pieces, activates Lucian Piracy bonus, and can bait weather on the enemy board.",
         },
@@ -452,9 +452,9 @@ def build_leader_notes():
             "timing": "All Gate Reinforcement units gain +2 power.",
             "synergy": "Makes even 1-power militia into legitimate threats once mustered.",
         },
-        "Vulkar": {
+        "Varro": {
             "timing": "Spy cards draw 3 instead of 2.",
-            "synergy": "Lucian Piracy passive plus Vulkar lets you churn through decks instantly.",
+            "synergy": "Lucian Piracy passive plus Varro lets you churn through decks instantly.",
         },
         "Sodan Master": {
             "timing": "Boosts the highest-power unit in each row by +3.",
@@ -531,7 +531,7 @@ LEADER_BIOS = {
     "Ka'lel": "Hak'tyl warrior-poet whose battlefield speeches ignite allies.",
     "Gerak": "Political operator balancing loyalty and ambition within the Free Jaffa Nation.",
     "Ishta": "Leader of the Hak'tyl resistance, specializing in precise infiltrations.",
-    "Vulkar": "Lucian Alliance spymaster who monetizes every battlefield secret.",
+    "Varro": "Former Lucian Alliance soldier turned reluctant SGC ally; uses espionage skills to fuel intel-heavy strategies.",
     "Sodan Master": "Leader of the cloaked Sodan sect, blending honor with guerrilla tactics.",
     "Ba'al Clone": "One of the countless Ba'al duplicates still chasing power in the underworld.",
     "Netan": "Crime lord who treats battlefields as trade routes to be exploited.",

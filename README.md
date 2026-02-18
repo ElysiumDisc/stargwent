@@ -300,8 +300,8 @@ All abilities renamed and themed around Stargate lore:
 
 #### **Lucian Alliance** (Pirates & Smugglers) 💀
 *Cunning outlaws and mercenaries*
-- **Leaders**: Netan, Anateo, Kiva, Vala Mal Doran, Vulkar
-- **Unlockable**: Netan (Crime Lord), Anateo (Warlord)
+- **Leaders**: Varro, Sodan Master, Ba'al Clone
+- **Unlockable**: Netan, Vala Mal Doran, Anateo, Kiva
 
 #### **Asgard** (Ancient Allies) 👽
 *Advanced technology and wisdom*
@@ -523,10 +523,10 @@ All abilities renamed and themed around Stargate lore:
 - Rya'c - Hope for Tomorrow: Draw 2 extra cards at start of round 3
 
 **Lucian:**
-- Netan - Gain 1 extra card each round
+- Netan - Draw +1 card each round
+- Vala Mal Doran - Steal card from opponent at round 2
 - Anateo - Free Medical Evac per round
-- Vala - Look at 3 cards, keep 1
-- Kiva - Play 2 cards on first turn
+- Kiva - First unit each round gets +4 power
 
 **Asgard:**
 - Thor (Supreme) - Move any unit once per round
@@ -644,6 +644,11 @@ python scripts/card_assembler.py --dry-run          # Preview without writing
 - [101 Soundboards - Stargate SG-1 Soundboard](https://www.101soundboards.com/boards/33269-stargate-sg1-soundboard) for character voice clips
 - Pygame CE community for documentation
 - Contributors and playtesters
+
+### AI-Generated Art Credits
+Card portrait art generated with the following AI models:
+- [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) by Tongyi-MAI
+- [Disco Elysium](https://civitai.com/models/1433982/disco-elysium) style model on CivitAI
 
 
 ## 🤝 Contributing

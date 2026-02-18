@@ -17,118 +17,6 @@
       "ability": "Legendary Commander"
     },
     {
-      "card_id": "tauri_hammond",
-      "name": "Gen. George Hammond",
-      "faction": "Tau'ri",
-      "power": 10,
-      "row": "close",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "tauri_mitchell",
-      "name": "Capt. Cameron Mitchell",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "close",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_fraiser",
-      "name": "Dr. Janet Fraiser",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "close",
-      "ability": "Deep Cover Agent"
-    },
-    {
-      "card_id": "tauri_sg3",
-      "name": "SG-3 Heavy Recon",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "close",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_barrett",
-      "name": "NID Agent Malcolm Barrett",
-      "faction": "Tau'ri",
-      "power": 4,
-      "row": "close",
-      "ability": "Deep Cover Agent"
-    },
-    {
-      "card_id": "tauri_sg1_commando_1",
-      "name": "SG-1 Commandos",
-      "faction": "Tau'ri",
-      "power": 4,
-      "row": "close",
-      "ability": "Tactical Formation, Gate Reinforcement"
-    },
-    {
-      "card_id": "tauri_sg1_commando_2",
-      "name": "SG-1 Commandos",
-      "faction": "Tau'ri",
-      "power": 4,
-      "row": "close",
-      "ability": "Tactical Formation, Gate Reinforcement"
-    },
-    {
-      "card_id": "tauri_sg1_commando_3",
-      "name": "SG-1 Commandos",
-      "faction": "Tau'ri",
-      "power": 4,
-      "row": "close",
-      "ability": "Tactical Formation, Gate Reinforcement"
-    },
-    {
-      "card_id": "tauri_alpha_team_1",
-      "name": "Alpha Team Troopers",
-      "faction": "Tau'ri",
-      "power": 1,
-      "row": "close",
-      "ability": "Tactical Formation, Gate Reinforcement"
-    },
-    {
-      "card_id": "tauri_alpha_team_2",
-      "name": "Alpha Team Troopers",
-      "faction": "Tau'ri",
-      "power": 1,
-      "row": "close",
-      "ability": "Tactical Formation, Gate Reinforcement"
-    },
-    {
-      "card_id": "tauri_alpha_team_3",
-      "name": "Alpha Team Troopers",
-      "faction": "Tau'ri",
-      "power": 1,
-      "row": "close",
-      "ability": "Tactical Formation, Gate Reinforcement"
-    },
-    {
-      "card_id": "tauri_quinn",
-      "name": "Jonas Quinn",
-      "faction": "Tau'ri",
-      "power": 1,
-      "row": "close",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_sgc_recruit_1",
-      "name": "SGC Recruit",
-      "faction": "Tau'ri",
-      "power": 1,
-      "row": "close",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_sgc_recruit_2",
-      "name": "SGC Recruit",
-      "faction": "Tau'ri",
-      "power": 1,
-      "row": "close",
-      "ability": null
-    },
-    {
       "card_id": "tauri_carter",
       "name": "Dr. Samantha Carter",
       "faction": "Tau'ri",
@@ -137,68 +25,12 @@
       "ability": "Legendary Commander"
     },
     {
-      "card_id": "tauri_caldwell",
-      "name": "Col. Steven Caldwell",
+      "card_id": "tauri_hammond",
+      "name": "Gen. George Hammond",
       "faction": "Tau'ri",
-      "power": 6,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_vala",
-      "name": "Liaison Vala Mal Doran",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_tokra_op_1",
-      "name": "Tok'ra Operative",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Tactical Formation"
-    },
-    {
-      "card_id": "tauri_tokra_op_2",
-      "name": "Tok'ra Operative",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Tactical Formation"
-    },
-    {
-      "card_id": "tauri_tokra_op_3",
-      "name": "Tok'ra Operative",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Tactical Formation"
-    },
-    {
-      "card_id": "tauri_valtiel",
-      "name": "V. Teal'c",
-      "faction": "Tau'ri",
-      "power": 5,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_marksman",
-      "name": "Airman Marksman",
-      "faction": "Tau'ri",
-      "power": 4,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "tauri_f302_pilot",
-      "name": "F-302 Fighter Pilot",
-      "faction": "Tau'ri",
-      "power": 4,
-      "row": "ranged",
-      "ability": null
+      "power": 10,
+      "row": "close",
+      "ability": "Legendary Commander"
     },
     {
       "card_id": "tauri_bc304_1",
@@ -217,8 +49,32 @@
       "ability": "Tactical Formation"
     },
     {
+      "card_id": "prometheus_x303",
+      "name": "Prometheus X-303",
+      "faction": "Tau'ri",
+      "power": 8,
+      "row": "siege",
+      "ability": "Draw 1 card when played"
+    },
+    {
+      "card_id": "tauri_quinn",
+      "name": "Jonas Quinn",
+      "faction": "Tau'ri",
+      "power": 7,
+      "row": "close",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_caldwell",
+      "name": "Col. Steven Caldwell",
+      "faction": "Tau'ri",
+      "power": 6,
+      "row": "ranged",
+      "ability": null
+    },
+    {
       "card_id": "tauri_turret_1",
-      "name": "Energy Pistol Turret",
+      "name": "M.A.L.P",
       "faction": "Tau'ri",
       "power": 6,
       "row": "siege",
@@ -226,7 +82,7 @@
     },
     {
       "card_id": "tauri_turret_2",
-      "name": "Energy Pistol Turret",
+      "name": "M.A.L.P",
       "faction": "Tau'ri",
       "power": 6,
       "row": "siege",
@@ -234,7 +90,7 @@
     },
     {
       "card_id": "tauri_turret_3",
-      "name": "Energy Pistol Turret",
+      "name": "M.A.L.P",
       "faction": "Tau'ri",
       "power": 6,
       "row": "siege",
@@ -281,6 +137,30 @@
       "ability": null
     },
     {
+      "card_id": "tauri_mitchell",
+      "name": "Capt. Cameron Mitchell",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "close",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_fraiser",
+      "name": "Dr. Janet Fraiser",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "close",
+      "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "tauri_vala",
+      "name": "Liaison Vala Mal Doran",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "ranged",
+      "ability": null
+    },
+    {
       "card_id": "tauri_medic_1",
       "name": "Medical Team (Dr. Lam)",
       "faction": "Tau'ri",
@@ -295,6 +175,134 @@
       "power": 5,
       "row": "siege",
       "ability": "Medical Evac"
+    },
+    {
+      "card_id": "tauri_sg3",
+      "name": "SG-3 Heavy Recon",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "close",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_tokra_op_1",
+      "name": "Tok'ra Operative",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "tauri_tokra_op_2",
+      "name": "Tok'ra Operative",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "tauri_tokra_op_3",
+      "name": "Tok'ra Operative",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "tauri_vallarin",
+      "name": "Vallarin",
+      "faction": "Tau'ri",
+      "power": 5,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_marksman",
+      "name": "Airman Marksman",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_f302_pilot",
+      "name": "F-302 Fighter Pilot",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_barrett",
+      "name": "NID Agent Malcolm Barrett",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "close",
+      "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "tauri_sg1_commando_1",
+      "name": "SG-1 Commandos",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "close",
+      "ability": "Tactical Formation, Gate Reinforcement"
+    },
+    {
+      "card_id": "tauri_sg1_commando_2",
+      "name": "SG-1 Commandos",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "close",
+      "ability": "Tactical Formation, Gate Reinforcement"
+    },
+    {
+      "card_id": "tauri_sg1_commando_3",
+      "name": "SG-1 Commandos",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "close",
+      "ability": "Tactical Formation, Gate Reinforcement"
+    },
+    {
+      "card_id": "tok_ra_operative",
+      "name": "Tok'ra Deep Cover Operative",
+      "faction": "Tau'ri",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "tauri_alpha_team_1",
+      "name": "Alpha Team Troopers",
+      "faction": "Tau'ri",
+      "power": 1,
+      "row": "close",
+      "ability": "Tactical Formation, Gate Reinforcement"
+    },
+    {
+      "card_id": "tauri_alpha_team_2",
+      "name": "Alpha Team Troopers",
+      "faction": "Tau'ri",
+      "power": 1,
+      "row": "close",
+      "ability": "Tactical Formation, Gate Reinforcement"
+    },
+    {
+      "card_id": "tauri_alpha_team_3",
+      "name": "Alpha Team Troopers",
+      "faction": "Tau'ri",
+      "power": 1,
+      "row": "close",
+      "ability": "Tactical Formation, Gate Reinforcement"
+    },
+    {
+      "card_id": "tauri_analyst",
+      "name": "Analyst",
+      "faction": "Tau'ri",
+      "power": 1,
+      "row": "siege",
+      "ability": "Deep Cover Agent"
     },
     {
       "card_id": "tauri_ground_tech_1",
@@ -321,38 +329,30 @@
       "ability": "Inspiring Leadership"
     },
     {
-      "card_id": "tauri_analyst",
-      "name": "Torus Stardrive Analyst",
+      "card_id": "tauri_sgc_recruit_1",
+      "name": "SGC Recruit",
       "faction": "Tau'ri",
       "power": 1,
-      "row": "siege",
-      "ability": "Deep Cover Agent"
+      "row": "close",
+      "ability": null
+    },
+    {
+      "card_id": "tauri_sgc_recruit_2",
+      "name": "SGC Recruit",
+      "faction": "Tau'ri",
+      "power": 1,
+      "row": "close",
+      "ability": null
     }
   ],
   "Goa'uld": [
     {
-      "card_id": "goauld_teltak_1",
-      "name": "Tel'tak Courier",
+      "card_id": "goauld_apophis",
+      "name": "Apophis",
       "faction": "Goa'uld",
-      "power": 2,
-      "row": "agile",
-      "ability": null
-    },
-    {
-      "card_id": "goauld_teltak_2",
-      "name": "Tel'tak Courier",
-      "faction": "Goa'uld",
-      "power": 2,
-      "row": "agile",
-      "ability": null
-    },
-    {
-      "card_id": "goauld_teltak_3",
-      "name": "Tel'tak Courier",
-      "faction": "Goa'uld",
-      "power": 2,
-      "row": "agile",
-      "ability": null
+      "power": 10,
+      "row": "ranged",
+      "ability": "Legendary Commander"
     },
     {
       "card_id": "goauld_yu",
@@ -363,12 +363,44 @@
       "ability": "Legendary Commander"
     },
     {
+      "card_id": "goauld_ancient_weapon",
+      "name": "Ra Weapon",
+      "faction": "Goa'uld",
+      "power": 10,
+      "row": "siege",
+      "ability": null
+    },
+    {
       "card_id": "goauld_sokar",
       "name": "Sokar",
       "faction": "Goa'uld",
       "power": 10,
       "row": "close",
       "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "goauld_hathor",
+      "name": "Hathor",
+      "faction": "Goa'uld",
+      "power": 8,
+      "row": "ranged",
+      "ability": "Legendary Commander, Inspiring Leadership"
+    },
+    {
+      "card_id": "kull_warrior",
+      "name": "Kull Warrior Elite",
+      "faction": "Goa'uld",
+      "power": 8,
+      "row": "close",
+      "ability": "Legendary Commander, Survival Instinct"
+    },
+    {
+      "card_id": "super_soldier",
+      "name": "Anubis Super Soldier",
+      "faction": "Goa'uld",
+      "power": 7,
+      "row": "close",
+      "ability": "Survival Instinct"
     },
     {
       "card_id": "goauld_ashrak",
@@ -384,7 +416,7 @@
       "faction": "Goa'uld",
       "power": 6,
       "row": "close",
-      "ability": "System Lord's Curse"
+      "ability": "Gate Reinforcement, System Lord's Curse"
     },
     {
       "card_id": "goauld_council_baal",
@@ -392,7 +424,7 @@
       "faction": "Goa'uld",
       "power": 6,
       "row": "close",
-      "ability": "System Lord's Curse"
+      "ability": "Gate Reinforcement, System Lord's Curse"
     },
     {
       "card_id": "goauld_council_yu",
@@ -400,7 +432,31 @@
       "faction": "Goa'uld",
       "power": 6,
       "row": "close",
-      "ability": "System Lord's Curse"
+      "ability": "Gate Reinforcement, System Lord's Curse"
+    },
+    {
+      "card_id": "goauld_hatak_1",
+      "name": "Ha'tak Mothership",
+      "faction": "Goa'uld",
+      "power": 6,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "goauld_hatak_2",
+      "name": "Ha'tak Mothership",
+      "faction": "Goa'uld",
+      "power": 6,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "goauld_plasma_emplacement",
+      "name": "Plasma Weapon Emplacement",
+      "faction": "Goa'uld",
+      "power": 6,
+      "row": "siege",
+      "ability": null
     },
     {
       "card_id": "goauld_bastet_guard_1",
@@ -408,7 +464,7 @@
       "faction": "Goa'uld",
       "power": 5,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_bastet_guard_2",
@@ -416,7 +472,7 @@
       "faction": "Goa'uld",
       "power": 5,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_rebel_jaffa",
@@ -435,12 +491,20 @@
       "ability": null
     },
     {
+      "card_id": "goauld_scout",
+      "name": "Goa'uld Scout",
+      "faction": "Goa'uld",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Deep Cover Agent"
+    },
+    {
       "card_id": "goauld_horus_guard_1",
       "name": "Horus Guard",
       "faction": "Goa'uld",
       "power": 5,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_horus_guard_2",
@@ -448,7 +512,15 @@
       "faction": "Goa'uld",
       "power": 5,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
+    },
+    {
+      "card_id": "goauld_isis",
+      "name": "Isis",
+      "faction": "Goa'uld",
+      "power": 5,
+      "row": "siege",
+      "ability": "Legendary Commander"
     },
     {
       "card_id": "goauld_jaffa_master",
@@ -459,12 +531,36 @@
       "ability": null
     },
     {
+      "card_id": "goauld_alkesh_1",
+      "name": "Al'kesh Bomber",
+      "faction": "Goa'uld",
+      "power": 4,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "goauld_alkesh_2",
+      "name": "Al'kesh Bomber",
+      "faction": "Goa'uld",
+      "power": 4,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "goauld_alkesh_3",
+      "name": "Al'kesh Bomber",
+      "faction": "Goa'uld",
+      "power": 4,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
       "card_id": "goauld_anubis_guard_1",
       "name": "Anubis Guard",
       "faction": "Goa'uld",
       "power": 4,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_anubis_guard_2",
@@ -472,7 +568,7 @@
       "faction": "Goa'uld",
       "power": 4,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_kull_warrior_1",
@@ -480,7 +576,7 @@
       "faction": "Goa'uld",
       "power": 4,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_kull_warrior_2",
@@ -488,7 +584,7 @@
       "faction": "Goa'uld",
       "power": 4,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_osiris_guard_1",
@@ -496,7 +592,7 @@
       "faction": "Goa'uld",
       "power": 4,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_osiris_guard_2",
@@ -504,7 +600,7 @@
       "faction": "Goa'uld",
       "power": 4,
       "row": "close",
-      "ability": "Life Force Drain"
+      "ability": "Gate Reinforcement, Life Force Drain"
     },
     {
       "card_id": "goauld_serpent_guard_1",
@@ -555,46 +651,6 @@
       "ability": "Gate Reinforcement"
     },
     {
-      "card_id": "goauld_unscheduled_jaffa_1",
-      "name": "Unscheduled Jaffa",
-      "faction": "Goa'uld",
-      "power": 1,
-      "row": "close",
-      "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "goauld_unscheduled_jaffa_2",
-      "name": "Unscheduled Jaffa",
-      "faction": "Goa'uld",
-      "power": 1,
-      "row": "close",
-      "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "goauld_unscheduled_jaffa_3",
-      "name": "Unscheduled Jaffa",
-      "faction": "Goa'uld",
-      "power": 1,
-      "row": "close",
-      "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "goauld_apophis",
-      "name": "Apophis",
-      "faction": "Goa'uld",
-      "power": 10,
-      "row": "ranged",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "goauld_hathor",
-      "name": "Hathor",
-      "faction": "Goa'uld",
-      "power": 8,
-      "row": "ranged",
-      "ability": "Legendary Commander, Inspiring Leadership"
-    },
-    {
       "card_id": "goauld_lieutenant",
       "name": "Goa'uld Lieutenant",
       "faction": "Goa'uld",
@@ -603,16 +659,32 @@
       "ability": null
     },
     {
-      "card_id": "goauld_scout",
-      "name": "Goa'uld Scout",
-      "faction": "Goa'uld",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Deep Cover Agent"
-    },
-    {
       "card_id": "goauld_symbiote",
       "name": "Goa'uld Symbiote",
+      "faction": "Goa'uld",
+      "power": 2,
+      "row": "close",
+      "ability": null
+    },
+    {
+      "card_id": "goauld_teltak_1",
+      "name": "Tel'tak Courier",
+      "faction": "Goa'uld",
+      "power": 2,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "goauld_teltak_2",
+      "name": "Tel'tak Courier",
+      "faction": "Goa'uld",
+      "power": 2,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "goauld_teltak_3",
+      "name": "Tel'tak Courier",
       "faction": "Goa'uld",
       "power": 2,
       "row": "ranged",
@@ -643,55 +715,87 @@
       "ability": "Gate Reinforcement"
     },
     {
-      "card_id": "goauld_alkesh",
-      "name": "Al'kesh Bomber",
+      "card_id": "goauld_unscheduled_jaffa_1",
+      "name": "Unscheduled Jaffa",
       "faction": "Goa'uld",
-      "power": 6,
-      "row": "siege",
+      "power": 1,
+      "row": "close",
       "ability": "Gate Reinforcement"
     },
     {
-      "card_id": "goauld_hatak_1",
-      "name": "Ha'tak Mothership",
+      "card_id": "goauld_unscheduled_jaffa_2",
+      "name": "Unscheduled Jaffa",
       "faction": "Goa'uld",
-      "power": 6,
-      "row": "siege",
+      "power": 1,
+      "row": "close",
       "ability": "Gate Reinforcement"
     },
     {
-      "card_id": "goauld_hatak_2",
-      "name": "Ha'tak Mothership",
+      "card_id": "goauld_unscheduled_jaffa_3",
+      "name": "Unscheduled Jaffa",
       "faction": "Goa'uld",
-      "power": 6,
-      "row": "siege",
+      "power": 1,
+      "row": "close",
       "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "goauld_plasma_emplacement",
-      "name": "Plasma Weapon Emplacement",
-      "faction": "Goa'uld",
-      "power": 6,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "goauld_ancient_drone",
-      "name": "Ancient Defense Drone",
-      "faction": "Goa'uld",
-      "power": 5,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "goauld_isis",
-      "name": "Isis",
-      "faction": "Goa'uld",
-      "power": 5,
-      "row": "siege",
-      "ability": "Legendary Commander"
     }
   ],
   "Jaffa Rebellion": [
+    {
+      "card_id": "dakara_superweapon",
+      "name": "Dakara Superweapon",
+      "faction": "Jaffa Rebellion",
+      "power": 12,
+      "row": "siege",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "jaffa_master_bratac",
+      "name": "Master Bra'tac",
+      "faction": "Jaffa Rebellion",
+      "power": 10,
+      "row": "close",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "jaffa_tealc",
+      "name": "Teal'c",
+      "faction": "Jaffa Rebellion",
+      "power": 10,
+      "row": "ranged",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "jaffa_bratac",
+      "name": "Bra'tac",
+      "faction": "Jaffa Rebellion",
+      "power": 8,
+      "row": "ranged",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "jaffa_trinium_cannon",
+      "name": "Siege Cannon",
+      "faction": "Jaffa Rebellion",
+      "power": 8,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "jaffa_ktau_ally",
+      "name": "Sodan Ally",
+      "faction": "Jaffa Rebellion",
+      "power": 8,
+      "row": "agile",
+      "ability": null
+    },
+    {
+      "card_id": "jaffa_resistance_recruit",
+      "name": "Resistance Recruit",
+      "faction": "Jaffa Rebellion",
+      "power": 7,
+      "row": "ranged",
+      "ability": null
+    },
     {
       "card_id": "jaffa_defector_1",
       "name": "Jaffa Defector",
@@ -733,12 +837,12 @@
       "ability": null
     },
     {
-      "card_id": "jaffa_chakhal",
-      "name": "Cha'khal Warrior",
+      "card_id": "jaffa_shalchek_leader",
+      "name": "Shak'l",
       "faction": "Jaffa Rebellion",
-      "power": 5,
-      "row": "agile",
-      "ability": null
+      "power": 6,
+      "row": "close",
+      "ability": "Inspiring Leadership"
     },
     {
       "card_id": "jaffa_former_lord_jaffa",
@@ -749,39 +853,8 @@
       "ability": null
     },
     {
-      "card_id": "jaffa_staff_team_1",
-      "name": "Staff Weapon Team",
-      "faction": "Jaffa Rebellion",
-      "power": 4,
-      "row": "agile",
-      "ability": null
-    },
-    {
-      "card_id": "jaffa_staff_team_2",
-      "name": "Staff Weapon Team",
-      "faction": "Jaffa Rebellion",
-      "power": 4,
-      "row": "agile",
-      "ability": null
-    },
-    {
-      "card_id": "jaffa_staff_team_3",
-      "name": "Staff Weapon Team",
-      "faction": "Jaffa Rebellion",
-      "power": 4,
-      "row": "agile",
-      "ability": null
-    },
-    {
-          "card_id": "jaffa_monk",
-          "name": "Jaffa Monk",      "faction": "Jaffa Rebellion",
-      "power": 2,
-      "row": "agile",
-      "ability": null
-    },
-    {
       "card_id": "jaffa_free_jaffa_1",
-      "name": "Free Jaffa Foot Soldier",
+      "name": "Free Jaffa",
       "faction": "Jaffa Rebellion",
       "power": 5,
       "row": "close",
@@ -789,7 +862,7 @@
     },
     {
       "card_id": "jaffa_free_jaffa_2",
-      "name": "Free Jaffa Foot Soldier",
+      "name": "Free Jaffa",
       "faction": "Jaffa Rebellion",
       "power": 5,
       "row": "close",
@@ -797,11 +870,35 @@
     },
     {
       "card_id": "jaffa_free_jaffa_3",
-      "name": "Free Jaffa Foot Soldier",
+      "name": "Free Jaffa",
       "faction": "Jaffa Rebellion",
       "power": 5,
       "row": "close",
       "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "jaffa_chakhal",
+      "name": "Kah'l",
+      "faction": "Jaffa Rebellion",
+      "power": 5,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "jaffa_healer_1",
+      "name": "Kelno'reem",
+      "faction": "Jaffa Rebellion",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Medical Evac"
+    },
+    {
+      "card_id": "jaffa_healer_2",
+      "name": "Kelno'reem",
+      "faction": "Jaffa Rebellion",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Medical Evac"
     },
     {
       "card_id": "jaffa_raknor",
@@ -815,7 +912,7 @@
       "card_id": "jaffa_tokra_infiltrator_1",
       "name": "Tok'ra Infiltrator",
       "faction": "Jaffa Rebellion",
-      "power": 4,
+      "power": 5,
       "row": "close",
       "ability": "Gate Reinforcement"
     },
@@ -823,7 +920,7 @@
       "card_id": "jaffa_tokra_infiltrator_2",
       "name": "Tok'ra Infiltrator",
       "faction": "Jaffa Rebellion",
-      "power": 4,
+      "power": 5,
       "row": "close",
       "ability": "Gate Reinforcement"
     },
@@ -831,9 +928,49 @@
       "card_id": "jaffa_tokra_infiltrator_3",
       "name": "Tok'ra Infiltrator",
       "faction": "Jaffa Rebellion",
-      "power": 4,
+      "power": 5,
       "row": "close",
       "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "jaffa_staff_team_1",
+      "name": "Staff Weapon Team",
+      "faction": "Jaffa Rebellion",
+      "power": 4,
+      "row": "agile",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "jaffa_staff_team_2",
+      "name": "Staff Weapon Team",
+      "faction": "Jaffa Rebellion",
+      "power": 4,
+      "row": "agile",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "jaffa_staff_team_3",
+      "name": "Staff Weapon Team",
+      "faction": "Jaffa Rebellion",
+      "power": 4,
+      "row": "agile",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "jaffa_tegaris_ship",
+      "name": "Tel'tak Ship",
+      "faction": "Jaffa Rebellion",
+      "power": 4,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "jaffa_zat_op",
+      "name": "Zat'nik'tel Operative",
+      "faction": "Jaffa Rebellion",
+      "power": 4,
+      "row": "close",
+      "ability": null
     },
     {
       "card_id": "jaffa_rebel_tech_1",
@@ -860,80 +997,16 @@
       "ability": "Gate Reinforcement"
     },
     {
-      "card_id": "jaffa_bratac",
-      "name": "Bra'tac",
-      "faction": "Jaffa Rebellion",
-      "power": 10,
-      "row": "ranged",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "jaffa_master_bratac",
-      "name": "Master Bra'tac",
-      "faction": "Jaffa Rebellion",
-      "power": 10,
-      "row": "ranged",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "jaffa_tealc",
-      "name": "Teal'c",
-      "faction": "Jaffa Rebellion",
-      "power": 10,
-      "row": "ranged",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "jaffa_ktau_ally",
-      "name": "K'tau Ally",
-      "faction": "Jaffa Rebellion",
-      "power": 6,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "jaffa_healer_1",
-      "name": "Jaffa Healer/Shol'va Doctor",
-      "faction": "Jaffa Rebellion",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Medical Evac"
-    },
-    {
-      "card_id": "jaffa_healer_2",
-      "name": "Jaffa Healer/Shol'va Doctor",
-      "faction": "Jaffa Rebellion",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Medical Evac"
-    },
-    {
-      "card_id": "jaffa_tegaris_ship",
-      "name": "Tegaris Ship",
-      "faction": "Jaffa Rebellion",
-      "power": 4,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "jaffa_zat_op",
-      "name": "Zat'nik'tel Operative",
-      "faction": "Jaffa Rebellion",
-      "power": 4,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "jaffa_ashrak_recruit",
-      "name": "Ashrak Recruit",
+      "card_id": "jaffa_monk",
+      "name": "Jaffa Monk",
       "faction": "Jaffa Rebellion",
       "power": 2,
-      "row": "ranged",
+      "row": "agile",
       "ability": null
     },
     {
       "card_id": "jaffa_cadet_1",
-      "name": "Jaffa Cadets",
+      "name": "Jaffa Training",
       "faction": "Jaffa Rebellion",
       "power": 2,
       "row": "ranged",
@@ -941,7 +1014,7 @@
     },
     {
       "card_id": "jaffa_cadet_2",
-      "name": "Jaffa Cadets",
+      "name": "Jaffa Training",
       "faction": "Jaffa Rebellion",
       "power": 2,
       "row": "ranged",
@@ -949,68 +1022,124 @@
     },
     {
       "card_id": "jaffa_cadet_3",
-      "name": "Jaffa Cadets",
+      "name": "Jaffa Training",
       "faction": "Jaffa Rebellion",
       "power": 2,
       "row": "ranged",
       "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "jaffa_shalchek_leader",
-      "name": "Shal'chek Leader",
-      "faction": "Jaffa Rebellion",
-      "power": 2,
-      "row": "ranged",
-      "ability": "Inspiring Leadership"
-    },
-    {
-      "card_id": "jaffa_trinium_cannon",
-      "name": "Trinium Siege Cannon",
-      "faction": "Jaffa Rebellion",
-      "power": 8,
-      "row": "siege",
-      "ability": "Tactical Formation"
     }
   ],
   "Lucian Alliance": [
     {
-      "card_id": "lucian_curtis",
-      "name": "Sg. Curtis",
+      "card_id": "lucian_mothership",
+      "name": "Alliance Mothership",
+      "faction": "Lucian Alliance",
+      "power": 10,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_baal_clone",
+      "name": "Ba'al Clone",
+      "faction": "Lucian Alliance",
+      "power": 10,
+      "row": "siege",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "lucian_netan",
+      "name": "Netan",
       "faction": "Lucian Alliance",
       "power": 10,
       "row": "close",
       "ability": "Legendary Commander"
     },
     {
-      "card_id": "lucian_vulkar",
-      "name": "Vulkar",
+      "card_id": "lucian_sodan_master",
+      "name": "The Sodan Master",
+      "faction": "Lucian Alliance",
+      "power": 10,
+      "row": "agile",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "lucian_varro",
+      "name": "Varro",
       "faction": "Lucian Alliance",
       "power": 10,
       "row": "close",
       "ability": "Legendary Commander"
     },
     {
-      "card_id": "lucian_odyssey_spy",
-      "name": "Odyssey Crew Deep Cover Agent",
+      "card_id": "lucian_mercenary",
+      "name": "Alliance Mercenary",
       "faction": "Lucian Alliance",
-      "power": 9,
-      "row": "close",
-      "ability": "Deep Cover Agent"
+      "power": 8,
+      "row": "ranged",
+      "ability": null
     },
     {
-      "card_id": "lucian_vannesa",
-      "name": "Vannesa",
+      "card_id": "lucian_sodan_warrior",
+      "name": "Sodan Warrior",
       "faction": "Lucian Alliance",
-      "power": 7,
-      "row": "close",
-      "ability": "Deep Cover Agent"
+      "power": 8,
+      "row": "agile",
+      "ability": null
     },
     {
-      "card_id": "lucian_chulak_loyalist",
-      "name": "Ch'ulak Loyalist",
+      "card_id": "lucian_commander",
+      "name": "Alliance Commander",
+      "faction": "Lucian Alliance",
+      "power": 6,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_hatak",
+      "name": "Alliance Ha'tak",
+      "faction": "Lucian Alliance",
+      "power": 6,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_bounty",
+      "name": "Bounty Hunter",
       "faction": "Lucian Alliance",
       "power": 6,
       "row": "close",
+      "ability": null
+    },
+    {
+      "card_id": "sodan_warrior",
+      "name": "Sodan Cloaked Warrior",
+      "faction": "Lucian Alliance",
+      "power": 6,
+      "row": "close",
+      "ability": "When played: Look at opponent's hand for 30s"
+    },
+    {
+      "card_id": "lucian_heavy_gunner",
+      "name": "Alliance Heavy Gunner",
+      "faction": "Lucian Alliance",
+      "power": 5,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_interceptor_1",
+      "name": "Alliance Interceptor",
+      "faction": "Lucian Alliance",
+      "power": 5,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_interceptor_2",
+      "name": "Alliance Interceptor",
+      "faction": "Lucian Alliance",
+      "power": 5,
+      "row": "siege",
       "ability": null
     },
     {
@@ -1030,12 +1159,44 @@
       "ability": "Tactical Formation"
     },
     {
-      "card_id": "lucian_tyrus",
-      "name": "Agent Tyrus",
+      "card_id": "lucian_ship_watch",
+      "name": "Alliance Ship Watch",
+      "faction": "Lucian Alliance",
+      "power": 4,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_dealer",
+      "name": "Alliance Weapon Dealer",
+      "faction": "Lucian Alliance",
+      "power": 4,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_simeon",
+      "name": "Simeon",
       "faction": "Lucian Alliance",
       "power": 4,
       "row": "close",
       "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "lucian_cargo_ship_1",
+      "name": "Alliance Cargo Ship",
+      "faction": "Lucian Alliance",
+      "power": 3,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_cargo_ship_2",
+      "name": "Alliance Cargo Ship",
+      "faction": "Lucian Alliance",
+      "power": 3,
+      "row": "siege",
+      "ability": null
     },
     {
       "card_id": "lucian_enforcer_1",
@@ -1062,11 +1223,35 @@
       "ability": "Tactical Formation"
     },
     {
-      "card_id": "lucian_mercenary",
-      "name": "Alliance Mercenary",
+      "card_id": "lucian_grunt",
+      "name": "Alliance Grunt",
       "faction": "Lucian Alliance",
       "power": 3,
-      "row": "close",
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "lucian_medic_1",
+      "name": "Alliance Medical Evac",
+      "faction": "Lucian Alliance",
+      "power": 3,
+      "row": "ranged",
+      "ability": "Medical Evac"
+    },
+    {
+      "card_id": "lucian_medic_2",
+      "name": "Alliance Medical Evac",
+      "faction": "Lucian Alliance",
+      "power": 3,
+      "row": "ranged",
+      "ability": "Medical Evac"
+    },
+    {
+      "card_id": "lucian_sniper",
+      "name": "Alliance Sniper",
+      "faction": "Lucian Alliance",
+      "power": 3,
+      "row": "ranged",
       "ability": null
     },
     {
@@ -1110,86 +1295,6 @@
       "ability": null
     },
     {
-      "card_id": "lucian_sodan_master",
-      "name": "The Sodan Master",
-      "faction": "Lucian Alliance",
-      "power": 10,
-      "row": "ranged",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "lucian_commander",
-      "name": "Alliance Commander",
-      "faction": "Lucian Alliance",
-      "power": 6,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_sodan_warrior",
-      "name": "Sodan Warrior",
-      "faction": "Lucian Alliance",
-      "power": 6,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_heavy_gunner",
-      "name": "Alliance Heavy Gunner",
-      "faction": "Lucian Alliance",
-      "power": 5,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_medic_1",
-      "name": "Alliance Medical Evac",
-      "faction": "Lucian Alliance",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Medical Evac"
-    },
-    {
-      "card_id": "lucian_medic_2",
-      "name": "Alliance Medical Evac",
-      "faction": "Lucian Alliance",
-      "power": 5,
-      "row": "ranged",
-      "ability": "Medical Evac"
-    },
-    {
-      "card_id": "lucian_ship_watch",
-      "name": "Alliance Ship Watch",
-      "faction": "Lucian Alliance",
-      "power": 4,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_dealer",
-      "name": "Alliance Weapon Dealer",
-      "faction": "Lucian Alliance",
-      "power": 4,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_grunt",
-      "name": "Alliance Grunt",
-      "faction": "Lucian Alliance",
-      "power": 3,
-      "row": "ranged",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_sniper",
-      "name": "Alliance Sniper",
-      "faction": "Lucian Alliance",
-      "power": 3,
-      "row": "ranged",
-      "ability": null
-    },
-    {
       "card_id": "lucian_security",
       "name": "Alliance Security",
       "faction": "Lucian Alliance",
@@ -1198,68 +1303,28 @@
       "ability": null
     },
     {
-      "card_id": "lucian_mothership",
-      "name": "Alliance Mothership",
-      "faction": "Lucian Alliance",
-      "power": 10,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_baal_clone",
-      "name": "Ba'al Clone",
-      "faction": "Lucian Alliance",
-      "power": 10,
-      "row": "siege",
-      "ability": "Legendary Commander"
-    },
-    {
-      "card_id": "lucian_hatak",
-      "name": "Alliance Ha'tak",
-      "faction": "Lucian Alliance",
-      "power": 6,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_interceptor_1",
-      "name": "Alliance Interceptor",
-      "faction": "Lucian Alliance",
-      "power": 5,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_interceptor_2",
-      "name": "Alliance Interceptor",
-      "faction": "Lucian Alliance",
-      "power": 5,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_cargo_ship_1",
-      "name": "Alliance Cargo Ship",
-      "faction": "Lucian Alliance",
-      "power": 3,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "lucian_cargo_ship_2",
-      "name": "Alliance Cargo Ship",
-      "faction": "Lucian Alliance",
-      "power": 3,
-      "row": "siege",
-      "ability": null
-    },
-    {
       "card_id": "lucian_ship_mechanic",
       "name": "Alliance Ship Mechanic",
       "faction": "Lucian Alliance",
-      "power": 0,
+      "power": 2,
       "row": "siege",
       "ability": "Medical Evac"
+    },
+    {
+      "card_id": "lucian_kiva",
+      "name": "Kiva",
+      "faction": "Lucian Alliance",
+      "power": 2,
+      "row": "close",
+      "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "lucian_odyssey_spy",
+      "name": "Odyssey Crew Deep Cover Agent",
+      "faction": "Lucian Alliance",
+      "power": 1,
+      "row": "close",
+      "ability": "Deep Cover Agent"
     }
   ],
   "Asgard": [
@@ -1272,12 +1337,68 @@
       "ability": "Legendary Commander, Inspiring Leadership"
     },
     {
+      "card_id": "asgard_mothership",
+      "name": "Asgard Mothership",
+      "faction": "Asgard",
+      "power": 10,
+      "row": "siege",
+      "ability": "Draw 2 cards when played"
+    },
+    {
       "card_id": "asgard_freyr",
       "name": "Freyr",
       "faction": "Asgard",
       "power": 10,
       "row": "close",
       "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "asgard_loki",
+      "name": "Loki",
+      "faction": "Asgard",
+      "power": 10,
+      "row": "ranged",
+      "ability": "Legendary Commander, Deploy Clones"
+    },
+    {
+      "card_id": "asgard_daedalus_1",
+      "name": "Daedalus-Class Ship (Asgard Upgrades)",
+      "faction": "Asgard",
+      "power": 8,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "asgard_daedalus_2",
+      "name": "Daedalus-Class Ship (Asgard Upgrades)",
+      "faction": "Asgard",
+      "power": 8,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "asgard_heimdall",
+      "name": "Heimdall",
+      "faction": "Asgard",
+      "power": 8,
+      "row": "ranged",
+      "ability": "Legendary Commander, Genetic Enhancement"
+    },
+    {
+      "card_id": "asgard_oneill_ship",
+      "name": "O'Neill-Class Mothership",
+      "faction": "Asgard",
+      "power": 8,
+      "row": "siege",
+      "ability": "Command Network"
+    },
+    {
+      "card_id": "asgard_defense_platform",
+      "name": "Asgard Defense Platform",
+      "faction": "Asgard",
+      "power": 7,
+      "row": "siege",
+      "ability": null
     },
     {
       "card_id": "asgard_diplomat",
@@ -1312,28 +1433,60 @@
       "ability": null
     },
     {
-      "card_id": "asgard_clone_trooper_1",
-      "name": "Asgard Clone Trooper",
+      "card_id": "asgard_pulse_turret_1",
+      "name": "Energy Pulse Turret",
       "faction": "Asgard",
-      "power": 4,
-      "row": "close",
-      "ability": "Tactical Formation, Deploy Clones"
+      "power": 6,
+      "row": "ranged",
+      "ability": "Naquadah Overload"
     },
     {
-      "card_id": "asgard_clone_trooper_2",
-      "name": "Asgard Clone Trooper",
+      "card_id": "asgard_pulse_turret_2",
+      "name": "Energy Pulse Turret",
       "faction": "Asgard",
-      "power": 4,
-      "row": "close",
-      "ability": "Tactical Formation, Deploy Clones"
+      "power": 6,
+      "row": "ranged",
+      "ability": "Naquadah Overload"
     },
     {
-      "card_id": "asgard_clone_trooper_3",
-      "name": "Asgard Clone Trooper",
+      "card_id": "asgard_berserker_1",
+      "name": "Bilskirnir-class ship",
+      "faction": "Asgard",
+      "power": 5,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "asgard_berserker_2",
+      "name": "Bilskirnir-class ship",
+      "faction": "Asgard",
+      "power": 5,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "asgard_beam_1",
+      "name": "Asgard Beam Tech",
       "faction": "Asgard",
       "power": 4,
-      "row": "close",
-      "ability": "Tactical Formation, Deploy Clones"
+      "row": "ranged",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "asgard_beam_2",
+      "name": "Asgard Beam Tech",
+      "faction": "Asgard",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "asgard_beam_3",
+      "name": "Asgard Beam Tech",
+      "faction": "Asgard",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Gate Reinforcement"
     },
     {
       "card_id": "asgard_scientist_1",
@@ -1368,20 +1521,44 @@
       "ability": null
     },
     {
-      "card_id": "asgard_berserker_1",
-      "name": "Bilskirnir-class ship",
+      "card_id": "asgard_clone_trooper_1",
+      "name": "Asgard Clone Trooper",
       "faction": "Asgard",
-      "power": 4,
-      "row": "siege",
-      "ability": "Tactical Formation"
+      "power": 3,
+      "row": "close",
+      "ability": "Tactical Formation, Deploy Clones"
     },
     {
-      "card_id": "asgard_berserker_2",
-      "name": "Bilskirnir-class ship",
+      "card_id": "asgard_clone_trooper_2",
+      "name": "Asgard Clone Trooper",
       "faction": "Asgard",
-      "power": 4,
-      "row": "siege",
-      "ability": "Tactical Formation"
+      "power": 3,
+      "row": "close",
+      "ability": "Tactical Formation, Deploy Clones"
+    },
+    {
+      "card_id": "asgard_clone_trooper_3",
+      "name": "Asgard Clone Trooper",
+      "faction": "Asgard",
+      "power": 3,
+      "row": "close",
+      "ability": "Tactical Formation, Deploy Clones"
+    },
+    {
+      "card_id": "asgard_energy_drone_1",
+      "name": "Energy Drone",
+      "faction": "Asgard",
+      "power": 3,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "asgard_energy_drone_2",
+      "name": "Energy Drone",
+      "faction": "Asgard",
+      "power": 3,
+      "row": "ranged",
+      "ability": null
     },
     {
       "card_id": "asgard_medic",
@@ -1390,86 +1567,6 @@
       "power": 2,
       "row": "close",
       "ability": "Medical Evac"
-    },
-    {
-      "card_id": "asgard_clone_incubator",
-      "name": "Skadi (Clone Incubator)",
-      "faction": "Asgard",
-      "power": 0,
-      "row": "close",
-      "ability": "Activate Combat Protocol"
-    },
-    {
-      "card_id": "asgard_loki",
-      "name": "Loki",
-      "faction": "Asgard",
-      "power": 10,
-      "row": "ranged",
-      "ability": "Legendary Commander, Deploy Clones"
-    },
-    {
-      "card_id": "asgard_heimdall",
-      "name": "Heimdall",
-      "faction": "Asgard",
-      "power": 8,
-      "row": "ranged",
-      "ability": "Legendary Commander, Genetic Enhancement"
-    },
-    {
-      "card_id": "asgard_energy_drone_1",
-      "name": "Energy Drone",
-      "faction": "Asgard",
-      "power": 6,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "asgard_energy_drone_2",
-      "name": "Energy Drone",
-      "faction": "Asgard",
-      "power": 6,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "asgard_pulse_turret_1",
-      "name": "Energy Pulse Turret",
-      "faction": "Asgard",
-      "power": 6,
-      "row": "ranged",
-      "ability": "Naquadah Overload"
-    },
-    {
-      "card_id": "asgard_pulse_turret_2",
-      "name": "Energy Pulse Turret",
-      "faction": "Asgard",
-      "power": 6,
-      "row": "ranged",
-      "ability": "Naquadah Overload"
-    },
-    {
-      "card_id": "asgard_beam_1",
-      "name": "Asgard Beam Tech",
-      "faction": "Asgard",
-      "power": 4,
-      "row": "ranged",
-      "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "asgard_beam_2",
-      "name": "Asgard Beam Tech",
-      "faction": "Asgard",
-      "power": 4,
-      "row": "ranged",
-      "ability": "Gate Reinforcement"
-    },
-    {
-      "card_id": "asgard_beam_3",
-      "name": "Asgard Beam Tech",
-      "faction": "Asgard",
-      "power": 4,
-      "row": "ranged",
-      "ability": "Gate Reinforcement"
     },
     {
       "card_id": "asgard_imperfect_clone_1",
@@ -1488,39 +1585,31 @@
       "ability": "Tactical Formation"
     },
     {
-      "card_id": "asgard_daedalus_1",
-      "name": "Daedalus-Class Ship (Asgard Upgrades)",
+      "card_id": "asgard_clone_incubator",
+      "name": "Clone Incubator",
       "faction": "Asgard",
-      "power": 8,
-      "row": "siege",
-      "ability": "Tactical Formation"
+      "power": 0,
+      "row": "close",
+      "ability": "Activate Combat Protocol"
     },
     {
-      "card_id": "asgard_daedalus_2",
-      "name": "Daedalus-Class Ship (Asgard Upgrades)",
+      "card_id": "asgard_hammer",
+      "name": "Thor's Hammer Device",
       "faction": "Asgard",
-      "power": 8,
-      "row": "siege",
-      "ability": "Tactical Formation"
-    },
-    {
-      "card_id": "asgard_defense_platform",
-      "name": "Asgard Defense Platform",
-      "faction": "Asgard",
-      "power": 7,
-      "row": "siege",
-      "ability": null
-    },
-    {
-      "card_id": "asgard_oneill_ship",
-      "name": "O'Neill-Class Mothership",
-      "faction": "Asgard",
-      "power": 8,
-      "row": "siege",
-      "ability": "Command Network"
+      "power": 0,
+      "row": "special",
+      "ability": "Remove all Goa'uld units from both boards"
     }
   ],
   "Neutral": [
+    {
+      "card_id": "destiny_ship",
+      "name": "Ancient Ship Destiny",
+      "faction": "Neutral",
+      "power": 15,
+      "row": "siege",
+      "ability": "Legendary Commander"
+    },
     {
       "card_id": "neutral_ascended_daniel",
       "name": "Ascended Daniel Jackson",
@@ -1536,6 +1625,78 @@
       "power": 15,
       "row": "close",
       "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "ori_warship",
+      "name": "Ori Warship",
+      "faction": "Neutral",
+      "power": 11,
+      "row": "siege",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "asuran_warship",
+      "name": "Asuran Aurora-class",
+      "faction": "Neutral",
+      "power": 10,
+      "row": "siege",
+      "ability": "Grant ZPM, Tactical Formation"
+    },
+    {
+      "card_id": "atlantis_city",
+      "name": "City of Atlantis",
+      "faction": "Neutral",
+      "power": 10,
+      "row": "siege",
+      "ability": "Legendary Commander, Inspiring Leadership"
+    },
+    {
+      "card_id": "wraith_hive_1",
+      "name": "Wraith Hive Ship",
+      "faction": "Neutral",
+      "power": 9,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "wraith_hive_2",
+      "name": "Wraith Hive Ship",
+      "faction": "Neutral",
+      "power": 9,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "wraith_hive_3",
+      "name": "Wraith Hive Ship",
+      "faction": "Neutral",
+      "power": 9,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "ancient_drone",
+      "name": "Ancient Drone Chair",
+      "faction": "Neutral",
+      "power": 8,
+      "row": "ranged",
+      "ability": "Naquadah Overload: Destroy lowest enemy unit"
+    },
+    {
+      "card_id": "neutral_mckay",
+      "name": "Dr. Rodney McKay",
+      "faction": "Neutral",
+      "power": 7,
+      "row": "ranged",
+      "ability": "Legendary Commander, Medical Evac"
+    },
+    {
+      "card_id": "replicator_carter",
+      "name": "Replicator Carter",
+      "faction": "Neutral",
+      "power": 7,
+      "row": "close",
+      "ability": "Survival Instinct"
     },
     {
       "card_id": "neutral_teyla",
@@ -1554,12 +1715,44 @@
       "ability": "Legendary Commander"
     },
     {
-      "card_id": "neutral_mckay",
-      "name": "Dr. Rodney McKay",
+      "card_id": "puddle_jumper",
+      "name": "Puddle Jumper",
       "faction": "Neutral",
-      "power": 7,
-      "row": "ranged",
-      "ability": "Legendary Commander, Medical Evac"
+      "power": 5,
+      "row": "agile",
+      "ability": "Ring Transport: Return to hand to replay"
+    },
+    {
+      "card_id": "replicator_swarm_1",
+      "name": "Replicator Swarm",
+      "faction": "Neutral",
+      "power": 4,
+      "row": "close",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "replicator_swarm_2",
+      "name": "Replicator Swarm",
+      "faction": "Neutral",
+      "power": 4,
+      "row": "close",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "replicator_swarm_3",
+      "name": "Replicator Swarm",
+      "faction": "Neutral",
+      "power": 4,
+      "row": "close",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "ancient_communication_stones",
+      "name": "Ancient Communication Device",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Reveal opponent's hand for 30 seconds"
     },
     {
       "card_id": "neutral_ancient_drone",
@@ -1568,78 +1761,6 @@
       "power": 0,
       "row": "ranged",
       "ability": "Deep Cover Agent, Legendary Commander"
-    },
-    {
-      "card_id": "neutral_decoy_1",
-      "name": "Asgard Ring Transport",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Ring Transport"
-    },
-    {
-      "card_id": "neutral_decoy_2",
-      "name": "Asgard Ring Transport",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Ring Transport"
-    },
-    {
-      "card_id": "neutral_decoy_3",
-      "name": "Asgard Ring Transport",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Ring Transport"
-    },
-    {
-      "card_id": "neutral_scorch_1",
-      "name": "Naquadah Bomb",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Naquadah Overload"
-    },
-    {
-      "card_id": "neutral_scorch_2",
-      "name": "Naquadah Bomb",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Naquadah Overload"
-    },
-    {
-      "card_id": "neutral_scorch_3",
-      "name": "Naquadah Bomb",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Naquadah Overload"
-    },
-    {
-      "card_id": "neutral_commanders_horn_1",
-      "name": "Tactical Network Uplink",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Command Network"
-    },
-    {
-      "card_id": "neutral_commanders_horn_2",
-      "name": "Tactical Network Uplink",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Command Network"
-    },
-    {
-      "card_id": "neutral_commanders_horn_3",
-      "name": "Tactical Network Uplink",
-      "faction": "Neutral",
-      "power": 0,
-      "row": "special",
-      "ability": "Command Network"
     },
     {
       "card_id": "neutral_skellige_storm_1",
@@ -1666,6 +1787,38 @@
       "ability": "Electromagnetic Pulse"
     },
     {
+      "card_id": "neutral_decoy_1",
+      "name": "Asgard Ring Transport",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Ring Transport"
+    },
+    {
+      "card_id": "neutral_decoy_2",
+      "name": "Asgard Ring Transport",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Ring Transport"
+    },
+    {
+      "card_id": "neutral_decoy_3",
+      "name": "Asgard Ring Transport",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Ring Transport"
+    },
+    {
+      "card_id": "decoy",
+      "name": "Decoy",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "close",
+      "ability": null
+    },
+    {
       "card_id": "neutral_biting_frost_1",
       "name": "Ice Planet Contingency",
       "faction": "Neutral",
@@ -1688,6 +1841,14 @@
       "power": 0,
       "row": "weather",
       "ability": "Ice Planet Hazard"
+    },
+    {
+      "card_id": "merlin_device",
+      "name": "Merlin's Anti-Ori Weapon",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Naquadah Overload"
     },
     {
       "card_id": "neutral_torrential_rain_1",
@@ -1714,6 +1875,30 @@
       "ability": "Asteroid Storm"
     },
     {
+      "card_id": "neutral_scorch_1",
+      "name": "Naquadah Bomb",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Naquadah Overload"
+    },
+    {
+      "card_id": "neutral_scorch_2",
+      "name": "Naquadah Bomb",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Naquadah Overload"
+    },
+    {
+      "card_id": "neutral_scorch_3",
+      "name": "Naquadah Bomb",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Naquadah Overload"
+    },
+    {
       "card_id": "neutral_impenetrable_fog_1",
       "name": "Nebula Field",
       "faction": "Neutral",
@@ -1736,6 +1921,14 @@
       "power": 0,
       "row": "weather",
       "ability": "Nebula Interference"
+    },
+    {
+      "card_id": "neutral_quantum_mirror",
+      "name": "Quantum Mirror",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Shuffle your hand into deck, draw same number of cards. Ends hand reveal."
     },
     {
       "card_id": "neutral_clear_weather_1",
@@ -1762,12 +1955,36 @@
       "ability": "Wormhole Stabilization"
     },
     {
-      "card_id": "neutral_quantum_mirror",
-      "name": "Quantum Mirror",
+      "card_id": "neutral_commanders_horn_1",
+      "name": "Tactical Network Uplink",
       "faction": "Neutral",
       "power": 0,
       "row": "special",
-      "ability": "Shuffle your hand into deck, draw same number of cards. Ends hand reveal."
+      "ability": "Command Network"
+    },
+    {
+      "card_id": "neutral_commanders_horn_2",
+      "name": "Tactical Network Uplink",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Command Network"
+    },
+    {
+      "card_id": "neutral_commanders_horn_3",
+      "name": "Tactical Network Uplink",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Command Network"
+    },
+    {
+      "card_id": "zpm_power",
+      "name": "Zero Point Module",
+      "faction": "Neutral",
+      "power": 0,
+      "row": "special",
+      "ability": "Double all your siege units this round"
     }
   ]
 }

@@ -197,6 +197,12 @@ def load_cards():
     mock_pg.Surface = _MockSurface
     mock_pg.Rect = _MockRect
     mock_pg.SRCALPHA = 0
+    mock_pg.init = lambda *a, **k: None
+    # display_manager calls pygame.key.set_repeat at module level
+    mock_key = types.ModuleType("pygame.key")
+    mock_key.set_repeat = lambda *a, **k: None
+    mock_pg.key = mock_key
+    sys.modules["pygame.key"] = mock_key
     # unlocks.py uses pygame.font inside class __init__ (not at module level)
     mock_font = types.ModuleType("pygame.font")
     mock_font.SysFont = lambda *a, **k: None

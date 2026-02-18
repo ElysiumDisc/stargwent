@@ -34,7 +34,7 @@ JAFFA LEADERS:
 - jaffa_ryac.ogg          (Rya'c) [Unlockable]
 
 LUCIAN ALLIANCE LEADERS:
-- lucian_vulkar.ogg       (Vulkar)
+- lucian_varro.ogg        (Varro)
 - lucian_sodan_master.ogg (Sodan Master)
 - lucian_baal_clone.ogg   (Ba'al Clone)
 - lucian_netan.ogg        (Netan) [Unlockable]

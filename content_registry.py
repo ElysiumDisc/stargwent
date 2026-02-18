@@ -29,7 +29,7 @@ BASE_FACTION_LEADERS = {
         {"name": "Rak'nor", "ability": "Can play 2 cards on your first turn each round", "ability_desc": "Can play 2 cards on your first turn of each round", "card_id": "jaffa_raknor"},
     ],
     FACTION_LUCIAN: [
-        {"name": "Vulkar", "ability": "Spy cards draw 3 instead of 2", "ability_desc": "Deep Cover Agents draw 3 cards instead of 2", "card_id": "lucian_vulkar"},
+        {"name": "Varro", "ability": "Spy cards draw 3 instead of 2", "ability_desc": "Deep Cover Agents draw 3 cards instead of 2", "card_id": "lucian_varro"},
         {"name": "Sodan Master", "ability": "+3 power to highest unit in each row", "ability_desc": "+3 power to your highest unit in each row", "card_id": "lucian_sodan_master"},
         {"name": "Ba'al Clone", "ability": "+2 power to all Ranged units", "ability_desc": "+2 power to all Ranged units", "card_id": "lucian_baal_clone"},
     ],
@@ -101,7 +101,7 @@ LEADER_COLOR_OVERRIDES = {
     "jaffa_ishta": (28, 18, 8),
     "jaffa_ryac": (35, 25, 15),
     # Lucian
-    "lucian_vulkar": (35, 15, 35),
+    "lucian_varro": (35, 15, 35),
     "lucian_sodan_master": (40, 20, 40),
     "lucian_baal_clone": (30, 10, 30),
     "lucian_netan": (38, 18, 38),
@@ -141,7 +141,7 @@ LEADER_BANNER_NAMES = {
     "jaffa_gerak": "Gerak",
     "jaffa_ishta": "Ishta",
     "jaffa_ryac": "Rya'c",
-    "lucian_vulkar": "Vulkar",
+    "lucian_varro": "Varro",
     "lucian_sodan_master": "Sodan Master",
     "lucian_baal_clone": "Ba'al Clone",
     "lucian_netan": "Netan",

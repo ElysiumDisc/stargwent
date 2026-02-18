@@ -1,3 +1,29 @@
+### Version 6.5.1 (February 2026)
+**Lucian Alliance Card Rework, Border Fix & Art Credits**
+
+#### Lucian Alliance Card Rework
+- **Hero renames** — Vulkar → Varro (`lucian_varro`), Sg. Curtis → Netan (`lucian_netan`)
+- **Card renames** — Ch'ulak Loyalist → Bounty Hunter (`lucian_bounty`), Agent Tyrus → Simeon (`lucian_simeon`), Vannesa → Kiva (`lucian_kiva`)
+- **Row changes** — Sodan Master: ranged → agile; Alliance Mercenary: close → ranged; Sodan Warrior: ranged → agile
+- **Balance changes** — Alliance Mercenary 3→8, Kiva (was Vannesa) 7→2, Odyssey Spy 9→1, Sodan Warrior 6→8, Medics 5→3, Ship Mechanic 0→2
+- **New card art** — AI-generated portraits for all 37 Lucian Alliance cards assembled via card_assembler pipeline
+
+#### Bug Fixes
+- **Fixed Lucian Alliance & Goa'uld card borders** — Both faction border PNGs were missing the outer metallic frame (~3-4px thick around all edges), causing assembled cards to have visible gaps at the edges. Restored the missing frame pixels (1,939 for Lucian, 2,411 for Goa'uld) by copying the faction-neutral dark gray frame from a working border
+- **Fixed card_assembler.py pygame mock** — The mock pygame module used to avoid needing a real display was missing `pygame.init` and `pygame.key.set_repeat` stubs, causing `AttributeError` when `display_manager.py` was imported through the `unlocks` → `display_manager` chain
+
+#### Art Credits
+- Card portrait art generated with [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) by Tongyi-MAI and [Disco Elysium](https://civitai.com/models/1433982/disco-elysium) style model
+
+#### Files Modified
+- `cards.py` — Lucian Alliance hero renames, card renames, row changes, balance changes
+- `assets/lucian_*.png` — Reassembled all 37 Lucian Alliance card images with new art
+- `assets/card_assembler/borders/lucian-border.png` — Restored outer metallic frame
+- `assets/card_assembler/borders/goauld-border.png` — Restored outer metallic frame
+- `scripts/card_assembler.py` — Added `mock_pg.init` and `mock_key.set_repeat` no-op stubs to pygame mock
+
+---
+
 ### Version 6.5.0 (February 2026)
 **GPU Post-Processing with ModernGL**
 

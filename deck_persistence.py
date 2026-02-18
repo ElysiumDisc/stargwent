@@ -28,6 +28,11 @@ class DeckPersistence:
         "asgard_medic_drone": "asgard_medic",  # Medical Bay Drone -> Asgard Healing Pod
         "asgard_transport_1": "asgard_beam_1",  # Asgard Transport Ship -> Asgard Beam Tech
         "asgard_transport_2": "asgard_beam_2",
+        "lucian_vulkar": "lucian_varro",  # Vulkar -> Varro
+        "lucian_curtis": "lucian_netan",  # Sg. Curtis -> Netan
+        "lucian_chulak_loyalist": "lucian_bounty",  # Ch'ulak Loyalist -> Bounty Hunter
+        "lucian_tyrus": "lucian_simeon",  # Agent Tyrus -> Simeon
+        "lucian_vannesa": "lucian_kiva",  # Vannesa -> Kiva
     }
 
     def __init__(self):
@@ -128,7 +133,7 @@ class DeckPersistence:
                 "cards": []
             },
             "Lucian Alliance": {
-                "leader": "lucian_vulkar",
+                "leader": "lucian_netan",
                 "cards": []
             },
             "Asgard": {

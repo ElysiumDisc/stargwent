@@ -419,6 +419,7 @@ scripts/card_quotes.json  # Optional flavor text mapping (card_id -> quote strin
 - Card art assembled via Card Assembler pipeline (Pillow)
 - Placeholder art generated via pygame (`scripts/create_placeholders.py`)
 - Color-coded by faction
+- AI-generated portrait art using [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) and [Disco Elysium](https://civitai.com/models/1433982/disco-elysium) style model
 
 
 ### GPU Post-Processing Architecture
