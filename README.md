@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-6.5.0-blue)
+![Version](https://img.shields.io/badge/version-6.9.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -103,8 +103,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Reliable Connections** - JSON error recovery, host timeout, graceful disconnect handling
 
 ### 🎨 Visual Polish
-- **4K Native Resolution** (3840×2160) with perfect scaling
-- **GPU Post-Processing** - ModernGL shader pipeline with bloom, vignette, screen distortion, and cinematic effects
+- **4K Native Resolution** (3840×2160) with perfect scaling and GPU fullscreen support
+- **GPU Post-Processing** - ModernGL shader pipeline with bloom, vignette, CRT scanlines, screen distortion, and cinematic effects
 - **Persistent Weather Animations** - Ice crystals, fiery meteors, nebula clouds, EMP arcs
 - **Faction Power Cinematics** - Asgard beams, Goa'uld sarcophagus, Lucian EM glitches
 - **Combat Text Pop-ups** - "BUFFED!", "INSPIRED!", "WIPED!" float with score changes
@@ -153,11 +153,12 @@ All abilities renamed and themed around Stargate lore:
 ### 🔮 GPU Post-Processing (ModernGL)
 - **Bloom/Glow** - 3-pass bloom shader makes all bright pixels genuinely glow (stargate chevrons, explosions, energy waves)
 - **Vignette** - Cinematic edge darkening with smoothstep radial falloff
-- **CRT/Hologram** - MALP panel scanlines, static noise, green tint, flicker
+- **CRT/Hologram** - MALP panel scanlines, static noise, green tint, flicker, chromatic aberration (GPU-accelerated, always active)
 - **Screen Distortion** - Shockwave ripples from Naquadah explosions (up to 8 concurrent points)
 - **Event Horizon** - Procedural rippling portal surface with animated noise
 - **Kawoosh Vortex** - Pixel displacement during stargate activation
-- **Hyperspace Warp** - Radial motion blur with streak overlay during transitions
+- **Hyperspace Warp** - Radial motion blur with procedural speed lines, chromatic aberration, tunnel vignette, and center glow — active during round transitions
+- **Shockwave Impact** - Expanding ring distortion with screen flash and chromatic aberration at the wavefront — triggers on round winner and game start
 - **Asgard Beam** - Volumetric light column with scan line and shimmer
 - **ZPM Surge** - Procedural electric arcs radiating from ZPM
 - **Graceful Fallback** - All effects auto-disable if GPU unavailable; game runs unchanged on pure Pygame
@@ -178,7 +179,7 @@ All abilities renamed and themed around Stargate lore:
 - **AI Turn Animations** - NEW v1.1: 4-phase cinematic AI actions (thinking particles → selection glow → card travel → resolution)
 - **Delta Time Animations** - Frame-rate independent smooth motion at any FPS (30-144Hz)
 - **Stargate Opening** - Epic KAWOOSH vortex animation before game starts
-- **Hyperspace Transitions** - Streaking stars when entering/exiting hyperspace (rounds 2 & 3)
+- **Hyperspace Transitions** - GPU-enhanced streaking stars with radial motion blur, procedural speed lines, and chromatic aberration when entering/exiting hyperspace (rounds 2 & 3)
 - **Planet Emergence** - Beautiful planet appearance in round 3
 - **Animated Background** - Moving starfield, chevron glows, energy waves
 - **Stargate Activation** - Portal effect when playing cards

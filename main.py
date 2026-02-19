@@ -689,6 +689,9 @@ def main(lan_game_data=None):
         
     game, ai_controller, network_proxy, menu_action = init_result
 
+    # Refresh screen — fullscreen may have been toggled during menu/deck builder
+    screen = display_manager.screen
+
     # --- Animation Manager ---
     from animations import AmbientBackgroundEffects
     anim_manager = AnimationManager()
@@ -988,6 +991,13 @@ def main(lan_game_data=None):
         
         # Check for round changes and reset space battle WITH COOL TRANSITION
         if game.round_number != state.previous_round:
+            # Hide CRT scanlines during transitions so they don't bleed through
+            gpu = display_manager.gpu_renderer
+            if gpu and gpu.enabled:
+                crt = gpu.get_effect("crt_hologram")
+                if crt:
+                    crt.set_uniform('panel_rect', (0.0, 0.0, 0.0, 0.0))
+
             # Step 1: Cards sweep off the board (before showing winner)
             if state.previous_round >= 1:
                 transitions.create_card_sweep_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT, direction="up")
@@ -1595,6 +1605,13 @@ def main(lan_game_data=None):
 
 
     battle_music.stop_battle_music()
+
+    # Reset CRT shader panel_rect so it doesn't bleed into the main menu
+    gpu = display_manager.gpu_renderer
+    if gpu and gpu.enabled:
+        crt = gpu.get_effect("crt_hologram")
+        if crt:
+            crt.set_uniform('panel_rect', (0.0, 0.0, 0.0, 0.0))
 
     # If restart was requested, signal the outer loop
     if state.restart_requested:

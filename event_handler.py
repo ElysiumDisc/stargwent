@@ -147,6 +147,8 @@ def handle_events(state, game, screen, dt):
                     int(200 * SCALE_FACTOR),
                     int(50 * SCALE_FACTOR)
                 )
+                pygame.event.clear()  # Discard stale events from display recreation
+                break
 
             # F key = Play keyboard-selected or hovered card to its default row
             elif event.key == pygame.K_f:

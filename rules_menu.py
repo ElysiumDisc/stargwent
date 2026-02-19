@@ -1758,7 +1758,8 @@ def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
                         display_manager.toggle_fullscreen_mode()
                     screen = display_manager.screen
                     viewer.resize(screen.get_width(), screen.get_height())
-                    continue
+                    pygame.event.clear()  # Discard stale events from display recreation
+                    break
             result = viewer.handle_event(event)
             if result == "back":
                 return None

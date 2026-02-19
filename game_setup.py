@@ -3,6 +3,7 @@ import sys
 import random
 import os
 import copy
+import display_manager
 from game import Game
 from deck_builder import run_deck_builder, build_faction_deck, load_default_faction_deck, FACTION_LEADERS
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
@@ -92,9 +93,11 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
     elif not lan_game_data:
         # Run main menu
         result = run_main_menu(screen, unlock_system, toggle_fullscreen_callback)
+        # Refresh screen — fullscreen may have been toggled inside the menu
+        screen = display_manager.screen
         if not result:
             return None
-        
+
         if isinstance(result, dict): # LAN game data
             menu_action = "lan_game"
             lan_data = result
@@ -169,7 +172,9 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
             unlock_system=unlock_system,
             toggle_fullscreen_callback=toggle_fullscreen_callback
         )
-        
+        # Refresh screen — fullscreen may have been toggled in deck builder
+        screen = display_manager.screen
+
         if not deck_result:
             return initialize_game(screen, unlock_system, toggle_fullscreen_callback=toggle_fullscreen_callback)
 

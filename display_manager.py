@@ -38,6 +38,57 @@ WINDOWED_SCALE_FACTOR = 1.0
 WINDOWED_FLAGS = 0
 _initialized = False  # Guard to prevent re-initialization
 
+# --- Mouse coordinate scaling for GPU fullscreen ---
+# In GPU mode, the OpenGL display uses desktop resolution (e.g. 3840x2160) but
+# game logic operates at internal resolution (e.g. 2560x1440).  pygame.SCALED
+# handles this automatically for non-GPU mode, but OpenGL needs manual scaling.
+_original_mouse_get_pos = pygame.mouse.get_pos
+_original_event_get = pygame.event.get
+
+
+def _get_mouse_scale():
+    """Scale factors from window coordinates to game coordinates."""
+    if gpu_renderer and gpu_renderer.enabled and FULLSCREEN:
+        try:
+            ww, wh = pygame.display.get_window_size()
+            if ww != SCREEN_WIDTH or wh != SCREEN_HEIGHT:
+                return SCREEN_WIDTH / ww, SCREEN_HEIGHT / wh
+        except Exception:
+            pass
+    return 1.0, 1.0
+
+
+def _scaled_mouse_get_pos():
+    """pygame.mouse.get_pos() returning game-space coordinates."""
+    x, y = _original_mouse_get_pos()
+    sx, sy = _get_mouse_scale()
+    if sx != 1.0 or sy != 1.0:
+        return (int(x * sx), int(y * sy))
+    return (x, y)
+
+
+def _scaled_event_get(*args, **kwargs):
+    """pygame.event.get() with mouse positions scaled to game space."""
+    events = _original_event_get(*args, **kwargs)
+    sx, sy = _get_mouse_scale()
+    if sx == 1.0 and sy == 1.0:
+        return events
+    for event in events:
+        if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+            ox, oy = event.pos
+            event.pos = (int(ox * sx), int(oy * sy))
+        elif event.type == pygame.MOUSEMOTION:
+            ox, oy = event.pos
+            event.pos = (int(ox * sx), int(oy * sy))
+            rx, ry = event.rel
+            event.rel = (int(rx * sx), int(ry * sy))
+    return events
+
+
+pygame.mouse.get_pos = _scaled_mouse_get_pos
+pygame.event.get = _scaled_event_get
+
+
 def initialize_display():
     """Detects resolution and sets up the initial display state.
 
@@ -277,8 +328,8 @@ def _recreate_gpu_display(fullscreen_enabled, vsync_value):
     if gpu_renderer:
         try:
             gpu_renderer.cleanup()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[GPU] Cleanup error: {e}")
         gpu_renderer = None
 
     _set_gl_attributes()
@@ -286,16 +337,22 @@ def _recreate_gpu_display(fullscreen_enabled, vsync_value):
     flags = pygame.OPENGL | pygame.DOUBLEBUF
     if fullscreen_enabled:
         flags |= pygame.FULLSCREEN
+        # Use desktop resolution for fullscreen — GPU renderer upscales
+        # the offscreen surface via fullscreen quad
+        display_w, display_h = DESKTOP_WIDTH, DESKTOP_HEIGHT
+    else:
+        display_w, display_h = SCREEN_WIDTH, SCREEN_HEIGHT
 
     try:
         pygame.display.set_mode(
-            (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=vsync_value
+            (display_w, display_h), flags, vsync=vsync_value
         )
     except pygame.error as e:
         print(f"[GPU] Failed to recreate OpenGL display: {e}")
         _revert_to_scaled()
         return
 
+    # Offscreen surface stays at internal render resolution
     screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 
     from gpu_renderer import GPURenderer
@@ -347,13 +404,17 @@ def initialize_gpu():
     flags = pygame.OPENGL | pygame.DOUBLEBUF
     if FULLSCREEN:
         flags |= pygame.FULLSCREEN
+        # Use desktop resolution for fullscreen — GPU renderer upscales
+        display_w, display_h = DESKTOP_WIDTH, DESKTOP_HEIGHT
+    else:
+        display_w, display_h = SCREEN_WIDTH, SCREEN_HEIGHT
 
     use_vsync = VSYNC_ENABLED
     vsync_value = 1 if use_vsync else 0
 
     try:
         pygame.display.set_mode(
-            (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=vsync_value
+            (display_w, display_h), flags, vsync=vsync_value
         )
     except pygame.error as e:
         print(f"[GPU] Failed to create OpenGL display: {e}")

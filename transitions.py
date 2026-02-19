@@ -5,10 +5,39 @@ import os
 import game_config as cfg
 import display_manager
 from game_config import (
-    UI_FONT, 
-    PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS, 
+    UI_FONT,
+    PLAYER_ROW_RECTS, OPPONENT_ROW_RECTS,
     CARD_WIDTH, CARD_HEIGHT
 )
+
+
+def _get_gpu():
+    """Get GPU renderer if available and enabled."""
+    gpu = display_manager.gpu_renderer
+    if gpu and gpu.enabled:
+        return gpu
+    return None
+
+
+def _enable_effect(gpu, name):
+    """Safely enable a GPU effect."""
+    if gpu:
+        gpu.set_effect_enabled(name, True)
+
+
+def _disable_effect(gpu, name):
+    """Safely disable a GPU effect."""
+    if gpu:
+        gpu.set_effect_enabled(name, False)
+
+
+def _set_effect_uniform(gpu, name, uniform, value):
+    """Safely set a uniform on a GPU effect."""
+    if not gpu:
+        return
+    effect = gpu.get_effect(name)
+    if effect:
+        effect.set_uniform(uniform, value)
 
 def create_card_sweep_animation(screen, game, screen_width, screen_height, direction="out"):
     """
@@ -16,10 +45,17 @@ def create_card_sweep_animation(screen, game, screen_width, screen_height, direc
     direction: "out" = cards fly outward, "up" = cards fly up into hyperspace
     """
     clock = pygame.time.Clock()
-    
+    gpu = _get_gpu()
+
+    # Enable hyperspace shader for "up" direction (cards jumping to hyperspace)
+    if direction == "up" and gpu:
+        _enable_effect(gpu, "hyperspace")
+        _set_effect_uniform(gpu, "hyperspace", "direction", 1.0)
+        _set_effect_uniform(gpu, "hyperspace", "center", (0.5, 0.5))
+
     # Collect all card positions from both players' boards
     card_snapshots = []
-    
+
     for player in [game.player1, game.player2]:
         for row_name in ["close", "ranged", "siege"]:
             row_cards = player.board.get(row_name, [])
@@ -28,14 +64,14 @@ def create_card_sweep_animation(screen, game, screen_width, screen_height, direc
                 row_rect = cfg.PLAYER_ROW_RECTS.get(row_name)
             else:
                 row_rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
-            
+
             if row_rect and row_cards:
                 card_spacing = cfg.CARD_WIDTH + 5
                 start_x = row_rect.x + 10
                 for i, card in enumerate(row_cards):
                     card_x = start_x + i * card_spacing
                     card_y = row_rect.y + (row_rect.height - cfg.CARD_HEIGHT) // 2
-                    
+
                     # Calculate direction vector (outward from center or upward)
                     center_x, center_y = screen_width // 2, screen_height // 2
                     if direction == "out":
@@ -47,7 +83,7 @@ def create_card_sweep_animation(screen, game, screen_width, screen_height, direc
                     else:  # "up" - hyperspace jump
                         vx = random.uniform(-2, 2)
                         vy = random.uniform(-30, -20)
-                    
+
                     card_snapshots.append({
                         'image': card.image.copy() if card.image else None,
                         'x': float(card_x),
@@ -59,30 +95,36 @@ def create_card_sweep_animation(screen, game, screen_width, screen_height, direc
                         'alpha': 255,
                         'scale': 1.0
                     })
-    
+
     # Animate cards flying off (30 frames = 0.5 seconds)
     for frame in range(30):
         progress = frame / 30.0
-        
+
+        # Animate hyperspace warp ramp-up during card sweep
+        if direction == "up" and gpu:
+            warp = min(0.6, progress * 0.8)  # Ramp to 0.6 (transition takes it higher)
+            _set_effect_uniform(gpu, "hyperspace", "warp_factor", warp)
+            _set_effect_uniform(gpu, "hyperspace", "time", gpu.time)
+
         # Draw dark background
         screen.fill((5, 5, 15))
-        
+
         # Update and draw each card
         for card_data in card_snapshots:
             if card_data['image'] is None:
                 continue
-                
+
             # Update physics
             card_data['x'] += card_data['vx']
             card_data['y'] += card_data['vy']
             card_data['rotation'] += card_data['rot_speed']
             card_data['alpha'] = max(0, 255 - int(progress * 300))
             card_data['scale'] = max(0.1, 1.0 - progress * 0.5)
-            
+
             # Accelerate (hyperspace effect)
             if direction == "up":
                 card_data['vy'] -= 2  # Accelerate upward
-            
+
             # Draw card with rotation and alpha
             if card_data['alpha'] > 0:
                 scaled_w = int(cfg.CARD_WIDTH * card_data['scale'])
@@ -93,64 +135,97 @@ def create_card_sweep_animation(screen, game, screen_width, screen_height, direc
                     rotated_img.set_alpha(card_data['alpha'])
                     rect = rotated_img.get_rect(center=(int(card_data['x']), int(card_data['y'])))
                     screen.blit(rotated_img, rect)
-        
+
         display_manager.gpu_flip()
         clock.tick(60)
+
+    # Disable hyperspace after card sweep — the hyperspace transition will re-enable it
+    if direction == "up" and gpu:
+        _set_effect_uniform(gpu, "hyperspace", "warp_factor", 0.0)
+        _disable_effect(gpu, "hyperspace")
 
 
 def create_hyperspace_transition(screen, screen_width, screen_height, round_number, transition_text):
     """
-    Improved hyperspace transition with persistent star streaks and radial blur effect.
+    GPU-enhanced hyperspace transition with persistent star streaks,
+    radial motion blur, chromatic aberration, and procedural speed lines.
     """
     clock = pygame.time.Clock()
     transition_font = pygame.font.SysFont("Arial", 80, bold=True)
-    
+    gpu = _get_gpu()
+
+    # Configure hyperspace shader direction
+    if gpu:
+        _enable_effect(gpu, "hyperspace")
+        if round_number == 2:
+            _set_effect_uniform(gpu, "hyperspace", "direction", 1.0)   # Outward
+        else:
+            _set_effect_uniform(gpu, "hyperspace", "direction", -1.0)  # Inward
+        _set_effect_uniform(gpu, "hyperspace", "center", (0.5, 0.5))
+
     # Pre-generate persistent star positions (not random each frame!)
-    num_stars = 120
+    num_stars = 150
     stars = []
     for _ in range(num_stars):
-        # Stars originate from center and streak outward (or vice versa)
         angle = random.uniform(0, 2 * math.pi)
         base_distance = random.uniform(50, max(screen_width, screen_height) * 0.8)
         speed = random.uniform(8, 20)
         brightness = random.randint(150, 255)
         thickness = random.choice([1, 1, 2, 2, 3])
-        
+
         stars.append({
             'angle': angle,
             'base_dist': base_distance,
             'speed': speed,
             'brightness': brightness,
             'thickness': thickness,
-            'color_tint': random.choice([(150, 150, 255), (180, 180, 255), (200, 200, 255), (255, 255, 255)])
+            'color_tint': random.choice([
+                (150, 170, 255), (180, 190, 255), (200, 210, 255),
+                (220, 230, 255), (255, 255, 255)
+            ])
         })
-    
+
     center_x, center_y = screen_width // 2, screen_height // 2
-    
+
     # Animation duration: 90 frames (1.5 seconds)
     total_frames = 90
-    
+
     for frame in range(total_frames):
         progress = frame / total_frames
-        
+
+        # --- Animate GPU hyperspace shader ---
+        if gpu:
+            if round_number == 2:
+                # Entering hyperspace: ramp up fast, sustain, then slight ease at end
+                if progress < 0.3:
+                    warp = progress / 0.3  # 0→1 over first 30%
+                else:
+                    warp = 1.0  # Sustain full warp
+            else:
+                # Emerging from hyperspace: start full, decelerate to stop
+                if progress < 0.7:
+                    warp = 1.0 - (progress / 0.7) * 0.7  # 1.0→0.3 over 70%
+                else:
+                    warp = 0.3 * (1.0 - (progress - 0.7) / 0.3)  # 0.3→0 final 30%
+            _set_effect_uniform(gpu, "hyperspace", "warp_factor", max(0.0, warp))
+            _set_effect_uniform(gpu, "hyperspace", "time", gpu.time)
+
         # Dark space background with slight blue tint
         screen.fill((2, 2, 12))
-        
-        # Draw radial blur / whoosh effect (concentric rings expanding from center)
+
+        # Draw radial blur / whoosh rings (CPU, enhanced by GPU shader)
         if round_number == 2:
-            # Entering hyperspace - rings expand outward
             for ring_idx in range(5):
                 ring_progress = (progress + ring_idx * 0.15) % 1.0
                 ring_radius = int(ring_progress * max(screen_width, screen_height))
                 ring_alpha = int((1 - ring_progress) * 80)
                 if ring_alpha > 0 and ring_radius > 0:
                     ring_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-                    pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha), 
+                    pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha),
                                       (center_x, center_y), ring_radius, width=3)
                     screen.blit(ring_surf, (0, 0))
-        
+
         elif round_number == 3:
-            # Emerging from hyperspace - rings contract inward
             for ring_idx in range(5):
                 ring_progress = (1 - progress + ring_idx * 0.15) % 1.0
                 ring_radius = int(ring_progress * max(screen_width, screen_height))
@@ -160,93 +235,84 @@ def create_hyperspace_transition(screen, screen_width, screen_height, round_numb
                     pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha),
                                       (center_x, center_y), ring_radius, width=3)
                     screen.blit(ring_surf, (0, 0))
-        
+
         # Draw persistent star streaks
         for star in stars:
             if round_number == 2:
-                # Entering hyperspace - stars streak FROM center OUTWARD
-                # Streak length increases over time
                 streak_length = 20 + progress * 400
-                
-                # Star moves outward from center
                 current_dist = star['base_dist'] * (0.3 + progress * 1.5)
-                
-                # Calculate streak start and end points
                 start_dist = max(0, current_dist - streak_length * 0.3)
                 end_dist = current_dist + streak_length * 0.7
-                
+
                 start_x = center_x + math.cos(star['angle']) * start_dist
                 start_y = center_y + math.sin(star['angle']) * start_dist
                 end_x = center_x + math.cos(star['angle']) * end_dist
                 end_y = center_y + math.sin(star['angle']) * end_dist
-                
+
             else:  # round_number == 3
-                # Emerging - stars streak FROM outside INWARD (decelerating)
                 streak_length = 400 * (1 - progress) + 20
-                
-                # Star moves inward toward center
                 current_dist = star['base_dist'] * (1.5 - progress * 1.2)
-                
                 start_dist = current_dist + streak_length * 0.7
                 end_dist = max(0, current_dist - streak_length * 0.3)
-                
+
                 start_x = center_x + math.cos(star['angle']) * start_dist
                 start_y = center_y + math.sin(star['angle']) * start_dist
                 end_x = center_x + math.cos(star['angle']) * end_dist
                 end_y = center_y + math.sin(star['angle']) * end_dist
-            
-            # Draw the star streak with gradient (brighter at head)
+
+            # Draw the star streak
             color = star['color_tint']
-            alpha = int(star['brightness'] * (0.5 + 0.5 * math.sin(progress * math.pi)))
-            
+
             # Main streak
-            pygame.draw.line(screen, color, (int(start_x), int(start_y)), 
+            pygame.draw.line(screen, color, (int(start_x), int(start_y)),
                            (int(end_x), int(end_y)), star['thickness'])
-            
+
             # Bright head of streak
             if round_number == 2:
                 head_x, head_y = end_x, end_y
             else:
                 head_x, head_y = start_x, start_y
             pygame.draw.circle(screen, (255, 255, 255), (int(head_x), int(head_y)), star['thickness'] + 1)
-        
+
         # Planet appearing (round 3 only, in second half)
         if round_number == 3 and progress > 0.5:
             planet_progress = (progress - 0.5) * 2
             planet_alpha = int(planet_progress * 200)
             planet_radius = int(screen_height * 0.18)
-            
+
             planet_surf = pygame.Surface((planet_radius * 2 + 40, planet_radius * 2 + 40), pygame.SRCALPHA)
-            # Atmosphere glow
-            pygame.draw.circle(planet_surf, (60, 100, 180, planet_alpha // 3), 
+            pygame.draw.circle(planet_surf, (60, 100, 180, planet_alpha // 3),
                              (planet_radius + 20, planet_radius + 20), planet_radius + 15)
-            # Planet body
-            pygame.draw.circle(planet_surf, (40, 80, 160, planet_alpha), 
+            pygame.draw.circle(planet_surf, (40, 80, 160, planet_alpha),
                              (planet_radius + 20, planet_radius + 20), planet_radius)
-            # Highlight
-            pygame.draw.circle(planet_surf, (80, 120, 200, planet_alpha), 
+            pygame.draw.circle(planet_surf, (80, 120, 200, planet_alpha),
                              (planet_radius + 10, planet_radius + 10), planet_radius // 2)
-            
+
             screen.blit(planet_surf, (center_x - planet_radius - 20, 80))
-        
+
         # Transition text with glow effect
         text_alpha = int(255 * min(1, progress * 3) * min(1, (1 - progress) * 3))
-        
+
         # Text glow
         glow_surf = transition_font.render(transition_text, True, (50, 100, 200))
         glow_surf.set_alpha(text_alpha // 2)
         for offset in [(-3, -3), (3, -3), (-3, 3), (3, 3)]:
             glow_rect = glow_surf.get_rect(center=(center_x + offset[0], center_y + offset[1]))
             screen.blit(glow_surf, glow_rect)
-        
+
         # Main text
         text_surf = transition_font.render(transition_text, True, (150, 200, 255))
         text_surf.set_alpha(text_alpha)
         text_rect = text_surf.get_rect(center=(center_x, center_y))
         screen.blit(text_surf, text_rect)
-        
+
         display_manager.gpu_flip()
         clock.tick(60)
+
+    # Clean up: disable hyperspace shader and reset warp
+    if gpu:
+        _set_effect_uniform(gpu, "hyperspace", "warp_factor", 0.0)
+        _disable_effect(gpu, "hyperspace")
 
 
 def _draw_stargate_chevrons(surface, rect, color, alpha, num_chevrons=9):
@@ -300,8 +366,15 @@ def _draw_stargate_chevrons(surface, rect, color, alpha, num_chevrons=9):
 
 
 def show_round_winner_announcement(screen, game, screen_width, screen_height):
-    """Show cinematic announcement of who won the round with detailed scoreboard and screen shake."""
+    """Show cinematic announcement of who won the round with detailed scoreboard,
+    screen shake, and GPU shockwave effect."""
     scale = display_manager.SCALE_FACTOR
+    gpu = _get_gpu()
+
+    # Enable shockwave GPU effect for the impact moment
+    if gpu:
+        _enable_effect(gpu, "shockwave")
+        _set_effect_uniform(gpu, "shockwave", "center", (0.5, 0.5))
 
     # Get the round that just completed
     completed_round = game.round_number - 1
@@ -360,16 +433,40 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
     round_col_width = int(board_width * 0.12)  # 12% each for R1, R2, R3
     total_col_width = int(board_width * 0.16)  # 16% for total
 
+    def _cleanup_shockwave():
+        if gpu:
+            _set_effect_uniform(gpu, "shockwave", "distort_strength", 0.0)
+            _set_effect_uniform(gpu, "shockwave", "flash_intensity", 0.0)
+            _disable_effect(gpu, "shockwave")
+
     while pygame.time.get_ticks() - start_time < duration:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                _cleanup_shockwave()
                 return
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                    _cleanup_shockwave()
                     return  # Skip animation
 
         elapsed = pygame.time.get_ticks() - start_time
         progress = elapsed / duration
+
+        # Animate GPU shockwave effect — expands during first 40% of animation
+        if gpu:
+            if progress < 0.4:
+                shock_progress = progress / 0.4  # 0→1 over first 40%
+                ring_r = shock_progress * 1.2  # Ring expands past screen edges
+                distort = max(0.0, 0.04 * (1.0 - shock_progress))  # Strong then fades
+                flash = max(0.0, 0.3 * (1.0 - shock_progress * 3))  # Quick flash
+                _set_effect_uniform(gpu, "shockwave", "ring_radius", ring_r)
+                _set_effect_uniform(gpu, "shockwave", "distort_strength", distort)
+                _set_effect_uniform(gpu, "shockwave", "flash_intensity", flash)
+                _set_effect_uniform(gpu, "shockwave", "time", gpu.time)
+            else:
+                # Shockwave done — zero out
+                _set_effect_uniform(gpu, "shockwave", "distort_strength", 0.0)
+                _set_effect_uniform(gpu, "shockwave", "flash_intensity", 0.0)
 
         # Calculate screen shake offset (strongest at start, decays over time)
         if progress < 0.3:
@@ -624,8 +721,19 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
         display_manager.gpu_flip()
         clock.tick(60)
 
+    # Clean up: disable shockwave effect
+    _cleanup_shockwave()
+
 def show_game_start_animation(screen, game, screen_width, screen_height):
-    """Show Stargate activation animation announcing who goes first."""
+    """Show Stargate activation animation announcing who goes first,
+    with GPU shockwave pulse effect."""
+    gpu = _get_gpu()
+
+    # Enable shockwave for a subtle pulse at game start
+    if gpu:
+        _enable_effect(gpu, "shockwave")
+        _set_effect_uniform(gpu, "shockwave", "center", (0.5, 0.5))
+
     # Determine who goes first
     if game.current_player == game.player1:
         first_player_text = "YOU GO FIRST"
@@ -633,27 +741,42 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
     else:
         first_player_text = "OPPONENT GOES FIRST"
         color = (255, 100, 100)
-    
+
     # Font
     title_font = pygame.font.SysFont("Arial", 72, bold=True)
     subtitle_font = pygame.font.SysFont("Arial", 36)
-    
+
     clock = pygame.time.Clock()
-    
+
     # Animation phases
     duration = 2500  # 2.5 seconds
     start_time = pygame.time.get_ticks()
-    
+
     while pygame.time.get_ticks() - start_time < duration:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                _disable_effect(gpu, "shockwave") if gpu else None
                 return
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                    _disable_effect(gpu, "shockwave") if gpu else None
                     return  # Skip animation
-        
+
         elapsed = pygame.time.get_ticks() - start_time
         progress = elapsed / duration
+
+        # Animate shockwave — single expanding pulse in first 30%
+        if gpu:
+            if progress < 0.3:
+                sp = progress / 0.3
+                _set_effect_uniform(gpu, "shockwave", "ring_radius", sp * 1.0)
+                _set_effect_uniform(gpu, "shockwave", "distort_strength",
+                                    max(0.0, 0.025 * (1.0 - sp)))
+                _set_effect_uniform(gpu, "shockwave", "flash_intensity",
+                                    max(0.0, 0.15 * (1.0 - sp * 2)))
+            else:
+                _set_effect_uniform(gpu, "shockwave", "distort_strength", 0.0)
+                _set_effect_uniform(gpu, "shockwave", "flash_intensity", 0.0)
         
         # Dark semi-transparent overlay
         overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
@@ -706,6 +829,12 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
 
         display_manager.gpu_flip()
         clock.tick(60)
+
+    # Clean up shockwave
+    if gpu:
+        _set_effect_uniform(gpu, "shockwave", "distort_strength", 0.0)
+        _set_effect_uniform(gpu, "shockwave", "flash_intensity", 0.0)
+        _disable_effect(gpu, "shockwave")
 
 
 class GameOverAnimation:

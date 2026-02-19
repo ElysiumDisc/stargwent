@@ -35,6 +35,21 @@ def _apply_gpu_params(state, screen):
     if not gpu or not gpu.enabled:
         return
 
+    w, h = screen.get_size()
+
+    # Update CRT/hologram uniforms (MALP feed scanlines) — always active
+    crt = gpu.get_effect("crt_hologram")
+    if crt:
+        crt.set_uniform('time', gpu.time)
+        if hasattr(state, 'history_panel_rect') and state.history_panel_rect:
+            pr = state.history_panel_rect
+            crt.set_uniform('panel_rect', (
+                pr.x / w,
+                1.0 - (pr.y + pr.height) / h,  # Flip Y for OpenGL UV
+                pr.width / w,
+                pr.height / h
+            ))
+
     if not hasattr(state, 'anim_manager') or not state.anim_manager:
         return
 
@@ -51,7 +66,6 @@ def _apply_gpu_params(state, screen):
             distortion.clear_points()
         return
 
-    w, h = screen.get_size()
     distortion_points = []
 
     for params in params_list:
@@ -124,10 +138,6 @@ def _apply_gpu_params(state, screen):
         else:
             distortion.clear_points()
 
-    # Update CRT time uniform
-    crt = gpu.get_effect("crt_hologram")
-    if crt:
-        crt.set_uniform('time', gpu.time)
 
 
 def render_frame(state, game, screen, dt, drag_visual_state):

@@ -1,3 +1,70 @@
+### Version 6.9.0 (February 2026)
+**GPU-Enhanced Transitions — Hyperspace Warp, Shockwave Impacts & Procedural Speed Lines**
+
+#### Hyperspace Transition Overhaul
+- **Hyperspace GPU shader now active during transitions** — The previously-registered-but-disabled hyperspace shader is now enabled and animated during round transitions, producing real-time radial motion blur, chromatic aberration, and tunnel vignette on top of the CPU-drawn star streaks
+- **Procedural speed lines** — New shader-generated star streak lanes (~80 angular lanes) that move outward (entering) or inward (emerging), driven by time and warp factor, complementing the existing CPU star streaks
+- **Directional warp** — Shader supports `direction` uniform: `1.0` for outward (entering hyperspace) and `-1.0` for inward (emerging), so blur and speed lines move in the correct direction
+- **Card sweep integration** — When cards fly off the board ("up" direction), the hyperspace shader ramps from 0→0.6 warp, creating an accelerating radial blur as cards disappear, then cleanly hands off to the hyperspace transition
+- **Smooth warp curves** — Entering hyperspace ramps 0→1 over 30% then sustains full warp; emerging decelerates 1→0.3→0 with an ease-out for a natural deceleration feel
+
+#### Shockwave Impact Effect (New Shader)
+- **New `shaders/shockwave.py`** — Expanding ring distortion with screen flash and chromatic aberration at the wavefront, used for dramatic impact moments
+- **Round winner announcement** — Shockwave pulse expands over the first 40% of the animation (synchronized with the existing screen shake), with ring distortion fading as it reaches the screen edges
+- **Game start animation** — Subtle shockwave pulse when "YOU GO FIRST" / "OPPONENT GOES FIRST" text appears, adding weight to the game start moment
+
+#### Hyperspace Shader Improvements
+- **Chromatic aberration** — Red/blue channel separation increases radially with warp factor, creating a color-fringing effect at high speeds
+- **Tunnel vignette** — Screen edges darken at high warp, creating a tunnel vision effect that intensifies the feeling of speed
+- **Center glow** — Bright blue-white core at the center during full warp
+- **Blue-white energy overlay** — Additive energy wash that increases with warp factor and distance from center
+- **12-sample radial blur** — Increased from 8 to 12 samples with tent-weighted filtering for smoother blur quality
+
+#### Technical Details
+- All GPU effects are safely enabled/disabled per-transition with proper cleanup on early exit (skip/quit)
+- Graceful fallback: all transitions work identically without GPU — shader effects are purely additive
+- New helper functions `_get_gpu()`, `_enable_effect()`, `_disable_effect()`, `_set_effect_uniform()` centralize safe GPU interaction in transitions.py
+
+#### Files Modified
+- `shaders/hyperspace.py` — Complete rewrite: added `time`, `direction` uniforms, procedural speed lines, chromatic aberration, tunnel vignette, center glow, loop bounds safety
+- `shaders/shockwave.py` — New file: expanding ring distortion, flash, chromatic aberration at wavefront
+- `shaders/__init__.py` — Registered shockwave effect (disabled by default, driven by transitions)
+- `transitions.py` — GPU helper functions, hyperspace shader integration in card sweep + hyperspace transition, shockwave in round winner + game start animations, proper cleanup on all exit paths
+
+---
+
+### Version 6.8.0 (February 2026)
+**GPU Fullscreen Overhaul, MALP Feed CRT Scanlines & Stability Fixes**
+
+#### GPU Fullscreen Mode
+- **Fixed fullscreen resolution** — GPU mode now creates the OpenGL display at desktop resolution (e.g. 3840x2160) instead of internal render resolution (2560x1440), with the GPU renderer upscaling via fullscreen quad
+- **Fixed fullscreen viewport** — `gpu_renderer.present()` now uses `pygame.display.get_window_size()` instead of `get_surface().get_size()` which reported incorrect dimensions for OpenGL windows
+- **Fixed mouse coordinate scaling** — Monkey-patched `pygame.mouse.get_pos()` and `pygame.event.get()` in `display_manager.py` to automatically scale mouse coordinates from window space to game space in GPU fullscreen mode (non-GPU mode uses `pygame.SCALED` which handles this natively)
+- **Fixed fullscreen toggle exit** — Added `pygame.event.clear()` + `break` after every fullscreen toggle path (F11 and mouse click) across all 6 event loops to prevent spurious QUIT events from Linux window manager display recreation
+- **Fixed stale screen references** — After fullscreen toggle, `display_manager.screen` is a new surface but local `screen` variables in callers still pointed to the old one. Added `screen = display_manager.screen` refresh in `game_setup.py` (after menu, after deck builder), `main.py` (after init), and `main_menu.py` (after deck builder, after rules menu)
+
+#### MALP Feed CRT Scanlines
+- **Enabled CRT/Hologram GPU shader** on MALP Feed panel — scanlines, static noise, green tint, flicker, and chromatic aberration now render in real-time via the GPU pipeline
+- **Fixed panel_rect uniform** — The CRT shader's `panel_rect` was never being set from frame_renderer (stayed at 0,0,0,0), so the effect region was empty. Now correctly passes the MALP feed panel rect in UV space every frame
+
+#### Bug Fixes
+- **Fixed GPU cleanup double-release** — `gpu_renderer.cleanup()` was releasing each shader pass VAO twice (once explicitly, then again inside `ShaderPass.cleanup()`), causing `'NoneType' object has no attribute 'release'` error on fullscreen toggle and game exit
+- **Fixed options menu recursion** — Fullscreen toggle in options menu used recursive `return self.run_options_menu()` which could propagate stale return values. Replaced with in-place geometry refresh using `needs_geometry_refresh` flag
+
+#### Files Modified
+- `display_manager.py` — Mouse coordinate scaling monkey-patches, desktop resolution for GPU fullscreen, event clearing in `toggle_fullscreen_mode()`
+- `gpu_renderer.py` — `present()` viewport fix with `get_window_size()`, cleanup double-release fix
+- `frame_renderer.py` — CRT panel_rect uniform update moved before early return, runs every frame
+- `shaders/__init__.py` — CRT/Hologram effect enabled by default
+- `main_menu.py` — Options menu geometry refresh, screen refresh after sub-menus, event clearing on all toggle paths
+- `event_handler.py` — Event clearing after F11 toggle
+- `deck_builder.py` — Event clearing after F11 toggle
+- `rules_menu.py` — Event clearing after F11 toggle
+- `game_setup.py` — Screen refresh after menu and deck builder returns
+- `main.py` — Screen refresh after `initialize_game()` returns
+
+---
+
 ### Version 6.5.1 (February 2026)
 **Lucian Alliance Card Rework, Border Fix & Art Credits**
 

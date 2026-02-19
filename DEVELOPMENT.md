@@ -437,7 +437,8 @@ The game uses a **hybrid rendering approach**: all drawing is done via Pygame to
 | `shaders/distortion.py` | Screen-space shockwave distortion (8 points) |
 | `shaders/event_horizon.py` | Procedural stargate portal surface |
 | `shaders/kawoosh.py` | Vortex pixel displacement |
-| `shaders/hyperspace.py` | Radial motion blur warp |
+| `shaders/hyperspace.py` | Radial motion blur warp with speed lines, chromatic aberration, tunnel vignette |
+| `shaders/shockwave.py` | Expanding ring distortion with flash (round winner, game start) |
 | `shaders/asgard_beam.py` | Volumetric light column |
 | `shaders/zpm_surge.py` | Procedural electric arcs |
 
@@ -514,7 +515,7 @@ All output goes to `builds/releases/`. Staging area is `builds/staging/` (auto-c
 ./build_release.sh "" linux         # .deb + AppImage
 
 # Override version (instead of reading from README.md badge)
-./build_release.sh 6.5.0
+./build_release.sh 6.9.0
 
 # Run individual scripts directly
 ./build_deb.sh
@@ -533,7 +534,7 @@ All output goes to `builds/releases/`. Staging area is `builds/staging/` (auto-c
 
 **Step by step — what the script does:**
 
-1. Reads version from README.md badge (or accepts `./build_deb.sh 6.5.0`)
+1. Reads version from README.md badge (or accepts `./build_deb.sh 6.9.0`)
 2. Creates staging directory `builds/staging/stargwent_VERSION/`
 3. Copies all game files (Python sources, assets, shaders, docs) — skips dev artifacts (`.git`, `venv`, `builds`, `raw_art`, all `build_*.sh`)
 4. Creates a bundled Python virtual environment at `/usr/share/stargwent/.venv/`
@@ -547,7 +548,7 @@ All output goes to `builds/releases/`. Staging area is `builds/staging/` (auto-c
 
 ```bash
 ./build_deb.sh
-sudo dpkg -i builds/releases/Stargwent-6.5.0-linux-amd64.deb
+sudo dpkg -i builds/releases/Stargwent-6.9.0-linux-amd64.deb
 stargwent                          # run from anywhere
 sudo dpkg -r stargwent             # uninstall
 ```
@@ -575,7 +576,7 @@ sudo dpkg -r stargwent             # uninstall
 
 **Step by step — what the script does:**
 
-1. Reads version from README.md badge (or accepts `./build_appimage.sh 6.5.0`)
+1. Reads version from README.md badge (or accepts `./build_appimage.sh 6.9.0`)
 2. Downloads `appimagetool` if not already cached in `builds/`
 3. Creates AppDir at `builds/staging/stargwent.AppDir/`
 4. Copies all game files — skips dev artifacts (`.git`, `venv`, `builds`, `raw_art`, all `build_*.sh`)
@@ -590,8 +591,8 @@ sudo dpkg -r stargwent             # uninstall
 
 ```bash
 ./build_appimage.sh
-chmod +x builds/releases/Stargwent-6.5.0-linux-x86_64.AppImage
-./builds/releases/Stargwent-6.5.0-linux-x86_64.AppImage
+chmod +x builds/releases/Stargwent-6.9.0-linux-x86_64.AppImage
+./builds/releases/Stargwent-6.9.0-linux-x86_64.AppImage
 ```
 
 No installation needed — the AppImage is fully self-contained with its own Python runtime and all dependencies.
@@ -606,7 +607,7 @@ No installation needed — the AppImage is fully self-contained with its own Pyt
 
 **Step by step — what the script does:**
 
-1. Reads version from README.md badge (or accepts `./build_exe.sh 6.5.0`)
+1. Reads version from README.md badge (or accepts `./build_exe.sh 6.9.0`)
 2. Generates a `.ico` icon from `assets/tauri_oneill.png` using Pillow (multi-size: 256 down to 16px)
 3. Ensures all pip dependencies are installed (`pygame-ce`, `moderngl`, `Pillow`)
 4. Runs PyInstaller in `--onedir --windowed` mode with:
@@ -619,7 +620,7 @@ No installation needed — the AppImage is fully self-contained with its own Pyt
 
 ```bash
 ./build_exe.sh
-# Output: builds/releases/Stargwent-6.5.0-windows-x64.zip
+# Output: builds/releases/Stargwent-6.9.0-windows-x64.zip
 # Extract and run Stargwent/Stargwent.exe
 ```
 
@@ -648,7 +649,7 @@ dist\Stargwent\Stargwent.exe
 
 **Step by step — what the script does:**
 
-1. Reads version from README.md badge (or accepts `./build_dmg.sh 6.5.0`)
+1. Reads version from README.md badge (or accepts `./build_dmg.sh 6.9.0`)
 2. Generates a `.icns` icon from `assets/tauri_oneill.png` using `sips` + `iconutil` (macOS built-in) or Pillow fallback
 3. Ensures all pip dependencies are installed (`pygame-ce`, `moderngl`, `Pillow`)
 4. Runs PyInstaller in `--onedir --windowed` mode with:
@@ -662,7 +663,7 @@ dist\Stargwent\Stargwent.exe
 
 ```bash
 ./build_dmg.sh
-# Output: builds/releases/Stargwent-6.5.0-macos.dmg
+# Output: builds/releases/Stargwent-6.9.0-macos.dmg
 # Open the .dmg → drag Stargwent to Applications
 ```
 
@@ -683,7 +684,7 @@ Auto-detects the current platform and builds the appropriate targets.
 ./build_release.sh "" exe              # .exe only (Windows)
 ./build_release.sh "" dmg              # .dmg only (macOS)
 ./build_release.sh "" linux            # both .deb and AppImage
-./build_release.sh 6.5.0 all          # explicit version, all platform targets
+./build_release.sh 6.9.0 all          # explicit version, all platform targets
 ```
 
 Platform detection:
@@ -771,18 +772,18 @@ Once you've verified the manual build works, use tags for proper releases:
 
 ```bash
 # 1. Update version in README.md badge (single source of truth)
-#    Edit the badge line: ![Version](https://img.shields.io/badge/version-6.6.0-blue)
+#    Edit the badge line: ![Version](https://img.shields.io/badge/version-6.9.0-blue)
 
 # 2. Commit the version bump
 git add README.md
-git commit -m "Bump version to 6.6.0"
+git commit -m "Bump version to 6.9.0"
 
 # 3. Create a version tag
-git tag v6.6.0
+git tag v6.9.0
 
 # 4. Push both the commit and the tag
 git push origin main
-git push origin v6.6.0
+git push origin v6.9.0
 ```
 
 This automatically:
@@ -801,7 +802,7 @@ After publishing a release, anyone can download the right build for their platfo
 | Issue | Fix |
 |-------|-----|
 | "Actions" tab not visible | Go to repo Settings → Actions → General → enable "Allow all actions" |
-| Workflow not triggering on tag push | Make sure you pushed the tag: `git push origin v6.6.0` |
+| Workflow not triggering on tag push | Make sure you pushed the tag: `git push origin v6.9.0` |
 | Build fails on Windows/macOS | Click the failed job → read the red error log → usually a missing dependency |
 | "Resource not accessible by integration" | Go to Settings → Actions → General → set "Workflow permissions" to "Read and write" |
 | Artifacts expire after 90 days | Published releases are permanent; only workflow artifacts expire |

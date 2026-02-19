@@ -257,12 +257,14 @@ class GPURenderer:
 
             # Render final result to default framebuffer (the display)
             self.ctx.screen.use()
-            display_surface = pygame.display.get_surface()
-            if display_surface:
-                dw, dh = display_surface.get_size()
-                self.ctx.screen.viewport = (0, 0, dw, dh)
-            else:
-                self.ctx.screen.viewport = (0, 0, w, h)
+            # Use get_window_size() — for OpenGL windows, get_surface().get_size()
+            # may report the internal render resolution instead of the actual
+            # display size (e.g. 2560x1440 instead of 3840x2160 in fullscreen)
+            try:
+                dw, dh = pygame.display.get_window_size()
+            except Exception:
+                dw, dh = w, h
+            self.ctx.screen.viewport = (0, 0, dw, dh)
 
             current_tex.use(location=0)
             if 'tex' in self._passthrough.program:
@@ -296,8 +298,6 @@ class GPURenderer:
         try:
             for name, passes in self._effects.items():
                 for sp in passes:
-                    if hasattr(sp, '_vao'):
-                        sp._vao.release()
                     sp.cleanup()
             self._effects.clear()
             if self._passthrough:

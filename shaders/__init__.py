@@ -35,7 +35,7 @@ def register_all_effects(gpu_renderer):
         from shaders.crt_hologram import create_crt_pass
         crt_pass = create_crt_pass(ctx)
         gpu_renderer.add_effect("crt_hologram", crt_pass)
-        gpu_renderer.set_effect_enabled("crt_hologram", False)  # Off by default
+        gpu_renderer.set_effect_enabled("crt_hologram", True)  # MALP feed scanlines
         print("[GPU] CRT/Hologram effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register CRT: {e}")
@@ -92,3 +92,12 @@ def register_all_effects(gpu_renderer):
         print("[GPU] ZPM surge effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register ZPM surge: {e}")
+
+    try:
+        from shaders.shockwave import create_shockwave_pass
+        sw_pass = create_shockwave_pass(ctx)
+        gpu_renderer.add_effect("shockwave", sw_pass)
+        gpu_renderer.set_effect_enabled("shockwave", False)  # Driven by transition
+        print("[GPU] Shockwave effect registered")
+    except Exception as e:
+        print(f"[GPU] Failed to register shockwave: {e}")

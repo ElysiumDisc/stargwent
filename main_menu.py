@@ -425,7 +425,8 @@ class MainMenu:
             settings.set_master_volume(volume)
 
         pulse_phase = 0
-        
+        needs_geometry_refresh = False
+
         while running:
             dt = clock.tick(60)
             pulse_phase += dt * 0.005  # Animate toggles
@@ -438,8 +439,10 @@ class MainMenu:
                         running = False
                     elif event.key == pygame.K_F11:
                         display_manager.toggle_fullscreen_mode()
-                        # Re-enter with fresh geometry after display change
-                        return self.run_options_menu(display_manager.screen)
+                        surface = display_manager.screen
+                        needs_geometry_refresh = True
+                        pygame.event.clear()  # Discard stale events from display recreation
+                        break
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if back_rect.collidepoint(event.pos):
                         running = False
@@ -461,14 +464,61 @@ class MainMenu:
                         settings.set_show_fps(not settings.get_show_fps())
                     elif gate_rect.collidepoint(event.pos):
                         display_manager.toggle_fullscreen_mode()
-                        # Re-enter with fresh geometry after display change
-                        return self.run_options_menu(display_manager.screen)
-                        
+                        surface = display_manager.screen
+                        needs_geometry_refresh = True
+                        pygame.event.clear()  # Discard stale events from display recreation
+                        break
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     dragging_slider = False
                 elif event.type == pygame.MOUSEMOTION:
                     if dragging_slider:
                         set_volume_from_pos(event.pos[0])
+
+            # Refresh geometry after fullscreen toggle (avoids recursive re-entry)
+            if needs_geometry_refresh:
+                needs_geometry_refresh = False
+                sw, sh = surface.get_width(), surface.get_height()
+                self.screen_width = sw
+                self.screen_height = sh
+                center_x = sw // 2
+                center_y = sh // 2
+                scale = min(sh / 1080.0, sw / 1920.0)
+                panel_width = int(800 * scale)
+                panel_height = int(750 * scale)
+                panel_top = center_y - panel_height // 2
+                title_font = pygame.font.SysFont("Arial", max(36, int(52 * scale)), bold=True)
+                label_font = pygame.font.SysFont("Arial", max(22, int(30 * scale)), bold=True)
+                status_font = pygame.font.SysFont("Arial", max(18, int(24 * scale)), bold=True)
+                instruction_font = pygame.font.SysFont("Arial", max(16, int(22 * scale)))
+                back_rect = pygame.Rect(
+                    center_x - panel_width // 2 + int(20 * scale),
+                    panel_top + int(15 * scale), int(140 * scale), int(45 * scale))
+                slider_y = panel_top + int(140 * scale)
+                slider_width = int(500 * scale)
+                slider_height = int(50 * scale)
+                slider_rect = pygame.Rect(center_x - slider_width // 2, slider_y, slider_width, slider_height)
+                slider_track_height = int(10 * scale)
+                slider_handle_radius = int(18 * scale)
+                gate_radius = int(60 * scale)
+                gate_rect = pygame.Rect(0, 0, gate_radius * 2, gate_radius * 2)
+                fullscreen_y = slider_y + int(200 * scale)
+                gate_rect.center = (center_x, fullscreen_y)
+                unlock_gate_radius = int(60 * scale)
+                unlock_gate_rect = pygame.Rect(0, 0, unlock_gate_radius * 2, unlock_gate_radius * 2)
+                unlock_y = fullscreen_y + int(220 * scale)
+                unlock_gate_rect.center = (center_x - int(250 * scale), unlock_y)
+                fps_gate_radius = int(60 * scale)
+                fps_gate_rect = pygame.Rect(0, 0, fps_gate_radius * 2, fps_gate_radius * 2)
+                fps_gate_rect.center = (center_x + int(250 * scale), unlock_y)
+                overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 120))
+                if options_bg:
+                    try:
+                        options_bg = pygame.image.load(
+                            os.path.join("assets", "options_menu_bg.png")).convert()
+                        options_bg = pygame.transform.scale(options_bg, (sw, sh))
+                    except Exception:
+                        options_bg = None
 
             # Draw background
             if options_bg:
@@ -698,9 +748,10 @@ class MainMenu:
                         result = self.run_options_menu(display_manager.screen)
                         if isinstance(result, str):
                             return result
+                        return '_refresh'
                     else:
                         return option['action']
-        
+
         elif event.type == pygame.KEYDOWN:
             if event.key in [pygame.K_UP, pygame.K_w]:
                 self.selected_option = (self.selected_option - 1) % len(self.options)
@@ -709,12 +760,13 @@ class MainMenu:
             elif event.key == pygame.K_RETURN:
                 # Trigger DHD activation effect
                 self.dhd_manager.activate_button(self.selected_option)
-                
+
                 action = self.options[self.selected_option]['action']
                 if action == 'options_menu':
-                    result = self.run_options_menu(surface)
+                    result = self.run_options_menu(display_manager.screen)
                     if isinstance(result, str):
                         return result
+                    return '_refresh'
                 else:
                     return action
             elif event.key == pygame.K_ESCAPE:
@@ -1168,8 +1220,16 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                     screen = display_manager.screen
                     main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
                     main_menu.screen_surface = screen
+                    pygame.event.clear()  # Discard stale events from display recreation
+                    break
             
             action = main_menu.handle_event(event)
+            if action == '_refresh':
+                # Options menu may have toggled fullscreen — refresh screen/menu
+                screen = display_manager.screen
+                main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
+                main_menu.screen_surface = screen
+                continue
             if action == 'new_game':
                 stop_menu_music()
                 return 'new_game'
@@ -1187,10 +1247,18 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                     toggle_fullscreen_callback=toggle_fullscreen_callback
                 )
                 deck_manager.load_decks()
+                # Refresh screen — fullscreen may have been toggled in deck builder
+                screen = display_manager.screen
+                main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
+                main_menu.screen_surface = screen
                 # If result is None, user clicked MAIN MENU or ESC - just continue showing main menu
                 # (Don't return None here, that would quit the game!)
             elif action == 'rules_menu':
                 run_rules_menu(screen, toggle_fullscreen_callback)
+                # Refresh screen — fullscreen may have been toggled in rules menu
+                screen = display_manager.screen
+                main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
+                main_menu.screen_surface = screen
             elif action == 'lan_menu':
                 lan_data = run_lan_menu(screen)
                 if isinstance(lan_data, dict):

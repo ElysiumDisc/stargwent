@@ -2,10 +2,11 @@
 CRT/Hologram Post-Processing Effect for MALP Feed Panel
 
 Region-specific effect applied only to the history panel area:
-- Scanlines
+- Rolling scanlines (visible horizontal bands that scroll downward)
 - Static noise
 - Subtle green tint (MALP footage aesthetic)
 - Flicker
+- Rolling bright bar (CRT refresh line)
 
 Panel rect passed as uniform from frame_renderer.py.
 """
@@ -20,6 +21,8 @@ uniform vec4 panel_rect;  // x, y, width, height in UV space (0-1)
 uniform float scanline_intensity;
 uniform float noise_intensity;
 uniform float flicker_speed;
+uniform float scanline_count;    // number of scanline bands across panel height
+uniform float roll_speed;        // how fast scanlines scroll
 in vec2 uv;
 out vec4 fragColor;
 
@@ -41,10 +44,21 @@ void main() {
         // Local UV within panel
         vec2 local_uv = (uv - panel_min) / panel_rect.zw;
 
-        // Scanlines
-        float scanline = sin(local_uv.y * 800.0) * 0.5 + 0.5;
+        // Rolling scanlines — scroll downward over time
+        float scan_y = local_uv.y * scanline_count + time * roll_speed;
+        float scanline = sin(scan_y * 3.14159) * 0.5 + 0.5;
+        // Sharpen the scanline bands (darken the troughs more)
+        scanline = smoothstep(0.0, 0.6, scanline);
         scanline = mix(1.0, scanline, scanline_intensity);
         color.rgb *= scanline;
+
+        // Rolling bright bar — a single bright horizontal band that scrolls down
+        float bar_pos = fract(time * 0.08);  // slow roll, 0-1 repeating
+        float bar_dist = abs(local_uv.y - bar_pos);
+        // Wrap around — check distance to bar at both ends
+        bar_dist = min(bar_dist, 1.0 - bar_dist);
+        float bar = smoothstep(0.06, 0.0, bar_dist) * 0.12;
+        color.rgb += vec3(bar);
 
         // Static noise
         float noise = random(uv + vec2(time * 7.0, time * 3.0));
@@ -75,7 +89,9 @@ def create_crt_pass(ctx):
     sp = ShaderPass(ctx, CRT_HOLOGRAM_FRAG)
     sp.set_uniform('time', 0.0)
     sp.set_uniform('panel_rect', (0.0, 0.0, 0.0, 0.0))  # Set by frame_renderer
-    sp.set_uniform('scanline_intensity', 0.15)
+    sp.set_uniform('scanline_intensity', 0.35)
     sp.set_uniform('noise_intensity', 0.03)
     sp.set_uniform('flicker_speed', 12.0)
+    sp.set_uniform('scanline_count', 120.0)  # ~120 visible bands across panel
+    sp.set_uniform('roll_speed', 3.0)        # gentle downward scroll
     return sp

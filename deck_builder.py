@@ -2721,6 +2721,8 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
                     reload_card_images()
                     screen = display_manager.screen
                     deck_builder.refresh_for_surface(screen)
+                    pygame.event.clear()  # Discard stale events from display recreation
+                    break
                 else:
                     # Pass other keyboard events to deck builder for navigation
                     deck_builder.handle_event(event)
