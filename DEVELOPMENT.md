@@ -98,7 +98,7 @@
 
    5. Update UI Menus:
        * `deck_builder.py`: Ensure it iterates over the new faction constant.
-       * `stats_menu.py`: Add the new faction to the list of factions for win rate display and ensure faction_colors includes it.
+       * `stats_menu.py`: Add the new faction to the Factions tab builder and ensure faction_bar_colors includes it.
        * `rules_menu.py`: Add it to FACTION_DISPLAY and _pretty_faction_name.
 
    6. Update Game Logic (`game.py`):

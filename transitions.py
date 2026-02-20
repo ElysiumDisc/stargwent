@@ -379,19 +379,25 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
     # Get the round that just completed
     completed_round = game.round_number - 1
 
-    # Determine winner text - use leader names
+    # Determine winner text and shockwave ring color
     if game.round_winner == game.player1:
         winner_text = f"{game.player1.name.upper()} WINS ROUND {completed_round}!"
         winner_color = (100, 255, 100)
         accent_color = (50, 200, 50)
+        if gpu:
+            _set_effect_uniform(gpu, "shockwave", "ring_color", (0.3, 1.0, 0.4))  # Green
     elif game.round_winner == game.player2:
         winner_text = f"{game.player2.name.upper()} WINS ROUND {completed_round}!"
         winner_color = (255, 100, 100)
         accent_color = (200, 50, 50)
+        if gpu:
+            _set_effect_uniform(gpu, "shockwave", "ring_color", (1.0, 0.3, 0.3))  # Red
     else:
         winner_text = f"ROUND {completed_round} DRAW!"
         winner_color = (255, 255, 100)
         accent_color = (200, 200, 50)
+        if gpu:
+            _set_effect_uniform(gpu, "shockwave", "ring_color", (1.0, 1.0, 0.4))  # Yellow
 
     # Get round history (who won each round so far)
     p1_rounds = game.player1.rounds_won

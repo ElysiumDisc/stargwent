@@ -185,7 +185,7 @@ def handle_events(state, game, screen, dt):
                             game.play_card(card_to_play, target_row)
                             row_rect = cfg.PLAYER_ROW_RECTS.get(target_row)
                             if row_rect:
-                                state.anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=cfg.ANIM_STARGATE))
+                                state.anim_manager.add_effect(StargateActivationEffect(row_rect.centerx, row_rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                             if state.network_proxy:
                                 state.network_proxy.send_play_card(card_to_play.id, target_row)
                             # Reset keyboard cursor
@@ -667,12 +667,12 @@ def handle_events(state, game, screen, dt):
                                     if weather_target in ("player1", "both"):
                                         rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                                         if rect:
-                                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
+                                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                                             state.anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                                     if weather_target in ("player2", "both"):
                                         rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                                         if rect:
-                                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
+                                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                                             state.anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                             else:
                                 if state.network_proxy:
@@ -894,7 +894,7 @@ def handle_events(state, game, screen, dt):
                         state.drag_pickup_flash = 0.0
                         state.anim_manager.add_effect(StargateActivationEffect(state.hud_pass_button_rect.centerx,
                                                                          state.hud_pass_button_rect.centery,
-                                                                         duration=cfg.ANIM_STARGATE))
+                                                                         duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                         game.pass_turn()
 
                         # Send network action if in LAN mode
@@ -1050,7 +1050,7 @@ def handle_events(state, game, screen, dt):
                             else:
                                 effect_x = drop_rect.centerx
                                 effect_y = drop_rect.centery
-                                state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
+                                state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                                 if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
                                     for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                         row_rect = rects.get(target_row)
@@ -1069,7 +1069,7 @@ def handle_events(state, game, screen, dt):
                                     played = True
                                     effect_x = slot_rect.centerx
                                     effect_y = slot_rect.centery
-                                    state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE))
+                                    state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                                     break
                         elif has_ability(state.dragging_card, Ability.RING_TRANSPORT):
                             # Ring Transport - check if dropped on a valid card
@@ -1120,7 +1120,7 @@ def handle_events(state, game, screen, dt):
 
                                         # Trigger other special visuals
                                         if not add_special_card_effect(state.dragging_card, effect_x, effect_y, state.anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
-                                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE)
+                                            stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_STARGATE, faction=game.player1_faction)
                                             state.anim_manager.add_effect(stargate_effect)
                                         break
                                 if played:
@@ -1219,7 +1219,7 @@ def handle_events(state, game, screen, dt):
 
                                     # Default stargate effect if no special ability
                                     if not ability_triggered:
-                                        state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y))
+                                        state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, faction=game.player1_faction))
 
                                 # Special card unique visuals
                                 if state.dragging_card.row == "special":

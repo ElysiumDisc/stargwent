@@ -365,6 +365,7 @@ class DeckPersistence:
             "lan_reliability": self.unlock_data.get("lan_reliability", {}),
             "draft_stats": self.unlock_data.get("draft_stats", {}),
             "round_stats": self.unlock_data.get("round_stats", {}),
+            "score_records": self.unlock_data.get("score_records", {}),
             "unlock_override_enabled": self.unlock_data.get("unlock_override_enabled", False),
         }
 
@@ -411,6 +412,7 @@ class DeckPersistence:
             "most_drafted_card": None,
             "card_draft_counts": {}
         }
+        self.unlock_data["score_records"] = {}
         self.save_unlocks()
 
     def record_game_summary(self, summary: Dict):
@@ -533,6 +535,38 @@ class DeckPersistence:
             round_stats["first_turn_games"] += 1
             if went_first and won:
                 round_stats["first_turn_wins"] += 1
+
+        # Score records
+        player_score = summary.get("player_score")
+        opponent_score = summary.get("opponent_score")
+        if player_score is not None and opponent_score is not None:
+            score_records = self.unlock_data.setdefault("score_records", {})
+            leader_name_for_score = summary.get("leader", "Unknown")
+
+            # Games with scores count + total for average
+            score_records["games_with_scores"] = score_records.get("games_with_scores", 0) + 1
+            score_records["total_score"] = score_records.get("total_score", 0) + player_score
+
+            # Highest score
+            if player_score > score_records.get("highest_score", -1):
+                score_records["highest_score"] = player_score
+                score_records["highest_score_leader"] = leader_name_for_score
+
+            # Lowest score
+            if score_records.get("lowest_score") is None or player_score < score_records["lowest_score"]:
+                score_records["lowest_score"] = player_score
+                score_records["lowest_score_leader"] = leader_name_for_score
+
+            # Margin tracking
+            margin = abs(player_score - opponent_score)
+            if won and margin > score_records.get("biggest_margin", -1):
+                score_records["biggest_margin"] = margin
+                score_records["biggest_margin_leader"] = leader_name_for_score
+
+            if margin > 0:
+                if score_records.get("closest_game") is None or margin < score_records["closest_game"]:
+                    score_records["closest_game"] = margin
+                    score_records["closest_game_leader"] = leader_name_for_score
 
         # AI difficulty split
         self.save_unlocks()

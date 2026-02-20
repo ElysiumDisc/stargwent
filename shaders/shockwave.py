@@ -18,6 +18,7 @@ uniform float ring_radius;    // Current radius of the ring (0-1.5)
 uniform float ring_width;     // Width of the distortion band
 uniform float distort_strength; // How much pixels get pushed
 uniform float flash_intensity;  // Bright flash overlay (0-1)
+uniform vec3 ring_color;        // Ring tint (green=win, red=loss, yellow=draw)
 in vec2 uv;
 out vec4 fragColor;
 
@@ -40,8 +41,6 @@ void main() {
 
     // Ring glow — bright line at the wavefront
     float ring_glow = smoothstep(ring_width, 0.0, ring_dist) * 0.25;
-    // Color the ring with winner-appropriate tint (white-blue by default)
-    vec3 ring_color = vec3(0.6, 0.8, 1.0);
     color.rgb += ring_color * ring_glow;
 
     // Flash overlay (fades out quickly)
@@ -70,4 +69,5 @@ def create_shockwave_pass(ctx):
     sp.set_uniform('ring_width', 0.12)
     sp.set_uniform('distort_strength', 0.0)
     sp.set_uniform('flash_intensity', 0.0)
+    sp.set_uniform('ring_color', (0.6, 0.8, 1.0))  # Default white-blue
     return sp

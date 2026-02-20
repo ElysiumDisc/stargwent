@@ -1,3 +1,45 @@
+### Version 7.0.0 (February 2026)
+**Card Animation Polish + Tabbed Stats Menu Revamp**
+
+#### Animation Polish
+
+- **StargateActivationEffect — Faction Colors** — Portal rings and particles now match the playing faction's color (Tau'ri blue, Goa'uld gold, Jaffa bronze, Lucian purple, Asgard cyan) instead of hardcoded blue. Added event horizon shimmer (12 rotating radial lines during first 50%) and mild GPU distortion during first 40%
+- **ZPMSurgeEffect — Particles, Lightning & Screen Flash** — Added 60 gold/cyan/white-gold burst particles, 4 jagged lightning arcs with glow+core rendering, white screen flash during first 120ms, and increased GPU surge radius from 250→300
+- **AbilityBurstEffect — Per-Type Flourishes** — Each ability type now has a unique visual layered on top of the existing ring+particles:
+  - Medic/Heal: Glowing green cross shape
+  - Spy/Transport: 3 expanding ring-transport ellipses
+  - Decoy/Recall: Chevron arrows shrinking toward center
+  - Bond/Muster: Connecting lines from center to each particle
+  - Scorch/Naquadah: Pulsing concentric danger circles
+
+#### Tabbed Stats Menu
+
+- **5-Tab Layout** — Stats menu restructured from single scroll into tabs: Overview, Factions, Leaders, Records, Draft
+- **Independent Scroll Per Tab** — Each tab remembers its scroll position when switching
+- **Keyboard Navigation** — Tab key cycles through tabs, 1-5 jump to specific tabs
+- **New Score Records** — Tracks highest score, lowest score, biggest victory margin, closest game, and average score — each with the leader used
+- **Section Reorganization** — Round Breakdown and LAN Reliability moved to Records tab; Faction Win Rates and Matchups in dedicated Factions tab; Top Leaders expanded to top 5 (was 3)
+
+#### Score Tracking
+
+- **Game summary** now includes `player_score` and `opponent_score` for end-of-game power totals
+- **Persistent score records** in `deck_persistence.py` — all fields use `setdefault()` for safe migration of existing saves
+
+#### Bug Fix
+
+- **card_assembler.py** — Fixed crash when running outside pygame environment. Added mock `pygame.mouse` and `pygame.event` submodules to match `display_manager.py`'s module-level monkey-patching of mouse coordinate scaling
+
+#### Files Modified
+- `animations.py` — Polished StargateActivationEffect (faction colors, shimmer, GPU params), ZPMSurgeEffect (particles, lightning, flash), AbilityBurstEffect (per-type flourishes)
+- `event_handler.py` — Pass `faction=game.player1_faction` at 8 StargateActivationEffect call sites
+- `main.py` — Pass `faction=game.player2_faction` at 6 StargateActivationEffect call sites
+- `frame_renderer.py` — Added player_score/opponent_score to game summary dict
+- `deck_persistence.py` — Score records in record_game_summary(), get_stats(), reset_stats()
+- `stats_menu.py` — Full tabbed layout restructure with 5 tabs, independent scroll, keyboard nav, new Records tab
+- `scripts/card_assembler.py` — Added mock pygame.mouse and pygame.event for headless operation
+
+---
+
 ### Version 6.9.0 (February 2026)
 **GPU-Enhanced Transitions — Hyperspace Warp, Shockwave Impacts & Procedural Speed Lines**
 

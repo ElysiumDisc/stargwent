@@ -597,6 +597,90 @@ class AbilityBurstEffect:
 
                 surface.blit(particle_surf, (int(particle['x'] - size * 1.5), int(particle['y'] - size * 1.5)))
 
+        # Draw ability-specific flourish on top
+        self._draw_ability_flourish(surface, progress)
+
+    def _draw_ability_flourish(self, surface, progress):
+        """Draw ability-type-specific visual flourish layered on top of ring+particles."""
+        ability_lower = self.ability_name.lower() if self.ability_name else ""
+        if not ability_lower:
+            return
+
+        if "medic" in ability_lower or "evac" in ability_lower or "heal" in ability_lower:
+            # Glowing + cross shape at center, fades 0.1–0.5
+            if 0.1 < progress < 0.5:
+                t = (progress - 0.1) / 0.4
+                cross_alpha = int(200 * (1 - t))
+                cross_size = int(20 + 10 * t)
+                cross_w = max(4, int(6 * (1 - t)))
+                cross_surf = pygame.Surface((cross_size * 2, cross_size * 2), pygame.SRCALPHA)
+                c = cross_size
+                color = (*self.color, cross_alpha)
+                pygame.draw.rect(cross_surf, color, (c - cross_w // 2, c - cross_size + 4, cross_w, cross_size * 2 - 8))
+                pygame.draw.rect(cross_surf, color, (c - cross_size + 4, c - cross_w // 2, cross_size * 2 - 8, cross_w))
+                surface.blit(cross_surf, (self.x - cross_size, self.y - cross_size))
+
+        elif "spy" in ability_lower or "ring" in ability_lower or "transport" in ability_lower:
+            # 3 horizontal ring-transport ellipses expanding vertically
+            if progress < 0.7:
+                t = progress / 0.7
+                ring_alpha = int(180 * (1 - t))
+                for i in range(3):
+                    offset_y = int((i - 1) * 30 * t)
+                    rx = int(25 + 15 * t)
+                    ry = int(8 + 20 * t)
+                    ellipse_surf = pygame.Surface((rx * 2 + 4, ry * 2 + 4), pygame.SRCALPHA)
+                    color = (*self.color, ring_alpha)
+                    pygame.draw.ellipse(ellipse_surf, color, (2, 2, rx * 2, ry * 2), width=2)
+                    surface.blit(ellipse_surf, (self.x - rx - 2, self.y + offset_y - ry - 2))
+
+        elif "decoy" in ability_lower or "recall" in ability_lower:
+            # << chevron arrows shrinking toward center
+            if progress < 0.6:
+                t = progress / 0.6
+                chev_alpha = int(200 * (1 - t))
+                chev_surf = pygame.Surface((120, 80), pygame.SRCALPHA)
+                cx, cy = 60, 40
+                color = (*self.color, chev_alpha)
+                for j in range(2):
+                    offset = int(40 * (1 - t) + j * 20)
+                    # Left chevron <<
+                    pygame.draw.line(chev_surf, color, (cx - offset, cy - 15), (cx - offset - 12, cy), 3)
+                    pygame.draw.line(chev_surf, color, (cx - offset - 12, cy), (cx - offset, cy + 15), 3)
+                    # Right chevron >>
+                    pygame.draw.line(chev_surf, color, (cx + offset, cy - 15), (cx + offset + 12, cy), 3)
+                    pygame.draw.line(chev_surf, color, (cx + offset + 12, cy), (cx + offset, cy + 15), 3)
+                surface.blit(chev_surf, (self.x - 60, self.y - 40))
+
+        elif "bond" in ability_lower or "muster" in ability_lower:
+            # Connecting lines from center to each particle
+            if progress < 0.6:
+                t = progress / 0.6
+                line_alpha = int(150 * (1 - t))
+                line_surf = pygame.Surface((self.max_ring_radius * 3, self.max_ring_radius * 3), pygame.SRCALPHA)
+                lc = self.max_ring_radius * 3 // 2
+                color = (*self.color, line_alpha)
+                for p in self.particles:
+                    if p['life'] > 0:
+                        px = int(p['x'] - self.x + lc)
+                        py = int(p['y'] - self.y + lc)
+                        pygame.draw.line(line_surf, color, (lc, lc), (px, py), 1)
+                surface.blit(line_surf, (self.x - lc, self.y - lc))
+
+        elif "scorch" in ability_lower or "naquadah" in ability_lower:
+            # Pulsing concentric danger circles with sin oscillation
+            if progress < 0.7:
+                t = progress / 0.7
+                pulse = math.sin(progress * math.pi * 6) * 0.3 + 0.7
+                circle_alpha = int(160 * (1 - t) * pulse)
+                for r_mult in (0.5, 0.8):
+                    r = int(self.max_ring_radius * r_mult * (0.3 + 0.7 * t))
+                    if r > 0:
+                        circ_surf = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+                        color = (*self.color, circle_alpha)
+                        pygame.draw.circle(circ_surf, color, (r + 2, r + 2), r, width=2)
+                        surface.blit(circ_surf, (self.x - r - 2, self.y - r - 2))
+
 
 class RowScoreAnimation(Animation):
     """Animated score counter for row score changes."""
@@ -713,8 +797,19 @@ class ParticleEffect:
 
 
 class StargateActivationEffect:
-    """Cool Stargate-themed effect when cards are played."""
-    def __init__(self, x, y, duration=1000):
+    """Stargate-themed effect when cards are played, colored by faction."""
+
+    # Faction color map for rings and particles
+    FACTION_COLORS = {
+        "Tau'ri":           (100, 150, 255),   # blue
+        "Goa'uld":          (255, 200, 60),    # gold
+        "Jaffa Rebellion":  (200, 150, 100),   # bronze
+        "Lucian Alliance":  (180, 100, 220),   # purple
+        "Asgard":           (100, 240, 255),   # cyan
+    }
+    DEFAULT_COLOR = (100, 180, 255)  # blue fallback
+
+    def __init__(self, x, y, duration=1000, faction=None):
         self.x = x
         self.y = y
         self.duration = duration
@@ -722,44 +817,78 @@ class StargateActivationEffect:
         self.finished = False
         self.radius = 0
         self.max_radius = 100
-        self.particles = ParticleEffect(x, y, color=(100, 180, 255), count=30)
-    
+        self.faction = faction
+        # Pick faction color or default blue
+        self.color = self.FACTION_COLORS.get(faction, self.DEFAULT_COLOR)
+        self.particles = ParticleEffect(x, y, color=self.color, count=30)
+        # Pre-compute shimmer angles for event horizon
+        self._shimmer_angles = [i * (math.tau / 12) for i in range(12)]
+
     def update(self, dt):
         """Update effect."""
         self.elapsed += dt
         if self.elapsed >= self.duration:
             self.finished = True
             return False
-        
+
         progress = min(1.0, self.elapsed / self.duration)
         # Expand ring
         self.radius = self.max_radius * progress
         # Update particles
         self.particles.update(dt)
         return True
-    
+
     def draw(self, surface):
         """Draw the stargate activation effect."""
         if self.finished:
             return
-        
-        # Draw expanding ring (event horizon)
-        alpha = int((1.0 - (self.elapsed / self.duration)) * 200)
+
+        progress = min(1.0, self.elapsed / self.duration)
+        alpha = int((1.0 - progress) * 200)
         ring_surface = pygame.Surface((self.max_radius*2 + 20, self.max_radius*2 + 20), pygame.SRCALPHA)
-        
-        # Draw multiple rings for depth
+        cx, cy = self.max_radius + 10, self.max_radius + 10
+
+        # Draw multiple rings for depth (faction-colored)
+        r, g, b = self.color
         for i in range(3):
-            ring_color = (100 + i*30, 150 + i*30, 255, alpha // (i+1))
+            ring_color = (min(255, r + i*30), min(255, g + i*20), min(255, b), alpha // (i+1))
             radius = int(self.radius - i*5)
             if radius > 0:
-                pygame.draw.circle(ring_surface, ring_color, 
-                                 (self.max_radius + 10, self.max_radius + 10), 
-                                 radius, width=3)
-        
+                pygame.draw.circle(ring_surface, ring_color, (cx, cy), radius, width=3)
+
+        # Event horizon shimmer: 12 rotating radial lines during first 50%
+        if progress < 0.5:
+            shimmer_t = progress / 0.5
+            shimmer_alpha = int(140 * (1 - shimmer_t))
+            rotation = progress * math.pi * 3  # rotate during animation
+            for angle in self._shimmer_angles:
+                a = angle + rotation
+                length = self.radius * 0.8
+                if length > 5:
+                    ex = cx + math.cos(a) * length
+                    ey = cy + math.sin(a) * length
+                    line_color = (*self.color, shimmer_alpha)
+                    pygame.draw.line(ring_surface, line_color, (cx, cy), (int(ex), int(ey)), 1)
+
         surface.blit(ring_surface, (self.x - self.max_radius - 10, self.y - self.max_radius - 10))
-        
+
         # Draw particles
         self.particles.draw(surface)
+
+    def get_gpu_params(self):
+        """Return mild distortion for GPU rendering during first 40%."""
+        if self.finished:
+            return None
+        progress = min(1.0, self.elapsed / self.duration)
+        if progress > 0.4:
+            return None
+        strength = 0.15 * (1 - progress / 0.4)
+        return {
+            'type': 'distortion',
+            'center': (self.x, self.y),
+            'strength': strength,
+            'radius': int(self.max_radius * progress * 2),
+        }
 
 
 class LegendaryLightningEffect(Animation):
@@ -1145,6 +1274,357 @@ class ScorchEffect:
             particle_surf = pygame.Surface((size*2, size*2), pygame.SRCALPHA)
             pygame.draw.circle(particle_surf, color, (size, size), size)
             surface.blit(particle_surf, (pos[0]-size, pos[1]-size))
+
+
+class CardDisintegrationEffect:
+    """Stargate ring-transport dematerialization: card breaks into pixel chunks
+    that stream upward with blue-white energy tint."""
+
+    # Color presets (r, g, b) for the energy tint
+    COLORS = {
+        'default': (180, 220, 255),   # Blue-white (ring transport)
+        'red':     (255, 100,  80),   # Scorch / iris
+        'gold':    (255, 215, 100),   # Sacrifice
+    }
+
+    def __init__(self, card_image, x, y, duration=1000, color_variant='default'):
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+        self.x = x
+        self.y = y
+
+        tint = self.COLORS.get(color_variant, self.COLORS['default'])
+
+        # Break card image into rectangular chunks
+        self.chunks = []
+        if card_image is None:
+            self.finished = True
+            return
+
+        cw, ch = card_image.get_size()
+        chunk_w = max(4, cw // 8)   # ~6-8 px wide
+        chunk_h = max(4, ch // 8)   # ~6-8 px tall
+        cx, cy = cw / 2.0, ch / 2.0  # card center (local coords)
+        max_dist = math.hypot(cx, cy) or 1.0
+
+        count = 0
+        for gx in range(0, cw, chunk_w):
+            for gy in range(0, ch, chunk_h):
+                if count >= 400:
+                    break
+                w = min(chunk_w, cw - gx)
+                h = min(chunk_h, ch - gy)
+                surf = card_image.subsurface(pygame.Rect(gx, gy, w, h)).copy()
+
+                # Distance from center → delay: edges first, center last
+                dx = (gx + w / 2.0) - cx
+                dy = (gy + h / 2.0) - cy
+                dist_norm = math.hypot(dx, dy) / max_dist  # 0 (center) .. 1 (edge)
+                delay = (1.0 - dist_norm) * 0.45  # edges start at t=0, center at ~0.45
+
+                self.chunks.append({
+                    'surf': surf,
+                    'ox': gx, 'oy': gy,             # original offset in card
+                    'vx': random.uniform(-0.8, 0.8), # wander
+                    'vy': random.uniform(-3.0, -1.0), # upward drift
+                    'delay': delay,
+                    'alpha': 255,
+                    'scale': 1.0,
+                    'tint': tint,
+                })
+                count += 1
+
+        # Edge glow rect (original card position)
+        self.glow_w = cw
+        self.glow_h = ch
+
+    def update(self, dt):
+        if self.finished:
+            return False
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+
+        progress = self.elapsed / self.duration
+        dt_factor = dt / 16.0  # normalise to ~60 fps
+
+        for c in self.chunks:
+            local_progress = max(0.0, (progress - c['delay']) / max(0.01, 1.0 - c['delay']))
+            if local_progress <= 0:
+                continue
+            # Move
+            c['ox'] += c['vx'] * dt_factor
+            c['oy'] += c['vy'] * dt_factor
+            c['vy'] -= 0.02 * dt_factor  # slight acceleration upward
+            # Fade & shrink
+            c['alpha'] = max(0, int(255 * (1.0 - local_progress)))
+            c['scale'] = max(0.1, 1.0 - local_progress * 0.6)
+
+        return True
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.elapsed / self.duration
+
+        # Edge glow (first half only)
+        if progress < 0.5:
+            glow_alpha = int(120 * (1.0 - progress * 2))
+            glow_surf = pygame.Surface((self.glow_w + 16, self.glow_h + 16), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surf, (180, 220, 255, glow_alpha),
+                             (0, 0, self.glow_w + 16, self.glow_h + 16),
+                             width=3, border_radius=6)
+            surface.blit(glow_surf, (self.x - 8, self.y - 8))
+
+        for c in self.chunks:
+            if c['alpha'] <= 0:
+                continue
+            local_progress = max(0.0,
+                (progress - c['delay']) / max(0.01, 1.0 - c['delay']))
+            if local_progress <= 0:
+                # Still intact — draw at original position
+                surface.blit(c['surf'], (self.x + c['ox'], self.y + c['oy']))
+                continue
+
+            w0, h0 = c['surf'].get_size()
+            sw = max(1, int(w0 * c['scale']))
+            sh = max(1, int(h0 * c['scale']))
+            chunk_surf = pygame.transform.scale(c['surf'], (sw, sh))
+            # Tint towards energy color
+            tint_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            tint_a = int(min(200, local_progress * 255))
+            tint_surf.fill((*c['tint'], tint_a))
+            chunk_surf.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            chunk_surf.set_alpha(c['alpha'])
+            surface.blit(chunk_surf, (self.x + c['ox'], self.y + c['oy']))
+
+    def get_gpu_params(self):
+        """Return distortion ring params (reuses existing DistortionPass shader)."""
+        if self.finished:
+            return None
+        progress = self.elapsed / self.duration
+        if progress > 0.6:
+            return None
+        strength = max(0.0, (0.6 - progress) / 0.6) * 0.3
+        return {
+            'type': 'distortion',
+            'center': (self.x + self.glow_w / 2, self.y + self.glow_h / 2),
+            'strength': strength,
+            'radius': 0.15 + progress * 0.3,
+        }
+
+
+class CardMaterializationEffect:
+    """Reverse disintegration: scattered particles converge into card shape
+    with Stargate energy tint that fades to original colors."""
+
+    def __init__(self, card_image, x, y, duration=800):
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+        self.x = x
+        self.y = y
+
+        self.chunks = []
+        if card_image is None:
+            self.finished = True
+            return
+
+        cw, ch = card_image.get_size()
+        chunk_w = max(4, cw // 8)
+        chunk_h = max(4, ch // 8)
+        cx, cy = cw / 2.0, ch / 2.0
+        max_dist = math.hypot(cx, cy) or 1.0
+
+        count = 0
+        for gx in range(0, cw, chunk_w):
+            for gy in range(0, ch, chunk_h):
+                if count >= 400:
+                    break
+                w = min(chunk_w, cw - gx)
+                h = min(chunk_h, ch - gy)
+                surf = card_image.subsurface(pygame.Rect(gx, gy, w, h)).copy()
+
+                # Scatter start positions (above and around)
+                sx = gx + random.uniform(-cw * 0.8, cw * 0.8)
+                sy = gy + random.uniform(-ch * 1.5, -ch * 0.3)
+
+                # Edge chunks arrive first, center last (like disintegration reverse)
+                dx = (gx + w / 2.0) - cx
+                dy = (gy + h / 2.0) - cy
+                dist_norm = math.hypot(dx, dy) / max_dist
+                delay = (1.0 - dist_norm) * 0.3  # edges arrive first
+
+                self.chunks.append({
+                    'surf': surf,
+                    'tx': gx, 'ty': gy,  # target (final) position
+                    'sx': sx, 'sy': sy,  # scatter (start) position
+                    'delay': delay,
+                })
+                count += 1
+
+        self.card_w = cw
+        self.card_h = ch
+        self.card_image = card_image
+
+    def _ease_out_cubic(self, t):
+        return 1.0 - (1.0 - t) ** 3
+
+    def update(self, dt):
+        if self.finished:
+            return False
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+        return True
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.elapsed / self.duration
+
+        for c in self.chunks:
+            local_t = max(0.0, min(1.0,
+                (progress - c['delay'] * 0.5) / max(0.01, 1.0 - c['delay'] * 0.5)))
+            eased = self._ease_out_cubic(local_t)
+
+            cx = c['sx'] + (c['tx'] - c['sx']) * eased
+            cy = c['sy'] + (c['ty'] - c['sy']) * eased
+            alpha = int(255 * min(1.0, local_t * 2.0))  # fade in quickly
+
+            chunk_surf = c['surf'].copy()
+            # Energy tint that fades as chunks lock in
+            tint_amount = max(0, int(180 * (1.0 - eased)))
+            if tint_amount > 0:
+                tint_surf = pygame.Surface(chunk_surf.get_size(), pygame.SRCALPHA)
+                tint_surf.fill((180, 220, 255, tint_amount))
+                chunk_surf.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            chunk_surf.set_alpha(alpha)
+            surface.blit(chunk_surf, (self.x + cx, self.y + cy))
+
+        # Glow pulse at formation complete (last 20%)
+        if progress > 0.8:
+            pulse_t = (progress - 0.8) / 0.2
+            glow_alpha = int(100 * math.sin(pulse_t * math.pi))
+            if glow_alpha > 0:
+                glow_surf = pygame.Surface((self.card_w + 20, self.card_h + 20), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (180, 220, 255, glow_alpha),
+                                 (0, 0, self.card_w + 20, self.card_h + 20),
+                                 width=4, border_radius=8)
+                surface.blit(glow_surf, (self.x - 10, self.y - 10))
+
+    def get_gpu_params(self):
+        """Mild distortion during convergence phase."""
+        if self.finished:
+            return None
+        progress = self.elapsed / self.duration
+        if progress > 0.5:
+            return None
+        strength = max(0.0, (0.5 - progress) / 0.5) * 0.2
+        return {
+            'type': 'distortion',
+            'center': (self.x + self.card_w / 2, self.y + self.card_h / 2),
+            'strength': strength,
+            'radius': 0.2,
+        }
+
+
+class RowPowerSurgeEffect:
+    """Horizontal energy wave sweeps along a row when power changes significantly.
+    Blue-cyan for gain, red-orange for loss."""
+
+    def __init__(self, row_rect, power_delta, duration=600):
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+        self.row_rect = row_rect
+        self.power_delta = power_delta
+        self.is_gain = power_delta > 0
+
+        # Wave direction: left→right for gain, right→left for loss
+        self.start_x = row_rect.left if self.is_gain else row_rect.right
+        self.end_x = row_rect.right if self.is_gain else row_rect.left
+
+        # Colors
+        if self.is_gain:
+            self.wave_color = (100, 200, 255)  # Blue-cyan
+            self.particle_color = (150, 230, 255)
+        else:
+            self.wave_color = (255, 120, 60)   # Red-orange
+            self.particle_color = (255, 180, 100)
+
+        # Trailing particles
+        self.particles = []
+
+    def update(self, dt):
+        if self.finished:
+            return False
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+
+        progress = self.elapsed / self.duration
+        wave_x = self.start_x + (self.end_x - self.start_x) * progress
+        dt_factor = dt / 16.0
+
+        # Spawn particles at wave front
+        if random.random() < 0.6:
+            self.particles.append({
+                'x': wave_x + random.uniform(-5, 5),
+                'y': self.row_rect.centery + random.uniform(-self.row_rect.height * 0.4,
+                                                             self.row_rect.height * 0.4),
+                'vx': random.uniform(-0.5, 0.5),
+                'vy': random.uniform(-1.5, 1.5),
+                'life': 1.0,
+                'size': random.randint(2, 5),
+            })
+
+        # Update particles
+        for p in self.particles[:]:
+            p['x'] += p['vx'] * dt_factor
+            p['y'] += p['vy'] * dt_factor
+            p['life'] -= dt / (self.duration * 0.6)
+            if p['life'] <= 0:
+                self.particles.remove(p)
+
+        # Cap particles
+        if len(self.particles) > MAX_GENERAL_PARTICLES:
+            self.particles = self.particles[-MAX_GENERAL_PARTICLES:]
+
+        return True
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.elapsed / self.duration
+        wave_x = self.start_x + (self.end_x - self.start_x) * progress
+        fade = 1.0 - progress * 0.5  # gentle fade out
+
+        # Glow line at wave front
+        line_alpha = int(200 * fade)
+        glow_surf = pygame.Surface((12, self.row_rect.height + 16), pygame.SRCALPHA)
+        pygame.draw.rect(glow_surf, (*self.wave_color, line_alpha),
+                         (0, 0, 12, self.row_rect.height + 16), border_radius=4)
+        # Wider glow behind
+        wide_surf = pygame.Surface((30, self.row_rect.height + 16), pygame.SRCALPHA)
+        pygame.draw.rect(wide_surf, (*self.wave_color, line_alpha // 3),
+                         (0, 0, 30, self.row_rect.height + 16), border_radius=8)
+        surface.blit(wide_surf, (int(wave_x) - 15, self.row_rect.top - 8))
+        surface.blit(glow_surf, (int(wave_x) - 6, self.row_rect.top - 8))
+
+        # Particles
+        for p in self.particles:
+            alpha = int(p['life'] * 200 * fade)
+            if alpha <= 0:
+                continue
+            size = max(1, int(p['size'] * p['life']))
+            ps = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+            pygame.draw.circle(ps, (*self.particle_color, alpha), (size, size), size)
+            surface.blit(ps, (int(p['x']) - size, int(p['y']) - size))
 
 
 class RowWeatherEffect:
@@ -3975,30 +4455,106 @@ class ThorsHammerPurgeEffect(Animation):
 
 
 class ZPMSurgeEffect(Animation):
-    """Massive ZPM energy discharge."""
+    """Massive ZPM energy discharge with particles, lightning, and screen flash."""
     def __init__(self, x, y, duration=1500):
         super().__init__(duration=duration)
         self.x = x
         self.y = y
 
+        # Burst particles (gold/cyan/white-gold radial)
+        self.particles = []
+        particle_colors = [
+            (255, 200, 60),   # gold
+            (100, 240, 255),  # cyan
+            (255, 240, 180),  # white-gold
+        ]
+        for _ in range(min(60, MAX_GENERAL_PARTICLES)):
+            angle = random.uniform(0, math.tau)
+            speed = random.uniform(3, 10)
+            self.particles.append({
+                'x': float(x),
+                'y': float(y),
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'size': random.randint(3, 8),
+                'life': 1.0,
+                'color': random.choice(particle_colors),
+            })
+
+        # Lightning arcs (4 arcs with jagged segments)
+        self.lightning_arcs = []
+        for i in range(4):
+            arc_angle = i * 90 + random.uniform(-20, 20)
+            arc_length = random.uniform(120, 200)
+            self.lightning_arcs.append({
+                'segments': self._generate_lightning_segments(x, y, arc_angle, arc_length),
+                'life': 1.0,
+                'color': random.choice([(100, 240, 255), (200, 230, 255), (255, 220, 100)]),
+            })
+
+    def _generate_lightning_segments(self, x, y, angle, length):
+        """Generate jagged lightning bolt segments."""
+        segments = [pygame.math.Vector2(x, y)]
+        current = pygame.math.Vector2(x, y)
+        target = pygame.math.Vector2(
+            x + math.cos(math.radians(angle)) * length,
+            y + math.sin(math.radians(angle)) * length
+        )
+        num_segments = random.randint(5, 8)
+        for i in range(1, num_segments):
+            next_point = current.lerp(target, 1.0 / (num_segments - i + 1))
+            offset = random.uniform(-15, 15)
+            perp_angle = angle + 90
+            next_point.x += math.cos(math.radians(perp_angle)) * offset
+            next_point.y += math.sin(math.radians(perp_angle)) * offset
+            segments.append(next_point)
+            current = next_point
+        segments.append(target)
+        return segments
+
+    def update(self, dt):
+        """Update particles and lightning."""
+        super().update(dt)
+        progress = self.get_progress()
+        dt_factor = dt / 16.0
+
+        # Update particles
+        for p in self.particles:
+            p['x'] += p['vx'] * dt_factor
+            p['y'] += p['vy'] * dt_factor
+            p['vx'] *= 0.95
+            p['vy'] *= 0.95
+            p['life'] = max(0, 1.0 - progress * 1.3)
+
+        # Fade lightning
+        for arc in self.lightning_arcs:
+            arc['life'] = max(0, 1.0 - progress * 2.0)
+
     def draw(self, surface):
         if self.finished:
             return
         progress = self.get_progress()
-        
+
+        # Screen flash (white overlay during first 120ms, ~8% of 1500ms)
+        if progress < 0.08:
+            flash_alpha = int(120 * (1 - progress / 0.08))
+            flash_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+            flash_surf.fill((255, 255, 255, flash_alpha))
+            surface.blit(flash_surf, (0, 0))
+
         # Create a canvas large enough for the effect
         size = 800
         canvas = pygame.Surface((size, size), pygame.SRCALPHA)
         center = (size // 2, size // 2)
-        
+
         # Ease out
         ease = 1 - pow(1 - progress, 4)
-        
+
         # Central ZPM Glow (Orange/Gold)
         alpha_core = int(255 * (1 - progress))
         pygame.draw.circle(canvas, (255, 180, 50, alpha_core), center, 40)
         pygame.draw.circle(canvas, (255, 255, 200, alpha_core), center, 20)
-        
+
         # Expanding Rings (Ancient Blue/Cyan)
         for i in range(3):
             sub_prog = (progress * 1.5 - i * 0.2)
@@ -4006,7 +4562,7 @@ class ZPMSurgeEffect(Animation):
                 r = int(300 * sub_prog)
                 a = int(200 * (1 - sub_prog))
                 pygame.draw.circle(canvas, (100, 240, 255, a), center, r, width=10)
-        
+
         # Energy Spikes
         if progress < 0.8:
             for i in range(8):
@@ -4016,6 +4572,37 @@ class ZPMSurgeEffect(Animation):
                 end_x = center[0] + math.cos(rad) * length
                 end_y = center[1] + math.sin(rad) * length
                 pygame.draw.line(canvas, (255, 220, 100, int(180 * (1-progress))), center, (end_x, end_y), 4)
+
+        # Draw lightning arcs
+        for arc in self.lightning_arcs:
+            if arc['life'] > 0:
+                a = int(220 * arc['life'])
+                color = (*arc['color'], a)
+                segs = arc['segments']
+                # Offset segments to canvas-local coords
+                for j in range(len(segs) - 1):
+                    s = segs[j]
+                    e = segs[j + 1]
+                    sx = int(s.x - self.x + center[0])
+                    sy = int(s.y - self.y + center[1])
+                    ex = int(e.x - self.x + center[0])
+                    ey = int(e.y - self.y + center[1])
+                    # Glow line (wider, dimmer)
+                    pygame.draw.line(canvas, (*arc['color'][:3], a // 3), (sx, sy), (ex, ey), 5)
+                    # Core line
+                    pygame.draw.line(canvas, color, (sx, sy), (ex, ey), 2)
+
+        # Draw particles as glowing circles
+        for p in self.particles:
+            if p['life'] > 0:
+                pa = int(255 * p['life'])
+                ps = max(1, int(p['size'] * p['life']))
+                px = int(p['x'] - self.x + center[0])
+                py = int(p['y'] - self.y + center[1])
+                # Glow
+                pygame.draw.circle(canvas, (*p['color'], pa // 2), (px, py), ps + 2)
+                # Core
+                pygame.draw.circle(canvas, (*p['color'], pa), (px, py), ps)
 
         # Blit to screen centered at self.x, self.y
         surface.blit(canvas, (self.x - size // 2, self.y - size // 2))
@@ -4032,7 +4619,7 @@ class ZPMSurgeEffect(Animation):
             'type': 'zpm_surge',
             'center': (self.x, self.y),
             'intensity': intensity,
-            'surge_radius': 250 * (1 - pow(1 - progress, 4)),
+            'surge_radius': 300 * (1 - pow(1 - progress, 4)),
         }
 
 
@@ -5367,3 +5954,38 @@ class AnimationManager:
     def has_active_animations(self):
         """Check if any animations are active."""
         return len(self.animations) > 0 or len(self.effects) > 0 or len(self.score_animations) > 0
+
+    # --- Row power surge tracking ---
+    _row_power_cache = None  # {(player_id, row_name): total_power}
+
+    def snapshot_row_powers(self, game):
+        """Cache current row power totals for later comparison."""
+        cache = {}
+        for player in [game.player1, game.player2]:
+            pid = id(player)
+            for row_name, row_cards in player.board.items():
+                total = sum(getattr(c, 'displayed_power', 0) for c in row_cards)
+                cache[(pid, row_name)] = total
+        self._row_power_cache = cache
+
+    def check_power_surge(self, game, row_rects):
+        """Compare current row powers against cache; spawn surge effects for big deltas.
+
+        Args:
+            game: Game instance
+            row_rects: dict mapping (player_index, row_name) → pygame.Rect
+                       e.g. {(0, 'close'): Rect, (1, 'ranged'): Rect, ...}
+        """
+        if self._row_power_cache is None:
+            return
+        for idx, player in enumerate([game.player1, game.player2]):
+            pid = id(player)
+            for row_name, row_cards in player.board.items():
+                total = sum(getattr(c, 'displayed_power', 0) for c in row_cards)
+                prev = self._row_power_cache.get((pid, row_name), total)
+                delta = total - prev
+                if abs(delta) >= 5:
+                    rect = row_rects.get((idx, row_name))
+                    if rect:
+                        self.add_effect(RowPowerSurgeEffect(rect, delta))
+        self._row_power_cache = None

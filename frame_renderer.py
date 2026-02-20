@@ -374,6 +374,8 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                         "opponent_rounds_won": game.player2.rounds_won,
                         "lost_round_1": lost_round_1,
                         "went_first": went_first,
+                        "player_score": game.player1.score,
+                        "opponent_score": game.player2.score,
                     }
                     get_persistence().record_game_summary(summary)
                 except Exception:

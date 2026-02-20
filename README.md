@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-6.9.0-blue)
+![Version](https://img.shields.io/badge/version-7.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -119,14 +119,14 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop
 - **Card Unlock System** - Win games to unlock 20+ powerful cards
 - **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
-- **Comprehensive Stats Menu** - Win rate bars, achievements, fun facts, top 3 leaders with hover preview
+- **Tabbed Stats Menu** - 5-tab layout (Overview, Factions, Leaders, Records, Draft) with score records, win rate bars, achievements, and hover preview
 - **Persistent Saves** - All progress saved to JSON
 
 ### 💾 Persistent Progression
 - **Automatic Deck Saving** - Your deck is saved every time you finish customizing
 - **Per-Faction Customization** - Each faction remembers your leader and deck choices
 - **Win Tracking** - Track your wins, losses, and win streaks
-- **Stats Menu** - Visual win rate bars, earned achievements, fun facts, top 3 leaders, overall record, AI vs LAN breakdown, matchups, turn counts, and draft mode history
+- **Stats Menu** - Tabbed layout with independent scroll per tab, score records (highest/lowest/closest game with leader names), visual win rate bars, achievements, top leaders, matchups, and draft history
 - **Leader Unlocks** - Earn new leaders every 3 consecutive wins
 - **Cross-Session Saves** - All progress saved in `player_decks.json` and `player_unlocks.json`
 
@@ -160,7 +160,7 @@ All abilities renamed and themed around Stargate lore:
 - **Hyperspace Warp** - Radial motion blur with procedural speed lines, chromatic aberration, tunnel vignette, and center glow — active during round transitions
 - **Shockwave Impact** - Expanding ring distortion with screen flash and chromatic aberration at the wavefront — triggers on round winner and game start
 - **Asgard Beam** - Volumetric light column with scan line and shimmer
-- **ZPM Surge** - Procedural electric arcs radiating from ZPM
+- **ZPM Surge** - Procedural electric arcs, particle burst, lightning, and screen flash radiating from ZPM
 - **Graceful Fallback** - All effects auto-disable if GPU unavailable; game runs unchanged on pure Pygame
 - **Configurable** - Toggle bloom, vignette, shader quality in settings
 
@@ -182,7 +182,7 @@ All abilities renamed and themed around Stargate lore:
 - **Hyperspace Transitions** - GPU-enhanced streaking stars with radial motion blur, procedural speed lines, and chromatic aberration when entering/exiting hyperspace (rounds 2 & 3)
 - **Planet Emergence** - Beautiful planet appearance in round 3
 - **Animated Background** - Moving starfield, chevron glows, energy waves
-- **Stargate Activation** - Portal effect when playing cards
+- **Stargate Activation** - Faction-colored portal effect with event horizon shimmer when playing cards
 - **Retro Neon Leader HUD** - Universal matchup template overlays glowing faction-colored typography and scanlines across the Stargate event horizon for every confrontation.
 - **Score Animations** - Dramatic pop effects with deltas and **Combat Text labels** ("BUFFED!", "INSPIRED!", etc.)
 - **Weather Effects** - Row-specific highlights plus custom particle fields:

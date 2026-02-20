@@ -208,6 +208,15 @@ def load_cards():
     mock_font.SysFont = lambda *a, **k: None
     mock_pg.font = mock_font
     sys.modules["pygame.font"] = mock_font
+    # display_manager accesses pygame.mouse.get_pos and pygame.event.get at module level
+    mock_mouse = types.ModuleType("pygame.mouse")
+    mock_mouse.get_pos = lambda: (0, 0)
+    mock_pg.mouse = mock_mouse
+    sys.modules["pygame.mouse"] = mock_mouse
+    mock_event = types.ModuleType("pygame.event")
+    mock_event.get = lambda *a, **k: []
+    mock_pg.event = mock_event
+    sys.modules["pygame.event"] = mock_event
 
     prev = sys.modules.get("pygame")
     sys.modules["pygame"] = mock_pg

@@ -1150,7 +1150,7 @@ class Game:
         if hasattr(opponent, 'iris_defense') and opponent.iris_defense.is_active():
             # Card is blocked and destroyed
             self.current_player.hand.remove(card)
-            self.current_player.discard_pile.append(card)
+            self.discard_card(self.current_player, card, color_variant='red')
             opponent.iris_defense.deactivate()
             if opponent == self.player1:
                 self.ability_usage["iris_blocks"] = self.ability_usage.get("iris_blocks", 0) + 1
@@ -1272,7 +1272,11 @@ class Game:
                 target_player.board[row_name].insert(index, card)
             else:
                 target_player.board[row_name].append(card)
-            
+
+            # Fire materialization callback (UI spawns converging-particle effect)
+            if self._on_card_played:
+                self._on_card_played(card, row_name, target_player)
+
             # Log standard play
             self._log_card_play(player, card, row_name=row_name, note="Spy" if card_is_spy else None)
             
@@ -2411,6 +2415,24 @@ class Game:
 
         return True
     
+    def discard_card(self, player, card, animate=True, color_variant='default'):
+        """Centralized discard: moves card to discard pile and optionally fires
+        the on_discard callback so the UI can spawn a disintegration effect.
+
+        Args:
+            player: Player who owns the card
+            card: Card to discard
+            animate: If True, fire the visual callback
+            color_variant: 'default' (blue-white), 'red' (scorch), 'gold' (sacrifice)
+        """
+        player.discard_pile.append(card)
+        if animate and self._on_discard:
+            self._on_discard(card, color_variant)
+
+    # Callbacks set by main.py after game creation (avoids circular deps)
+    _on_discard = None
+    _on_card_played = None
+
     def apply_scorch(self):
         """Destroys the highest power non-Legendary Commander units (on both boards if tied).
         Returns: List of (player, row_name) tuples where cards were destroyed."""
@@ -2453,7 +2475,7 @@ class Game:
             if card in player.board[row_name]:
                 total_power_lost += card.displayed_power
                 player.board[row_name].remove(card)
-                player.discard_pile.append(card)
+                self.discard_card(player, card, color_variant='red')
                 destroyed_positions.append((player, row_name))
                 destroyed_cards.append((card.name, player.name))
 
@@ -2516,7 +2538,7 @@ class Game:
         for card, row_name in units_to_destroy:
             if card in target_player.board[row_name]:
                 target_player.board[row_name].remove(card)
-                target_player.discard_pile.append(card)
+                self.discard_card(target_player, card, color_variant='red')
                 destroyed_rows.append(row_name)
                 destroyed_cards.append(card)
 
@@ -2570,7 +2592,7 @@ class Game:
         victim, victim_row = self.rng.choice(lowest)
         if victim in target_player.board[victim_row]:
             target_player.board[victim_row].remove(victim)
-            target_player.discard_pile.append(victim)
+            self.discard_card(target_player, victim)
 
             # Log destroyed card to history
             target_label = "player" if target_player == self.player1 else "opponent"
@@ -3093,4 +3115,4 @@ class Game:
                         card.clone_turns_remaining -= 1
                         if card.clone_turns_remaining <= 0:
                             row_cards.remove(card)
-                            player.discard_pile.append(card)
+                            self.discard_card(player, card, color_variant='gold')

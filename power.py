@@ -67,7 +67,7 @@ class TauriFactionPower(FactionPower):
             if non_hero_cards:
                 strongest = max(non_hero_cards, key=lambda c: c.displayed_power)
                 opponent.board[row_name].remove(strongest)
-                opponent.discard_pile.append(strongest)
+                game.discard_card(opponent, strongest, color_variant='red')
                 destroyed_cards.append(strongest)
 
         # Log each destroyed card to history

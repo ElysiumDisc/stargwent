@@ -82,6 +82,8 @@ from animations import (
     CardRevealAnimation,
     AbilityBurstEffect,
     RowScoreAnimation,
+    CardDisintegrationEffect,
+    CardMaterializationEffect,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -884,6 +886,39 @@ def main(lan_game_data=None):
         fullscreen=display_manager.FULLSCREEN,
     )
 
+    # Wire discard → disintegration effect callback
+    def _discard_callback(card, color_variant='default'):
+        """Spawn CardDisintegrationEffect at card's last rendered position."""
+        card_img = getattr(card, 'image', None)
+        card_rect = getattr(card, 'rect', None)
+        if card_img and card_rect:
+            anim_manager.add_effect(
+                CardDisintegrationEffect(card_img, card_rect.x, card_rect.y,
+                                         color_variant=color_variant)
+            )
+    game._on_discard = _discard_callback
+
+    # Wire card-play → materialization effect callback
+    def _card_played_callback(card, row_name, target_player):
+        """Spawn CardMaterializationEffect at the row where card was placed."""
+        card_img = getattr(card, 'image', None)
+        if not card_img:
+            return
+        # Determine row rect based on which player's board it landed on
+        if target_player == game.player1:
+            row_rect = cfg.PLAYER_ROW_RECTS.get(row_name)
+        else:
+            row_rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
+        if row_rect:
+            # Position at right edge of row (where new card appears)
+            card_w, card_h = card_img.get_size()
+            x = row_rect.right - card_w - 5
+            y = row_rect.centery - card_h // 2
+            anim_manager.add_effect(
+                CardMaterializationEffect(card_img, x, y)
+            )
+    game._on_card_played = _card_played_callback
+
     while state.running:
         # Check for game restart or main menu request
         if getattr(game, 'restart_requested', False):
@@ -1102,13 +1137,13 @@ def main(lan_game_data=None):
                     if weather_target in ("player1", "both"):
                         rect = cfg.PLAYER_ROW_RECTS.get(row_name)
                         if rect:
-                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
+                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player2_faction))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             state.anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
                     if weather_target in ("player2", "both"):
                         rect = cfg.OPPONENT_ROW_RECTS.get(row_name)
                         if rect:
-                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE))
+                            state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player2_faction))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             state.anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
     
@@ -1326,7 +1361,7 @@ def main(lan_game_data=None):
                             if "wormhole stabilization" in ability_lower:
                                 state.anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
                             else:
-                                state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP))
+                                state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP, faction=game.player2_faction))
                                 if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
                                     for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                         row_rect = rects.get(state.ai_row_to_play)
@@ -1362,7 +1397,7 @@ def main(lan_game_data=None):
                                     break
 
                             if not ability_triggered:
-                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP)
+                                stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP, faction=game.player2_faction)
                                 state.anim_manager.add_effect(stargate_effect)
 
                             if state.ai_card_to_play.row == "special":
@@ -1479,7 +1514,7 @@ def main(lan_game_data=None):
                     if "wormhole stabilization" in ability_lower:
                         state.anim_manager.add_effect(ClearWeatherBlackHole(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
                     else:
-                        state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP))
+                        state.anim_manager.add_effect(StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP, faction=game.player2_faction))
                         if "asteroid storm" in ability_lower or "micrometeorite" in ability_lower:
                             for rects in (cfg.PLAYER_ROW_RECTS, cfg.OPPONENT_ROW_RECTS):
                                 row_rect = rects.get(row_to_play)
@@ -1517,9 +1552,9 @@ def main(lan_game_data=None):
     
                     # Default stargate effect if no special ability
                     if not ability_triggered:
-                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP)
+                        stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP, faction=game.player2_faction)
                         state.anim_manager.add_effect(stargate_effect)
-    
+
                 # Recalculate scores
                 game.player1.calculate_score()
                 game.player2.calculate_score()
@@ -1530,20 +1565,35 @@ def main(lan_game_data=None):
         # Check for score changes and trigger animations
         prev_p1_before = state.prev_p1_score
         prev_p2_before = state.prev_p2_score
-    
+
+        if game.player1.score != state.prev_p1_score or game.player2.score != state.prev_p2_score:
+            # Check for row power surges (threshold >= 5)
+            _surge_rects = {}
+            for rn in ('close', 'ranged', 'siege'):
+                pr = cfg.PLAYER_ROW_RECTS.get(rn)
+                if pr:
+                    _surge_rects[(0, rn)] = pr
+                opr = cfg.OPPONENT_ROW_RECTS.get(rn)
+                if opr:
+                    _surge_rects[(1, rn)] = opr
+            state.anim_manager.check_power_surge(game, _surge_rects)
+
         if game.player1.score != state.prev_p1_score:
             score_x = SCREEN_WIDTH - int(SCREEN_WIDTH * 0.052)
             p1_lead_gain = (prev_p1_before <= prev_p2_before) and (game.player1.score > game.player2.score)
-            state.anim_manager.add_score_animation('p1', state.prev_p1_score, game.player1.score, 
+            state.anim_manager.add_score_animation('p1', state.prev_p1_score, game.player1.score,
                                             score_x, SCREEN_HEIGHT // 2 + 50, lead_burst=p1_lead_gain)
             state.prev_p1_score = game.player1.score
-        
+
         if game.player2.score != state.prev_p2_score:
             score_x = SCREEN_WIDTH - int(SCREEN_WIDTH * 0.052)
             p2_lead_gain = (prev_p2_before <= prev_p1_before) and (game.player2.score > game.player1.score)
             state.anim_manager.add_score_animation('p2', state.prev_p2_score, game.player2.score,
                                             score_x, SCREEN_HEIGHT // 2 - 50, lead_burst=p2_lead_gain)
             state.prev_p2_score = game.player2.score
+
+        # Snapshot row powers for next frame's surge detection
+        state.anim_manager.snapshot_row_powers(game)
     
         state.drag_hover_highlight = None
         drag_row_highlights = []
