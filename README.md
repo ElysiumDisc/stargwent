@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-7.0.0-blue)
+![Version](https://img.shields.io/badge/version-7.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -80,17 +80,20 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Synergy Scoring** - Cards highlight when they combo with your current deck
 - **Save & Continue** - Progress persists between sessions
 
-### 🚀 Space Shooter Easter Egg (Vampire Survivors-Style)
+### 🚀 Space Shooter Easter Egg (Vampire Survivors-Style Infinite Survival)
 - **Unlocked at 8 Draft Wins** - Beat the gauntlet to unlock a full arcade mini-game
-- **5 Playable Factions** - Each with unique ship, weapon type, and passive ability
-- **Smooth Ship Rotation** - Ships rotate smoothly toward movement direction (12 deg/frame interpolation)
-- **Wormhole Escape** - Press Q to vanish through a wormhole and reappear at a random location
-- **20-Wave Campaign** - Boss fights with escorts, XP/level-up upgrades, power-ups, and asteroid hazards
-- **21 Upgrades (3 Rarities)** - Common, Rare, and Epic upgrades including Chain Lightning, Scatter Shot, Gravity Well, Shield Bash, Critical Strike, Evasion Matrix, Berserker Protocol, and more
-- **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks (perpendicular at 2+, rear at 3+, diagonals at 4+)
-- **Fast-Paced Combat** - High base fire rate, frequent power-up drops, and rapid level-ups for non-stop action
-- **5 Enemy Types** - Regular, Fast, Tank, Elite, and Kamikaze with formation spawning (V, Line, Pincer)
-- **Visual Juice** - Parallax starfield, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications
+- **Infinite Survival Mode** - No wave limit! Camera follows your ship through an endless procedurally-spawning world with time-based difficulty scaling (10 tiers from "Calm" to "Beyond")
+- **5 Playable Factions** - Each with unique ship, weapon type, passive ability, and faction-specific secondary fire (E key)
+- **Secondary Fire per Faction** - Tau'ri Railgun (piercing), Goa'uld Staff Barrage (fan spread), Asgard Ion Pulse (AoE knockback), Jaffa War Cry (damage buff), Lucian Scatter Mines (proximity mines)
+- **Faction-Styled Thrusters** - Unique engine particle effects per faction (Tau'ri blue-white, Goa'uld fiery gold, Asgard cyan diamonds, Jaffa hot orange, Lucian purple/pink) with SHIFT boost
+- **Buttery Smooth Movement** - Velocity-based acceleration with friction, diagonal normalization, and thruster speed boost
+- **Wormhole Escape** - Press Q to vanish through a wormhole with siege.ogg sound effect
+- **26 Upgrades (4 Rarities)** - Common, Rare, Epic, and Legendary upgrades including 5 Evolution combos (Thor's Hammer, Bullet Hell, Black Hole, Ancient Outpost, Cluster Bomb)
+- **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
+- **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
+- **5 Enemy Types** - Regular, Fast, Tank, Elite, and Kamikaze with continuous spawning
+- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, and thruster boost activation sound
+- **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 
 ### 🌐 LAN Multiplayer

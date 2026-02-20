@@ -5,16 +5,18 @@ import math
 import random
 import os
 
-from .projectiles import ContinuousBeam, Laser, Missile, EnergyBall, JaffaStaffBlast
+from .projectiles import (ContinuousBeam, Laser, Missile, EnergyBall,
+                          JaffaStaffBlast, RailgunShot, ProximityMine)
 
 
 class Ship:
-    """A spaceship (player or AI)."""
+    """A spaceship (player or AI). All positions are in world-space."""
     def __init__(self, x, y, faction, is_player=True, screen_width=1920, screen_height=1080):
         self.x = x
         self.y = y
         self.faction = faction
         self.is_player = is_player
+        # Store screen dims for spawner compatibility (not used for clamping)
         self.screen_width = screen_width
         self.screen_height = screen_height
 
@@ -63,6 +65,27 @@ class Ship:
         elif faction_lower in ["lucian alliance", "lucian_alliance"]:
             self.passive = "splash_damage"  # Energy balls deal 40% AoE
 
+        # Secondary fire system — faction-specific special ability
+        self.secondary_cooldown = 0
+        self.secondary_fire_rate = 300  # Default 5s cooldown
+        self.secondary_type = None
+        self.secondary_buff_timer = 0  # For buff-type secondaries
+        if faction_lower in ["tau'ri", "tauri"]:
+            self.secondary_type = "railgun"
+            self.secondary_fire_rate = 180  # 3s cooldown
+        elif faction_lower in ["goa'uld", "goauld"]:
+            self.secondary_type = "staff_barrage"
+            self.secondary_fire_rate = 240  # 4s cooldown
+        elif faction_lower in ["asgard"]:
+            self.secondary_type = "ion_pulse"
+            self.secondary_fire_rate = 300  # 5s cooldown
+        elif faction_lower in ["jaffa rebellion", "jaffa_rebellion"]:
+            self.secondary_type = "war_cry"
+            self.secondary_fire_rate = 360  # 6s cooldown (strong buff)
+        elif faction_lower in ["lucian alliance", "lucian_alliance"]:
+            self.secondary_type = "scatter_mines"
+            self.secondary_fire_rate = 210  # 3.5s cooldown
+
         # For beam weapon
         self.beam_active = False
         self.current_beam = None
@@ -100,7 +123,7 @@ class Ship:
         }
         self.laser_color = self.faction_colors.get(faction.lower(), (255, 255, 255))
 
-        # Movement bounds
+        # Movement bounds (unused for player in infinite mode, kept for AI margin)
         self.margin = 60
 
         # AI behavior
@@ -114,6 +137,27 @@ class Ship:
         self.is_boss = False
         self.ai_fire_timer = 0
         self.hit_flash = 0
+
+        # Smooth velocity-based movement (player only)
+        self.vx = 0.0
+        self.vy = 0.0
+        self.acceleration = 1.2  # How fast we reach top speed
+        self.friction = 0.88  # Deceleration when no input (0.0 = instant stop, 1.0 = no friction)
+
+        # Thruster speed boost (hold SHIFT)
+        self.thruster_boost_active = False
+        self.thruster_boost_mult = 1.6  # 60% speed boost
+        self.thruster_boost_energy = 100.0  # Boost fuel
+        self.thruster_boost_max = 100.0
+        self.thruster_boost_drain = 1.2  # Per frame drain
+        self.thruster_boost_regen = 0.4  # Per frame regen when not boosting
+
+        # Faction-specific thruster config
+        self.thruster_config = self._get_thruster_config(faction_lower)
+
+        # Engine trail particles
+        self.engine_particles = []
+        self._engine_emit_timer = 0
 
     def load_image(self):
         """Load faction ship image."""
@@ -170,11 +214,15 @@ class Ship:
             self.image = None
 
     def update(self, keys=None):
-        """Update ship position and cooldowns."""
+        """Update ship position and cooldowns. No screen clamping — infinite world."""
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
         if self.beam_cooldown > 0:
             self.beam_cooldown -= 1
+        if self.secondary_cooldown > 0:
+            self.secondary_cooldown -= 1
+        if self.secondary_buff_timer > 0:
+            self.secondary_buff_timer -= 1
 
         # Goa'uld passive: Shield Regeneration
         if self.passive == "shield_regen":
@@ -183,28 +231,59 @@ class Ship:
                 self.shields = min(self.max_shields, self.shields + 0.3)
 
         if self.is_player and keys:
-            if keys[pygame.K_w] or keys[pygame.K_UP]:
-                self.y -= self.speed
-            if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-                self.y += self.speed
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                self.x -= self.speed
-            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                self.x += self.speed
+            # Thruster boost (SHIFT key)
+            want_boost = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+            if want_boost and self.thruster_boost_energy > 0:
+                self.thruster_boost_active = True
+                self.thruster_boost_energy = max(0, self.thruster_boost_energy - self.thruster_boost_drain)
+            else:
+                self.thruster_boost_active = False
+                self.thruster_boost_energy = min(self.thruster_boost_max,
+                                                  self.thruster_boost_energy + self.thruster_boost_regen)
 
-        # Player wraps around screen edges; AI gets clamped normally
-        if self.is_player:
-            if self.x < -self.width:
-                self.x = self.screen_width
-            elif self.x > self.screen_width:
-                self.x = -self.width
-            if self.y < -self.height // 2:
-                self.y = self.screen_height + self.height // 2
-            elif self.y > self.screen_height + self.height // 2:
-                self.y = -self.height // 2
-        else:
-            self.x = max(self.margin, min(self.screen_width - self.width - self.margin, self.x))
-            self.y = max(self.margin, min(self.screen_height - self.margin, self.y))
+            boost = self.thruster_boost_mult if self.thruster_boost_active else 1.0
+
+            # Acceleration-based input — buttery smooth movement
+            ax, ay = 0.0, 0.0
+            if keys[pygame.K_w] or keys[pygame.K_UP]:
+                ay -= self.acceleration
+            if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+                ay += self.acceleration
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                ax -= self.acceleration
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                ax += self.acceleration
+
+            # Normalize diagonal input so diagonal speed matches cardinal
+            if ax != 0 and ay != 0:
+                inv_sqrt2 = 0.7071
+                ax *= inv_sqrt2
+                ay *= inv_sqrt2
+
+            self.vx += ax
+            self.vy += ay
+
+            # Apply friction (deceleration when no input on that axis)
+            if ax == 0:
+                self.vx *= self.friction
+            if ay == 0:
+                self.vy *= self.friction
+
+            # Clamp velocity to max speed (boosted if shift held)
+            max_speed = self.speed * boost
+            vel = math.hypot(self.vx, self.vy)
+            if vel > max_speed:
+                self.vx = self.vx / vel * max_speed
+                self.vy = self.vy / vel * max_speed
+
+            # Kill tiny velocities to avoid drifting forever
+            if abs(self.vx) < 0.1:
+                self.vx = 0
+            if abs(self.vy) < 0.1:
+                self.vy = 0
+
+            self.x += self.vx
+            self.y += self.vy
 
         # Update beam if active
         if self.current_beam:
@@ -215,6 +294,118 @@ class Ship:
 
         # Smooth visual rotation
         self._update_rotation()
+
+        # Engine trail particles
+        self._update_engine_trail()
+
+    def _get_thruster_config(self, faction_lower):
+        """Return faction-specific thruster particle style."""
+        configs = {
+            # Tau'ri: Clean blue-white chemical thrusters (F-302/Daedalus style)
+            "tau'ri": {
+                "colors": [(100, 180, 255), (150, 220, 255), (255, 255, 255)],
+                "emit_rate": 1, "spread": 3.0, "speed": (2.0, 4.0),
+                "size": (2, 5), "life_decay": 0.07, "shrink": 0.95,
+                "particle_count": 2, "shape": "circle",
+            },
+            "tauri": None,  # Filled below
+            # Goa'uld: Fiery gold/orange plasma (Ha'tak engines)
+            "goa'uld": {
+                "colors": [(255, 200, 50), (255, 150, 0), (255, 100, 0)],
+                "emit_rate": 1, "spread": 5.0, "speed": (1.5, 3.5),
+                "size": (3, 7), "life_decay": 0.05, "shrink": 0.94,
+                "particle_count": 3, "shape": "circle",
+            },
+            "goauld": None,
+            # Asgard: Cool cyan energy field (sleek, minimal)
+            "asgard": {
+                "colors": [(0, 255, 255), (100, 255, 255), (200, 255, 255)],
+                "emit_rate": 2, "spread": 2.0, "speed": (2.5, 4.5),
+                "size": (2, 4), "life_decay": 0.08, "shrink": 0.97,
+                "particle_count": 1, "shape": "diamond",
+            },
+            # Jaffa: Hot orange/red staff weapon-style exhaust
+            "jaffa rebellion": {
+                "colors": [(255, 120, 30), (255, 80, 20), (200, 50, 10)],
+                "emit_rate": 1, "spread": 4.0, "speed": (1.8, 3.5),
+                "size": (3, 6), "life_decay": 0.06, "shrink": 0.95,
+                "particle_count": 2, "shape": "circle",
+            },
+            "jaffa_rebellion": None,
+            # Lucian Alliance: Purple/pink smuggler engines (flashy, unstable)
+            "lucian alliance": {
+                "colors": [(255, 100, 200), (200, 80, 255), (150, 50, 200)],
+                "emit_rate": 1, "spread": 6.0, "speed": (1.5, 3.0),
+                "size": (2, 6), "life_decay": 0.055, "shrink": 0.93,
+                "particle_count": 3, "shape": "circle",
+            },
+            "lucian_alliance": None,
+        }
+        # Alias fallbacks
+        aliases = {"tauri": "tau'ri", "goauld": "goa'uld",
+                   "jaffa_rebellion": "jaffa rebellion",
+                   "lucian_alliance": "lucian alliance"}
+        cfg = configs.get(faction_lower)
+        if cfg is None and faction_lower in aliases:
+            cfg = configs.get(aliases[faction_lower])
+        if cfg is None:
+            # Fallback: white generic
+            cfg = {
+                "colors": [(200, 200, 200), (255, 255, 255), (150, 150, 150)],
+                "emit_rate": 1, "spread": 4.0, "speed": (2.0, 3.5),
+                "size": (2, 5), "life_decay": 0.06, "shrink": 0.95,
+                "particle_count": 2, "shape": "circle",
+            }
+        return cfg
+
+    def _update_engine_trail(self):
+        """Emit and update faction-styled engine exhaust particles."""
+        cfg = self.thruster_config
+        self._engine_emit_timer += 1
+        boosting = self.thruster_boost_active
+
+        emit_rate = max(1, cfg["emit_rate"] - (1 if boosting else 0))
+        if self._engine_emit_timer >= emit_rate:
+            self._engine_emit_timer = 0
+            fdx, fdy = self.facing
+            # Emit from behind the ship
+            cx = self.x + self.width // 2 - fdx * (self.width // 2 + 5)
+            cy = self.y - fdy * (self.height // 2 + 5)
+
+            count = cfg["particle_count"] + (2 if boosting else 0)
+            for _ in range(count):
+                color = random.choice(cfg["colors"])
+                speed_min, speed_max = cfg["speed"]
+                spd = random.uniform(speed_min, speed_max)
+                if boosting:
+                    spd *= 1.5
+                self.engine_particles.append({
+                    'x': cx + random.uniform(-cfg["spread"], cfg["spread"]),
+                    'y': cy + random.uniform(-cfg["spread"], cfg["spread"]),
+                    'vx': -fdx * spd + random.uniform(-0.5, 0.5),
+                    'vy': -fdy * spd + random.uniform(-0.5, 0.5),
+                    'life': 1.0,
+                    'size': random.uniform(*cfg["size"]) * (1.3 if boosting else 1.0),
+                    'color': color,
+                    'shape': cfg["shape"],
+                })
+
+        # Update particles
+        to_remove = []
+        for i, p in enumerate(self.engine_particles):
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= cfg["life_decay"]
+            p['size'] *= cfg["shrink"]
+            if p['life'] <= 0:
+                to_remove.append(i)
+        for i in reversed(to_remove):
+            self.engine_particles.pop(i)
+
+        # Budget cap (higher when boosting)
+        max_particles = 80 if boosting else 50
+        if len(self.engine_particles) > max_particles:
+            self.engine_particles = self.engine_particles[-max_particles:]
 
     def set_facing(self, direction):
         """Set the ship facing direction and start smooth rotation."""
@@ -290,15 +481,13 @@ class Ship:
                 self.set_facing((1, 0))
             elif dx < 0:
                 self.set_facing((-1, 0))
-            # Keep in bounds
-            self.x = max(-self.width, min(self.screen_width + self.width, self.x))
-            self.y = max(-self.height, min(self.screen_height + self.height, self.y))
             if self.current_beam:
                 self.current_beam.update()
                 self.beam_duration_timer += 1
                 if self.beam_duration_timer >= 90:
                     self.stop_beam()
             self._update_rotation()
+            self._update_engine_trail()
             return
 
         # --- Engage-at-range + strafe behaviour ---
@@ -377,9 +566,7 @@ class Ship:
         elif dx < 0:
             self.set_facing((-1, 0))
 
-        # --- Keep in bounds ---
-        self.x = max(-self.width, min(self.screen_width + self.width, self.x))
-        self.y = max(-self.height, min(self.screen_height + self.height, self.y))
+        # No screen clamping for AI — despawn handled by game.py
 
         # Update beam if active
         if self.current_beam:
@@ -390,6 +577,8 @@ class Ship:
 
         # Smooth visual rotation
         self._update_rotation()
+        # Engine trail
+        self._update_engine_trail()
 
     def get_fury_multiplier(self):
         """Get Jaffa Warrior's Fury damage multiplier."""
@@ -446,6 +635,59 @@ class Ship:
             return proj
         return None
 
+    def secondary_fire(self):
+        """Fire secondary weapon based on faction. Returns list of projectiles/effects."""
+        if self.secondary_cooldown > 0 or not self.secondary_type:
+            return []
+        self.secondary_cooldown = self.secondary_fire_rate
+
+        dx, dy = self.facing
+        cx = self.x + self.width // 2
+        cy = self.y
+        results = []
+
+        if self.secondary_type == "railgun":
+            # Tau'ri Railgun: single piercing high-damage shot
+            proj = RailgunShot(cx + dx * 40, cy + dy * 40, self.facing, self.laser_color)
+            proj.is_player_proj = self.is_player
+            results.append(("projectile", proj))
+
+        elif self.secondary_type == "staff_barrage":
+            # Goa'uld Staff Barrage: 3-shot fan spread
+            base_angle = math.atan2(dy, dx)
+            for spread in [-0.25, 0, 0.25]:  # ~14 degree spread
+                angle = base_angle + spread
+                sdx = math.cos(angle)
+                sdy = math.sin(angle)
+                # Normalize to unit-ish direction
+                proj = Laser(cx + dx * 30, cy + dy * 30, (sdx, sdy),
+                           self.laser_color, speed=20)
+                proj.damage = 18
+                proj.is_player_proj = self.is_player
+                results.append(("projectile", proj))
+
+        elif self.secondary_type == "ion_pulse":
+            # Asgard Ion Pulse: AoE burst around ship
+            results.append(("ion_pulse", {"x": cx, "y": cy, "damage": 35, "radius": 200}))
+
+        elif self.secondary_type == "war_cry":
+            # Jaffa War Cry: 4-second attack speed + damage buff
+            self.secondary_buff_timer = 240  # 4 seconds
+            results.append(("war_cry", {"duration": 240}))
+
+        elif self.secondary_type == "scatter_mines":
+            # Lucian Alliance Scatter Mines: drop 4 mines behind ship
+            for i in range(4):
+                offset_angle = random.uniform(0, math.pi * 2)
+                dist = random.uniform(30, 80)
+                mine_x = cx - dx * 60 + math.cos(offset_angle) * dist
+                mine_y = cy - dy * 60 + math.sin(offset_angle) * dist
+                mine = ProximityMine(mine_x, mine_y, self.laser_color)
+                mine.is_player_proj = self.is_player
+                results.append(("mine", mine))
+
+        return results
+
     def stop_beam(self):
         """Stop the continuous beam weapon and start cooldown."""
         if self.current_beam:
@@ -475,14 +717,48 @@ class Ship:
 
         return self.health <= 0
 
-    def draw(self, surface, time_tick=0):
-        """Draw the ship with shield effects and health/shield bars."""
+    def draw(self, surface, time_tick=0, camera=None):
+        """Draw the ship with shield effects and health/shield bars.
+
+        If camera is provided, converts world-space to screen-space.
+        """
+        if camera:
+            draw_x, draw_y = camera.world_to_screen(self.x, self.y)
+        else:
+            draw_x, draw_y = self.x, self.y
+
         if self.shield_hit_timer > 0:
             self.shield_hit_timer -= 1
 
         shield_pct = self.shields / max(self.max_shields, 1)
-        bubble_center = (int(self.x + self.width // 2), int(self.y))
+        bubble_center = (int(draw_x + self.width // 2), int(draw_y))
         base_radius = int(self.width * 0.55)
+
+        # --- Draw engine trail particles (faction-styled) ---
+        for p in self.engine_particles:
+            if camera:
+                px, py = camera.world_to_screen(p['x'], p['y'])
+            else:
+                px, py = p['x'], p['y']
+            alpha = max(0, int(p['life'] * 200))
+            size = max(1, int(p['size']))
+            base_color = p.get('color', self.laser_color)
+            # Brighten toward white as life is fresh
+            r = min(255, base_color[0] + int(100 * p['life']))
+            g = min(255, base_color[1] + int(80 * p['life']))
+            b = min(255, base_color[2] + int(50 * p['life']))
+            shape = p.get('shape', 'circle')
+            p_surf = pygame.Surface((size * 2 + 4, size * 2 + 4), pygame.SRCALPHA)
+            c = size + 2
+            if shape == 'diamond':
+                points = [(c, c - size), (c + size, c), (c, c + size), (c - size, c)]
+                pygame.draw.polygon(p_surf, (r, g, b, alpha), points)
+            else:
+                # Outer glow
+                if size > 2:
+                    pygame.draw.circle(p_surf, (r, g, b, alpha // 3), (c, c), size + 1)
+                pygame.draw.circle(p_surf, (r, g, b, alpha), (c, c), size)
+            surface.blit(p_surf, (int(px) - c, int(py) - c))
 
         # --- Always-visible subtle shield aura when shields > 0 ---
         if self.shields > 0:
@@ -534,11 +810,11 @@ class Ship:
 
         # Draw ship
         if self.image:
-            surface.blit(self.image, (int(self.x), int(self.y - self.height // 2)))
+            surface.blit(self.image, (int(draw_x), int(draw_y - self.height // 2)))
         else:
             fdx, fdy = self.facing
-            cx = self.x + self.width // 2
-            cy = self.y
+            cx = draw_x + self.width // 2
+            cy = draw_y
             hw = self.width // 2
             hh = self.height // 2
             if fdx == 1:
@@ -555,8 +831,8 @@ class Ship:
         # Health bar
         bar_width = self.width
         bar_height = 6
-        bar_x = self.x
-        health_bar_y = self.y - self.height // 2 - 18
+        bar_x = draw_x
+        health_bar_y = draw_y - self.height // 2 - 18
 
         pygame.draw.rect(surface, (40, 40, 40), (bar_x, health_bar_y, bar_width, bar_height))
         health_pct = self.health / max(self.max_health, 1)

@@ -1,25 +1,33 @@
-"""UI drawing for the space shooter."""
+"""UI drawing for the space shooter — infinite survival mode."""
 
 import pygame
 import math
 
 from .entities import PowerUp
-from .upgrades import UPGRADES, RARITY_COLORS
+from .upgrades import UPGRADES, EVOLUTIONS, RARITY_COLORS
 
 
 def draw_ui(game, surface):
-    """Draw game UI overlay."""
+    """Draw game UI overlay (all screen-space, no camera)."""
     # Title
     title = game.title_font.render("STARGATE SPACE BATTLE", True, (255, 215, 0))
     surface.blit(title, (game.screen_width // 2 - title.get_width() // 2, 20))
 
-    # Wave info
-    wave_text = game.ui_font.render(f"Wave {game.current_wave}/20", True, (255, 200, 100))
-    surface.blit(wave_text, (game.screen_width // 2 - wave_text.get_width() // 2, 80))
+    # Survival timer (centered, large)
+    mins = int(game.survival_seconds) // 60
+    secs = int(game.survival_seconds) % 60
+    timer_text = game.ui_font.render(f"{mins:02d}:{secs:02d}", True, (255, 200, 100))
+    surface.blit(timer_text, (game.screen_width // 2 - timer_text.get_width() // 2, 80))
 
-    # Enemies remaining
+    # Difficulty tier label
+    tier_label = game.spawner.get_difficulty_label()
+    tier_color = _get_tier_color(tier_label)
+    tier_text = game.small_font.render(tier_label, True, tier_color)
+    surface.blit(tier_text, (game.screen_width // 2 - tier_text.get_width() // 2, 115))
+
+    # Enemies alive count
     enemies_text = game.small_font.render(f"Enemies: {len(game.ai_ships)}", True, (255, 100, 100))
-    surface.blit(enemies_text, (game.screen_width // 2 - enemies_text.get_width() // 2, 115))
+    surface.blit(enemies_text, (game.screen_width // 2 - enemies_text.get_width() // 2, 140))
 
     # Score display (top-left)
     score_text = game.ui_font.render(f"SCORE: {game.score:,}", True, (255, 215, 0))
@@ -35,8 +43,6 @@ def draw_ui(game, surface):
 
     # Kill streak display
     if game.kill_streak >= 3:
-        streak_text = game.ui_font.render(f"STREAK x{game.kill_streak}!", True, (255, 100, 50))
-        # Pulsing effect
         pulse = 1.0 + math.sin(pygame.time.get_ticks() * 0.01) * 0.15
         streak_size = int(32 * pulse)
         streak_font = pygame.font.SysFont("Arial", streak_size, bold=True)
@@ -86,6 +92,10 @@ def draw_ui(game, surface):
         icon_size = 28
         icon_spacing = 34
         active_upgrades = [(name, count) for name, count in game.upgrades.items() if count > 0]
+        # Also show evolutions
+        for evo_name in game.evolutions:
+            if evo_name in EVOLUTIONS:
+                active_upgrades.append((evo_name, "E"))
         total_icons_w = len(active_upgrades) * icon_spacing
         icon_x = (game.screen_width - total_icons_w) // 2
         icon_y = game.screen_height - 65
@@ -99,13 +109,22 @@ def draw_ui(game, surface):
 
         mouse_pos = pygame.mouse.get_pos()
         for name, count in active_upgrades:
-            info = UPGRADES.get(name, {})
+            is_evolution = name in EVOLUTIONS
+            if is_evolution:
+                evo_info = EVOLUTIONS[name]
+                info = {"icon": "E", "color": (255, 215, 0), "name": evo_info["name"]}
+            else:
+                info = UPGRADES.get(name, {})
             color = info.get("color", (200, 200, 200))
 
             # Draw colored square
             sq_rect = pygame.Rect(icon_x, icon_y, icon_size, icon_size)
             pygame.draw.rect(surface, color, sq_rect, border_radius=4)
-            pygame.draw.rect(surface, (255, 255, 255), sq_rect, 1, border_radius=4)
+            if is_evolution:
+                # Gold border for evolutions
+                pygame.draw.rect(surface, (255, 215, 0), sq_rect, 2, border_radius=4)
+            else:
+                pygame.draw.rect(surface, (255, 255, 255), sq_rect, 1, border_radius=4)
 
             # Icon text
             icon_text = info.get("icon", "?")
@@ -114,12 +133,15 @@ def draw_ui(game, surface):
                                      icon_y + (icon_size - icon_surf.get_height()) // 2))
 
             # Stack count
-            count_surf = game.count_font.render(str(count), True, (255, 255, 255))
-            surface.blit(count_surf, (icon_x + icon_size - 6, icon_y + icon_size - 8))
+            if not is_evolution:
+                count_surf = game.count_font.render(str(count), True, (255, 255, 255))
+                surface.blit(count_surf, (icon_x + icon_size - 6, icon_y + icon_size - 8))
 
             # Hover tooltip
             if sq_rect.collidepoint(mouse_pos):
-                tooltip_text = f"{info.get('name', name)} x{count}"
+                tooltip_text = info.get('name', name)
+                if not is_evolution:
+                    tooltip_text += f" x{count}"
                 tooltip_surf = game.small_font.render(tooltip_text, True, (255, 255, 255))
                 tt_bg = pygame.Surface((tooltip_surf.get_width() + 10, tooltip_surf.get_height() + 6), pygame.SRCALPHA)
                 tt_bg.fill((0, 0, 0, 180))
@@ -131,6 +153,21 @@ def draw_ui(game, surface):
     # Player faction label
     player_label = game.ui_font.render(game.player_faction.upper(), True, game.player_ship.laser_color)
     surface.blit(player_label, (50, game.screen_height - 90))
+
+    # Thruster boost energy bar
+    boost_x = 50
+    boost_y = game.screen_height - 62
+    boost_bar_w = 140
+    boost_bar_h = 6
+    ship = game.player_ship
+    boost_pct = ship.thruster_boost_energy / ship.thruster_boost_max
+    boost_label_color = (255, 200, 100) if ship.thruster_boost_active else (120, 120, 150)
+    boost_label = game.tiny_font.render("[SHIFT] BOOST", True, boost_label_color)
+    surface.blit(boost_label, (boost_x, boost_y - 14))
+    pygame.draw.rect(surface, (30, 30, 50), (boost_x, boost_y, boost_bar_w, boost_bar_h))
+    bar_color = (255, 200, 50) if ship.thruster_boost_active else (100, 180, 255)
+    pygame.draw.rect(surface, bar_color, (boost_x, boost_y, int(boost_bar_w * boost_pct), boost_bar_h))
+    pygame.draw.rect(surface, (150, 150, 180), (boost_x, boost_y, boost_bar_w, boost_bar_h), 1)
 
     # Wormhole cooldown indicator
     wh_x = 50
@@ -153,132 +190,143 @@ def draw_ui(game, surface):
         wh_label = game.small_font.render("[Q] WORMHOLE  READY", True, (100, 200, 255))
         surface.blit(wh_label, (wh_x, wh_y))
 
+    # Secondary fire cooldown indicator
+    sec_x = 50
+    sec_y = wh_y - 40
+    ship = game.player_ship
+    if ship.secondary_type:
+        sec_names = {
+            "railgun": "RAILGUN",
+            "staff_barrage": "STAFF BARRAGE",
+            "ion_pulse": "ION PULSE",
+            "war_cry": "WAR CRY",
+            "scatter_mines": "SCATTER MINES",
+        }
+        sec_name = sec_names.get(ship.secondary_type, "SPECIAL")
+        if ship.secondary_buff_timer > 0:
+            # Active buff — show duration
+            buff_secs = ship.secondary_buff_timer / 60.0
+            sec_label = game.small_font.render(
+                f"[E] {sec_name}  ACTIVE {buff_secs:.1f}s", True, (255, 200, 100))
+            surface.blit(sec_label, (sec_x, sec_y))
+        elif ship.secondary_cooldown > 0:
+            cd_pct = ship.secondary_cooldown / ship.secondary_fire_rate
+            bar_w = 140
+            bar_h = 10
+            cd_secs = ship.secondary_cooldown / 60.0
+            sec_label = game.small_font.render(
+                f"[E] {sec_name}  {cd_secs:.1f}s", True, (120, 120, 150))
+            surface.blit(sec_label, (sec_x, sec_y))
+            pygame.draw.rect(surface, (40, 40, 60), (sec_x, sec_y + 25, bar_w, bar_h))
+            fill_w = int(bar_w * (1.0 - cd_pct))
+            pygame.draw.rect(surface, ship.laser_color, (sec_x, sec_y + 25, fill_w, bar_h))
+            pygame.draw.rect(surface, (150, 150, 180), (sec_x, sec_y + 25, bar_w, bar_h), 1)
+        else:
+            sec_label = game.small_font.render(
+                f"[E] {sec_name}  READY", True, ship.laser_color)
+            surface.blit(sec_label, (sec_x, sec_y))
+
     # Controls hint
-    controls = game.small_font.render("WASD / Arrows: Move (auto-fire)  |  Q: Wormhole  |  ESC: Exit", True, (150, 150, 150))
+    controls = game.small_font.render(
+        "WASD: Move  |  SHIFT: Boost  |  E: Special  |  Q: Wormhole  |  ESC: Exit",
+        True, (150, 150, 150))
     surface.blit(controls, (game.screen_width // 2 - controls.get_width() // 2, game.screen_height - 30))
 
     # Mini-radar (bottom-right corner)
     _draw_mini_radar(game, surface)
-
-    # Wave transition message
-    if game.wave_complete and not game.game_over:
-        overlay = pygame.Surface((game.screen_width, game.screen_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 100))
-        surface.blit(overlay, (0, 0))
-
-        if game.current_wave < game.max_waves:
-            wave_msg = game.title_font.render(f"WAVE {game.current_wave} COMPLETE!", True, (100, 255, 100))
-            next_msg = game.ui_font.render(f"Next wave: {game.current_wave + 1} enemies incoming...", True, (200, 200, 200))
-        else:
-            wave_msg = game.title_font.render("ALL WAVES COMPLETE!", True, (255, 215, 0))
-            next_msg = game.ui_font.render("Preparing victory...", True, (200, 200, 200))
-
-        surface.blit(wave_msg, (game.screen_width // 2 - wave_msg.get_width() // 2, game.screen_height // 2 - 50))
-        surface.blit(next_msg, (game.screen_width // 2 - next_msg.get_width() // 2, game.screen_height // 2 + 20))
-
-        # Enemy warning indicators (second half of transition)
-        if game.wave_transition_timer >= 90 and hasattr(game, 'next_spawn_positions'):
-            _draw_enemy_warnings(game, surface)
 
     # Game over screen
     if game.game_over:
         _draw_game_over(game, surface)
 
 
+def _get_tier_color(label):
+    """Get color for difficulty tier label."""
+    colors = {
+        "Calm": (100, 200, 100),
+        "Warming Up": (150, 220, 100),
+        "Skirmish": (200, 200, 100),
+        "Engaged": (255, 200, 50),
+        "Contested": (255, 150, 50),
+        "Intense": (255, 100, 50),
+        "Dangerous": (255, 60, 60),
+        "Overwhelming": (255, 30, 30),
+        "Apocalypse": (255, 0, 0),
+        "Beyond": (200, 0, 255),
+    }
+    return colors.get(label, (200, 200, 200))
+
+
 def _draw_mini_radar(game, surface):
-    """Draw mini-radar overlay in bottom-right corner."""
-    radar_w = 120
-    radar_h = 90
+    """Draw mini-radar with wider world view and camera viewport outlined."""
+    radar_w = 150
+    radar_h = 110
     radar_x = game.screen_width - radar_w - 15
     radar_y = game.screen_height - radar_h - 40
 
     # Semi-transparent background
     radar_surf = pygame.Surface((radar_w, radar_h), pygame.SRCALPHA)
-    radar_surf.fill((0, 0, 0, 100))
+    radar_surf.fill((0, 0, 0, 120))
     pygame.draw.rect(radar_surf, (80, 80, 120, 150), (0, 0, radar_w, radar_h), 1)
 
+    # Radar covers a wider area around camera
+    radar_world_w = 3000  # World units visible on radar
+    radar_world_h = 2200
+    cam_x = game.camera.x
+    cam_y = game.camera.y
+
     # Scale factors
-    sx = radar_w / game.screen_width
-    sy = radar_h / game.screen_height
+    sx = radar_w / radar_world_w
+    sy = radar_h / radar_world_h
+
+    def to_radar(wx, wy):
+        rx = int((wx - cam_x + radar_world_w / 2) * sx)
+        ry = int((wy - cam_y + radar_world_h / 2) * sy)
+        return max(1, min(radar_w - 1, rx)), max(1, min(radar_h - 1, ry))
+
+    # Draw camera viewport rectangle
+    vp_x1 = int((radar_world_w / 2 - game.screen_width / 2) * sx)
+    vp_y1 = int((radar_world_h / 2 - game.screen_height / 2) * sy)
+    vp_w = int(game.screen_width * sx)
+    vp_h = int(game.screen_height * sy)
+    pygame.draw.rect(radar_surf, (60, 60, 100, 100), (vp_x1, vp_y1, vp_w, vp_h), 1)
 
     # Player (green dot)
-    px = int((game.player_ship.x + game.player_ship.width // 2) * sx)
-    py = int(game.player_ship.y * sy)
-    px = max(2, min(radar_w - 2, px))
-    py = max(2, min(radar_h - 2, py))
+    px, py = to_radar(game.player_ship.x + game.player_ship.width // 2, game.player_ship.y)
     pygame.draw.circle(radar_surf, (0, 255, 0), (px, py), 3)
 
     # Enemies (red dots)
     for enemy in game.ai_ships:
-        ex = int((enemy.x + enemy.width // 2) * sx)
-        ey = int(enemy.y * sy)
-        ex = max(1, min(radar_w - 1, ex))
-        ey = max(1, min(radar_h - 1, ey))
-        color = (255, 50, 50) if not getattr(enemy, 'is_boss', False) else (255, 215, 0)
-        size = 2 if not getattr(enemy, 'is_boss', False) else 4
+        ex, ey = to_radar(enemy.x + enemy.width // 2, enemy.y)
+        color = (255, 215, 0) if getattr(enemy, 'is_boss', False) else (255, 50, 50)
+        size = 3 if getattr(enemy, 'is_boss', False) else 2
         pygame.draw.circle(radar_surf, color, (ex, ey), size)
 
     # Asteroids (orange dots)
     for asteroid in game.asteroids:
-        ax = int(asteroid.x * sx)
-        ay = int(asteroid.y * sy)
-        ax = max(1, min(radar_w - 1, ax))
-        ay = max(1, min(radar_h - 1, ay))
+        ax, ay = to_radar(asteroid.x, asteroid.y)
         pygame.draw.circle(radar_surf, (255, 165, 0), (ax, ay), 1)
 
     # Power-ups (blue dots)
     for powerup in game.powerups:
-        ppx = int(powerup.x * sx)
-        ppy = int(powerup.y * sy)
-        ppx = max(1, min(radar_w - 1, ppx))
-        ppy = max(1, min(radar_h - 1, ppy))
+        ppx, ppy = to_radar(powerup.x, powerup.y)
         pygame.draw.circle(radar_surf, (100, 200, 255), (ppx, ppy), 2)
 
     surface.blit(radar_surf, (radar_x, radar_y))
 
 
-def _draw_enemy_warnings(game, surface):
-    """Draw pulsing red arrows at screen edges where enemies will spawn."""
-    time_tick = pygame.time.get_ticks()
-    pulse = abs(math.sin(time_tick * 0.008))
-    alpha = int(100 + pulse * 155)
-    arrow_size = 20
-
-    for pos in game.next_spawn_positions:
-        sx, sy = pos
-        # Determine which edge
-        if sx <= 0:  # Left edge
-            ax, ay = 10, max(20, min(game.screen_height - 20, sy))
-            pts = [(ax, ay), (ax + arrow_size, ay - arrow_size // 2), (ax + arrow_size, ay + arrow_size // 2)]
-        elif sx >= game.screen_width:  # Right edge
-            ax, ay = game.screen_width - 10, max(20, min(game.screen_height - 20, sy))
-            pts = [(ax, ay), (ax - arrow_size, ay - arrow_size // 2), (ax - arrow_size, ay + arrow_size // 2)]
-        elif sy <= 0:  # Top edge
-            ax, ay = max(20, min(game.screen_width - 20, sx)), 10
-            pts = [(ax, ay), (ax - arrow_size // 2, ay + arrow_size), (ax + arrow_size // 2, ay + arrow_size)]
-        else:  # Bottom edge
-            ax, ay = max(20, min(game.screen_width - 20, sx)), game.screen_height - 10
-            pts = [(ax, ay), (ax - arrow_size // 2, ay - arrow_size), (ax + arrow_size // 2, ay - arrow_size)]
-
-        # Draw arrow directly (opaque red, brightness encodes pulse)
-        brightness = int(150 + pulse * 105)
-        pygame.draw.polygon(surface, (brightness, 30, 30), pts)
-
-
 def _draw_game_over(game, surface):
-    """Draw game over screen."""
+    """Draw game over screen — survival mode (always ends in death)."""
     overlay = pygame.Surface((game.screen_width, game.screen_height), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 150))
     surface.blit(overlay, (0, 0))
 
-    if game.winner == "player":
-        result_text = "VICTORY!"
-        result_color = (255, 215, 0)
-        sub_text = f"All {game.max_waves} waves defeated! {game.enemies_defeated} enemies destroyed!"
-    else:
-        result_text = "DEFEAT"
-        result_color = (255, 50, 50)
-        sub_text = f"Destroyed on wave {game.current_wave}. {game.enemies_defeated} enemies defeated."
+    result_text = "DEFEAT"
+    result_color = (255, 50, 50)
+
+    mins = int(game.survival_seconds) // 60
+    secs = int(game.survival_seconds) % 60
+    sub_text = f"Survived {mins:02d}:{secs:02d} | {game.enemies_defeated} enemies defeated | Level {game.level}"
 
     result_surf = game.title_font.render(result_text, True, result_color)
     sub_surf = game.ui_font.render(sub_text, True, (200, 200, 200))
@@ -296,9 +344,17 @@ def _draw_game_over(game, surface):
             rank_text += f"  ({games_played} games this session)"
     rank_surf = game.ui_font.render(rank_text, True, (100, 255, 100)) if rank_text else None
 
+    # Show evolutions earned
+    evo_text = ""
+    if game.evolutions:
+        evo_names = [EVOLUTIONS[e]["name"] for e in game.evolutions if e in EVOLUTIONS]
+        if evo_names:
+            evo_text = "Evolutions: " + ", ".join(evo_names)
+    evo_surf = game.small_font.render(evo_text, True, (255, 215, 0)) if evo_text else None
+
     restart_surf = game.ui_font.render("Press R to play again or ESC to exit", True, (150, 150, 150))
 
-    y_offset = game.screen_height // 2 - 120
+    y_offset = game.screen_height // 2 - 140
     surface.blit(result_surf, (game.screen_width // 2 - result_surf.get_width() // 2, y_offset))
     y_offset += 70
     surface.blit(score_surf, (game.screen_width // 2 - score_surf.get_width() // 2, y_offset))
@@ -307,7 +363,11 @@ def _draw_game_over(game, surface):
         surface.blit(rank_surf, (game.screen_width // 2 - rank_surf.get_width() // 2, y_offset))
         y_offset += 40
     surface.blit(sub_surf, (game.screen_width // 2 - sub_surf.get_width() // 2, y_offset))
-    y_offset += 50
+    y_offset += 40
+    if evo_surf:
+        surface.blit(evo_surf, (game.screen_width // 2 - evo_surf.get_width() // 2, y_offset))
+        y_offset += 40
+    y_offset += 10
     surface.blit(restart_surf, (game.screen_width // 2 - restart_surf.get_width() // 2, y_offset))
 
 
@@ -341,19 +401,32 @@ def draw_level_up_screen(game, surface):
     mouse_pos = pygame.mouse.get_pos()
 
     for i, upgrade_name in enumerate(game.level_up_choices):
-        info = UPGRADES[upgrade_name]
+        is_evolution = upgrade_name in EVOLUTIONS
+        if is_evolution:
+            evo_info = EVOLUTIONS[upgrade_name]
+            info = {
+                "name": evo_info["name"],
+                "desc": evo_info["desc"],
+                "icon": "E",
+                "color": (255, 215, 0),
+                "max": 1,
+                "rarity": "legendary",
+            }
+            current_stacks = 0
+        else:
+            info = UPGRADES[upgrade_name]
+            current_stacks = game.upgrades.get(upgrade_name, 0)
+
         x = start_x + i * (card_w + spacing)
         rect = pygame.Rect(x, card_y, card_w, card_h)
         game._level_up_card_rects.append(rect)
 
         hovered = rect.collidepoint(mouse_pos)
-        current_stacks = game.upgrades.get(upgrade_name, 0)
         rarity = info.get("rarity", "common")
         rarity_color = RARITY_COLORS.get(rarity, (200, 200, 200))
 
         # Card background with gradient effect
         card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
-        # Top: upgrade color faded, bottom: dark
         for row in range(card_h):
             t = row / card_h
             r = int(info["color"][0] * (1 - t) * 0.3 + 30 * t)
@@ -380,9 +453,14 @@ def draw_level_up_screen(game, surface):
             pygame.draw.rect(glow, (*rarity_color, 40), (0, 0, card_w + 30, card_h + 30), border_radius=15)
             surface.blit(glow, (x - 15, card_y - 15))
 
-        # Rarity label
-        rarity_surf = game.count_font.render(rarity.upper(), True, rarity_color)
-        surface.blit(rarity_surf, (x + card_w // 2 - rarity_surf.get_width() // 2, card_y + 8))
+        # Evolution banner
+        if is_evolution:
+            evo_banner = game.card_name_font.render("EVOLUTION", True, (255, 215, 0))
+            surface.blit(evo_banner, (x + card_w // 2 - evo_banner.get_width() // 2, card_y + 5))
+        else:
+            # Rarity label
+            rarity_surf = game.count_font.render(rarity.upper(), True, rarity_color)
+            surface.blit(rarity_surf, (x + card_w // 2 - rarity_surf.get_width() // 2, card_y + 8))
 
         # Key shortcut indicator
         key_text = game.card_key_font.render(f"[{i + 1}]", True, (180, 180, 180))
@@ -402,30 +480,36 @@ def draw_level_up_screen(game, surface):
             desc_surf = game.card_desc_font.render(line, True, (180, 180, 180))
             surface.blit(desc_surf, (x + card_w // 2 - desc_surf.get_width() // 2, card_y + 135 + j * 20))
 
-        # Stats preview on hover
-        if hovered:
-            preview = _get_upgrade_preview(game, upgrade_name, current_stacks)
-            if preview:
-                preview_surf = game.card_desc_font.render(preview, True, (100, 255, 100))
-                surface.blit(preview_surf, (x + card_w // 2 - preview_surf.get_width() // 2, card_y + 200))
+        # Evolution: show prereqs
+        if is_evolution:
+            prereq_text = " + ".join(UPGRADES.get(p, {}).get("name", p) for p in evo_info["prereqs"])
+            prereq_surf = game.card_desc_font.render(prereq_text, True, (255, 200, 100))
+            surface.blit(prereq_surf, (x + card_w // 2 - prereq_surf.get_width() // 2, card_y + 200))
+        else:
+            # Stats preview on hover
+            if hovered:
+                preview = _get_upgrade_preview(game, upgrade_name, current_stacks)
+                if preview:
+                    preview_surf = game.card_desc_font.render(preview, True, (100, 255, 100))
+                    surface.blit(preview_surf, (x + card_w // 2 - preview_surf.get_width() // 2, card_y + 200))
 
-        # Stack indicator
-        stack_y = card_y + card_h - 55
-        stack_text = f"{current_stacks}/{info['max']}"
-        stack_surf = game.card_stack_font.render(stack_text, True, (150, 150, 150))
-        surface.blit(stack_surf, (x + card_w // 2 - stack_surf.get_width() // 2, stack_y))
+            # Stack indicator
+            stack_y = card_y + card_h - 55
+            stack_text = f"{current_stacks}/{info['max']}"
+            stack_surf = game.card_stack_font.render(stack_text, True, (150, 150, 150))
+            surface.blit(stack_surf, (x + card_w // 2 - stack_surf.get_width() // 2, stack_y))
 
-        # Stack pips
-        pip_y = stack_y + 25
-        pip_total = info["max"]
-        pip_w = min(16, (card_w - 40) // pip_total)
-        pip_start = x + (card_w - pip_total * pip_w) // 2
-        for p in range(pip_total):
-            pip_color = info["color"] if p < current_stacks else (60, 60, 80)
-            if p == current_stacks:
-                pip_color = (255, 255, 255)  # Next pip highlight
-            pygame.draw.rect(surface, pip_color,
-                            (pip_start + p * pip_w + 1, pip_y, pip_w - 2, 8), border_radius=2)
+            # Stack pips
+            pip_y = stack_y + 25
+            pip_total = info["max"]
+            pip_w = min(16, (card_w - 40) // max(pip_total, 1))
+            pip_start = x + (card_w - pip_total * pip_w) // 2
+            for p in range(pip_total):
+                pip_color = info["color"] if p < current_stacks else (60, 60, 80)
+                if p == current_stacks:
+                    pip_color = (255, 255, 255)
+                pygame.draw.rect(surface, pip_color,
+                                (pip_start + p * pip_w + 1, pip_y, pip_w - 2, 8), border_radius=2)
 
 
 def _get_upgrade_preview(game, upgrade_name, current_stacks):

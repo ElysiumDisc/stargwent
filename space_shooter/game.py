@@ -1,28 +1,30 @@
-"""Main SpaceShooterGame class — game loop, update, draw, collision."""
+"""Main SpaceShooterGame class — infinite survival mode with camera system."""
 
 import pygame
 import math
 import random
+import os
 
-from .projectiles import Projectile, Laser, ContinuousBeam, EnergyBall, ChainLightning
+from .projectiles import (Projectile, Laser, ContinuousBeam, EnergyBall,
+                          ChainLightning, RailgunShot, ProximityMine)
 from .entities import (
     Asteroid, PowerUp, Drone, XPOrb, WormholeEffect, Explosion,
     DamageNumber, PopupNotification, GravityWell,
 )
 from .effects import StarField, ScreenShake
 from .ship import Ship
-from .upgrades import UPGRADES, ENEMY_TYPES
+from .upgrades import UPGRADES, EVOLUTIONS, ENEMY_TYPES
+from .camera import Camera
+from .spawner import ContinuousSpawner
 from . import ui as _ui
 
 
 class SpaceShooterGame:
-    """Main space shooter mini-game with waves of enemies."""
+    """Infinite survival space shooter — Vampire Survivors style."""
 
     # Scoring constants
     SCORE_ENEMY = 100
     SCORE_BOSS = 1000
-    SCORE_WAVE_CLEAR = 500
-    SCORE_NO_DAMAGE = 200
     SCORE_ASTEROID = 50
 
     def __init__(self, screen_width, screen_height, player_faction, ai_faction, session_scores=None):
@@ -38,37 +40,35 @@ class SpaceShooterGame:
         self.winner = None
         self.exit_to_menu = False
 
-        # Wave system
-        self.current_wave = 1
-        self.max_waves = 20
-        self.wave_complete = False
-        self.wave_transition_timer = 0
-        self.enemies_defeated = 0
-        self.next_spawn_positions = []  # For enemy warning indicators
+        # Survival timer (frames)
+        self.survival_frames = 0
 
         # Scoring system
         self.score = 0
-        self.wave_damage_taken = False
+        self.enemies_defeated = 0
         self.asteroids_destroyed = 0
 
         # Kill streak
         self.kill_streak = 0
-        self.kill_streak_timer = 0  # Frames since last kill (resets streak after 180 = 3s)
+        self.kill_streak_timer = 0
 
         # Power-up system
         self.powerups = []
-        self.powerup_spawn_timer = 0
-        self.powerup_spawn_rate = 200
+        self.powerup_drop_chance = 0.50  # 50% chance on enemy kill
+        self.powerup_spawn_timer = 0  # periodic powerup spawn near player
         self.active_powerups = {}
         self.drones = []
+        self.mines = []  # Lucian Alliance proximity mines
+        self.ion_pulse_effects = []  # Asgard ion pulse visual effects
         self.base_fire_rate = None
-        self.base_damage_mult = 1.0
+        self.base_damage_mult = 1.15  # Slight base damage bonus — player should feel powerful
 
         # XP and Level-up system
         self.xp = 0
         self.level = 1
         self.xp_to_next = 80
         self.upgrades = {}
+        self.evolutions = {}  # Completed evolutions
         self.xp_orbs = []
         self.pending_level_ups = 0
         self.level_up_choices = []
@@ -82,20 +82,46 @@ class SpaceShooterGame:
         self.wormhole_max_cooldown = 480
         self.wormhole_active = False
         self.wormhole_transit_timer = 0
-        self.wormhole_transit_duration = 30
+        self.wormhole_transit_duration = 18  # Snappy: 0.3s (was 0.5s)
         self.wormhole_effects = []
-        self.wormhole_exit_x = 0
-        self.wormhole_exit_y = 0
+        self.wormhole_exit_x = 0.0
+        self.wormhole_exit_y = 0.0
+
+        # Wormhole sound effect
+        self.wormhole_sound = None
+        try:
+            sound_path = os.path.join("assets", "audio", "siege.ogg")
+            if os.path.exists(sound_path):
+                self.wormhole_sound = pygame.mixer.Sound(sound_path)
+                self.wormhole_sound.set_volume(0.5)
+        except Exception:
+            pass
+
+        # Faction hit sound effects — plays on enemy hit with short cooldown
+        self.hit_sound = None
+        self.hit_sound_cooldown = 0
+        self._load_hit_sound()
+
+        # Boost sound effect — plays once when SHIFT boost activates
+        self.boost_sound = None
+        self._was_boosting = False
+        self._load_boost_sound()
 
         # Shield bash (dash) state
         self.dash_active = False
         self.dash_timer = 0
         self.dash_cooldown = 0
-        self.dash_afterimages = []  # List of (x, y, alpha) for afterimage trail
+        self.dash_afterimages = []
 
         # Gravity well state
         self.gravity_wells = []
         self.gravity_well_timer = 0
+
+        # New upgrade timers
+        self.nova_burst_timer = 0
+        self.orbital_laser_timer = 0
+        self.orbital_laser_effects = []  # List of active orbital strike visuals
+        self.temporal_field_active = False
 
         # Chain lightning visual effects
         self.chain_lightning_effects = []
@@ -108,22 +134,30 @@ class SpaceShooterGame:
         # All faction options for variety
         self.all_factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance"]
 
-        # Create player ship
+        # --- Camera system ---
+        self.camera = Camera(screen_width, screen_height)
+
+        # Create player ship at world origin
         self.player_ship = Ship(
-            100, screen_height // 2,
+            0, 0,
             player_faction, is_player=True,
             screen_width=screen_width, screen_height=screen_height
         )
+        # Boost player base stats — feel powerful from the start
+        self.player_ship.max_health = 150
+        self.player_ship.health = 150
+        self.player_ship.max_shields = 150
+        self.player_ship.shields = 150
 
-        # Track player velocity for parallax
-        self.prev_player_x = self.player_ship.x
-        self.prev_player_y = self.player_ship.y
+        # Snap camera to player start
+        self.camera.snap_to(self.player_ship.x + self.player_ship.width // 2,
+                            self.player_ship.y)
 
-        # Create enemy ships
-        self.ai_ships = []
-        self.spawn_wave_enemies()
+        # --- Continuous spawner (replaces wave system) ---
+        self.spawner = ContinuousSpawner(self.camera, player_faction, self.all_factions)
 
         # Projectiles and effects
+        self.ai_ships = []
         self.projectiles = []
         self.explosions = []
         self.asteroids = []
@@ -131,7 +165,7 @@ class SpaceShooterGame:
 
         # Asteroid spawning
         self.asteroid_spawn_timer = 0
-        self.asteroid_spawn_rate = 600
+        self.asteroid_spawn_rate = 300
 
         # Player beam state
         self.player_firing = False
@@ -151,279 +185,9 @@ class SpaceShooterGame:
         # Hit flash effect
         self.player_hit_flash = 0
 
-    def _get_wave_enemy_types(self):
-        """Determine which enemy types to spawn based on current wave."""
-        wave = self.current_wave
-        types = ["regular"]
-        weights = [60]
-        if wave >= 4:
-            types.append("fast")
-            weights.append(25)
-        if wave >= 6:
-            types.append("kamikaze")
-            weights.append(15)
-        if wave >= 8:
-            types.append("tank")
-            weights.append(20)
-        if wave >= 13:
-            types.append("elite")
-            weights.append(15)
-        return types, weights
-
-    def _get_formation(self, num_enemies):
-        """Generate formation spawn positions. Returns list of (x, y) or None for scattered."""
-        if self.current_wave < 8 or random.random() > 0.5:
-            return None  # Scattered spawn
-
-        formation = random.choice(["v", "line", "pincer"])
-        positions = []
-        margin = 80
-
-        if formation == "v":
-            edge = random.choice(["left", "right", "top", "bottom"])
-            count = min(num_enemies, 5)
-            if edge == "right":
-                base_x = self.screen_width + margin
-                base_y = self.screen_height // 2
-                for i in range(count):
-                    offset = (i - count // 2)
-                    positions.append((base_x + abs(offset) * 40, base_y + offset * 60))
-            elif edge == "left":
-                base_x = -margin
-                base_y = self.screen_height // 2
-                for i in range(count):
-                    offset = (i - count // 2)
-                    positions.append((base_x - abs(offset) * 40, base_y + offset * 60))
-            elif edge == "top":
-                base_x = self.screen_width // 2
-                base_y = -margin
-                for i in range(count):
-                    offset = (i - count // 2)
-                    positions.append((base_x + offset * 60, base_y - abs(offset) * 40))
-            else:
-                base_x = self.screen_width // 2
-                base_y = self.screen_height + margin
-                for i in range(count):
-                    offset = (i - count // 2)
-                    positions.append((base_x + offset * 60, base_y + abs(offset) * 40))
-
-        elif formation == "line":
-            edge = random.choice(["left", "right", "top", "bottom"])
-            count = min(num_enemies, 5)
-            if edge in ("left", "right"):
-                base_x = -margin if edge == "left" else self.screen_width + margin
-                spacing = self.screen_height // (count + 1)
-                for i in range(count):
-                    positions.append((base_x, spacing * (i + 1)))
-            else:
-                base_y = -margin if edge == "top" else self.screen_height + margin
-                spacing = self.screen_width // (count + 1)
-                for i in range(count):
-                    positions.append((spacing * (i + 1), base_y))
-
-        elif formation == "pincer":
-            count = min(num_enemies, 6)
-            half = count // 2
-            # Group 1 from left
-            for i in range(half):
-                positions.append((-margin, self.screen_height // 3 + i * 80))
-            # Group 2 from right
-            for i in range(count - half):
-                positions.append((self.screen_width + margin, self.screen_height * 2 // 3 - i * 80))
-
-        # Pad remaining enemies with scattered positions
-        while len(positions) < num_enemies:
-            edge = random.choice(["top", "bottom", "left", "right"])
-            if edge == "top":
-                positions.append((random.randint(0, self.screen_width), -margin))
-            elif edge == "bottom":
-                positions.append((random.randint(0, self.screen_width), self.screen_height + margin))
-            elif edge == "left":
-                positions.append((-margin, random.randint(0, self.screen_height)))
-            else:
-                positions.append((self.screen_width + margin, random.randint(0, self.screen_height)))
-
-        return positions
-
-    def spawn_wave_enemies(self):
-        """Spawn enemies for the current wave with scaling difficulty."""
-        self.ai_ships = []
-        wave = self.current_wave
-
-        is_boss_wave = wave in (5, 10, 15, 20)
-
-        power = (wave * 0.6 + self.level * 0.4)
-        num_enemies = max(1, int(1 + power * 0.8))
-
-        if is_boss_wave:
-            num_enemies = max(1, num_enemies // 2)
-
-        hp_mult = 1.0 + (power - 1) * 0.10
-        speed_mult = 1.0 + (power - 1) * 0.008
-        fire_rate_mult = max(0.5, 1.0 - (power - 1) * 0.02)
-
-        types, weights = self._get_wave_enemy_types()
-
-        # Try formation spawn
-        formation_positions = self._get_formation(num_enemies)
-
-        # Pre-calculate spawn positions for enemy warning indicators
-        self.next_spawn_positions = []
-
-        for i in range(num_enemies):
-            enemy_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
-            enemy_type = random.choices(types, weights=weights)[0]
-            mods = ENEMY_TYPES[enemy_type]
-
-            if formation_positions and i < len(formation_positions):
-                sx, sy = formation_positions[i]
-            else:
-                edge = random.choice(["top", "bottom", "left", "right"])
-                margin = 60
-                if edge == "top":
-                    sx = random.randint(0, self.screen_width)
-                    sy = -margin
-                elif edge == "bottom":
-                    sx = random.randint(0, self.screen_width)
-                    sy = self.screen_height + margin
-                elif edge == "left":
-                    sx = -margin
-                    sy = random.randint(0, self.screen_height)
-                else:
-                    sx = self.screen_width + margin
-                    sy = random.randint(0, self.screen_height)
-
-            self.next_spawn_positions.append((sx, sy))
-
-            ship = Ship(
-                sx, sy,
-                enemy_faction, is_player=False,
-                screen_width=self.screen_width, screen_height=self.screen_height
-            )
-
-            # Apply wave scaling
-            ship.max_health = int(ship.max_health * hp_mult * mods["hp"])
-            ship.health = ship.max_health
-            ship.speed = int(ship.speed * speed_mult * mods["speed"])
-            ship.fire_rate = max(5, int(ship.fire_rate * fire_rate_mult))
-
-            # Scale ship visual for tanks
-            if mods["scale"] != 1.0 and ship.image:
-                new_w = int(ship.width * mods["scale"])
-                new_h = int(ship.height * mods["scale"])
-                ship.image = pygame.transform.smoothscale(ship.image, (new_w, new_h))
-                ship.width = new_w
-                ship.height = new_h
-
-            # Apply tint
-            if mods["tint"] and ship.image:
-                tint_surf = pygame.Surface(ship.image.get_size(), pygame.SRCALPHA)
-                tint_surf.fill((*mods["tint"], 60))
-                ship.image.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-            # Re-cache 4-dir images after scale/tint changes
-            if ship.image:
-                ship.image_right = ship.image.copy()
-                ship.image_left = pygame.transform.flip(ship.image, True, False)
-                ship.image_up = pygame.transform.rotate(ship.image_right, 90)
-                ship.image_down = pygame.transform.rotate(ship.image_right, -90)
-
-            ship.xp_value = mods["xp"]
-            ship.enemy_type = enemy_type
-            ship.ai_fire_timer = random.randint(0, 60)
-            self.ai_ships.append(ship)
-
-        # Spawn boss on boss waves
-        if is_boss_wave:
-            self._spawn_boss(wave)
-
-    def _spawn_boss(self, wave):
-        """Spawn a boss enemy for boss waves."""
-        boss_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
-        edge = random.choice(["top", "bottom", "left", "right"])
-        margin = 80
-        if edge == "top":
-            bx = random.randint(margin, self.screen_width - margin)
-            by = -margin
-        elif edge == "bottom":
-            bx = random.randint(margin, self.screen_width - margin)
-            by = self.screen_height + margin
-        elif edge == "left":
-            bx = -margin
-            by = random.randint(margin, self.screen_height - margin)
-        else:
-            bx = self.screen_width + margin
-            by = random.randint(margin, self.screen_height - margin)
-        boss = Ship(
-            bx, by,
-            boss_faction, is_player=False,
-            screen_width=self.screen_width, screen_height=self.screen_height
-        )
-
-        boss_hp_table = {5: 2.0, 10: 4.0, 15: 7.0, 20: 15.0}
-        hp_scale = boss_hp_table.get(wave, 3.0)
-        boss.max_health = int(100 * hp_scale)
-        boss.health = boss.max_health
-        boss.max_shields = int(100 * hp_scale * 0.5)
-        boss.shields = boss.max_shields
-
-        scale = 1.3 if wave < 20 else 1.6
-        if boss.image:
-            new_w = int(boss.width * scale)
-            new_h = int(boss.height * scale)
-            boss.image = pygame.transform.smoothscale(boss.image, (new_w, new_h))
-            boss.width = new_w
-            boss.height = new_h
-
-        if boss.image:
-            tint = pygame.Surface(boss.image.get_size(), pygame.SRCALPHA)
-            tint.fill((255, 50, 50, 40))
-            boss.image.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-        if boss.image:
-            boss.image_right = boss.image.copy()
-            boss.image_left = pygame.transform.flip(boss.image, True, False)
-            boss.image_up = pygame.transform.rotate(boss.image_right, 90)
-            boss.image_down = pygame.transform.rotate(boss.image_right, -90)
-
-        boss.fire_rate = max(10, boss.fire_rate // 2)
-        boss.xp_value = 200
-        boss.enemy_type = "boss"
-        boss.is_boss = True
-        boss.ai_fire_timer = 0
-
-        if wave == 20:
-            boss.xp_value = 500
-
-        self.ai_ships.append(boss)
-
-        # Boss escorts (2-3 elite ships that orbit the boss)
-        num_escorts = random.randint(2, 3)
-        for i in range(num_escorts):
-            escort_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
-            angle = i * (2 * math.pi / num_escorts)
-            escort = Ship(
-                bx + math.cos(angle) * 100, by + math.sin(angle) * 100,
-                escort_faction, is_player=False,
-                screen_width=self.screen_width, screen_height=self.screen_height
-            )
-            escort_mods = ENEMY_TYPES["elite"]
-            escort.max_health = int(escort.max_health * escort_mods["hp"])
-            escort.health = escort.max_health
-            escort.speed = int(escort.speed * escort_mods["speed"])
-            if escort_mods["tint"] and escort.image:
-                tint_surf = pygame.Surface(escort.image.get_size(), pygame.SRCALPHA)
-                tint_surf.fill((*escort_mods["tint"], 60))
-                escort.image.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-            if escort.image:
-                escort.image_right = escort.image.copy()
-                escort.image_left = pygame.transform.flip(escort.image, True, False)
-                escort.image_up = pygame.transform.rotate(escort.image_right, 90)
-                escort.image_down = pygame.transform.rotate(escort.image_right, -90)
-            escort.xp_value = escort_mods["xp"]
-            escort.enemy_type = "elite"
-            escort.ai_fire_timer = random.randint(0, 60)
-            self.ai_ships.append(escort)
+    @property
+    def survival_seconds(self):
+        return self.survival_frames / 60.0
 
     def handle_event(self, event):
         """Handle pygame events."""
@@ -452,40 +216,135 @@ class SpaceShooterGame:
             elif event.key == pygame.K_q and not self.game_over:
                 if self.wormhole_cooldown <= 0 and not self.wormhole_active:
                     self._activate_wormhole()
+            elif event.key == pygame.K_e and not self.game_over:
+                self._fire_secondary()
             elif event.key == pygame.K_r and self.game_over:
                 self.__init__(self.screen_width, self.screen_height,
                             self.player_faction, self.ai_faction,
                             session_scores=self.session_scores)
-            elif event.key in (pygame.K_w, pygame.K_UP) and not self.game_over:
-                self.player_ship.set_facing((0, -1))
-            elif event.key in (pygame.K_s, pygame.K_DOWN) and not self.game_over:
-                self.player_ship.set_facing((0, 1))
-            elif event.key in (pygame.K_a, pygame.K_LEFT) and not self.game_over:
-                self.player_ship.set_facing((-1, 0))
-            elif event.key in (pygame.K_d, pygame.K_RIGHT) and not self.game_over:
-                self.player_ship.set_facing((1, 0))
+            # Facing is now derived from velocity in update() for smooth movement
 
     def _activate_wormhole(self):
-        """Activate the wormhole escape."""
+        """Activate the wormhole escape — snappy teleport with sound."""
         self.wormhole_active = True
         self.wormhole_transit_timer = 0
+
+        # Play siege.ogg sound
+        if self.wormhole_sound:
+            self.wormhole_sound.play()
 
         entry_x = self.player_ship.x + self.player_ship.width // 2
         entry_y = self.player_ship.y
         self.wormhole_effects.append(WormholeEffect(entry_x, entry_y, is_entry=True))
 
-        margin = 100
-        self.wormhole_exit_x = random.randint(margin, self.screen_width - margin)
-        self.wormhole_exit_y = random.randint(margin, self.screen_height - margin)
+        # Teleport to a random spot ~400px away
+        angle = random.uniform(0, math.pi * 2)
+        dist = random.uniform(300, 500)
+        self.wormhole_exit_x = self.player_ship.x + math.cos(angle) * dist
+        self.wormhole_exit_y = self.player_ship.y + math.sin(angle) * dist
+
+        # Screen shake for impact
+        self.screen_shake.trigger(6, 10)
+
+    def _load_hit_sound(self):
+        """Load hit sound effect for the player's faction."""
+        faction_sounds = {
+            "Asgard": "asgard_space_shooter.ogg",
+            "Tau'ri": "tauri_space_shooter.ogg",
+            "Goa'uld": "goauld_space_shooter.ogg",
+            "Jaffa Rebellion": "jaffa_space_shooter.ogg",
+            "Lucian Alliance": "lucian_space_shooter.ogg",
+        }
+        filename = faction_sounds.get(self.player_faction)
+        if not filename:
+            return
+        sound_path = os.path.join("assets", "audio", "space_shooter", filename)
+        try:
+            if os.path.exists(sound_path):
+                self.hit_sound = pygame.mixer.Sound(sound_path)
+                self.hit_sound.set_volume(0.4)
+        except Exception:
+            pass
+
+    def _play_hit_sound(self):
+        """Play hit SFX when enemy is struck (0.5s cooldown to avoid spam)."""
+        if self.hit_sound is None:
+            return
+        if self.hit_sound_cooldown > 0:
+            self.hit_sound_cooldown -= 1
+            return
+        try:
+            ch = self.hit_sound.play()
+            if ch:
+                ch.set_volume(0.4)
+            # 30 frames = 0.5s cooldown at 60fps
+            self.hit_sound_cooldown = 30
+        except Exception:
+            pass
+
+    def _load_boost_sound(self):
+        """Load the thruster boost activation sound."""
+        sound_path = os.path.join("assets", "audio", "space_shooter", "boost_space_shooter.ogg")
+        try:
+            if os.path.exists(sound_path):
+                self.boost_sound = pygame.mixer.Sound(sound_path)
+                self.boost_sound.set_volume(0.45)
+        except Exception:
+            pass
+
+    def _fire_secondary(self):
+        """Fire the player's faction-specific secondary weapon."""
+        results = self.player_ship.secondary_fire()
+        for result_type, data in results:
+            if result_type == "projectile":
+                self.projectiles.append(data)
+            elif result_type == "mine":
+                self.mines.append(data)
+            elif result_type == "ion_pulse":
+                # Asgard Ion Pulse: instant AoE damage + visual
+                px, py = data["x"], data["y"]
+                radius = data["radius"]
+                damage = data["damage"]
+                self.screen_shake.trigger(5, 10)
+                self.ion_pulse_effects.append({
+                    "x": px, "y": py, "radius": 0,
+                    "max_radius": radius, "timer": 0, "duration": 20,
+                    "color": self.player_ship.laser_color,
+                })
+                for enemy in self.ai_ships[:]:
+                    dist = math.hypot(enemy.x + enemy.width // 2 - px, enemy.y - py)
+                    if dist < radius:
+                        # Damage falls off with distance
+                        dmg = int(damage * (1.0 - dist / radius * 0.5))
+                        enemy.hit_flash = 5
+                        self.damage_numbers.append(DamageNumber(
+                            enemy.x + enemy.width // 2, enemy.y,
+                            dmg, (100, 255, 255)))
+                        if enemy.take_damage(dmg):
+                            self._on_enemy_killed(enemy)
+                        else:
+                            # Push enemies away
+                            if dist > 1:
+                                push = 80 / max(dist, 1)
+                                enemy.x += (enemy.x - px) / dist * push
+                                enemy.y += (enemy.y - py) / dist * push
+            elif result_type == "war_cry":
+                # Jaffa War Cry: buff notification + screen shake
+                self.screen_shake.trigger(4, 8)
+                self.popup_notifications.append(PopupNotification(
+                    self.player_ship.x + self.player_ship.width // 2,
+                    self.player_ship.y - 80,
+                    "WAR CRY!", (255, 150, 50)
+                ))
 
     def _save_score(self):
         """Save the score to the per-session leaderboard."""
         import time as time_module
         entry = {
             "score": self.score,
-            "waves_cleared": self.current_wave if self.winner == "player" else self.current_wave - 1,
+            "survival_time": round(self.survival_seconds, 1),
             "enemies_defeated": self.enemies_defeated,
-            "won": self.winner == "player",
+            "won": False,  # Survival — always ends in death
             "faction": self.player_faction,
             "timestamp": time_module.time(),
         }
@@ -518,7 +377,6 @@ class SpaceShooterGame:
             self.player_ship.shields = min(self.player_ship.max_shields,
                                           self.player_ship.shields + 50)
         elif ptype == "rapid_fire":
-            # Use multiplier: halve fire rate, restore by doubling on expiry
             self.player_ship.fire_rate = max(5, self.player_ship.fire_rate // 2)
             self.active_powerups["rapid_fire"] = duration
         elif ptype == "drone":
@@ -528,29 +386,143 @@ class SpaceShooterGame:
                 self.drones.append(Drone(self.player_ship, angle))
             self.active_powerups["drone"] = duration
         elif ptype == "damage":
-            # Intentionally does not stack: picking up another refreshes the timer
             self.base_damage_mult = 1.25
             self.active_powerups["damage"] = duration
         elif ptype == "cloak":
             self.active_powerups["cloak"] = duration
+        elif ptype == "overcharge":
+            # Massive fire rate boost + extra projectiles
+            self.player_ship.fire_rate = max(3, self.player_ship.fire_rate // 3)
+            self.active_powerups["overcharge"] = duration
+            # Visual feedback — screen shake burst
+            self.screen_shake.trigger(4, 8)
+        elif ptype == "time_warp":
+            self.active_powerups["time_warp"] = duration
+            # Visual feedback — brief shake
+            self.screen_shake.trigger(3, 6)
+        elif ptype == "magnetize":
+            self.active_powerups["magnetize"] = duration
+
+        # --- FACTION EPIC POWERUPS ---
+        elif ptype == "asgard_beam_array":
+            # Asgard: Fires beams in all 4 directions for 6 seconds
+            self.active_powerups["asgard_beam_array"] = duration
+            self.screen_shake.trigger(6, 12)
+        elif ptype == "tauri_railgun_barrage":
+            # Tau'ri: Auto-fire railgun shots every 0.5s for 7 seconds
+            self.active_powerups["tauri_railgun_barrage"] = duration
+            self._railgun_barrage_timer = 0
+            self.screen_shake.trigger(5, 10)
+        elif ptype == "goauld_sarcophagus":
+            # Goa'uld: Full HP + shield restore + 3s invulnerability
+            self.player_ship.health = self.player_ship.max_health
+            self.player_ship.shields = self.player_ship.max_shields
+            self.active_powerups["goauld_sarcophagus"] = 180  # 3s invuln
+            self.screen_shake.trigger(4, 8)
+        elif ptype == "jaffa_blood_rage":
+            # Jaffa: Triple damage + double speed + life steal for 6 seconds
+            self.active_powerups["jaffa_blood_rage"] = duration
+            self.screen_shake.trigger(5, 10)
+        elif ptype == "lucian_kassa":
+            # Lucian: Enemies in range attack each other for 7 seconds
+            self.active_powerups["lucian_kassa"] = duration
+            self.screen_shake.trigger(3, 6)
+
+        # --- FACTION LEGENDARY POWERUPS ---
+        elif ptype == "asgard_mjolnir":
+            # Asgard Mjolnir: Lightning strikes ALL visible enemies for massive damage
+            self.screen_shake.trigger(12, 20)
+            for enemy in self.ai_ships[:]:
+                if self.camera.is_visible(enemy.x, enemy.y, margin=100):
+                    enemy.hit_flash = 15
+                    dmg = 80
+                    self.damage_numbers.append(DamageNumber(
+                        enemy.x + enemy.width // 2, enemy.y,
+                        dmg, (150, 220, 255)))
+                    if enemy.take_damage(dmg):
+                        self._on_enemy_killed(enemy)
+                    # Chain lightning visual to each
+                    targets = [(enemy.x + enemy.width // 2, enemy.y)]
+                    px = self.player_ship.x + self.player_ship.width // 2
+                    py = self.player_ship.y
+                    self.chain_lightning_effects.append(
+                        ChainLightning(px, py, targets, dmg, max_chains=1))
+        elif ptype == "tauri_ancient_drones":
+            # Ancient Drone Swarm: 8 super-drones for 10 seconds
+            self.drones = []
+            for i in range(8):
+                angle = i * 2 * math.pi / 8
+                d = Drone(self.player_ship, angle)
+                d.fire_rate = 15  # Much faster than normal drones
+                self.drones.append(d)
+            self.active_powerups["tauri_ancient_drones"] = duration
+            self.screen_shake.trigger(6, 10)
+        elif ptype == "goauld_hatak_strike":
+            # Ha'tak Bombardment: Rain orbital strikes on all visible enemies
+            self.screen_shake.trigger(10, 20)
+            for enemy in self.ai_ships[:]:
+                if self.camera.is_visible(enemy.x, enemy.y, margin=100):
+                    ex = enemy.x + enemy.width // 2
+                    ey = enemy.y
+                    self.orbital_laser_effects.append({
+                        'x': ex, 'y': ey, 'timer': 0, 'duration': 30,
+                    })
+                    enemy.hit_flash = 10
+                    dmg = 60
+                    self.damage_numbers.append(DamageNumber(ex, ey, dmg, (255, 200, 50)))
+                    if enemy.take_damage(dmg):
+                        self._on_enemy_killed(enemy)
+                    self.explosions.append(Explosion(ex, ey, tier="normal"))
+        elif ptype == "jaffa_freedom":
+            # JAFFA KREE: Invulnerable + 3x damage + double speed for 5 seconds
+            self.active_powerups["jaffa_freedom"] = duration
+            self.active_powerups["goauld_sarcophagus"] = duration  # Reuse invuln
+            self.screen_shake.trigger(8, 15)
+        elif ptype == "lucian_nuke":
+            # Naquadria Bomb: Massive AoE explosion centered on player, damages everything
+            self.screen_shake.trigger(15, 25)
+            px = self.player_ship.x + self.player_ship.width // 2
+            py = self.player_ship.y
+            self.explosions.append(Explosion(px, py, tier="large"))
+            for enemy in self.ai_ships[:]:
+                dist = math.hypot(enemy.x + enemy.width // 2 - px, enemy.y - py)
+                if dist < 600:
+                    dmg = int(120 * (1.0 - dist / 600 * 0.6))
+                    enemy.hit_flash = 10
+                    self.damage_numbers.append(DamageNumber(
+                        enemy.x + enemy.width // 2, enemy.y,
+                        dmg, (255, 100, 255)))
+                    if enemy.take_damage(dmg):
+                        self._on_enemy_killed(enemy)
+                        self.explosions.append(Explosion(
+                            enemy.x + enemy.width // 2, enemy.y, tier="normal"))
 
     def _expire_powerup(self, ptype):
         """Handle expiration of a power-up effect."""
         if ptype == "rapid_fire":
-            # Reverse the halving by doubling (preserves upgrades taken during power-up)
             self.player_ship.fire_rate = min(self.player_ship.fire_rate * 2, 60)
         elif ptype == "drone":
             self.drones = []
         elif ptype == "damage":
-            self.base_damage_mult = 1.0
+            self.base_damage_mult = 1.15  # Reset to base (not 1.0 — player gets innate bonus)
+        elif ptype == "overcharge":
+            self.player_ship.fire_rate = min(self.player_ship.fire_rate * 3, 60)
+        elif ptype == "tauri_ancient_drones":
+            self.drones = []
 
     def is_cloaked(self):
         """Check if player is currently cloaked."""
         return self.active_powerups.get("cloak", 0) > 0
 
+    def is_invulnerable(self):
+        """Check if player has invulnerability active."""
+        return self.active_powerups.get("goauld_sarcophagus", 0) > 0
+
     def _on_enemy_killed(self, ai_ship):
         """Handle bookkeeping when an enemy is killed by the player."""
-        self.explosions.append(Explosion(ai_ship.x + ai_ship.width // 2, ai_ship.y))
+        is_boss = getattr(ai_ship, 'is_boss', False)
+        tier = "large" if is_boss else "normal"
+        self.explosions.append(Explosion(ai_ship.x + ai_ship.width // 2, ai_ship.y, tier=tier))
         if ai_ship in self.ai_ships:
             self.ai_ships.remove(ai_ship)
         self.enemies_defeated += 1
@@ -559,13 +531,12 @@ class SpaceShooterGame:
         # Kill streak
         self.kill_streak += 1
         self.kill_streak_timer = 0
-        # Streak bonus score
         if self.kill_streak >= 3:
             self.score += self.kill_streak * 25
 
         # Screen shake on kill
-        if getattr(ai_ship, 'is_boss', False):
-            self.screen_shake.trigger(8, 15)
+        if is_boss:
+            self.screen_shake.trigger(10, 20)
         else:
             self.screen_shake.trigger(2, 3)
 
@@ -573,23 +544,49 @@ class SpaceShooterGame:
         if self.player_ship.passive == "warriors_fury":
             self.player_ship.passive_state["kills"] = self.player_ship.passive_state.get("kills", 0) + 1
 
+        # Jaffa Blood Rage: life steal on kill
+        if self.active_powerups.get("jaffa_blood_rage", 0) > 0:
+            heal = 10
+            self.player_ship.health = min(self.player_ship.max_health,
+                                          self.player_ship.health + heal)
+
         # Spawn XP orb
         xp_value = getattr(ai_ship, 'xp_value', 20)
+        # Ancient Knowledge bonus
+        ak_stacks = self.upgrades.get("ancient_knowledge", 0)
+        if ak_stacks > 0:
+            xp_value = int(xp_value * (1.0 + ak_stacks * 0.30))
         self.xp_orbs.append(XPOrb(ai_ship.x + ai_ship.width // 2, ai_ship.y, xp_value))
 
         # Score
-        if getattr(ai_ship, 'is_boss', False):
+        if is_boss:
             self.score += self.SCORE_BOSS
         else:
             self.score += self.SCORE_ENEMY
 
-        # Check wave complete
-        if len(self.ai_ships) == 0:
-            self.wave_complete = True
-            self.score += self.SCORE_WAVE_CLEAR
-            if not self.wave_damage_taken:
-                self.score += self.SCORE_NO_DAMAGE
-            self.wave_damage_taken = False
+        # Power-up drop chance
+        if random.random() < self.powerup_drop_chance:
+            self.powerups.append(PowerUp.spawn_at(
+                ai_ship.x + ai_ship.width // 2, ai_ship.y,
+                faction=self.player_faction))
+
+        # Naquadah Bomb on-kill effect
+        bomb_stacks = self.upgrades.get("naquadah_bomb", 0)
+        if bomb_stacks > 0 and random.random() < 0.10 * bomb_stacks:
+            self.explosions.append(Explosion(
+                ai_ship.x + ai_ship.width // 2, ai_ship.y, tier="large"))
+            self.screen_shake.trigger(6, 12)
+            # Damage nearby enemies
+            bomb_damage = 40 + bomb_stacks * 15
+            for other in self.ai_ships[:]:
+                dist = math.hypot(other.x - ai_ship.x, other.y - ai_ship.y)
+                if dist < 150:
+                    other.hit_flash = 5
+                    self.damage_numbers.append(DamageNumber(
+                        other.x + other.width // 2, other.y,
+                        bomb_damage, (255, 200, 50)))
+                    if other.take_damage(bomb_damage):
+                        self._on_enemy_killed(other)
 
     def _gain_xp(self, amount):
         """Add XP and check for level-ups."""
@@ -602,18 +599,61 @@ class SpaceShooterGame:
 
     def _prepare_level_up_choices(self):
         """Prepare 3 random upgrade choices for level-up selection."""
+        # Check for available evolutions first
+        evolution_available = self._check_evolutions()
+
         available = [
             name for name, info in UPGRADES.items()
             if self.upgrades.get(name, 0) < info["max"]
         ]
+
+        # Add evolution as a choice if available
+        if evolution_available:
+            available.append(evolution_available)
+
         random.shuffle(available)
         self.level_up_choices = available[:3]
 
+    def _check_evolutions(self):
+        """Check if any evolution combo is ready. Returns evolution key or None."""
+        for evo_name, evo_info in EVOLUTIONS.items():
+            if evo_name in self.evolutions:
+                continue  # Already evolved
+            prereqs = evo_info["prereqs"]
+            all_maxed = True
+            for prereq in prereqs:
+                prereq_info = UPGRADES.get(prereq, {})
+                if self.upgrades.get(prereq, 0) < prereq_info.get("max", 999):
+                    all_maxed = False
+                    break
+            if all_maxed:
+                return evo_name
+        return None
+
     def _select_upgrade(self, upgrade_name):
         """Apply the selected upgrade and resume gameplay."""
+        ship = self.player_ship
+
+        # Check if it's an evolution
+        if upgrade_name in EVOLUTIONS:
+            evo_info = EVOLUTIONS[upgrade_name]
+            self.evolutions[upgrade_name] = True
+            self.popup_notifications.append(PopupNotification(
+                ship.x + ship.width // 2, ship.y - 60,
+                f"EVOLUTION: {evo_info['name']}!",
+                (255, 215, 0)
+            ))
+            self.screen_shake.trigger(8, 15)
+            self.pending_level_ups -= 1
+            if self.pending_level_ups > 0:
+                self._prepare_level_up_choices()
+            else:
+                self.showing_level_up = False
+                self.level_up_choices = []
+            return
+
         self.upgrades[upgrade_name] = self.upgrades.get(upgrade_name, 0) + 1
         stacks = self.upgrades[upgrade_name]
-        ship = self.player_ship
 
         if upgrade_name == "naquadah_plating":
             ship.max_health += 20
@@ -670,16 +710,17 @@ class SpaceShooterGame:
         if cl_stacks <= 0:
             return
 
-        max_chains = cl_stacks
-        chain_range = 150
+        # Thor's Hammer evolution: chain to ALL nearby enemies
+        thors_hammer = "thors_hammer" in self.evolutions
+        max_chains = 50 if thors_hammer else cl_stacks
+        chain_range = 250 if thors_hammer else 150
         chain_targets = []
         hit_set = {id(hit_enemy)} if hit_enemy else set()
 
         current_x, current_y = hit_x, hit_y
-        chain_damage = damage * 0.6
+        chain_damage = damage * (0.8 if thors_hammer else 0.6)
 
         for _ in range(max_chains):
-            # Find nearest un-hit enemy within range
             best = None
             best_dist = chain_range
             for enemy in self.ai_ships:
@@ -700,7 +741,6 @@ class SpaceShooterGame:
             target_y = best.y
             chain_targets.append((target_x, target_y))
 
-            # Deal damage
             best.hit_flash = 5
             self.damage_numbers.append(DamageNumber(target_x, target_y, chain_damage, (100, 150, 255)))
             if best.take_damage(chain_damage):
@@ -708,7 +748,6 @@ class SpaceShooterGame:
 
             current_x, current_y = target_x, target_y
 
-        # Spawn visual effect
         if chain_targets:
             self.chain_lightning_effects.append(
                 ChainLightning(hit_x, hit_y, chain_targets, chain_damage))
@@ -739,10 +778,132 @@ class SpaceShooterGame:
             return 1.0 + bsk_stacks * 0.05
         return 1.0
 
+    def _update_new_upgrades(self):
+        """Update timers and effects for new upgrade abilities."""
+        # Nova Burst: AoE pulse around player
+        nova_stacks = self.upgrades.get("nova_burst", 0)
+        if nova_stacks > 0:
+            # Check for Black Hole evolution
+            black_hole = "black_hole" in self.evolutions
+            self.nova_burst_timer += 1
+            interval = 360 if black_hole else 480  # 6s or 8s
+            if self.nova_burst_timer >= interval:
+                self.nova_burst_timer = 0
+                radius = 250 if black_hole else 180
+                damage = 25 + nova_stacks * 15
+                if black_hole:
+                    damage *= 1.5
+                # Damage all nearby enemies
+                px = self.player_ship.x + self.player_ship.width // 2
+                py = self.player_ship.y
+                for enemy in self.ai_ships[:]:
+                    dist = math.hypot(enemy.x + enemy.width // 2 - px, enemy.y - py)
+                    if dist < radius:
+                        enemy.hit_flash = 5
+                        self.damage_numbers.append(DamageNumber(
+                            enemy.x + enemy.width // 2, enemy.y,
+                            damage, (255, 100, 200)))
+                        if enemy.take_damage(damage):
+                            self._on_enemy_killed(enemy)
+                        # Black hole pulls enemies
+                        if black_hole and dist > 10:
+                            pull = 5.0 * (1 - dist / radius)
+                            dx = px - enemy.x
+                            dy = py - enemy.y
+                            enemy.x += (dx / dist) * pull
+                            enemy.y += (dy / dist) * pull
+                # Visual pulse
+                self.explosions.append(Explosion(px, py, tier="normal"))
+                self.screen_shake.trigger(4, 8)
+
+        # Orbital Laser: periodic beam from above
+        laser_stacks = self.upgrades.get("orbital_laser", 0)
+        if laser_stacks > 0 and self.ai_ships:
+            self.orbital_laser_timer += 1
+            if self.orbital_laser_timer >= 600:  # 10s
+                self.orbital_laser_timer = 0
+                # Find densest enemy cluster
+                best_target = None
+                best_count = 0
+                for enemy in self.ai_ships:
+                    count = sum(1 for e in self.ai_ships
+                                if math.hypot(e.x - enemy.x, e.y - enemy.y) < 200)
+                    if count > best_count:
+                        best_count = count
+                        best_target = enemy
+                if best_target:
+                    tx = best_target.x + best_target.width // 2
+                    ty = best_target.y
+                    damage = 50 + laser_stacks * 25
+                    for enemy in self.ai_ships[:]:
+                        dist = math.hypot(enemy.x + enemy.width // 2 - tx, enemy.y - ty)
+                        if dist < 120:
+                            enemy.hit_flash = 8
+                            self.damage_numbers.append(DamageNumber(
+                                enemy.x + enemy.width // 2, enemy.y,
+                                damage, (0, 200, 255)))
+                            if enemy.take_damage(damage):
+                                self._on_enemy_killed(enemy)
+                    self.explosions.append(Explosion(tx, ty, tier="large"))
+                    self.screen_shake.trigger(6, 12)
+                    # Store orbital strike visual
+                    self.orbital_laser_effects.append({
+                        'x': tx, 'y': ty, 'timer': 0, 'duration': 30
+                    })
+
+        # Update orbital laser visuals
+        for strike in self.orbital_laser_effects:
+            strike['timer'] += 1
+        self.orbital_laser_effects = [
+            e for e in self.orbital_laser_effects if e['timer'] < e['duration']
+        ]
+
+        # Temporal Field: slow nearby enemies
+        tf_stacks = self.upgrades.get("temporal_field", 0)
+        # Time Warp powerup stacks on top of temporal field
+        time_warp_active = self.active_powerups.get("time_warp", 0) > 0
+        if tf_stacks > 0 or time_warp_active:
+            slow_factor = 1.0 - tf_stacks * 0.15  # 15% slow per stack
+            if time_warp_active:
+                slow_factor *= 0.35  # Time Warp: massive 65% additional slow
+            slow_factor = max(0.15, slow_factor)
+            px = self.player_ship.x + self.player_ship.width // 2
+            py = self.player_ship.y
+            slow_range = 600 if time_warp_active else 300
+            for enemy in self.ai_ships:
+                dist = math.hypot(enemy.x + enemy.width // 2 - px, enemy.y - py)
+                if dist < slow_range:
+                    if not hasattr(enemy, '_base_speed'):
+                        enemy._base_speed = enemy.speed
+                    enemy.speed = max(1, int(enemy._base_speed * slow_factor))
+                else:
+                    if hasattr(enemy, '_base_speed'):
+                        enemy.speed = enemy._base_speed
+
+        # Magnetize powerup: pull all orbs and powerups toward player
+        if self.active_powerups.get("magnetize", 0) > 0:
+            px = self.player_ship.x + self.player_ship.width // 2
+            py = self.player_ship.y
+            for orb in self.xp_orbs:
+                dx = px - orb.x
+                dy = py - orb.y
+                dist = math.hypot(dx, dy)
+                if dist > 5:
+                    orb.vx += (dx / dist) * 2.0
+                    orb.vy += (dy / dist) * 2.0
+            for pu in self.powerups:
+                dist = math.hypot(pu.x - px, pu.y - py)
+                if dist < 800 and dist > 5:
+                    pull = 4.0 / dist
+                    pu.x += (px - pu.x) * pull
+                    pu.y += (py - pu.y) * pull
+
     def update(self):
         """Update game state."""
         if self.showing_level_up:
             return
+
+        self.survival_frames += 1
 
         # Kill streak timer
         if self.kill_streak > 0:
@@ -750,41 +911,6 @@ class SpaceShooterGame:
             if self.kill_streak_timer >= 180:  # 3 seconds
                 self.kill_streak = 0
                 self.kill_streak_timer = 0
-
-        # Handle wave transition
-        if self.wave_complete:
-            self.wave_transition_timer += 1
-            if self.wave_transition_timer >= 180:
-                self.current_wave += 1
-                if self.current_wave > self.max_waves:
-                    self.game_over = True
-                    self.winner = "player"
-                    self._save_score()
-                else:
-                    self.spawn_wave_enemies()
-                    self.wave_complete = False
-                    self.wave_transition_timer = 0
-            # Update during transition
-            self.explosions = [e for e in self.explosions if e.update()]
-            self.damage_numbers = [d for d in self.damage_numbers if d.update()]
-            self.popup_notifications = [p for p in self.popup_notifications if p.update()]
-            collection_radius = (30 + self.upgrades.get("tractor_beam", 0) * 15
-                                 + self.upgrades.get("magnet_field", 0) * 40)
-            player_cx = self.player_ship.x + self.player_ship.width // 2
-            player_cy = self.player_ship.y
-            for orb in self.xp_orbs[:]:
-                xp_gained = orb.update(player_cx, player_cy, collection_radius)
-                if xp_gained > 0:
-                    self._gain_xp(xp_gained)
-                if not orb.active:
-                    self.xp_orbs.remove(orb)
-            # Compute player velocity for parallax
-            player_vx = self.player_ship.x - self.prev_player_x
-            player_vy = self.player_ship.y - self.prev_player_y
-            self.prev_player_x = self.player_ship.x
-            self.prev_player_y = self.player_ship.y
-            self.starfield.update(player_vx, player_vy)
-            return
 
         if self.game_over:
             self.explosions = [e for e in self.explosions if e.update()]
@@ -797,11 +923,28 @@ class SpaceShooterGame:
         if not self.wormhole_active:
             self.player_ship.update(keys)
 
-        # Compute player velocity for parallax
-        player_vx = self.player_ship.x - self.prev_player_x
-        player_vy = self.player_ship.y - self.prev_player_y
-        self.prev_player_x = self.player_ship.x
-        self.prev_player_y = self.player_ship.y
+            # Boost sound — play once on activation
+            boosting_now = self.player_ship.thruster_boost_active
+            if boosting_now and not self._was_boosting and self.boost_sound:
+                try:
+                    self.boost_sound.play()
+                except Exception:
+                    pass
+            self._was_boosting = boosting_now
+
+            # Derive facing from velocity (smooth — only change when moving)
+            ship = self.player_ship
+            if abs(ship.vx) > 0.5 or abs(ship.vy) > 0.5:
+                # Pick dominant axis for facing
+                if abs(ship.vx) >= abs(ship.vy):
+                    ship.set_facing((1, 0) if ship.vx > 0 else (-1, 0))
+                else:
+                    ship.set_facing((0, -1) if ship.vy < 0 else (0, 1))
+
+        # Update camera (smooth follow player center)
+        player_cx = self.player_ship.x + self.player_ship.width // 2
+        player_cy = self.player_ship.y
+        self.camera.follow(player_cx, player_cy)
 
         # Wormhole cooldown tick
         if self.wormhole_cooldown > 0:
@@ -817,6 +960,8 @@ class SpaceShooterGame:
                 self.player_ship.y = self.wormhole_exit_y
                 self.wormhole_effects.append(
                     WormholeEffect(self.wormhole_exit_x, self.wormhole_exit_y, is_entry=False))
+                # Snap camera to new position for snappy feel
+                self.camera.snap_to(self.wormhole_exit_x, self.wormhole_exit_y)
 
             if self.wormhole_transit_timer >= self.wormhole_transit_duration:
                 self.wormhole_active = False
@@ -824,22 +969,37 @@ class SpaceShooterGame:
 
         self.wormhole_effects = [e for e in self.wormhole_effects if e.update()]
 
+        # --- Continuous spawner ---
+        new_ships = self.spawner.update(self.ai_ships, self.screen_width, self.screen_height)
+        self.ai_ships.extend(new_ships)
+
+        # --- Despawn far-away entities ---
+        despawn_dist = 2500
+        self.ai_ships = [s for s in self.ai_ships
+                         if math.hypot(s.x - self.camera.x, s.y - self.camera.y) < despawn_dist]
+        self.asteroids = [a for a in self.asteroids if a.active and
+                          math.hypot(a.x - self.camera.x, a.y - self.camera.y) < despawn_dist]
+        self.xp_orbs = [o for o in self.xp_orbs if o.active and
+                        math.hypot(o.x - self.camera.x, o.y - self.camera.y) < despawn_dist]
+        self.powerups = [p for p in self.powerups if p.active and
+                         math.hypot(p.x - self.camera.x, p.y - self.camera.y) < despawn_dist]
+
         # Shield Bash (dash) logic
         bash_stacks = self.upgrades.get("shield_bash", 0)
         if bash_stacks > 0:
             if self.dash_cooldown > 0:
                 self.dash_cooldown -= 1
 
-            player_moving = (abs(player_vx) > 2 or abs(player_vy) > 2)
+            player_vx = self.player_ship.x - (self.camera.x - self.camera.vx / self.camera.lerp_speed * self.camera.lerp_speed if hasattr(self.camera, 'vx') else 0)
+            player_moving = abs(self.camera.vx) > 0.5 or abs(self.camera.vy) > 0.5
 
             if player_moving and not self.dash_active and self.dash_cooldown <= 0:
                 self.dash_active = True
-                self.dash_timer = 30  # 0.5s
+                self.dash_timer = 30
                 self.dash_afterimages = []
 
             if self.dash_active:
                 self.dash_timer -= 1
-                # Afterimage trail
                 if self.dash_timer % 3 == 0:
                     self.dash_afterimages.append({
                         'x': self.player_ship.x,
@@ -847,7 +1007,6 @@ class SpaceShooterGame:
                         'alpha': 150,
                     })
 
-                # Contact damage during dash
                 player_rect = self.player_ship.get_rect()
                 dash_damage = 30 + bash_stacks * 10
                 for ai_ship in self.ai_ships[:]:
@@ -861,13 +1020,11 @@ class SpaceShooterGame:
 
                 if self.dash_timer <= 0:
                     self.dash_active = False
-                    self.dash_cooldown = 180  # 3s
+                    self.dash_cooldown = 180
 
-            # Update afterimages
             for ai in self.dash_afterimages[:]:
                 ai['alpha'] -= 10
-                if ai['alpha'] <= 0:
-                    self.dash_afterimages.remove(ai)
+            self.dash_afterimages = [a for a in self.dash_afterimages if a['alpha'] > 0]
 
         # Sarcophagus passive healing
         sarc_stacks = self.upgrades.get("sarcophagus", 0)
@@ -911,9 +1068,8 @@ class SpaceShooterGame:
         gw_stacks = self.upgrades.get("gravity_well", 0)
         if gw_stacks > 0:
             self.gravity_well_timer += 1
-            if self.gravity_well_timer >= 600 and self.ai_ships:  # 10s
+            if self.gravity_well_timer >= 600 and self.ai_ships:
                 self.gravity_well_timer = 0
-                # Deploy at centroid of visible enemies
                 cx = sum(s.x + s.width // 2 for s in self.ai_ships) / len(self.ai_ships)
                 cy = sum(s.y for s in self.ai_ships) / len(self.ai_ships)
                 self.gravity_wells.append(GravityWell(cx, cy, gw_stacks))
@@ -925,6 +1081,65 @@ class SpaceShooterGame:
                 self._on_enemy_killed(enemy)
             if not gw.active:
                 self.gravity_wells.remove(gw)
+
+        # New upgrade effects
+        self._update_new_upgrades()
+
+        # --- Faction powerup ongoing effects ---
+        # Asgard Beam Array: auto-fire beams in all directions
+        if self.active_powerups.get("asgard_beam_array", 0) > 0:
+            if self.survival_frames % 10 == 0:  # Every 10 frames
+                px = self.player_ship.x + self.player_ship.width // 2
+                py = self.player_ship.y
+                for direction in [(1, 0), (-1, 0), (0, -1), (0, 1)]:
+                    proj = Laser(px, py, direction, (0, 255, 255), speed=22)
+                    proj.damage = 20
+                    proj.is_player_proj = True
+                    self.projectiles.append(proj)
+
+        # Tau'ri Railgun Barrage: auto-fire railgun toward nearest enemy
+        if self.active_powerups.get("tauri_railgun_barrage", 0) > 0:
+            if not hasattr(self, '_railgun_barrage_timer'):
+                self._railgun_barrage_timer = 0
+            self._railgun_barrage_timer += 1
+            if self._railgun_barrage_timer >= 30 and self.ai_ships:  # Every 0.5s
+                self._railgun_barrage_timer = 0
+                nearest = min(self.ai_ships,
+                              key=lambda e: math.hypot(e.x - self.player_ship.x,
+                                                        e.y - self.player_ship.y))
+                dx = nearest.x - self.player_ship.x
+                dy = nearest.y - self.player_ship.y
+                dist = math.hypot(dx, dy)
+                if dist > 1:
+                    direction = (dx / dist, dy / dist)
+                    px = self.player_ship.x + self.player_ship.width // 2
+                    py = self.player_ship.y
+                    proj = RailgunShot(px, py, direction, (80, 180, 255))
+                    proj.is_player_proj = True
+                    proj.damage = 40
+                    self.projectiles.append(proj)
+
+        # Jaffa Blood Rage: triple damage + life steal on kill
+        # (damage mult handled in auto-fire section, life steal in _on_enemy_killed)
+
+        # Lucian Kassa: enemies damage each other
+        if self.active_powerups.get("lucian_kassa", 0) > 0:
+            if self.survival_frames % 30 == 0:  # Every 0.5s
+                px = self.player_ship.x + self.player_ship.width // 2
+                py = self.player_ship.y
+                for enemy in self.ai_ships[:]:
+                    dist = math.hypot(enemy.x + enemy.width // 2 - px, enemy.y - py)
+                    if dist < 500:
+                        # Confused enemies hurt each other
+                        dmg = 8
+                        enemy.hit_flash = 3
+                        self.damage_numbers.append(DamageNumber(
+                            enemy.x + enemy.width // 2, enemy.y,
+                            dmg, (200, 80, 255)))
+                        if enemy.take_damage(dmg):
+                            self._on_enemy_killed(enemy)
+
+        # Jaffa Freedom (KREE): 3x damage handled in auto-fire, invuln via sarcophagus
 
         # Orbital Defense drones
         for drone in self.upgrade_drones:
@@ -962,31 +1177,33 @@ class SpaceShooterGame:
                     if getattr(ai_ship, 'is_boss', False):
                         hp_pct = ai_ship.health / ai_ship.max_health
                         if hp_pct < 0.25:
-                            ai_ship.ai_fire_timer = random.randint(5, 15)
-                            for offset in [-40, 40]:
-                                extra = ai_ship.fire()
-                                if extra is None:
-                                    fire_x = ai_ship.x
-                                    extra = Laser(fire_x, ai_ship.y + offset,
-                                                  ai_ship.facing,
-                                                  ai_ship.laser_color, speed=16)
-                                    extra.damage = 10
-                                extra.is_player_proj = False
-                                self.projectiles.append(extra)
+                            ai_ship.ai_fire_timer = random.randint(90, 150)
+                            extra = ai_ship.fire()
+                            if extra is None:
+                                fire_x = ai_ship.x
+                                extra = Laser(fire_x, ai_ship.y,
+                                              ai_ship.facing,
+                                              ai_ship.laser_color, speed=14)
+                                extra.damage = 8
+                            extra.is_player_proj = False
+                            self.projectiles.append(extra)
                         elif hp_pct < 0.50:
-                            ai_ship.ai_fire_timer = random.randint(10, 25)
+                            ai_ship.ai_fire_timer = random.randint(120, 200)
                         elif hp_pct < 0.75:
-                            ai_ship.ai_fire_timer = random.randint(15, 40)
+                            ai_ship.ai_fire_timer = random.randint(160, 280)
                         else:
-                            ai_ship.ai_fire_timer = random.randint(20, 50)
+                            ai_ship.ai_fire_timer = random.randint(200, 360)
                     else:
-                        base_min = max(30, 80 - self.current_wave * 3)
-                        base_max = max(60, 140 - self.current_wave * 4)
-                        ai_ship.ai_fire_timer = random.randint(base_min, base_max)
+                        # Very slow AI fire — player should feel powerful
+                        ai_ship.ai_fire_timer = random.randint(360, 660)
 
         # Player auto-fire
         if not self.game_over:
             berserker_mult = self._get_berserker_mult()
+
+            # Bullet Hell evolution: fire in ALL directions
+            bullet_hell = "bullet_hell" in self.evolutions
+
             if self.player_ship.weapon_type == "beam":
                 if not self.player_ship.current_beam:
                     beam = self.player_ship.fire()
@@ -999,42 +1216,47 @@ class SpaceShooterGame:
                 projectile = self.player_ship.fire()
                 if projectile:
                     wp_mult = 1.0 + self.upgrades.get("weapons_power", 0) * 0.15
-                    base_dmg = projectile.damage * self.base_damage_mult * wp_mult * berserker_mult
+                    war_cry_mult = 1.5 if self.player_ship.secondary_buff_timer > 0 else 1.0
+                    # Faction powerup damage bonuses
+                    faction_dmg_mult = 1.0
+                    if self.active_powerups.get("jaffa_blood_rage", 0) > 0:
+                        faction_dmg_mult = 3.0
+                    elif self.active_powerups.get("jaffa_freedom", 0) > 0:
+                        faction_dmg_mult = 3.0
+                    base_dmg = projectile.damage * self.base_damage_mult * wp_mult * berserker_mult * war_cry_mult * faction_dmg_mult
                     base_dmg, is_crit = self._apply_critical(base_dmg)
                     projectile.damage = int(base_dmg)
                     projectile._is_crit = is_crit
                     self.projectiles.append(projectile)
 
-                    # Multi-Targeting: fires extra projectiles in all directions
+                    # Multi-Targeting extra projectiles
                     mt_stacks = self.upgrades.get("multi_targeting", 0)
+                    if bullet_hell:
+                        mt_stacks = max(mt_stacks, 5)  # Force max spread
+
                     if mt_stacks > 0 and not isinstance(projectile, ContinuousBeam):
                         fdx, fdy = self.player_ship.facing
                         ship = self.player_ship
                         cx = ship.x + ship.width // 2
                         cy = ship.y
 
-                        # Build list of extra fire directions
                         extra_dirs = []
-                        # Forward spread shots (always)
                         for i in range(1, min(mt_stacks + 1, 4)):
                             for angle_sign in [1, -1]:
                                 extra_dirs.append(('spread', angle_sign * i * 8))
 
-                        # Perpendicular shots at 2+ stacks
-                        if mt_stacks >= 2:
+                        if mt_stacks >= 2 or bullet_hell:
                             if abs(fdx) > 0:
-                                extra_dirs.append(('dir', (0, -1)))  # Up
-                                extra_dirs.append(('dir', (0, 1)))   # Down
+                                extra_dirs.append(('dir', (0, -1)))
+                                extra_dirs.append(('dir', (0, 1)))
                             else:
-                                extra_dirs.append(('dir', (-1, 0)))  # Left
-                                extra_dirs.append(('dir', (1, 0)))   # Right
+                                extra_dirs.append(('dir', (-1, 0)))
+                                extra_dirs.append(('dir', (1, 0)))
 
-                        # Rear shots at 3+ stacks
-                        if mt_stacks >= 3:
+                        if mt_stacks >= 3 or bullet_hell:
                             extra_dirs.append(('dir', (-fdx, -fdy)))
 
-                        # Diagonal shots at 4+ stacks
-                        if mt_stacks >= 4:
+                        if mt_stacks >= 4 or bullet_hell:
                             for ddx in [-1, 1]:
                                 for ddy in [-1, 1]:
                                     if (ddx, ddy) != (fdx, fdy):
@@ -1056,8 +1278,7 @@ class SpaceShooterGame:
                                 else:
                                     fx = cx
                                     fy = ship.y + ship.height // 2
-                                extra = type(projectile)(fx, fy, d,
-                                                         ship.laser_color)
+                                extra = type(projectile)(fx, fy, d, ship.laser_color)
                                 extra.is_player_proj = True
                                 extra_dmg = extra.damage * self.base_damage_mult * wp_mult * berserker_mult
                                 extra_dmg, _ = self._apply_critical(extra_dmg)
@@ -1070,8 +1291,7 @@ class SpaceShooterGame:
                                 self.projectiles.append(extra)
                             else:
                                 d = entry[1]
-                                extra = type(projectile)(cx, cy, d,
-                                                         ship.laser_color)
+                                extra = type(projectile)(cx, cy, d, ship.laser_color)
                                 extra.is_player_proj = True
                                 extra_dmg = extra.damage * self.base_damage_mult * wp_mult * berserker_mult * 0.7
                                 extra_dmg, _ = self._apply_critical(extra_dmg)
@@ -1080,6 +1300,10 @@ class SpaceShooterGame:
 
                     # Scatter Shot
                     scatter_stacks = self.upgrades.get("scatter_shot", 0)
+                    # Cluster Bomb evolution boosts scatter
+                    cluster_bomb = "cluster_bomb" in self.evolutions
+                    if cluster_bomb:
+                        scatter_stacks = max(scatter_stacks, 3)
                     if scatter_stacks > 0:
                         fdx, fdy = self.player_ship.facing
                         num_pellets = scatter_stacks * 3
@@ -1101,47 +1325,46 @@ class SpaceShooterGame:
                                           self.player_ship.laser_color, speed=22)
                             pellet.damage = int(projectile.damage * 0.4)
                             pellet.is_player_proj = True
-                            # Apply spread perpendicular to facing
                             offset = math.tan(math.radians(spread_angle)) * 40
                             if abs(fdx) > 0:
                                 pellet.y += offset
                             else:
                                 pellet.x += offset
-                            # Reduce pellet size
                             pellet.width = max(2, pellet.width // 2)
                             pellet.height = max(2, pellet.height // 2)
                             self.projectiles.append(pellet)
 
-        # Spawn asteroids
-        effective_asteroid_rate = max(200, 600 - self.current_wave * 20)
+        # Spawn asteroids around viewport
         self.asteroid_spawn_timer += 1
-        if self.asteroid_spawn_timer >= effective_asteroid_rate:
+        if self.asteroid_spawn_timer >= self.asteroid_spawn_rate:
             self.asteroid_spawn_timer = 0
-            direction = random.choices(
-                ["right", "left", "top", "bottom"],
-                weights=[35, 25, 20, 20]
-            )[0]
-            self.asteroids.append(Asteroid(self.screen_width, self.screen_height, direction))
+            ax, ay = self.camera.get_spawn_ring(400, 600)
+            # Give asteroid velocity toward viewport center roughly
+            angle_to_center = math.atan2(self.camera.y - ay, self.camera.x - ax)
+            speed = random.uniform(2.0, 5.0)
+            self.asteroids.append(Asteroid(
+                ax, ay,
+                vx=math.cos(angle_to_center) * speed + random.uniform(-0.5, 0.5),
+                vy=math.sin(angle_to_center) * speed + random.uniform(-0.5, 0.5)
+            ))
 
         # Update asteroids
-        for asteroid in self.asteroids[:]:
+        for asteroid in self.asteroids:
             asteroid.update()
-            if not asteroid.active:
-                self.asteroids.remove(asteroid)
 
-        # Spawn power-ups
+        # Periodic powerup spawns near player (every 4-7 seconds)
         self.powerup_spawn_timer += 1
-        if self.powerup_spawn_timer >= self.powerup_spawn_rate:
+        if self.powerup_spawn_timer >= random.randint(240, 420):
             self.powerup_spawn_timer = 0
-            if random.random() < 0.75:
-                self.powerups.append(PowerUp.spawn_random(self.screen_width, self.screen_height))
+            angle = random.uniform(0, math.pi * 2)
+            dist = random.uniform(150, 350)
+            px = self.player_ship.x + math.cos(angle) * dist
+            py = self.player_ship.y + math.sin(angle) * dist
+            self.powerups.append(PowerUp.spawn_at(px, py, faction=self.player_faction))
 
         # Update power-ups
         for powerup in self.powerups[:]:
             powerup.update()
-            if not powerup.active:
-                self.powerups.remove(powerup)
-                continue
             if powerup.get_rect().colliderect(self.player_ship.get_rect()):
                 self._apply_powerup(powerup)
                 self.powerups.remove(powerup)
@@ -1164,9 +1387,53 @@ class SpaceShooterGame:
             if proj:
                 self.projectiles.append(proj)
 
+        # Update proximity mines
+        for mine in self.mines[:]:
+            mine.update()
+            if not mine.active:
+                self.mines.remove(mine)
+                continue
+            if mine.is_armed():
+                for enemy in self.ai_ships[:]:
+                    dist = math.hypot(enemy.x + enemy.width // 2 - mine.x,
+                                      enemy.y - mine.y)
+                    if dist < mine.detection_radius:
+                        # Mine explodes!
+                        self.explosions.append(Explosion(mine.x, mine.y, tier="normal"))
+                        self.screen_shake.trigger(3, 6)
+                        # Damage all nearby enemies
+                        for target in self.ai_ships[:]:
+                            tdist = math.hypot(target.x + target.width // 2 - mine.x,
+                                              target.y - mine.y)
+                            if tdist < 120:
+                                dmg = int(mine.damage * (1.0 - tdist / 120 * 0.5))
+                                target.hit_flash = 5
+                                self.damage_numbers.append(DamageNumber(
+                                    target.x + target.width // 2, target.y,
+                                    dmg, (255, 100, 200)))
+                                if target.take_damage(dmg):
+                                    self._on_enemy_killed(target)
+                        mine.active = False
+                        self.mines.remove(mine)
+                        break
+
+        # Update ion pulse effects
+        for pulse in self.ion_pulse_effects:
+            pulse["timer"] += 1
+            pulse["radius"] = int(pulse["max_radius"] * (pulse["timer"] / pulse["duration"]))
+        self.ion_pulse_effects = [p for p in self.ion_pulse_effects
+                                   if p["timer"] < p["duration"]]
+
+        # War Cry buff: boost fire rate while active
+        if self.player_ship.secondary_buff_timer > 0:
+            # Halve fire cooldown each frame it's active
+            if self.player_ship.fire_cooldown > 1:
+                self.player_ship.fire_cooldown = max(1, self.player_ship.fire_cooldown - 1)
+
         # Update projectiles
         tc_stacks = self.upgrades.get("targeting_computer", 0)
-        for proj in self.projectiles[:]:
+        to_remove_projs = []
+        for proj_idx, proj in enumerate(self.projectiles):
             proj.update()
 
             # Targeting Computer homing
@@ -1184,23 +1451,23 @@ class SpaceShooterGame:
                     if abs(diff) > 1:
                         proj.x += max(-max_adjust, min(max_adjust, diff * 0.05))
 
-            if proj.x < -100 or proj.x > self.screen_width + 100 or proj.y < -100 or proj.y > self.screen_height + 100:
-                if proj in self.projectiles:
-                    self.projectiles.remove(proj)
+            # Remove if too far from camera
+            if not self.camera.is_visible(proj.x, proj.y, margin=400):
+                to_remove_projs.append(proj_idx)
                 continue
 
             proj_rect = proj.get_rect()
 
             if proj.is_player_proj:
+                hit = False
                 for ai_ship in self.ai_ships[:]:
                     if proj_rect.colliderect(ai_ship.get_rect()):
-                        if proj in self.projectiles:
-                            self.projectiles.remove(proj)
+                        hit = True
                         ai_ship.hit_flash = 10
+                        self._play_hit_sound()
                         hit_x = ai_ship.x + ai_ship.width // 2
                         hit_y = ai_ship.y
 
-                        # Damage number
                         is_crit = getattr(proj, '_is_crit', False)
                         dmg_color = (255, 255, 0) if is_crit else (255, 255, 255)
                         self.damage_numbers.append(DamageNumber(hit_x, hit_y, proj.damage, dmg_color))
@@ -1210,28 +1477,28 @@ class SpaceShooterGame:
                             _killed_this_hit.add(ai_ship)
                             self._on_enemy_killed(ai_ship)
 
-                        # Chain lightning
                         self._try_chain_lightning(hit_x, hit_y, proj.damage, ai_ship)
 
-                        # Lucian Alliance splash damage
                         if self.player_ship.passive == "splash_damage" and isinstance(proj, EnergyBall):
                             self._apply_splash_damage(hit_x, hit_y, proj.damage, self.player_ship, already_killed=_killed_this_hit)
                         break
+                if hit and not getattr(proj, 'piercing', False):
+                    to_remove_projs.append(proj_idx)
+                    continue
             else:
                 if not self.wormhole_active and proj_rect.colliderect(self.player_ship.get_rect()):
-                    # Evasion check
-                    if self._check_evasion():
-                        if proj in self.projectiles:
-                            self.projectiles.remove(proj)
+                    if self._check_evasion() or self.is_invulnerable():
+                        to_remove_projs.append(proj_idx)
+                        if self.is_invulnerable():
+                            self.damage_numbers.append(DamageNumber(
+                                self.player_ship.x + self.player_ship.width // 2,
+                                self.player_ship.y, 0, (255, 215, 0)))
                         continue
 
-                    if proj in self.projectiles:
-                        self.projectiles.remove(proj)
+                    to_remove_projs.append(proj_idx)
                     self.player_hit_flash = 10
-                    self.wave_damage_taken = True
                     self.screen_shake.trigger(5, 8)
 
-                    # Damage number (red for player damage)
                     self.damage_numbers.append(DamageNumber(
                         self.player_ship.x + self.player_ship.width // 2,
                         self.player_ship.y, proj.damage, (255, 80, 80)))
@@ -1242,23 +1509,26 @@ class SpaceShooterGame:
                         self._save_score()
                         self.explosions.append(Explosion(
                             self.player_ship.x + self.player_ship.width // 2,
-                            self.player_ship.y))
+                            self.player_ship.y, tier="large"))
                     continue
 
             # Projectile vs asteroids
             for asteroid in self.asteroids[:]:
                 if proj_rect.colliderect(asteroid.get_rect()):
-                    if proj in self.projectiles:
-                        self.projectiles.remove(proj)
+                    to_remove_projs.append(proj_idx)
                     if asteroid.take_damage(proj.damage):
-                        self.explosions.append(Explosion(asteroid.x, asteroid.y))
-                        if asteroid in self.asteroids:
-                            self.asteroids.remove(asteroid)
+                        self.explosions.append(Explosion(asteroid.x, asteroid.y, tier="small"))
+                        asteroid.active = False
                         if proj.is_player_proj:
                             self.score += self.SCORE_ASTEROID
                             self.asteroids_destroyed += 1
                             self.xp_orbs.append(XPOrb(asteroid.x, asteroid.y, 10))
                     break
+
+        # Remove projectiles (reverse order to preserve indices)
+        for idx in sorted(set(to_remove_projs), reverse=True):
+            if idx < len(self.projectiles):
+                self.projectiles.pop(idx)
 
         # Check beam collision (player)
         if self.player_ship.current_beam:
@@ -1297,7 +1567,7 @@ class SpaceShooterGame:
 
             targets.sort(key=lambda t: t[0])
 
-            beam_end_dist = self.screen_width if is_horizontal else self.screen_height
+            beam_end_dist = beam.max_range
             hit_first = False
             for dist, target, is_ast in targets:
                 if not piercing and dist > beam_end_dist:
@@ -1307,9 +1577,8 @@ class SpaceShooterGame:
                 hit_first = True
                 if is_ast:
                     if target.take_damage(dmg):
-                        self.explosions.append(Explosion(target.x, target.y))
-                        if target in self.asteroids:
-                            self.asteroids.remove(target)
+                        self.explosions.append(Explosion(target.x, target.y, tier="small"))
+                        target.active = False
                         self.score += self.SCORE_ASTEROID
                         self.asteroids_destroyed += 1
                         self.xp_orbs.append(XPOrb(target.x, target.y, 10))
@@ -1331,7 +1600,7 @@ class SpaceShooterGame:
                 beam_start_x, _ = beam.get_start_pos()
                 beam_dir = ai_ship.facing[0]
 
-                closest_hit_dist = self.screen_width
+                closest_hit_dist = beam.max_range
                 hit_target = None
                 is_asteroid = False
 
@@ -1362,14 +1631,11 @@ class SpaceShooterGame:
                 if hit_target:
                     if is_asteroid:
                         if hit_target.take_damage(beam.damage_per_frame):
-                            self.explosions.append(Explosion(hit_target.x, hit_target.y))
-                            if hit_target in self.asteroids:
-                                self.asteroids.remove(hit_target)
+                            self.explosions.append(Explosion(hit_target.x, hit_target.y, tier="small"))
+                            hit_target.active = False
                     else:
-                        # Evasion check for beam
                         if not self._check_evasion():
                             self.player_hit_flash = 3
-                            self.wave_damage_taken = True
                             self.damage_numbers.append(DamageNumber(
                                 self.player_ship.x + self.player_ship.width // 2,
                                 self.player_ship.y, beam.damage_per_frame, (255, 80, 80)))
@@ -1379,25 +1645,29 @@ class SpaceShooterGame:
                                 self._save_score()
                                 self.explosions.append(Explosion(
                                     self.player_ship.x + self.player_ship.width // 2,
-                                    self.player_ship.y))
+                                    self.player_ship.y, tier="large"))
 
         # Ship collision with asteroids
         for asteroid in self.asteroids[:]:
+            if not asteroid.active:
+                continue
             if not self.wormhole_active and asteroid.get_rect().colliderect(self.player_ship.get_rect()):
                 self.player_hit_flash = 5
                 self.player_ship.take_damage(25, is_asteroid=True)
-                self.explosions.append(Explosion(asteroid.x, asteroid.y))
-                self.asteroids.remove(asteroid)
+                self.explosions.append(Explosion(asteroid.x, asteroid.y, tier="small"))
+                asteroid.active = False
                 self.screen_shake.trigger(3, 5)
                 continue
             for ai_ship in self.ai_ships:
                 if asteroid.get_rect().colliderect(ai_ship.get_rect()):
                     ai_ship.hit_flash = 5
                     ai_ship.take_damage(25, is_asteroid=True)
-                    self.explosions.append(Explosion(asteroid.x, asteroid.y))
-                    if asteroid in self.asteroids:
-                        self.asteroids.remove(asteroid)
+                    self.explosions.append(Explosion(asteroid.x, asteroid.y, tier="small"))
+                    asteroid.active = False
                     break
+
+        # Remove dead asteroids
+        self.asteroids = [a for a in self.asteroids if a.active]
 
         # Contact damage: enemy ships touching the player
         if not self.wormhole_active and not self.game_over:
@@ -1406,14 +1676,12 @@ class SpaceShooterGame:
                 if ai_ship.contact_damage_cooldown > 0:
                     continue
                 if ai_ship.get_rect().colliderect(player_rect):
-                    # Evasion check
                     if self._check_evasion():
                         ai_ship.contact_damage_cooldown = 30
                         continue
 
                     contact_dmg = 25 if getattr(ai_ship, 'is_boss', False) else 10
                     self.player_hit_flash = 5
-                    self.wave_damage_taken = True
                     self.screen_shake.trigger(5, 8)
                     self.damage_numbers.append(DamageNumber(
                         self.player_ship.x + self.player_ship.width // 2,
@@ -1424,7 +1692,7 @@ class SpaceShooterGame:
                         self._save_score()
                         self.explosions.append(Explosion(
                             self.player_ship.x + self.player_ship.width // 2,
-                            self.player_ship.y))
+                            self.player_ship.y, tier="large"))
                     ai_ship.hit_flash = 3
                     if ai_ship.take_damage(5):
                         self._on_enemy_killed(ai_ship)
@@ -1439,16 +1707,15 @@ class SpaceShooterGame:
             xp_gained = orb.update(player_cx, player_cy, collection_radius)
             if xp_gained > 0:
                 self._gain_xp(xp_gained)
-            if not orb.active:
-                self.xp_orbs.remove(orb)
+        self.xp_orbs = [o for o in self.xp_orbs if o.active]
 
         # Trigger level-up screen
         if self.pending_level_ups > 0 and not self.showing_level_up:
             self._prepare_level_up_choices()
             self.showing_level_up = True
 
-        # Update background
-        self.starfield.update(player_vx, player_vy)
+        # Update background (pass camera velocity for speed lines)
+        self.starfield.update(self.camera.vx, self.camera.vy)
 
         # Update visual feedback
         if self.player_hit_flash > 0:
@@ -1460,9 +1727,14 @@ class SpaceShooterGame:
         for cl in self.chain_lightning_effects:
             cl.update()
 
+        # Add time-based score (1 point per second survived)
+        if self.survival_frames % 60 == 0:
+            self.score += 10
+
     def draw(self, surface):
         """Draw the game."""
         time_tick = pygame.time.get_ticks()
+        cam = self.camera
 
         # Apply screen shake
         shake_x, shake_y = self.screen_shake.update()
@@ -1475,105 +1747,150 @@ class SpaceShooterGame:
 
         # Background
         draw_surface.fill((5, 5, 20))
-        self.starfield.draw(draw_surface)
+        self.starfield.draw(draw_surface, camera=cam)
 
-        # Draw asteroids
+        # Draw asteroids (culled)
         for asteroid in self.asteroids:
-            asteroid.draw(draw_surface)
+            if cam.is_visible(asteroid.x, asteroid.y, margin=asteroid.size + 50):
+                asteroid.draw(draw_surface, camera=cam)
 
         # Draw gravity wells
         for gw in self.gravity_wells:
-            gw.draw(draw_surface)
+            if cam.is_visible(gw.x, gw.y, margin=gw.radius + 20):
+                gw.draw(draw_surface, camera=cam)
 
-        # Draw XP orbs
+        # Draw XP orbs (culled)
         for orb in self.xp_orbs:
-            orb.draw(draw_surface)
+            if cam.is_visible(orb.x, orb.y, margin=20):
+                orb.draw(draw_surface, camera=cam)
 
         # Draw power-ups
         for powerup in self.powerups:
-            powerup.draw(draw_surface)
+            if cam.is_visible(powerup.x, powerup.y, margin=50):
+                powerup.draw(draw_surface, camera=cam)
 
-        # Draw projectiles
+        # Draw proximity mines
+        for mine in self.mines:
+            if cam.is_visible(mine.x, mine.y, margin=50):
+                mine.draw(draw_surface, camera=cam)
+
+        # Draw ion pulse effects
+        for pulse in self.ion_pulse_effects:
+            if cam.is_visible(pulse['x'], pulse['y'], margin=pulse['max_radius']):
+                sx, sy = cam.world_to_screen(pulse['x'], pulse['y'])
+                progress = pulse['timer'] / pulse['duration']
+                r = pulse['radius']
+                alpha = int(180 * (1 - progress))
+                if r > 0:
+                    pulse_surf = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+                    c = r + 2
+                    pygame.draw.circle(pulse_surf, (*pulse['color'][:3], alpha // 3), (c, c), r)
+                    pygame.draw.circle(pulse_surf, (*pulse['color'][:3], alpha), (c, c), r, 3)
+                    pygame.draw.circle(pulse_surf, (255, 255, 255, alpha // 2), (c, c), max(1, r - 5), 2)
+                    draw_surface.blit(pulse_surf, (int(sx) - c, int(sy) - c))
+
+        # Draw projectiles (culled)
         for proj in self.projectiles:
-            proj.draw(draw_surface)
+            if cam.is_visible(proj.x, proj.y, margin=50):
+                proj.draw(draw_surface, camera=cam)
 
         # Draw chain lightning effects
         for cl in self.chain_lightning_effects:
-            cl.draw(draw_surface)
+            cl.draw(draw_surface, camera=cam)
 
         # Draw beam weapons if active
         if self.player_ship.current_beam:
-            self.player_ship.current_beam.draw(draw_surface)
+            self.player_ship.current_beam.draw(draw_surface, camera=cam)
         for ai_ship in self.ai_ships:
             if ai_ship.current_beam:
-                ai_ship.current_beam.draw(draw_surface)
+                ai_ship.current_beam.draw(draw_surface, camera=cam)
+
+        # Draw orbital laser strike visuals
+        for strike in self.orbital_laser_effects:
+            if cam.is_visible(strike['x'], strike['y'], margin=100):
+                sx, sy = cam.world_to_screen(strike['x'], strike['y'])
+                progress = strike['timer'] / strike['duration']
+                alpha = int(255 * (1 - progress))
+                # Beam from top of screen to target
+                beam_w = int(20 * (1 - progress))
+                if beam_w > 0:
+                    beam_surf = pygame.Surface((beam_w * 2, int(sy) + 10), pygame.SRCALPHA)
+                    pygame.draw.rect(beam_surf, (0, 200, 255, alpha),
+                                     (0, 0, beam_w * 2, int(sy) + 10))
+                    pygame.draw.rect(beam_surf, (200, 240, 255, alpha // 2),
+                                     (beam_w // 2, 0, beam_w, int(sy) + 10))
+                    draw_surface.blit(beam_surf, (int(sx) - beam_w, 0))
 
         # Draw dash afterimages
         for ai_data in self.dash_afterimages:
             if self.player_ship.image:
                 ghost = self.player_ship.image.copy()
                 ghost.set_alpha(ai_data['alpha'])
-                draw_surface.blit(ghost, (int(ai_data['x']), int(ai_data['y'] - self.player_ship.height // 2)))
+                gx, gy = cam.world_to_screen(ai_data['x'], ai_data['y'])
+                draw_surface.blit(ghost, (int(gx), int(gy - self.player_ship.height // 2)))
 
         # Draw player ship
         if not self.game_over or self.winner != "ai":
             if self.wormhole_active:
                 pass
             elif self.player_hit_flash > 0:
-                self.player_ship.draw(draw_surface, time_tick)
-                # Red flash overlay on ship bounds only
-                ship_rect = self.player_ship.get_rect()
+                self.player_ship.draw(draw_surface, time_tick, camera=cam)
+                sx, sy = cam.world_to_screen(self.player_ship.x, self.player_ship.y)
+                ship_rect = pygame.Rect(int(sx), int(sy - self.player_ship.height // 2),
+                                        self.player_ship.width, self.player_ship.height)
                 flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
                 flash_surf.fill((255, 0, 0, 80))
                 draw_surface.blit(flash_surf, ship_rect.topleft)
             else:
                 if self.is_cloaked():
-                    # Draw ship with reduced alpha via image
                     if self.player_ship.image:
                         ghost = self.player_ship.image.copy()
                         ghost.set_alpha(100)
-                        draw_surface.blit(ghost, (int(self.player_ship.x),
-                                                  int(self.player_ship.y - self.player_ship.height // 2)))
+                        sx, sy = cam.world_to_screen(self.player_ship.x, self.player_ship.y)
+                        draw_surface.blit(ghost, (int(sx),
+                                                  int(sy - self.player_ship.height // 2)))
                     else:
-                        self.player_ship.draw(draw_surface, time_tick)
+                        self.player_ship.draw(draw_surface, time_tick, camera=cam)
                 else:
-                    self.player_ship.draw(draw_surface, time_tick)
+                    self.player_ship.draw(draw_surface, time_tick, camera=cam)
 
         # Draw wormhole vortex effects
         for effect in self.wormhole_effects:
-            effect.draw(draw_surface)
+            effect.draw(draw_surface, camera=cam)
 
         # Draw drones
         for drone in self.drones:
-            drone.draw(draw_surface)
+            drone.draw(draw_surface, camera=cam)
         for drone in self.upgrade_drones:
-            drone.draw(draw_surface)
+            drone.draw(draw_surface, camera=cam)
 
-        # Draw all AI ships
+        # Draw all AI ships (culled)
         for ai_ship in self.ai_ships:
-            ai_ship.draw(draw_surface, time_tick)
-            hit_flash = getattr(ai_ship, 'hit_flash', 0)
-            if hit_flash > 0:
-                # Red flash overlay on ship bounds only
-                ship_rect = ai_ship.get_rect()
-                flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
-                flash_surf.fill((255, 0, 0, 80))
-                draw_surface.blit(flash_surf, ship_rect.topleft)
-                ai_ship.hit_flash = hit_flash - 1
+            if cam.is_visible(ai_ship.x, ai_ship.y, margin=ai_ship.width):
+                ai_ship.draw(draw_surface, time_tick, camera=cam)
+                hit_flash = getattr(ai_ship, 'hit_flash', 0)
+                if hit_flash > 0:
+                    sx, sy = cam.world_to_screen(ai_ship.x, ai_ship.y)
+                    ship_rect = pygame.Rect(int(sx), int(sy - ai_ship.height // 2),
+                                            ai_ship.width, ai_ship.height)
+                    flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
+                    flash_surf.fill((255, 0, 0, 80))
+                    draw_surface.blit(flash_surf, ship_rect.topleft)
+                    ai_ship.hit_flash = hit_flash - 1
 
         # Draw explosions
         for explosion in self.explosions:
-            explosion.draw(draw_surface)
+            explosion.draw(draw_surface, camera=cam)
 
         # Draw damage numbers
         for dn in self.damage_numbers:
-            dn.draw(draw_surface)
+            dn.draw(draw_surface, camera=cam)
 
         # Draw popup notifications
         for pn in self.popup_notifications:
-            pn.draw(draw_surface)
+            pn.draw(draw_surface, camera=cam)
 
-        # Draw UI
+        # Draw UI (screen-space, no camera)
         _ui.draw_ui(self, draw_surface)
 
         # Draw level-up screen on top

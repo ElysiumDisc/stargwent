@@ -899,3 +899,36 @@ Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player
 - **itch.io** — game-focused platform, supports HTML5 games natively, built-in audience
 - **Relay server** — Python `websockets` on Fly.io / Railway / any VPS for multiplayer support
 - **All-in-one** — single server hosts both the static game files and the WebSocket relay
+
+---
+
+## 🚀 Space Shooter Architecture (v7.1.0)
+
+The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
+
+### Package Structure
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `__init__.py` | ~90 | Public API `run_space_shooter()`, main game loop |
+| `game.py` | ~1700 | SpaceShooterGame class — update, draw, collisions, upgrades |
+| `ship.py` | ~700 | Ship class — player + AI movement, weapons, secondary fire, thrusters |
+| `projectiles.py` | ~500 | Projectile types: Laser, Missile, Beam, EnergyBall, StaffBlast, Railgun, ProximityMine, ChainLightning |
+| `entities.py` | ~750 | Asteroid, PowerUp (18 types: 8 generic + 10 faction-specific), Drone, XPOrb, Explosion, DamageNumber, GravityWell |
+| `effects.py` | ~270 | StarField (infinite tiling), ScreenShake, ParticleTrail |
+| `upgrades.py` | ~220 | UPGRADES (26), EVOLUTIONS (5), ENEMY_TYPES (5), RARITY_COLORS |
+| `ui.py` | ~500 | HUD, survival timer, mini-radar, level-up cards, game over screen |
+| `camera.py` | ~120 | Camera with smooth follow, world_to_screen, culling, spawn ring |
+| `spawner.py` | ~250 | ContinuousSpawner with 10 difficulty tiers |
+| `ship_select.py` | ~120 | Ship selection screen |
+
+### Key Systems
+
+- **Camera**: Smooth lerp follow, world-to-screen conversion, `is_visible()` for draw culling
+- **Spawner**: Time-based difficulty tiers interpolate spawn rate, enemy types, HP/speed multipliers
+- **Secondary Fire**: Each faction has a unique E-key ability with its own cooldown
+- **Thrusters**: Faction-specific particle configs (color, shape, emit rate, spread), SHIFT to boost
+- **Movement**: Velocity-based with acceleration/friction for smooth feel
+- **Evolutions**: When both prerequisite upgrades are maxed, a legendary evolution is offered
+- **Audio**: Background music loop via `pygame.mixer.music`, per-faction hit SFX + boost SFX via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
+- **Faction Power-Ups**: Epic + Legendary rarity with unique effects per faction, rarity glow rendering (purple/gold)

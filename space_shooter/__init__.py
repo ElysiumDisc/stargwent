@@ -1,6 +1,6 @@
 """
 STARGWENT - SPACE SHOOTER EASTER EGG
-A Vampire Survivors-inspired arcade mini-game.
+A Vampire Survivors-inspired infinite survival mini-game.
 Unlocked after achieving 8 wins in Draft Mode.
 
 Controls:
@@ -10,18 +10,57 @@ Controls:
 
 Scoring:
 - Enemy destroyed: 100 pts
-- Boss defeated: 1000 pts (Wave 5 final enemy)
-- Wave clear bonus: 500 pts
-- No damage bonus: 200 pts (per wave, if took no damage)
+- Boss defeated: 1000 pts
 - Asteroid destroyed: 50 pts
+- Kill streak bonus: streak * 25 pts
+- Survival time: 10 pts per second
 """
 
 import pygame
 import random
+import os
 import display_manager
 
 from .game import SpaceShooterGame
 from .ship_select import ShipSelectScreen
+
+_MUSIC_PATH = os.path.join("assets", "audio", "space_shooter", "space_shooter.ogg")
+
+
+def _start_space_music():
+    """Start the space shooter background music loop."""
+    if not os.path.exists(_MUSIC_PATH):
+        print("[audio] Space shooter music file missing:", _MUSIC_PATH)
+        return
+    if not pygame.mixer.get_init():
+        try:
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+        except pygame.error as exc:
+            print(f"[audio] Mixer init failed: {exc}")
+            return
+    try:
+        from game_settings import get_settings
+        volume = get_settings().get_effective_music_volume()
+        pygame.mixer.music.load(_MUSIC_PATH)
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.music.play(-1)
+        print(f"[audio] Space shooter music playing at volume {volume:.2f}")
+    except Exception as exc:
+        print(f"[audio] Unable to start space shooter music: {exc}")
+
+
+def _stop_space_music(fade_ms=800):
+    """Fade out and stop space shooter music."""
+    if not pygame.mixer.get_init():
+        return
+    try:
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.fadeout(fade_ms)
+    except pygame.error:
+        try:
+            pygame.mixer.music.stop()
+        except pygame.error:
+            pass
 
 
 def run_space_shooter(screen, player_faction=None, ai_faction=None):
@@ -67,6 +106,15 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
         factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance"]
         ai_faction = random.choice([f for f in factions if f != player_faction])
 
+    # Stop any existing music (e.g. main menu) and start space shooter music
+    try:
+        if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+            pygame.mixer.music.fadeout(400)
+            pygame.time.wait(400)
+    except pygame.error:
+        pass
+    _start_space_music()
+
     session_scores = []
     game = SpaceShooterGame(screen_width, screen_height, player_faction, ai_faction,
                             session_scores=session_scores)
@@ -85,7 +133,11 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
         display_manager.gpu_flip()
         clock.tick(60)
 
+    # Stop space shooter music when leaving
+    _stop_space_music()
+
     if game.exit_to_menu:
         return None
 
-    return game.winner == "player"
+    # Survival mode — always ends in death, but return based on performance
+    return game.survival_seconds > 120  # "Won" if survived >2 minutes

@@ -1,3 +1,86 @@
+### Version 7.1.0 (February 2026)
+**Space Shooter Overhaul — Vampire Survivors-Style Infinite Survival**
+
+#### Infinite World & Camera System
+- **Camera system** — Smooth-following camera that tracks the player through an infinite world (no screen boundaries)
+- **Continuous spawner** — Replaces 20-wave system with time-based difficulty scaling across 10 tiers (Calm → Warming Up → Skirmish → Engaged → Intense → Overwhelming → Onslaught → Apocalypse → Extinction → Beyond)
+- **Infinite tiling starfield** — 3-layer parallax stars, nebulae, and speed lines tile seamlessly in all directions
+- **Entity lifecycle** — Distance-based despawning (2500px from camera center), visibility culling for draw optimization
+
+#### Secondary Fire System (E Key)
+- **Tau'ri — Railgun**: Fast piercing shot that passes through multiple enemies (3s cooldown)
+- **Goa'uld — Staff Barrage**: 3-shot fan spread of lasers (4s cooldown)
+- **Asgard — Ion Pulse**: AoE damage burst + knockback around ship (5s cooldown)
+- **Jaffa Rebellion — War Cry**: 4-second buff: +50% damage + doubled fire speed (6s cooldown)
+- **Lucian Alliance — Scatter Mines**: Drops 4 proximity mines behind ship that explode near enemies (3.5s cooldown)
+
+#### Faction-Styled Thrusters
+- **Tau'ri**: Clean blue-white chemical exhaust (F-302 style)
+- **Goa'uld**: Fiery gold/orange plasma (Ha'tak engines)
+- **Asgard**: Cool cyan energy diamonds (sleek, minimal)
+- **Jaffa Rebellion**: Hot orange/red staff-weapon exhaust
+- **Lucian Alliance**: Purple/pink smuggler engines (flashy, unstable)
+- **Thruster boost**: Hold SHIFT for 60% speed boost with enhanced particle effects (drains energy bar, recharges when not boosting)
+
+#### Buttery Smooth Movement
+- **Velocity-based movement** — Acceleration (1.2/frame) + friction (0.88 decay) replaces instant position changes
+- **Diagonal normalization** — No speed advantage moving diagonally
+- **Velocity-based facing** — Ship facing smoothly follows movement direction
+- **Dead zone** — Sub-0.1 velocities zeroed to prevent infinite drifting
+
+#### Enhanced Power-Up System
+- **Drop rate increased** to 50% (was 15%) on enemy kill
+- **Periodic spawns** — Random power-up appears near player every 4-7 seconds
+- **3 new generic power-ups**: Overcharge (triple fire rate for 8s), Time Warp (65% enemy slow for 7s), Magnetize (pull all orbs + pickups for 6s)
+- **10 faction-specific power-ups** — 1 Epic + 1 Legendary per faction, each with unique effects:
+  - Asgard: Beam Array (Epic — beams in 4 directions), Mjolnir Strike (Legendary — lightning all enemies)
+  - Tau'ri: Railgun Barrage (Epic — auto-fire railguns), Ancient Drone Swarm (Legendary — 8 super drones)
+  - Goa'uld: Sarcophagus (Epic — full heal + invulnerability), Ha'tak Bombardment (Legendary — orbital strikes)
+  - Jaffa: Blood of Sokar (Epic — 3x damage + life steal), Jaffa KREE! (Legendary — invulnerable + 3x damage)
+  - Lucian: Kassa Overdose (Epic — enemies damage each other), Naquadria Bomb (Legendary — massive AoE)
+- **Rarity glow effects** — Epic power-ups have purple glow rings, Legendary have golden starburst
+- **Icon-based visuals** — Power-ups display faction icon images from assets/icons/
+
+#### Evolution Upgrade System
+- **5 new upgrades**: Orbital Laser (Epic), Nova Burst (Epic), Naquadah Bomb (Epic), Temporal Field (Rare), Ancient Knowledge (Common)
+- **Legendary rarity** — New gold tier for evolution upgrades
+- **5 Evolution combos**: Thor's Hammer (Chain Lightning + Weapons Power), Bullet Hell (Multi-Targeting + Rapid Capacitors), Black Hole (Gravity Well + Nova Burst), Ancient Outpost (Orbital Defense + Shield Harmonics), Cluster Bomb (Naquadah Bomb + Scatter Shot)
+
+#### Balanced Combat
+- **Enemy fire rate dramatically reduced** — Regular enemies fire every 6-11 seconds (was 1.3-2.3s), bosses 2-3x slower across all phases
+- **Player stat boost** — Base HP/Shields raised to 150 (was 100), +15% base damage multiplier
+- **Player empowerment** — Fast level-ups, frequent power-ups, and powerful upgrades make the player feel like a force of nature
+
+#### Audio
+- **Background music loop** — `space_shooter.ogg` plays on infinite loop during gameplay, respects music volume setting, fades in/out on game start/exit
+- **Per-faction hit SFX** — Faction-specific sound plays on enemy hit with 0.5s cooldown (Asgard, Tau'ri; Goa'uld/Jaffa/Lucian ready for drop-in)
+- **Thruster boost SFX** — `boost_space_shooter.ogg` plays once on SHIFT boost activation
+
+#### UI Updates
+- **Survival timer** (MM:SS) replaces wave counter
+- **Difficulty tier label** with color coding
+- **Secondary fire cooldown bar** with ready/active/cooldown states
+- **Thruster boost energy bar** with SHIFT label
+- **Wider mini-radar** showing 3000x2200 world area with camera viewport outlined
+
+#### Files Added
+- `space_shooter/camera.py` — Camera class with smooth follow, world_to_screen, culling, spawn ring
+- `space_shooter/spawner.py` — ContinuousSpawner with 10 difficulty tiers and time-based scaling
+- `assets/audio/space_shooter/` — New audio directory: background music loop, per-faction hit SFX, boost SFX
+
+#### Files Modified
+- `space_shooter/game.py` — Major rewrite: camera integration, spawner, wave removal, secondary fire, new upgrades, mine/ion_pulse systems, war cry buff, piercing projectiles
+- `space_shooter/ship.py` — Velocity-based movement, secondary fire system, faction thruster configs, thruster boost, smooth facing
+- `space_shooter/projectiles.py` — Added RailgunShot (piercing) and ProximityMine classes, camera support on all draw methods
+- `space_shooter/entities.py` — 13 power-up types (3 generic + 10 faction-specific), rarity glow effects, icon-based PowerUp, camera support, tiered Explosion, world-space spawning
+- `space_shooter/effects.py` — Infinite tiling StarField, ParticleTrail class, directional ScreenShake
+- `space_shooter/upgrades.py` — 5 new upgrades, EVOLUTIONS dict, Legendary rarity
+- `space_shooter/ui.py` — Survival timer, difficulty tier, secondary cooldown bar, boost bar, updated controls
+- `space_shooter/__init__.py` — Background music lifecycle (start/stop/fade), updated docstring and return logic for survival mode
+- `space_shooter/game.py` — Hit SFX on enemy collision, boost SFX on activation, player stat boosts, invulnerability system, faction powerup effects
+
+---
+
 ### Version 7.0.0 (February 2026)
 **Card Animation Polish + Tabbed Stats Menu Revamp**
 

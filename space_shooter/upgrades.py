@@ -1,7 +1,7 @@
-"""Upgrade and enemy type definitions for the space shooter."""
+"""Upgrade, evolution, and enemy type definitions for the space shooter."""
 
 # Upgrade definitions: name -> {display_name, description, max_stacks, icon, color, rarity}
-# Rarity: "common" (white), "rare" (blue), "epic" (purple)
+# Rarity: "common" (white), "rare" (blue), "epic" (purple), "legendary" (gold)
 UPGRADES = {
     # --- Original upgrades ---
     "naquadah_plating": {
@@ -76,7 +76,7 @@ UPGRADES = {
         "max": 5, "icon": "T", "color": (200, 200, 255),
         "rarity": "rare",
     },
-    # --- New weapon upgrades ---
+    # --- Weapon upgrades ---
     "chain_lightning": {
         "name": "Chain Lightning",
         "desc": "Projectiles chain to\n+1 nearby enemy",
@@ -101,7 +101,7 @@ UPGRADES = {
         "max": 3, "icon": "!", "color": (255, 200, 50),
         "rarity": "rare",
     },
-    # --- New passive upgrades ---
+    # --- Passive upgrades ---
     "magnet_field": {
         "name": "Magnet Field",
         "desc": "+40 XP orb\ncollection range",
@@ -132,13 +132,79 @@ UPGRADES = {
         "max": 3, "icon": "H", "color": (100, 180, 255),
         "rarity": "rare",
     },
+    # --- NEW Phase 3 upgrades ---
+    "orbital_laser": {
+        "name": "Orbital Laser",
+        "desc": "Periodic beam strike\non enemy clusters",
+        "max": 3, "icon": "L", "color": (0, 200, 255),
+        "rarity": "epic",
+    },
+    "nova_burst": {
+        "name": "Nova Burst",
+        "desc": "AoE damage pulse\nevery 8 seconds",
+        "max": 3, "icon": "N", "color": (255, 100, 200),
+        "rarity": "epic",
+    },
+    "naquadah_bomb": {
+        "name": "Naquadah Bomb",
+        "desc": "10% on-kill chance\nmassive explosion",
+        "max": 3, "icon": "X", "color": (255, 150, 0),
+        "rarity": "epic",
+    },
+    "temporal_field": {
+        "name": "Temporal Field",
+        "desc": "Slow nearby enemies\n15% per stack",
+        "max": 3, "icon": "T", "color": (100, 200, 255),
+        "rarity": "rare",
+    },
+    "ancient_knowledge": {
+        "name": "Ancient Knowledge",
+        "desc": "+30% XP gained\nper stack",
+        "max": 5, "icon": "A", "color": (200, 200, 100),
+        "rarity": "common",
+    },
 }
 
 # Rarity colors for UI
 RARITY_COLORS = {
-    "common": (200, 200, 200),  # White/grey
-    "rare": (80, 140, 255),     # Blue
-    "epic": (180, 80, 255),     # Purple
+    "common": (200, 200, 200),     # White/grey
+    "rare": (80, 140, 255),        # Blue
+    "epic": (180, 80, 255),        # Purple
+    "legendary": (255, 165, 0),    # Gold
+}
+
+# Evolution system: combining two maxed upgrades creates a legendary evolution
+EVOLUTIONS = {
+    "thors_hammer": {
+        "name": "Thor's Hammer",
+        "desc": "Lightning arcs to\nALL nearby enemies",
+        "prereqs": ["chain_lightning", "weapons_power"],
+        "color": (100, 150, 255),
+    },
+    "bullet_hell": {
+        "name": "Bullet Hell",
+        "desc": "Fire projectiles in\nevery direction",
+        "prereqs": ["multi_targeting", "rapid_capacitors"],
+        "color": (255, 150, 200),
+    },
+    "black_hole": {
+        "name": "Black Hole",
+        "desc": "Massive pull +\ndamage field",
+        "prereqs": ["gravity_well", "nova_burst"],
+        "color": (150, 80, 255),
+    },
+    "ancient_outpost": {
+        "name": "Ancient Outpost",
+        "desc": "Drones become\nshielded turrets",
+        "prereqs": ["orbital_defense", "shield_harmonics"],
+        "color": (150, 255, 150),
+    },
+    "cluster_bomb": {
+        "name": "Cluster Bomb",
+        "desc": "Explosions scatter\ninto sub-munitions",
+        "prereqs": ["naquadah_bomb", "scatter_shot"],
+        "color": (255, 150, 0),
+    },
 }
 
 # Enemy type modifiers: (speed_mult, hp_mult, scale, xp_value, tint)
