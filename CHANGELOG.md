@@ -1,3 +1,87 @@
+### Version 7.3.0 (February 2026)
+**Audio & UI Polish — Chevron SFX, Back Button Feedback, Options Layout Fix & Volume Defaults**
+
+#### Rule Compendium Chevron Sound
+- **`rule_chevron.ogg`** plays when clicking any red chevron tab in the Rule Compendium
+- Lazy-loaded with class-level caching, respects Effects volume setting
+
+#### Back Button Click Sound
+- **`menu_select.ogg`** now plays on back button click across all menus:
+  - Options menu, Settings menu, Stats menu, Deck Builder (all 3 states: faction select, leader select, deck review)
+- Provides tactile audio feedback for navigation
+
+#### Post-Stargate Transition Sound
+- **`menu_enter.ogg`** plays after the Stargate opening animation finishes, right before the faction selection screen appears
+
+#### Options Menu Layout Fix
+- Fixed volume sliders overlapping with Fullscreen Mode toggle
+- Increased spacing between slider section and toggle section (+60px at 1080p)
+- Slightly reduced Stargate toggle size for tighter fit
+- Increased panel height to accommodate the improved layout
+- Geometry refresh on fullscreen toggle now matches the corrected layout
+
+#### Updated Volume Defaults
+- **Master**: 100% (was 70%) — full volume by default, users scale sub-channels
+- **Music**: 50% (was 70%) — background music at comfortable level
+- **Voice**: 60% (was 70%) — leader/commander voices clearly audible
+- **Effects**: 40% (was 70%) — SFX less intrusive out of the box
+
+#### Files Added
+- `assets/audio/rule_chevron.ogg` — Rule Compendium chevron click sound
+
+#### Files Modified
+- `rules_menu.py` — Added `_play_chevron_sound()` with lazy-loaded class-level cache, called from `_activate_chevron()`
+- `main_menu.py` — Options panel height increased (950→1040), slider-to-toggle gap widened (40→100), toggle radius reduced (50→45), back button plays menu_select.ogg
+- `game_setup.py` — Play menu_enter.ogg after Stargate opening animation, before faction selection
+- `game_settings.py` — Updated default volumes (master 1.0, music 0.5, sfx 0.4, voice 0.6), back button plays menu_select.ogg
+- `deck_builder.py` — Added `_play_menu_select_sound()` helper, back button click sound on all 3 states
+- `stats_menu.py` — Back button plays menu_select.ogg
+
+---
+
+### Version 7.2.0 (February 2026)
+**Audio Overhaul — Granular Volume Controls, Deck Builder Music & Menu UI Sounds**
+
+#### Granular Volume Sliders
+- **4 independent volume sliders** in Options menu — Master, Music, Voice, and Effects, each with unique color-coded gradient (blue, teal, amber, purple)
+- **Voice volume** controls leader voice clips and commander snippets separately from sound effects
+- **Effects volume** controls gameplay SFX (card placement, abilities, weather, etc.)
+- **Master volume** still scales all audio globally
+- Both the main menu Options panel and the in-game Settings menu support all 4 sliders
+- Settings persist to `game_settings.json` with backwards-compatible migration
+
+#### Deck Builder Background Music
+- **`deck_building.ogg`** plays as a continuous loop when entering the deck builder
+- Faction theme previews temporarily replace the deck building music when hovering factions
+- Music automatically resumes when un-hovering — seamless transitions
+- Cleanly stops when leaving the deck builder; main menu music resumes
+
+#### Menu UI Sound Effects
+- **`menu_select.ogg`** plays when hovering over a new main menu option (mouse or keyboard navigation)
+- **`menu_enter.ogg`** plays when clicking or pressing Enter on a menu option
+- Hover sound only triggers on **transitions** (not every frame) for clean audio
+- Both sounds respect the Effects volume setting
+
+#### Space Shooter: Shield Hit Sound
+- **`shield_hit.ogg`** plays when the player's shield absorbs damage
+- Lazy-loaded with class-level caching for performance
+- Only triggers for the player ship (not enemies)
+
+#### Files Added
+- `assets/audio/deck_building.ogg` — Deck builder background music
+- `assets/audio/menu_select.ogg` — Menu hover sound effect
+- `assets/audio/menu_enter.ogg` — Menu enter/click sound effect
+- `assets/audio/space_shooter/shield_hit.ogg` — Shield hit sound effect
+
+#### Files Modified
+- `game_settings.py` — Added `voice_volume` setting (default 0.7), getter/setter, `get_effective_voice_volume()`, updated legacy settings menu to 4 sliders
+- `sound_manager.py` — Added `_get_effective_voice_volume()`, commander snippets and leader voices now use voice volume instead of SFX volume
+- `main_menu.py` — Options menu rewritten with 4 color-coded volume sliders (Master/Music/Voice/Effects), menu hover + enter sound effects, taller panel layout
+- `deck_builder.py` — Added `start_deck_building_music()`, `_resume_deck_building_music()`, `stop_deck_building_music()`, faction theme un-hover resumes deck music
+- `space_shooter/ship.py` — Added `_play_shield_hit_sound()` with lazy-loaded class-level sound cache, called on shield damage absorption
+
+---
+
 ### Version 7.1.0 (February 2026)
 **Space Shooter Overhaul — Vampire Survivors-Style Infinite Survival**
 

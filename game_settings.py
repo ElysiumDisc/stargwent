@@ -47,9 +47,10 @@ class GameSettings:
     def _get_default_settings(self) -> dict:
         """Default settings"""
         return {
-            "master_volume": 0.7,  # 0.0 to 1.0
-            "music_volume": 0.7,
-            "sfx_volume": 0.7,
+            "master_volume": 1.0,  # 0.0 to 1.0
+            "music_volume": 0.5,
+            "sfx_volume": 0.4,
+            "voice_volume": 0.6,
             "show_fps": False,
             "vsync": True,  # VSync enabled by default for tear-free rendering
             "competitive_mode": False,  # Precise timing for LAN games
@@ -63,7 +64,7 @@ class GameSettings:
 
     def get_master_volume(self) -> float:
         """Get master volume (0.0 to 1.0)"""
-        return self.settings.get("master_volume", 0.7)
+        return self.settings.get("master_volume", 1.0)
 
     def set_master_volume(self, volume: float):
         """Set master volume (0.0 to 1.0) and apply immediately"""
@@ -74,7 +75,7 @@ class GameSettings:
 
     def get_music_volume(self) -> float:
         """Get music volume (0.0 to 1.0)"""
-        return self.settings.get("music_volume", 0.7)
+        return self.settings.get("music_volume", 0.5)
 
     def set_music_volume(self, volume: float):
         """Set music volume (0.0 to 1.0) and apply immediately"""
@@ -85,13 +86,23 @@ class GameSettings:
 
     def get_sfx_volume(self) -> float:
         """Get SFX volume (0.0 to 1.0)"""
-        return self.settings.get("sfx_volume", 0.7)
+        return self.settings.get("sfx_volume", 0.4)
 
     def set_sfx_volume(self, volume: float):
         """Set SFX volume (0.0 to 1.0)"""
         volume = max(0.0, min(1.0, volume))
         self.settings["sfx_volume"] = volume
         # SFX volume will be applied when sounds play
+        self.save_settings()
+
+    def get_voice_volume(self) -> float:
+        """Get voice volume (0.0 to 1.0)"""
+        return self.settings.get("voice_volume", 0.6)
+
+    def set_voice_volume(self, volume: float):
+        """Set voice volume (0.0 to 1.0)"""
+        volume = max(0.0, min(1.0, volume))
+        self.settings["voice_volume"] = volume
         self.save_settings()
 
     def apply_volume(self):
@@ -113,6 +124,10 @@ class GameSettings:
     def get_effective_sfx_volume(self) -> float:
         """Get effective SFX volume (master * sfx)"""
         return self.get_master_volume() * self.get_sfx_volume()
+
+    def get_effective_voice_volume(self) -> float:
+        """Get effective voice volume (master * voice)"""
+        return self.get_master_volume() * self.get_voice_volume()
 
     def get_show_fps(self) -> bool:
         """Get show FPS setting"""
@@ -228,6 +243,15 @@ def run_settings_menu(screen):
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # Check back button
                 if back_rect.collidepoint(event.pos):
+                    try:
+                        import os
+                        _sel_path = os.path.join("assets", "audio", "menu_select.ogg")
+                        if os.path.exists(_sel_path):
+                            _sel_snd = pygame.mixer.Sound(_sel_path)
+                            _sel_snd.set_volume(settings.get_effective_sfx_volume())
+                            _sel_snd.play()
+                    except (pygame.error, Exception):
+                        pass
                     running = False
 
                 # Check sliders
@@ -243,6 +267,8 @@ def run_settings_menu(screen):
                             settings.set_music_volume(x_rel)
                         elif name == "sfx":
                             settings.set_sfx_volume(x_rel)
+                        elif name == "voice":
+                            settings.set_voice_volume(x_rel)
 
             elif event.type == pygame.MOUSEBUTTONUP:
                 dragging_slider = None
@@ -258,6 +284,8 @@ def run_settings_menu(screen):
                         settings.set_music_volume(x_rel)
                     elif dragging_slider == "sfx":
                         settings.set_sfx_volume(x_rel)
+                    elif dragging_slider == "voice":
+                        settings.set_voice_volume(x_rel)
 
         # Draw
         screen.fill((20, 25, 35))
@@ -281,7 +309,8 @@ def run_settings_menu(screen):
         volumes = [
             ("master", "Master Volume", settings.get_master_volume()),
             ("music", "Music Volume", settings.get_music_volume()),
-            ("sfx", "SFX Volume", settings.get_sfx_volume()),
+            ("voice", "Voice Volume", settings.get_voice_volume()),
+            ("sfx", "Effects Volume", settings.get_sfx_volume()),
         ]
 
         for name, label, value in volumes:

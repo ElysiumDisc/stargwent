@@ -572,6 +572,15 @@ def run_stats_menu(screen):
                         scroll_offset = tab_scroll_offsets[current_key]
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if back_rect.collidepoint(event.pos):
+                    try:
+                        _sel_path = os.path.join("assets", "audio", "menu_select.ogg")
+                        if os.path.exists(_sel_path):
+                            _sel_snd = pygame.mixer.Sound(_sel_path)
+                            from game_settings import get_settings as _gs
+                            _sel_snd.set_volume(_gs().get_effective_sfx_volume())
+                            _sel_snd.play()
+                    except (pygame.error, Exception):
+                        pass
                     running = False
                     continue
                 if reset_rect.collidepoint(event.pos):

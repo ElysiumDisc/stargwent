@@ -24,6 +24,10 @@ FACTION_THEME_MUSIC = {
     FACTION_ASGARD: os.path.join("assets", "audio", "asgard_theme.ogg"),
 }
 
+# Deck building background music (loops continuously)
+DECK_BUILDING_MUSIC = os.path.join("assets", "audio", "deck_building.ogg")
+_deck_building_music_active = False
+
 # Track currently playing faction theme
 _current_faction_theme = None
 _faction_theme_start_time = 0
@@ -38,6 +42,43 @@ def _get_faction_theme_volume() -> float:
     except AttributeError:
         volume = settings.get_master_volume()
     return max(0.0, min(1.0, volume))
+
+
+def start_deck_building_music():
+    """Start the deck building background music loop."""
+    global _deck_building_music_active
+    if not os.path.exists(DECK_BUILDING_MUSIC):
+        print(f"[audio] Deck building music missing: {DECK_BUILDING_MUSIC}")
+        return
+    try:
+        pygame.mixer.music.load(DECK_BUILDING_MUSIC)
+        pygame.mixer.music.set_volume(_get_faction_theme_volume())
+        pygame.mixer.music.play(-1)  # Loop infinitely
+        _deck_building_music_active = True
+        print(f"[audio] Deck building music started")
+    except pygame.error as e:
+        print(f"[audio] Failed to start deck building music: {e}")
+
+
+def _resume_deck_building_music():
+    """Resume deck building music after faction theme stops."""
+    global _deck_building_music_active
+    if not _deck_building_music_active:
+        return
+    if not os.path.exists(DECK_BUILDING_MUSIC):
+        return
+    try:
+        pygame.mixer.music.load(DECK_BUILDING_MUSIC)
+        pygame.mixer.music.set_volume(_get_faction_theme_volume())
+        pygame.mixer.music.play(-1)
+    except pygame.error:
+        pass
+
+
+def stop_deck_building_music():
+    """Stop the deck building background music."""
+    global _deck_building_music_active
+    _deck_building_music_active = False
 
 
 def _play_faction_theme(faction):
@@ -59,7 +100,8 @@ def _play_faction_theme(faction):
     _faction_theme_start_time = pygame.time.get_ticks()
 
     if not faction:
-        pygame.mixer.music.stop()
+        # No faction hovered — resume deck building music
+        _resume_deck_building_music()
         return
 
     theme_path = FACTION_THEME_MUSIC.get(faction)
@@ -72,13 +114,37 @@ def _play_faction_theme(faction):
             print(f"[audio] Failed to play faction theme: {e}")
 
 def stop_faction_theme():
-    """Stop faction theme music."""
+    """Stop faction theme music and deck building music."""
     global _current_faction_theme
     _current_faction_theme = None
+    stop_deck_building_music()
     try:
         pygame.mixer.music.stop()
     except pygame.error:
         pass
+# Cached menu select sound for back button clicks
+_menu_select_sound = None
+_menu_select_sound_loaded = False
+
+def _play_menu_select_sound():
+    """Play menu_select.ogg on back button clicks."""
+    global _menu_select_sound, _menu_select_sound_loaded
+    if not _menu_select_sound_loaded:
+        _menu_select_sound_loaded = True
+        path = os.path.join("assets", "audio", "menu_select.ogg")
+        if os.path.exists(path):
+            try:
+                _menu_select_sound = pygame.mixer.Sound(path)
+            except pygame.error:
+                pass
+    if _menu_select_sound:
+        try:
+            settings = get_settings()
+            _menu_select_sound.set_volume(settings.get_effective_sfx_volume())
+            _menu_select_sound.play()
+        except (pygame.error, Exception):
+            pass
+
 from content_registry import (
     BASE_FACTION_LEADERS,
     UNLOCKABLE_LEADERS,
@@ -1213,6 +1279,7 @@ class DeckBuilderUI:
             if self.state == "faction_select" and event.button == 1:
                 # Back button in faction select (only for standalone deck builder)
                 if not self.for_new_game and self.back_button.collidepoint(mouse_pos):
+                    _play_menu_select_sound()
                     self.return_to_menu = True
                     return
                 for button in self.faction_buttons:
@@ -1251,6 +1318,7 @@ class DeckBuilderUI:
             if self.state == "leader_select" and event.button == 1:
                 # Back button
                 if self.back_button.collidepoint(mouse_pos):
+                    _play_menu_select_sound()
                     self.state = "faction_select"
                     self.selected_leader = None
                     self.deck_preview_ids = None
@@ -1319,6 +1387,7 @@ class DeckBuilderUI:
                 # Handle buttons before interacting with cards
                 if event.button == 1:
                     if self.back_button.collidepoint(mouse_pos):
+                        _play_menu_select_sound()
                         if self.for_new_game:
                             self.state = "leader_select"
                         else:
@@ -2695,7 +2764,10 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
         exclude_user_content=exclude_user_content
     )
     clock = pygame.time.Clock()
-    
+
+    # Start deck building background music
+    start_deck_building_music()
+
     running = True
     while running:
         for event in pygame.event.get():

@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-7.1.0-blue)
+![Version](https://img.shields.io/badge/version-7.3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -59,6 +59,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
 - **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
+- **Granular Audio Control** - Separate volume sliders for Master, Music, Voice, and Effects
 
 ### 🎨 Stargate-Authentic UI
 - **MALP Feed History Panel** - Military monitor aesthetic with scan-lines, score delta badges, turn numbers, round separators, and latest-entry pulse
@@ -92,7 +93,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
 - **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
 - **5 Enemy Types** - Regular, Fast, Tank, Elite, and Kamikaze with continuous spawning
-- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, and thruster boost activation sound
+- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, and thruster boost activation sound
 - **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 

@@ -305,15 +305,16 @@ All audio files are located in `assets/audio/`. Missing files are silently skipp
 #### Music Files
 | File | Purpose |
 |------|---------|
-| `menu_theme.ogg` | Main menu background music |
+| `main_menu_music.ogg` | Main menu background music |
+| `deck_building.ogg` | Deck builder background music (loops continuously) |
 | `battle_round1.ogg` | Battle music - Round 1 |
 | `battle_round2.ogg` | Battle music - Round 2 (more intense) |
 | `battle_round3.ogg` | Battle music - Round 3 (climactic) |
-| `faction_tauri.ogg` | Tau'ri faction theme (hover preview) |
-| `faction_goauld.ogg` | Goa'uld faction theme (hover preview) |
-| `faction_jaffa.ogg` | Jaffa faction theme (hover preview) |
-| `faction_lucian.ogg` | Lucian Alliance faction theme (hover preview) |
-| `faction_asgard.ogg` | Asgard faction theme (hover preview) |
+| `tauri_theme.ogg` | Tau'ri faction theme (hover preview) |
+| `goauld_theme.ogg` | Goa'uld faction theme (hover preview) |
+| `jaffa_theme.ogg` | Jaffa faction theme (hover preview) |
+| `lucian_theme.ogg` | Lucian Alliance faction theme (hover preview) |
+| `asgard_theme.ogg` | Asgard faction theme (hover preview) |
 
 #### Sound Effects
 | File | Purpose |
@@ -326,6 +327,13 @@ All audio files are located in `assets/audio/`. Missing files are silently skipp
 | `iris.ogg` | Tau'ri Iris Defense activation |
 | `symbiote.ogg` | Goa'uld Symbiote animation |
 | `chat_notification.ogg` | LAN chat message received |
+
+#### Menu UI Sounds
+| File | Purpose |
+|------|---------|
+| `menu_select.ogg` | Hover over main menu option / back button click |
+| `menu_enter.ogg` | Click/enter a menu option / post-Stargate transition |
+| `rule_chevron.ogg` | Chevron tab click in Rule Compendium |
 
 #### Weather Sound Effects (Optional)
 | File | Purpose |
@@ -470,6 +478,7 @@ The game uses a **hybrid rendering approach**: all drawing is done via Pygame to
 - Settings `gpu_enabled: false` → skips initialization
 
 **Settings** (in `game_settings.py`):
+- `voice_volume` — voice clips volume (leader/commander voices)
 - `gpu_enabled` — master GPU toggle
 - `bloom_enabled`, `bloom_intensity` (0.0-1.0), `bloom_threshold` (0.0-1.0)
 - `vignette_enabled`
@@ -902,7 +911,7 @@ Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player
 
 ---
 
-## 🚀 Space Shooter Architecture (v7.1.0)
+## 🚀 Space Shooter Architecture (v7.3.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
 
@@ -930,5 +939,5 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 - **Thrusters**: Faction-specific particle configs (color, shape, emit rate, spread), SHIFT to boost
 - **Movement**: Velocity-based with acceleration/friction for smooth feel
 - **Evolutions**: When both prerequisite upgrades are maxed, a legendary evolution is offered
-- **Audio**: Background music loop via `pygame.mixer.music`, per-faction hit SFX + boost SFX via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
+- **Audio**: Background music loop via `pygame.mixer.music`, per-faction hit SFX + boost SFX + shield hit SFX via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
 - **Faction Power-Ups**: Epic + Legendary rarity with unique effects per faction, rarity glow rendering (purple/gold)

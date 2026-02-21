@@ -11,6 +11,10 @@ from .projectiles import (ContinuousBeam, Laser, Missile, EnergyBall,
 
 class Ship:
     """A spaceship (player or AI). All positions are in world-space."""
+
+    _shield_hit_sound = None
+    _shield_hit_sound_loaded = False
+
     def __init__(self, x, y, faction, is_player=True, screen_width=1920, screen_height=1080):
         self.x = x
         self.y = y
@@ -697,6 +701,25 @@ class Ship:
     def get_rect(self):
         return pygame.Rect(int(self.x), int(self.y - self.height // 2), self.width, self.height)
 
+    def _play_shield_hit_sound(self):
+        """Play shield hit sound effect (lazy-loaded, class-level cache)."""
+        if not Ship._shield_hit_sound_loaded:
+            Ship._shield_hit_sound_loaded = True
+            path = os.path.join(os.path.dirname(__file__), "..", "assets", "audio", "space_shooter", "shield_hit.ogg")
+            if os.path.exists(path):
+                try:
+                    Ship._shield_hit_sound = pygame.mixer.Sound(path)
+                except pygame.error:
+                    pass
+        if Ship._shield_hit_sound:
+            try:
+                from game_settings import get_settings
+                vol = get_settings().get_effective_sfx_volume()
+                Ship._shield_hit_sound.set_volume(vol)
+                Ship._shield_hit_sound.play()
+            except (pygame.error, Exception):
+                pass
+
     def take_damage(self, amount, is_asteroid=False):
         """Take damage - all damage hits shields first, overflow goes to health."""
         # Tau'ri passive: Armor Plating - 15% damage reduction
@@ -709,6 +732,9 @@ class Ship:
             self.shields -= absorbed
             amount -= absorbed
             self.shield_hit_timer = 60
+            # Play shield hit sound for player
+            if self.is_player:
+                self._play_shield_hit_sound()
 
         if amount > 0:
             self.health -= amount

@@ -202,7 +202,21 @@ class MainMenu:
         self.selected_option = 0
         self.unlock_system = unlock_system
         self.unlock_option_index = -1
-        
+        self._last_hovered_option = -1  # Track hover transitions for sound
+
+        # Load menu UI sounds
+        self._menu_select_sound = None
+        self._menu_enter_sound = None
+        try:
+            select_path = os.path.join("assets", "audio", "menu_select.ogg")
+            if os.path.exists(select_path):
+                self._menu_select_sound = pygame.mixer.Sound(select_path)
+            enter_path = os.path.join("assets", "audio", "menu_enter.ogg")
+            if os.path.exists(enter_path):
+                self._menu_enter_sound = pygame.mixer.Sound(enter_path)
+        except pygame.error:
+            pass
+
         # Load background
         self.background = None
         self.load_background()
@@ -261,6 +275,18 @@ class MainMenu:
             return self.unlock_system.is_unlock_override_enabled()
         return False
 
+    def _play_ui_sound(self, sound):
+        """Play a UI sound effect at the current SFX volume."""
+        if not sound:
+            return
+        try:
+            from game_settings import get_settings
+            vol = get_settings().get_effective_sfx_volume()
+            sound.set_volume(vol)
+            sound.play()
+        except pygame.error:
+            pass
+
     def _update_unlock_option_label(self):
         if self.unlock_option_index < 0:
             return
@@ -303,12 +329,12 @@ class MainMenu:
 
         settings = get_settings()
 
-        # Slider state
-        dragging_slider = False
+        # Slider state — None or the key string ("master", "music", "voice", "sfx")
+        dragging_slider = None
 
-        # Panel geometry - responsive sizing
+        # Panel geometry - responsive sizing (taller to fit 4 sliders + toggles)
         panel_width = int(800 * scale)
-        panel_height = int(750 * scale)
+        panel_height = int(1040 * scale)
         panel_top = center_y - panel_height // 2
 
         # Fonts - scaled
@@ -325,36 +351,51 @@ class MainMenu:
             int(45 * scale)
         )
 
-        # Volume slider
-        slider_y = panel_top + int(140 * scale)
+        # Volume sliders (4 sliders: Master, Music, Voice, Effects)
+        slider_base_y = panel_top + int(120 * scale)
+        slider_spacing = int(65 * scale)
         slider_width = int(500 * scale)
-        slider_height = int(50 * scale)
-        slider_rect = pygame.Rect(center_x - slider_width // 2, slider_y, slider_width, slider_height)
+        slider_height = int(40 * scale)
         slider_track_height = int(10 * scale)
-        slider_handle_radius = int(18 * scale)
+        slider_handle_radius = int(14 * scale)
 
-        # Stargate toggle geometry
-        gate_radius = int(60 * scale)
+        # Slider definitions: (key, label, getter, setter, gradient_colors)
+        slider_defs = [
+            ("master", "Master Volume", settings.get_master_volume, settings.set_master_volume,
+             ((60, 140, 200), (100, 200, 255))),   # Blue
+            ("music", "Music Volume", settings.get_music_volume, settings.set_music_volume,
+             ((40, 160, 120), (80, 220, 160))),     # Teal/Green
+            ("voice", "Voice Volume", settings.get_voice_volume, settings.set_voice_volume,
+             ((200, 140, 40), (255, 190, 80))),     # Amber/Orange
+            ("sfx", "Effects Volume", settings.get_sfx_volume, settings.set_sfx_volume,
+             ((140, 60, 180), (200, 120, 255))),    # Purple
+        ]
+
+        slider_rects = {}
+        for i, (key, _label, _get, _set, _colors) in enumerate(slider_defs):
+            sy = slider_base_y + i * slider_spacing
+            slider_rects[key] = pygame.Rect(center_x - slider_width // 2, sy, slider_width, slider_height)
+
+        # Stargate toggle geometry — pushed below sliders with proper spacing
+        toggles_y_start = slider_base_y + len(slider_defs) * slider_spacing + int(100 * scale)
+        gate_radius = int(45 * scale)
         gate_rect = pygame.Rect(0, 0, gate_radius * 2, gate_radius * 2)
 
         # Fullscreen toggle
-        fullscreen_y = slider_y + int(200 * scale)
+        fullscreen_y = toggles_y_start
         gate_rect.center = (center_x, fullscreen_y)
 
         # Unlock toggle
-        unlock_gate_radius = int(60 * scale)
+        unlock_gate_radius = int(45 * scale)
         unlock_gate_rect = pygame.Rect(0, 0, unlock_gate_radius * 2, unlock_gate_radius * 2)
-        unlock_y = fullscreen_y + int(220 * scale)
-        unlock_gate_rect.center = (center_x, unlock_y)
+        unlock_y = fullscreen_y + int(170 * scale)
+        unlock_gate_rect.center = (center_x - int(250 * scale), unlock_y)
 
         # FPS toggle
-        fps_gate_radius = int(60 * scale)
+        fps_gate_radius = int(45 * scale)
         fps_gate_rect = pygame.Rect(0, 0, fps_gate_radius * 2, fps_gate_radius * 2)
-        # Position FPS toggle to the right of Unlock toggle
         fps_y = unlock_y
         fps_x = center_x + int(250 * scale)
-        # Shift Unlock toggle to the left
-        unlock_gate_rect.center = (center_x - int(250 * scale), unlock_y)
         fps_gate_rect.center = (fps_x, fps_y)
 
         def draw_stargate_toggle(active, rect, pulse_phase=0):
@@ -415,14 +456,23 @@ class MainMenu:
                 
             return gate_surf
 
-        def get_slider_handle_pos():
-            volume = settings.get_master_volume()
-            return slider_rect.x + int(volume * slider_width)
+        def get_slider_handle_pos(key):
+            """Get handle X position for a given slider key."""
+            for k, _label, getter, _setter, _colors in slider_defs:
+                if k == key:
+                    rect = slider_rects[key]
+                    return rect.x + int(getter() * slider_width)
+            return 0
 
-        def set_volume_from_pos(x):
-            rel_x = x - slider_rect.x
+        def set_volume_from_pos(key, x):
+            """Set volume for a slider key based on mouse X position."""
+            rect = slider_rects[key]
+            rel_x = x - rect.x
             volume = max(0.0, min(1.0, rel_x / slider_width))
-            settings.set_master_volume(volume)
+            for k, _label, _getter, setter, _colors in slider_defs:
+                if k == key:
+                    setter(volume)
+                    break
 
         pulse_phase = 0
         needs_geometry_refresh = False
@@ -445,19 +495,26 @@ class MainMenu:
                         break
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if back_rect.collidepoint(event.pos):
+                        self._play_ui_sound(self._menu_select_sound)
                         running = False
                         continue
 
-                    handle_x = get_slider_handle_pos()
-                    handle_rect = pygame.Rect(
-                        handle_x - slider_handle_radius,
-                        slider_rect.centery - slider_handle_radius,
-                        slider_handle_radius * 2,
-                        slider_handle_radius * 2
-                    )
-                    if handle_rect.collidepoint(event.pos) or slider_rect.collidepoint(event.pos):
-                        dragging_slider = True
-                        set_volume_from_pos(event.pos[0])
+                    # Check all sliders
+                    clicked_slider = None
+                    for key, s_rect in slider_rects.items():
+                        hx = get_slider_handle_pos(key)
+                        h_rect = pygame.Rect(
+                            hx - slider_handle_radius,
+                            s_rect.centery - slider_handle_radius,
+                            slider_handle_radius * 2,
+                            slider_handle_radius * 2
+                        )
+                        if h_rect.collidepoint(event.pos) or s_rect.collidepoint(event.pos):
+                            clicked_slider = key
+                            break
+                    if clicked_slider:
+                        dragging_slider = clicked_slider
+                        set_volume_from_pos(clicked_slider, event.pos[0])
                     elif unlock_gate_rect.collidepoint(event.pos):
                         self.toggle_unlock_override()
                     elif fps_gate_rect.collidepoint(event.pos):
@@ -469,10 +526,10 @@ class MainMenu:
                         pygame.event.clear()  # Discard stale events from display recreation
                         break
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                    dragging_slider = False
+                    dragging_slider = None
                 elif event.type == pygame.MOUSEMOTION:
                     if dragging_slider:
-                        set_volume_from_pos(event.pos[0])
+                        set_volume_from_pos(dragging_slider, event.pos[0])
 
             # Refresh geometry after fullscreen toggle (avoids recursive re-entry)
             if needs_geometry_refresh:
@@ -484,7 +541,7 @@ class MainMenu:
                 center_y = sh // 2
                 scale = min(sh / 1080.0, sw / 1920.0)
                 panel_width = int(800 * scale)
-                panel_height = int(750 * scale)
+                panel_height = int(1040 * scale)
                 panel_top = center_y - panel_height // 2
                 title_font = pygame.font.SysFont("Arial", max(36, int(52 * scale)), bold=True)
                 label_font = pygame.font.SysFont("Arial", max(22, int(30 * scale)), bold=True)
@@ -493,21 +550,25 @@ class MainMenu:
                 back_rect = pygame.Rect(
                     center_x - panel_width // 2 + int(20 * scale),
                     panel_top + int(15 * scale), int(140 * scale), int(45 * scale))
-                slider_y = panel_top + int(140 * scale)
+                slider_base_y = panel_top + int(120 * scale)
+                slider_spacing = int(65 * scale)
                 slider_width = int(500 * scale)
-                slider_height = int(50 * scale)
-                slider_rect = pygame.Rect(center_x - slider_width // 2, slider_y, slider_width, slider_height)
+                slider_height = int(40 * scale)
                 slider_track_height = int(10 * scale)
-                slider_handle_radius = int(18 * scale)
-                gate_radius = int(60 * scale)
+                slider_handle_radius = int(14 * scale)
+                for i, (key, _label, _get, _set, _colors) in enumerate(slider_defs):
+                    sy = slider_base_y + i * slider_spacing
+                    slider_rects[key] = pygame.Rect(center_x - slider_width // 2, sy, slider_width, slider_height)
+                toggles_y_start = slider_base_y + len(slider_defs) * slider_spacing + int(100 * scale)
+                gate_radius = int(45 * scale)
                 gate_rect = pygame.Rect(0, 0, gate_radius * 2, gate_radius * 2)
-                fullscreen_y = slider_y + int(200 * scale)
+                fullscreen_y = toggles_y_start
                 gate_rect.center = (center_x, fullscreen_y)
-                unlock_gate_radius = int(60 * scale)
+                unlock_gate_radius = int(45 * scale)
                 unlock_gate_rect = pygame.Rect(0, 0, unlock_gate_radius * 2, unlock_gate_radius * 2)
-                unlock_y = fullscreen_y + int(220 * scale)
+                unlock_y = fullscreen_y + int(170 * scale)
                 unlock_gate_rect.center = (center_x - int(250 * scale), unlock_y)
-                fps_gate_radius = int(60 * scale)
+                fps_gate_radius = int(45 * scale)
                 fps_gate_rect = pygame.Rect(0, 0, fps_gate_radius * 2, fps_gate_radius * 2)
                 fps_gate_rect.center = (center_x + int(250 * scale), unlock_y)
                 overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
@@ -566,50 +627,52 @@ class MainMenu:
             # Back button (DHD style - top left)
             back_rect = board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
-            # === VOLUME SECTION ===
-            volume_label = label_font.render("Master Volume", True, (220, 230, 255))
-            volume_label_rect = volume_label.get_rect(center=(center_x, slider_y - int(35 * scale)))
-            surface.blit(volume_label, volume_label_rect)
+            # === VOLUME SLIDERS SECTION ===
+            for key, label, getter, _setter, (color_start, color_end) in slider_defs:
+                s_rect = slider_rects[key]
 
-            # Slider track background
-            track_rect = pygame.Rect(
-                slider_rect.x,
-                slider_rect.centery - slider_track_height // 2,
-                slider_width,
-                slider_track_height
-            )
-            pygame.draw.rect(surface, (50, 60, 80), track_rect, border_radius=5)
+                # Label (left-aligned above slider)
+                vol_label = label_font.render(label, True, (220, 230, 255))
+                surface.blit(vol_label, (s_rect.x, s_rect.y - int(22 * scale)))
 
-            # Slider filled portion with gradient
-            volume = settings.get_master_volume()
-            filled_width = int(volume * slider_width)
-            if filled_width > 0:
-                filled_rect = pygame.Rect(
-                    slider_rect.x,
-                    slider_rect.centery - slider_track_height // 2,
-                    filled_width,
+                # Track background
+                track_rect = pygame.Rect(
+                    s_rect.x,
+                    s_rect.centery - slider_track_height // 2,
+                    slider_width,
                     slider_track_height
                 )
-                # Gradient fill
-                for x in range(filled_width):
-                    progress = x / max(1, slider_width)
-                    color = (int(60 + progress * 40), int(140 + progress * 60), int(200 + progress * 55))
-                    pygame.draw.line(surface, color, 
-                                   (slider_rect.x + x, filled_rect.y),
-                                   (slider_rect.x + x, filled_rect.y + slider_track_height))
+                pygame.draw.rect(surface, (50, 60, 80), track_rect, border_radius=5)
 
-            # Slider handle
-            handle_x = get_slider_handle_pos()
-            handle_center = (handle_x, slider_rect.centery)
-            pygame.draw.circle(surface, (255, 255, 255), handle_center, slider_handle_radius)
-            pygame.draw.circle(surface, (80, 180, 255), handle_center, slider_handle_radius - 4)
-            pygame.draw.circle(surface, (150, 220, 255), handle_center, slider_handle_radius - 8)
+                # Filled portion with gradient
+                vol = getter()
+                filled_w = int(vol * slider_width)
+                if filled_w > 0:
+                    for px in range(filled_w):
+                        t = px / max(1, slider_width)
+                        c = (
+                            int(color_start[0] + t * (color_end[0] - color_start[0])),
+                            int(color_start[1] + t * (color_end[1] - color_start[1])),
+                            int(color_start[2] + t * (color_end[2] - color_start[2])),
+                        )
+                        pygame.draw.line(surface, c,
+                                         (s_rect.x + px, track_rect.y),
+                                         (s_rect.x + px, track_rect.y + slider_track_height))
 
-            # Volume percentage
-            volume_pct = int(volume * 100)
-            volume_text = status_font.render(f"{volume_pct}%", True, (180, 200, 220))
-            volume_text_rect = volume_text.get_rect(center=(center_x, slider_y + int(45 * scale)))
-            surface.blit(volume_text, volume_text_rect)
+                # Handle
+                hx = get_slider_handle_pos(key)
+                hc = (hx, s_rect.centery)
+                pygame.draw.circle(surface, (255, 255, 255), hc, slider_handle_radius)
+                pygame.draw.circle(surface, color_end, hc, slider_handle_radius - 3)
+                pygame.draw.circle(surface, (
+                    min(255, color_end[0] + 50),
+                    min(255, color_end[1] + 50),
+                    min(255, color_end[2] + 50),
+                ), hc, slider_handle_radius - 6)
+
+                # Percentage (right-aligned)
+                pct_text = status_font.render(f"{int(vol * 100)}%", True, (180, 200, 220))
+                surface.blit(pct_text, (s_rect.right + int(15 * scale), s_rect.centery - pct_text.get_height() // 2))
 
             # === FULLSCREEN SECTION ===
             fs_label = label_font.render("Fullscreen Mode", True, (220, 230, 255))
@@ -661,7 +724,7 @@ class MainMenu:
             surface.blit(fps_status_surface, fps_status_rect)
 
             # Instructions at bottom
-            hint_text = "Click Stargates to toggle  |  Drag slider to adjust volume"
+            hint_text = "Click Stargates to toggle  |  Drag sliders to adjust volume"
             hint_surface = instruction_font.render(hint_text, True, (140, 160, 180))
             hint_rect = hint_surface.get_rect(center=(center_x, panel_top + panel_height - int(50 * scale)))
             surface.blit(hint_surface, hint_rect)
@@ -735,15 +798,20 @@ class MainMenu:
             for i, option in enumerate(self.options):
                 option['hovered'] = option['rect'].collidepoint(mouse_pos)
                 if option['hovered']:
+                    if i != self._last_hovered_option:
+                        self._last_hovered_option = i
+                        self._play_ui_sound(self._menu_select_sound)
                     self.selected_option = i
-        
+
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouse_pos = event.pos
             for i, option in enumerate(self.options):
                 if option['rect'].collidepoint(mouse_pos):
+                    # Play menu enter sound
+                    self._play_ui_sound(self._menu_enter_sound)
                     # Trigger DHD activation effect
                     self.dhd_manager.activate_button(i)
-                    
+
                     if option['action'] == 'options_menu':
                         result = self.run_options_menu(display_manager.screen)
                         if isinstance(result, str):
@@ -755,9 +823,15 @@ class MainMenu:
         elif event.type == pygame.KEYDOWN:
             if event.key in [pygame.K_UP, pygame.K_w]:
                 self.selected_option = (self.selected_option - 1) % len(self.options)
+                self._last_hovered_option = self.selected_option
+                self._play_ui_sound(self._menu_select_sound)
             elif event.key in [pygame.K_DOWN, pygame.K_s]:
                 self.selected_option = (self.selected_option + 1) % len(self.options)
+                self._last_hovered_option = self.selected_option
+                self._play_ui_sound(self._menu_select_sound)
             elif event.key == pygame.K_RETURN:
+                # Play menu enter sound
+                self._play_ui_sound(self._menu_enter_sound)
                 # Trigger DHD activation effect
                 self.dhd_manager.activate_button(self.selected_option)
 

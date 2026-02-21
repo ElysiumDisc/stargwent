@@ -164,6 +164,17 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
             # Set flag to skip on retry/back
             os.environ['STARGWENT_SKIP_INTRO'] = '1'
 
+        # Play menu enter sound before faction selection
+        try:
+            _enter_path = os.path.join("assets", "audio", "menu_enter.ogg")
+            if os.path.exists(_enter_path):
+                from game_settings import get_settings
+                _enter_snd = pygame.mixer.Sound(_enter_path)
+                _enter_snd.set_volume(get_settings().get_effective_sfx_volume())
+                _enter_snd.play()
+        except (pygame.error, Exception):
+            pass
+
         # Deck Builder / Selection
         deck_result = run_deck_builder(
             screen,

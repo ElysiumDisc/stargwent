@@ -943,12 +943,36 @@ class RulesMenuScreen:
         self._sync_chevron_state()
         self._set_status(self.tab_titles[index])
 
+    _chevron_sound = None
+    _chevron_sound_loaded = False
+
+    def _play_chevron_sound(self):
+        """Play chevron click sound effect."""
+        cls = type(self)
+        if not cls._chevron_sound_loaded:
+            cls._chevron_sound_loaded = True
+            import os
+            path = os.path.join("assets", "audio", "rule_chevron.ogg")
+            if os.path.exists(path):
+                try:
+                    cls._chevron_sound = pygame.mixer.Sound(path)
+                except pygame.error:
+                    pass
+        if cls._chevron_sound:
+            try:
+                from game_settings import get_settings
+                cls._chevron_sound.set_volume(get_settings().get_effective_sfx_volume())
+                cls._chevron_sound.play()
+            except (pygame.error, Exception):
+                pass
+
     def _activate_chevron(self, slot_index: int):
         if slot_index < 0 or slot_index >= len(self.chevron_slots):
             return
         slot = self.chevron_slots[slot_index]
         if not slot["tabs"]:
             return
+        self._play_chevron_sound()
         next_index = (slot["current_index"] + 1) % len(slot["tabs"])
         slot["current_index"] = next_index
         self._set_active_tab(slot["tabs"][next_index])

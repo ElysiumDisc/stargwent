@@ -153,6 +153,16 @@ class SoundEffectManager:
         final_volume = max(0.0, min(1.0, requested_volume * base_volume))
         return final_volume
 
+    def _get_effective_voice_volume(self, requested_volume: float) -> float:
+        """Scale requested volume by the user's voice volume settings."""
+        base_volume = 1.0
+        if self.settings:
+            try:
+                base_volume = self.settings.get_effective_voice_volume()
+            except AttributeError:
+                base_volume = self.settings.get_master_volume()
+        return max(0.0, min(1.0, requested_volume * base_volume))
+
     def get_commander_sound(self, card_id):
         """
         Get or load a commander snippet by card ID.
@@ -197,7 +207,7 @@ class SoundEffectManager:
         sound = self.get_commander_sound(card_id)
         if sound:
             try:
-                sound.set_volume(self._get_effective_sfx_volume(volume))
+                sound.set_volume(self._get_effective_voice_volume(volume))
                 sound.play()
                 return True
             except pygame.error as exc:
@@ -419,7 +429,7 @@ class SoundEffectManager:
             try:
                 # Stop any currently playing leader voice to avoid overlap
                 sound.stop()
-                sound.set_volume(self._get_effective_sfx_volume(volume))
+                sound.set_volume(self._get_effective_voice_volume(volume))
                 sound.play()
                 return True
             except pygame.error as exc:
