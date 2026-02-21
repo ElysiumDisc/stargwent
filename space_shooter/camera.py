@@ -63,6 +63,12 @@ class Camera:
         return (self.x - half_w, self.y - half_h,
                 self.x + half_w, self.y + half_h)
 
+    def follow_midpoint(self, x1, y1, x2, y2):
+        """Smooth-follow the midpoint between two world-space targets."""
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2
+        self.follow(mx, my)
+
     def get_spawn_ring(self, min_dist=400, max_dist=600):
         """Get a random world-space position on a ring around the viewport.
 

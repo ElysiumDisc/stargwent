@@ -154,7 +154,8 @@ class SpaceShooterGame:
                             self.player_ship.y)
 
         # --- Continuous spawner (replaces wave system) ---
-        self.spawner = ContinuousSpawner(self.camera, player_faction, self.all_factions)
+        self.spawner = ContinuousSpawner(self.camera, player_faction, self.all_factions,
+                                          enemy_faction=ai_faction)
 
         # Projectiles and effects
         self.ai_ships = []

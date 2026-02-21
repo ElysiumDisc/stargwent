@@ -3,7 +3,7 @@
     "base": [
       {
         "name": "Col. Jack O'Neill",
-        "ability": "Clone gambit: Summon a temporary Jack clone each round",
+        "ability": "Clone gambit: Summon a temporary Jack clone each round. Draw +1 card at round start",
         "ability_desc": "At the start of every round summon a 6-power Jack clone that survives exactly 3 of your turns (removed when the 4th would begin)",
         "card_id": "tauri_oneill",
         "faction": "Tau'ri"

@@ -266,6 +266,7 @@ def run_lan_menu(screen):
     connect_btn = pygame.Rect(button_x, 420, button_width, button_height)
     back_btn = pygame.Rect(button_x, 520, button_width, 50)
     start_btn = pygame.Rect(button_x, 480, button_width, button_height)
+    coop_btn = pygame.Rect(button_x, 480 + button_height + 15, button_width, 50)
 
     def add_status(msg):
         status_lines.append(msg)
@@ -408,6 +409,11 @@ def run_lan_menu(screen):
                 elif state == "chat":
                     if start_btn.collidepoint(mx, my) and session and role:
                         return {"session": session, "role": role}
+                    if coop_btn.collidepoint(mx, my) and session and role:
+                        # Launch co-op arcade directly
+                        from lan_coop_arcade import run_lan_coop_arcade
+                        run_lan_coop_arcade(screen, session, role)
+                        # After arcade, return to chat state (don't close session)
 
         # Draw UI based on state
         if state == "menu":
@@ -538,6 +544,11 @@ def run_lan_menu(screen):
             draw_button(screen, start_btn, "START MATCH", 36, start_hover, (40, 150, 80), (60, 200, 100))
 
             draw_text(screen, "Both players will proceed to deck selection", 560, (120, 120, 140), 16, center_x)
+
+            # Co-op Arcade button
+            coop_hover = coop_btn.collidepoint(mx, my)
+            draw_button(screen, coop_btn, "CO-OP ARCADE", 24, coop_hover, (100, 50, 130), (140, 70, 180))
+            draw_text(screen, "Fight together in the space shooter mini-game!", coop_btn.bottom + 8, (140, 130, 180), 16, center_x)
 
             # Check for messages
             if session:

@@ -101,3 +101,12 @@ def register_all_effects(gpu_renderer):
         print("[GPU] Shockwave effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register shockwave: {e}")
+
+    try:
+        from shaders.replicator_swarm import create_replicator_swarm_pass
+        rep_pass = create_replicator_swarm_pass(ctx)
+        gpu_renderer.add_effect("replicator_swarm", rep_pass)
+        gpu_renderer.set_effect_enabled("replicator_swarm", False)  # Driven by animation
+        print("[GPU] Replicator swarm effect registered")
+    except Exception as e:
+        print(f"[GPU] Failed to register replicator swarm: {e}")

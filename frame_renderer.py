@@ -60,6 +60,7 @@ def _apply_gpu_params(state, screen):
         gpu.set_effect_enabled("kawoosh", False)
         gpu.set_effect_enabled("asgard_beam", False)
         gpu.set_effect_enabled("zpm_surge", False)
+        gpu.set_effect_enabled("replicator_swarm", False)
         # Clear distortion points
         distortion = gpu.get_effect("distortion")
         if distortion and hasattr(distortion, 'clear_points'):
@@ -129,6 +130,17 @@ def _apply_gpu_params(state, screen):
                 zpm_pass.set_uniform('zpm_center', (cx / w, 1.0 - cy / h))
                 zpm_pass.set_uniform('intensity', params['intensity'])
                 zpm_pass.set_uniform('surge_radius', params['surge_radius'] / h)
+
+        elif ptype == 'replicator_swarm':
+            rep_pass = gpu.get_effect("replicator_swarm")
+            if rep_pass:
+                gpu.set_effect_enabled("replicator_swarm", True)
+                cx, cy = params['center']
+                rep_pass.set_uniform('time', gpu.time)
+                rep_pass.set_uniform('swarm_center', (cx / w, 1.0 - cy / h))
+                rep_pass.set_uniform('intensity', params['intensity'])
+                rep_pass.set_uniform('density', params['density'])
+                rep_pass.set_uniform('screen_size', (float(w), float(h)))
 
     # Apply distortion points
     distortion = gpu.get_effect("distortion")

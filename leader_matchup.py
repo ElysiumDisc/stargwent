@@ -236,13 +236,78 @@ LEADER_MATCHUPS = {
         "color": (140, 210, 255)
     },
     
-    # Jaffa matchups
-    ("Bra'tac", "Apophis"): {
-        "quote": "The day of reckoning has come, false god.",
-        "context": "Old warrior's rebellion",
+    # Additional matchups — v7.5.0
+    ("Dr. Daniel Jackson", "Ba'al"): {
+        "quote": "How many times do I have to watch you die, Ba'al?",
+        "context": "Daniel's weary familiarity with Ba'al's clones",
+        "color": (150, 100, 200)
+    },
+    ("Dr. Samantha Carter", "Anubis"): {
+        "quote": "Your technology is Ancient. Mine is better.",
+        "context": "Carter's scientific confidence against the half-ascended",
+        "color": (100, 150, 255)
+    },
+    ("Dr. Samantha Carter", "Thor"): {
+        "quote": "It's an honor, Commander.",
+        "context": "Mutual respect between Earth's brightest and the Asgard",
+        "color": (120, 200, 255)
+    },
+    ("Teal'c", "Ba'al"): {
+        "quote": "You will know the wrath of a free Jaffa.",
+        "context": "Teal'c's unbreakable resolve against the cunning System Lord",
         "color": (200, 100, 50)
     },
-    
+    ("Teal'c", "Anubis"): {
+        "quote": "Even gods can bleed.",
+        "context": "The warrior who fears no false deity",
+        "color": (180, 80, 80)
+    },
+    ("Col. Jack O'Neill", "Sokar"): {
+        "quote": "You know, for a dead guy, you're really annoying.",
+        "context": "O'Neill's irreverence in the face of the Devil himself",
+        "color": (200, 80, 50)
+    },
+    ("Col. Jack O'Neill", "Hathor (Unlockable)"): {
+        "quote": "Fool me once...",
+        "context": "O'Neill's bitter memory of Hathor's mind control",
+        "color": (200, 100, 150)
+    },
+    ("Dr. Daniel Jackson", "Vala Mal Doran"): {
+        "quote": "This is not the time for one of your schemes, Vala.",
+        "context": "Daniel's exasperation with his unlikely partner",
+        "color": (180, 150, 200)
+    },
+    ("Gen. George Hammond", "Anubis"): {
+        "quote": "You will not take this world. Not on my watch.",
+        "context": "The General's iron resolve defending Earth",
+        "color": (150, 100, 100)
+    },
+    ("Bra'tac", "Ba'al"): {
+        "quote": "Your empire crumbles, false god.",
+        "context": "The master tactician witnesses the fall of the Goa'uld",
+        "color": (200, 150, 50)
+    },
+    ("Bra'tac", "Gerak"): {
+        "quote": "You betray everything we fought for, Gerak.",
+        "context": "Old warrior confronts a Jaffa who kneels to the Ori",
+        "color": (200, 120, 60)
+    },
+    ("Thor", "Ba'al"): {
+        "quote": "The Protected Planets Treaty is non-negotiable.",
+        "context": "Asgard diplomacy backed by overwhelming firepower",
+        "color": (120, 180, 255)
+    },
+    ("Vala Mal Doran", "Ba'al"): {
+        "quote": "Last time we met, you still owed me money.",
+        "context": "Vala's colorful history with the galaxy's criminals",
+        "color": (180, 120, 200)
+    },
+    ("Col. Jack O'Neill", "Gerak"): {
+        "quote": "I thought we were done with the false god routine.",
+        "context": "O'Neill's frustration with the Ori-allied Jaffa",
+        "color": (180, 130, 80)
+    },
+
     # Default fallback for any unspecified matchup
     "default": {
         "quote": "The battle for the galaxy begins.",
@@ -292,6 +357,9 @@ def generate_dynamic_matchup(leader1_name, leader2_name):
         for leader in asgard_leaders:
             if leader in name:
                 return "Asgard"
+        for leader in lucian_leaders:
+            if leader in name:
+                return "Lucian Alliance"
         return "Unknown"
     
     faction1 = get_faction(leader1_name)
@@ -321,6 +389,62 @@ def generate_dynamic_matchup(leader1_name, leader2_name):
             "color": (150, 200, 255)
         }
     
+    # Tau'ri vs Jaffa
+    elif (faction1 == "Tau'ri" and faction2 == "Jaffa") or (faction1 == "Jaffa" and faction2 == "Tau'ri"):
+        return {
+            "quote": "We fight for the same freedom, friend.",
+            "context": "Allies forged in rebellion",
+            "color": (150, 180, 100)
+        }
+
+    # Tau'ri vs Asgard
+    elif (faction1 == "Tau'ri" and faction2 == "Asgard") or (faction1 == "Asgard" and faction2 == "Tau'ri"):
+        return {
+            "quote": "The Fifth Race stands ready.",
+            "context": "Humanity inherits the Asgard legacy",
+            "color": (100, 180, 255)
+        }
+
+    # Jaffa vs Asgard
+    elif (faction1 == "Jaffa" and faction2 == "Asgard") or (faction1 == "Asgard" and faction2 == "Jaffa"):
+        return {
+            "quote": "Warriors of two worlds, united in purpose.",
+            "context": "Ancient allies against a common foe",
+            "color": (180, 200, 150)
+        }
+
+    # Lucian Alliance vs Goa'uld
+    elif (faction1 == "Lucian Alliance" and faction2 == "Goa'uld") or (faction1 == "Goa'uld" and faction2 == "Lucian Alliance"):
+        return {
+            "quote": "The Goa'uld fell. We picked up the pieces.",
+            "context": "Criminals filling the power vacuum",
+            "color": (180, 100, 180)
+        }
+
+    # Lucian Alliance vs Jaffa
+    elif (faction1 == "Lucian Alliance" and faction2 == "Jaffa") or (faction1 == "Jaffa" and faction2 == "Lucian Alliance"):
+        return {
+            "quote": "Your honor is a liability, Jaffa.",
+            "context": "Smugglers vs warriors",
+            "color": (180, 140, 100)
+        }
+
+    # Lucian Alliance vs Asgard
+    elif (faction1 == "Lucian Alliance" and faction2 == "Asgard") or (faction1 == "Asgard" and faction2 == "Lucian Alliance"):
+        return {
+            "quote": "Even Asgard technology has a price on the black market.",
+            "context": "Greed meets advanced civilization",
+            "color": (160, 150, 220)
+        }
+
+    # Lucian Alliance vs Tau'ri
+    elif (faction1 == "Lucian Alliance" and faction2 == "Tau'ri") or (faction1 == "Tau'ri" and faction2 == "Lucian Alliance"):
+        return {
+            "quote": "Earth's military might can't stop the underworld.",
+            "context": "The Lucian Alliance challenges Earth's dominance",
+            "color": (180, 120, 180)
+        }
+
     # Same faction (civil war/rivalry)
     elif faction1 == faction2:
         return {
@@ -328,7 +452,7 @@ def generate_dynamic_matchup(leader1_name, leader2_name):
             "context": "Internal conflict",
             "color": (180, 180, 100)
         }
-    
+
     # Default
     return LEADER_MATCHUPS["default"]
 

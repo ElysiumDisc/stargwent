@@ -14,7 +14,7 @@ from cards import (
 # Base leaders available from the start for each faction.
 BASE_FACTION_LEADERS = {
     FACTION_TAURI: [
-        {"name": "Col. Jack O'Neill", "ability": "Clone gambit: Summon a temporary Jack clone each round", "ability_desc": "At the start of every round summon a 6-power Jack clone that survives exactly 3 of your turns (removed when the 4th would begin)", "card_id": "tauri_oneill"},
+        {"name": "Col. Jack O'Neill", "ability": "Clone gambit: Summon a temporary Jack clone each round. Draw +1 card at round start", "ability_desc": "At the start of every round summon a 6-power Jack clone that survives exactly 3 of your turns (removed when the 4th would begin)", "card_id": "tauri_oneill"},
         {"name": "Gen. George Hammond", "ability": "Your first unit each round gets +3 power", "ability_desc": "Your first unit played each round gets +3 power", "card_id": "tauri_hammond"},
         {"name": "Dr. Samantha Carter", "ability": "+2 power to all Siege units", "ability_desc": "+2 power to all Siege units", "card_id": "tauri_carter"},
     ],

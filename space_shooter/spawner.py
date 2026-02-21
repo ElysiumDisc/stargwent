@@ -38,10 +38,13 @@ class ContinuousSpawner:
     faster, tougher, and more numerous enemies.
     """
 
-    def __init__(self, camera, player_faction, all_factions):
+    def __init__(self, camera, player_faction, all_factions, coop_scale=1.0, enemy_faction=None):
         self.camera = camera
         self.player_faction = player_faction
         self.all_factions = all_factions
+        self.coop_scale = coop_scale  # Multiplier for max_alive (1.5 for co-op)
+        # If an enemy_faction is specified, all enemies use that faction consistently
+        self.enemy_faction = enemy_faction
 
         # Timing
         self.elapsed_frames = 0
@@ -117,8 +120,11 @@ class ContinuousSpawner:
 
         tier = self._interpolate_tier()
 
+        # Apply co-op scaling to max alive
+        effective_max = int(tier["max_alive"] * self.coop_scale)
+
         # Regular spawn
-        if self.spawn_timer >= tier["interval"] and len(ai_ships) < tier["max_alive"]:
+        if self.spawn_timer >= tier["interval"] and len(ai_ships) < effective_max:
             self.spawn_timer = 0
             ship = self._spawn_enemy(tier, screen_width, screen_height)
             if ship:
@@ -140,7 +146,8 @@ class ContinuousSpawner:
         """Spawn a single enemy at the viewport edge ring."""
         import pygame  # deferred import
 
-        enemy_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
+        enemy_faction = self.enemy_faction or random.choice(
+            [f for f in self.all_factions if f != self.player_faction])
         wx, wy = self.camera.get_spawn_ring(300, 500)
 
         # Pick enemy type
@@ -190,7 +197,8 @@ class ContinuousSpawner:
         """Spawn a boss enemy with escorts."""
         import pygame
 
-        boss_faction = random.choice([f for f in self.all_factions if f != self.player_faction])
+        boss_faction = self.enemy_faction or random.choice(
+            [f for f in self.all_factions if f != self.player_faction])
         wx, wy = self.camera.get_spawn_ring(500, 700)
 
         boss = Ship(wx, wy, boss_faction, is_player=False,

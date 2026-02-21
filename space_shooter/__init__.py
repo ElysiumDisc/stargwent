@@ -141,3 +141,130 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
 
     # Survival mode — always ends in death, but return based on performance
     return game.survival_seconds > 120  # "Won" if survived >2 minutes
+
+
+def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=None):
+    """
+    Run co-op space shooter over LAN.
+
+    Args:
+        screen: Pygame display surface
+        session: Active LanSession connection
+        role: "host" or "client"
+        p1_faction: Host player's faction
+        p2_faction: Client player's faction
+
+    Returns:
+        True if survived >2 minutes, None if exited early
+    """
+    from .coop_protocol import CoopMsg, build_input, build_state
+    from .coop_game import CoopSpaceShooterGame
+    from .coop_client import CoopSpaceShooterClient
+
+    clock = pygame.time.Clock()
+    screen_width = screen.get_width()
+    screen_height = screen.get_height()
+
+    # Stop existing music and start space shooter music
+    try:
+        if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+            pygame.mixer.music.fadeout(400)
+            pygame.time.wait(400)
+    except pygame.error:
+        pass
+    _start_space_music()
+
+    if role == "host":
+        # Host runs full simulation
+        game = CoopSpaceShooterGame(screen_width, screen_height,
+                                     p1_faction, p2_faction)
+        snapshot_counter = 0
+
+        while game.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    game.exit_to_menu = True
+                    game.running = False
+                else:
+                    game.handle_event(event)
+
+            # Poll network for client input
+            msg = session.receive()
+            while msg:
+                mtype = msg.get("type")
+                if mtype == CoopMsg.INPUT:
+                    game.apply_partner_input(msg.get("payload", {}))
+                elif mtype == CoopMsg.ACTION:
+                    payload = msg.get("payload", {})
+                    action = payload.get("action")
+                    if action == "secondary":
+                        # Trigger partner secondary fire
+                        pass  # TODO: partner secondary fire
+                msg = session.receive()
+
+            game.update()
+            game.draw(screen)
+
+            # Send state snapshot every 3 frames (20 Hz)
+            snapshot_counter += 1
+            if snapshot_counter >= 3:
+                snapshot_counter = 0
+                snapshot = game.get_state_snapshot()
+                session.send(CoopMsg.STATE, snapshot)
+
+            display_manager.gpu_flip()
+            clock.tick(60)
+
+        # Send game over to client
+        session.send(CoopMsg.GAME_OVER, {
+            'score': game.score,
+            'survival_frames': game.survival_frames,
+            'enemies_defeated': game.enemies_defeated,
+        })
+
+        _stop_space_music()
+        return None if game.exit_to_menu else game.survival_seconds > 120
+
+    else:
+        # Client — render only
+        client = CoopSpaceShooterClient(screen_width, screen_height,
+                                         session, p2_faction, p1_faction)
+
+        while client.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    client.exit_to_menu = True
+                    client.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        client.exit_to_menu = True
+                        client.running = False
+
+            # Send input to host every frame
+            input_state = client.get_input_state()
+            session.send(CoopMsg.INPUT, input_state)
+
+            # Receive state snapshots
+            msg = session.receive()
+            while msg:
+                mtype = msg.get("type")
+                if mtype == CoopMsg.STATE:
+                    client.apply_state(msg.get("payload", {}))
+                elif mtype == CoopMsg.GAME_OVER:
+                    client.game_over = True
+                    # Apply final state
+                    client.apply_state(msg.get("payload", {}))
+                msg = session.receive()
+
+            client.update()
+            client.draw(screen)
+
+            if client.game_over:
+                # Stay on game over screen until ESC
+                pass
+
+            display_manager.gpu_flip()
+            clock.tick(60)
+
+        _stop_space_music()
+        return None

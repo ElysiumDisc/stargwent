@@ -1258,13 +1258,12 @@ class Game:
                         icon="🕵️"
                     )
 
-                # Check for Lucian piracy bonus OR Vulkar leader ability
+                # Varro leader ability: ALL spy cards draw 3 (bypasses once-per-round limit)
                 draw_amount = 2
-                if player.faction_ability and hasattr(player.faction_ability, 'get_spy_draw_amount'):
-                    draw_amount = player.faction_ability.get_spy_draw_amount()
-                # Vulkar leader ability: Spy cards draw 3 instead of 2
-                elif player.leader and "Vulkar" in player.leader.get('name', ''):
+                if player.leader and "Varro" in player.leader.get('name', ''):
                     draw_amount = 3
+                elif player.faction_ability and hasattr(player.faction_ability, 'get_spy_draw_amount'):
+                    draw_amount = player.faction_ability.get_spy_draw_amount()
                 player.draw_cards(draw_amount)
 
             # Add card to board (respecting insertion index if provided)
@@ -1365,24 +1364,33 @@ class Game:
                         "ability",
                         f"{player.name} (Aegir) Asgard Archives: Drew 1 card from siege deployment",
                         self._owner_label(player),
-                        icon="+2"
+                        icon="+"
                     )
             
-            # Loki ability: Steal 1 displayed_power from opponent's strongest unit
-            # Uses displayed_power (temporary) instead of base power to avoid permanent drain
+            # Loki ability: Steal 1 power from opponent's strongest unit (permanent)
             if player.leader and "Loki" in player.leader.get('name', ''):
                 opponent = self.player2 if player == self.player1 else self.player1
                 all_opponent_units = []
                 for row_cards in opponent.board.values():
                     all_opponent_units.extend([c for c in row_cards if not is_hero(c)])
                 if all_opponent_units:
-                    strongest = max(all_opponent_units, key=lambda c: c.displayed_power)
-                    if strongest.displayed_power > 1:
-                        strongest.displayed_power -= 1
+                    strongest = max(all_opponent_units, key=lambda c: c.power)
+                    if strongest.power > 1:
+                        new_power = max(1, strongest.power - 1)
+                        strongest.power = new_power
+                        strongest.displayed_power = new_power
                         # Add power to a random friendly unit
                         friendly_units = [c for row in player.board.values() for c in row if not is_hero(c)]
                         if friendly_units:
-                            self.rng.choice(friendly_units).displayed_power += 1
+                            boosted = self.rng.choice(friendly_units)
+                            boosted.power += 1
+                            boosted.displayed_power += 1
+                        self.add_history_event(
+                            "ability",
+                            f"{player.name} (Loki) stole 1 power from {strongest.name}",
+                            self._owner_label(player),
+                            icon="⚡"
+                        )
 
 
             # Trigger Gate Reinforcement ability
@@ -1605,7 +1613,7 @@ class Game:
             weakest = None
             for card in row_cards:
                 if not is_hero(card):
-                    if weakest is None or card.displayed_power < weakest.displayed_power:
+                    if weakest is None or card.power < weakest.power:
                         weakest = card
 
             if weakest:

@@ -1,3 +1,58 @@
+### Version 7.5.0 (February 2026)
+**LAN Co-op Arcade + Replicator Animation + Leader Quotes**
+
+#### LAN Co-op Space Shooter (Part A)
+- **Two-player co-op arcade** over LAN — host-authoritative with state snapshots at 20 Hz
+- **Shared camera** follows midpoint between both players, with soft leash warning at 800px
+- **Revival mechanic** — when one player dies they become a ghost; surviving player revives them by killing any enemy (respawn at 50% HP/shields)
+- **Shared scoring** — combined score, XP pool, and upgrades benefit both ships equally
+- **Host picks upgrades** on level-up; client sees "Host choosing upgrade..." notification
+- **Partner indicator arrow** when co-op partner is off-screen
+- **Dual health bars** — P1 top-left, P2 top-right with health + shield display
+- **CO-OP ARCADE button** in LAN menu chat screen for quick access
+- New files: `coop_game.py`, `coop_client.py`, `coop_protocol.py`, `coop_ui.py`, `virtual_keys.py`, `lan_coop_arcade.py`
+
+#### Arcade Menu Entry in Draft Mode (Part B)
+- **Prominent ARCADE button** in draft mode, no longer just a tiny 60x60 icon
+- **Unlock condition**: visible when unlock override is enabled OR player has achieved a draft victory
+- LAN mode launches co-op flow; solo launches single-player space shooter
+
+#### Replicator Swarm Animation Overhaul (Part C)
+- **120 swarming spider-bots** (up from 60) with clustered group spawning and swarm AI
+- **Hexagonal body** with metallic variation per spider and glowing red/orange eyes
+- **3-segment leg articulation** with proper joint bending and walking animation
+- **Spark particle trails** behind each spider
+- **Swarm AI**: spiders cluster into groups, spread, and reform for organic movement
+- **GPU shader**: metallic shimmer bloom, chromatic aberration near swarm center, ripple distortion
+- Fixed double `surface.blit(overlay)` bug
+
+#### Leader Matchup Battle Quotes (Part D)
+- **14 new specific matchup quotes**: Daniel vs Ba'al, Carter vs Anubis, Carter vs Thor, Teal'c vs Ba'al, Teal'c vs Anubis, O'Neill vs Sokar, O'Neill vs Hathor, Daniel vs Vala, Hammond vs Anubis, Bra'tac vs Ba'al, Bra'tac vs Gerak, Thor vs Ba'al, Vala vs Ba'al, O'Neill vs Gerak
+- **7 new faction fallbacks**: Tau'ri vs Jaffa, Tau'ri vs Asgard, Jaffa vs Asgard, Lucian vs Goa'uld, Lucian vs Jaffa, Lucian vs Asgard, Lucian vs Tau'ri
+- **Fixed** Lucian Alliance leaders not being detected by `get_faction()`
+- **Removed** duplicate Bra'tac vs Apophis entry
+
+#### Files Modified/Created
+- `space_shooter/coop_game.py` — CoopSpaceShooterGame subclass (~500 lines)
+- `space_shooter/coop_client.py` — Client-side renderer (~250 lines)
+- `space_shooter/coop_protocol.py` — Co-op message types (~65 lines)
+- `space_shooter/coop_ui.py` — Dual health bars, partner arrow, revival UI (~150 lines)
+- `space_shooter/virtual_keys.py` — Network input translation (~55 lines)
+- `space_shooter/__init__.py` — Added `run_coop_space_shooter()` entry point
+- `space_shooter/camera.py` — Added `follow_midpoint()` method
+- `space_shooter/spawner.py` — Added `coop_scale` factor
+- `space_shooter/ship.py` — Renamed `player_ship` → `target_ship` in `update_ai()`
+- `lan_coop_arcade.py` — Top-level co-op lobby flow (~120 lines)
+- `lan_menu.py` — Added CO-OP ARCADE button in chat state
+- `draft_controller.py` — Prominent ARCADE button, broader unlock check, LAN co-op support
+- `animations.py` — Rewrote ReplicatorCrawlEffect with swarm AI, hexagonal bodies, GPU params
+- `shaders/replicator_swarm.py` — New GLSL shader for metallic shimmer + chromatic aberration
+- `shaders/__init__.py` — Registered replicator_swarm shader
+- `frame_renderer.py` — Added replicator_swarm handler in `_apply_gpu_params()`
+- `leader_matchup.py` — 14 new matchup quotes, 7 faction fallbacks, Lucian detection fix
+
+---
+
 ### Version 7.4.0 (February 2026)
 **Bug Hunt & Performance — Gameplay Fixes, Per-Frame Allocation Cleanup, Safety Hardening**
 

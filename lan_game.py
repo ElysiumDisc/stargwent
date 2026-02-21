@@ -160,7 +160,7 @@ def run_lan_chat_scene(screen, session: LanSession, role: str):
     clock = pygame.time.Clock()
     running = True
     info_font = pygame.font.SysFont("Arial", 28)
-    title = f"LAN Chat ({'Host' if role == 'host' else 'Client'}) - Gameplay sync coming soon"
+    title = f"LAN Chat ({'Host' if role == 'host' else 'Client'})"
     panel_rect = pygame.Rect(40, 100, screen.get_width() - 80, screen.get_height() - 200)
     chat_panel = LanChatPanel(session, role, max_lines=18)
     chat_panel.add_message("System", "Type a message and press Enter. ESC to return.")

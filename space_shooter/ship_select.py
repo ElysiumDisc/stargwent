@@ -72,7 +72,7 @@ class ShipSelectScreen:
         surface.blit(title, (self.screen_width // 2 - title.get_width() // 2, 50))
 
         # Subtitle
-        subtitle = self.hint_font.render("Each faction has unique weapons (coming soon!)", True, (150, 150, 180))
+        subtitle = self.hint_font.render("Each faction has unique weapons, passives & secondary fire", True, (150, 150, 180))
         surface.blit(subtitle, (self.screen_width // 2 - subtitle.get_width() // 2, 120))
 
         # Draw ship options

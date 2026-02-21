@@ -451,8 +451,9 @@ class Ship:
             self.image = pygame.transform.rotate(self.image_right, self._current_angle)
             self._cached_draw_angle = self._current_angle
 
-    def update_ai(self, player_ship, asteroids, other_ships=None):
-        """Space-battle AI: approach to combat range, then strafe/orbit the player."""
+    def update_ai(self, target_ship, asteroids, other_ships=None):
+        """Space-battle AI: approach to combat range, then strafe/orbit the target."""
+        player_ship = target_ship  # local alias for backwards compat
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
         if self.beam_cooldown > 0:

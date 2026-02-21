@@ -5158,123 +5158,252 @@ class AITurnAnimation:
 
 
 class ReplicatorCrawlEffect(Animation):
-    """Swarming replicator spiders crawling across the screen."""
+    """Swarming replicator spiders crawling across the screen with GPU shimmer."""
+
     def __init__(self, screen_width, screen_height, duration=10000):
         super().__init__(duration=duration)
         self.screen_width = screen_width
         self.screen_height = screen_height
+
+        # Swarm center tracks mean position of all spiders (for GPU shader)
+        self.swarm_cx = screen_width / 2.0
+        self.swarm_cy = screen_height / 2.0
+
+        # Pre-compute shared leg angle offsets for 8 legs (spider arrangement)
+        self._leg_base = [i * math.pi / 4 for i in range(8)]
+
+        # Create 120 spider-bots in clustered groups
         self.spiders = []
-        
-        # Create spider-like replicators
-        for _ in range(60):
+        num_groups = 5
+        group_centers = [
+            (random.randint(100, screen_width - 100),
+             random.randint(100, screen_height - 100))
+            for _ in range(num_groups)
+        ]
+        for i in range(120):
+            gcx, gcy = group_centers[i % num_groups]
             angle = random.uniform(0, math.pi * 2)
-            speed = random.uniform(1.5, 4)
+            speed = random.uniform(1.0, 3.5)
+            size = random.randint(5, 12)
+            # Per-spider metallic variation
+            shade = random.randint(120, 180)
             self.spiders.append({
-                'x': random.randint(-100, screen_width + 100),
-                'y': random.randint(-100, screen_height + 100),
+                'x': gcx + random.uniform(-120, 120),
+                'y': gcy + random.uniform(-120, 120),
                 'angle': angle,
                 'speed': speed,
-                'size': random.randint(8, 16),
+                'size': size,
                 'leg_phase': random.uniform(0, math.pi * 2),
-                'leg_speed': random.uniform(0.15, 0.25),
+                'leg_speed': random.uniform(0.18, 0.30),
                 'rotation': random.uniform(0, 360),
-                'rotation_speed': random.uniform(-2, 2)
+                'rotation_speed': random.uniform(-3, 3),
+                'shade': shade,
+                'group': i % num_groups,
+                'group_cx': float(gcx),
+                'group_cy': float(gcy),
+                # Spark trail (up to 3 recent positions)
+                'trail': [],
             })
-    
+
+        # Cached group centers for swarm AI (updated per frame)
+        self._group_centers = list(group_centers)
+
+    def _update_swarm(self):
+        """Update group centers and steer spiders toward/away for organic clustering."""
+        # Recompute group centers from member positions
+        sums = [[0.0, 0.0, 0] for _ in range(len(self._group_centers))]
+        for sp in self.spiders:
+            g = sp['group']
+            sums[g][0] += sp['x']
+            sums[g][1] += sp['y']
+            sums[g][2] += 1
+        for g, (sx, sy, cnt) in enumerate(sums):
+            if cnt > 0:
+                self._group_centers[g] = (sx / cnt, sy / cnt)
+
+        # Periodically shift group targets for reform/spread behavior
+        for g in range(len(self._group_centers)):
+            if random.random() < 0.005:
+                self._group_centers[g] = (
+                    random.randint(100, self.screen_width - 100),
+                    random.randint(100, self.screen_height - 100),
+                )
+
+        # Update swarm center for GPU shader
+        total_x = total_y = 0.0
+        for sp in self.spiders:
+            total_x += sp['x']
+            total_y += sp['y']
+        n = len(self.spiders)
+        self.swarm_cx = total_x / n
+        self.swarm_cy = total_y / n
+
     def draw(self, surface):
         if self.finished:
             return
-        
+
         progress = self.get_progress()
         alpha = int(255 * (1 - progress))
-        
+        if alpha <= 0:
+            return
+
+        self._update_swarm()
+
         overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-        
+
         for spider in self.spiders:
-            # Update spider position - crawling movement
+            # --- Swarm AI steering ---
+            gcx, gcy = self._group_centers[spider['group']]
+            dx = gcx - spider['x']
+            dy = gcy - spider['y']
+            dist_to_group = math.hypot(dx, dy)
+            # Gentle steering toward group center
+            if dist_to_group > 40:
+                target_angle = math.atan2(dy, dx)
+                diff = target_angle - spider['angle']
+                # Normalize angle difference
+                diff = (diff + math.pi) % (2 * math.pi) - math.pi
+                spider['angle'] += diff * 0.04
+
+            # Random jitter for organic feel
+            if random.random() < 0.03:
+                spider['angle'] += random.uniform(-0.6, 0.6)
+
+            # Update position
             spider['x'] += math.cos(spider['angle']) * spider['speed']
             spider['y'] += math.sin(spider['angle']) * spider['speed']
             spider['leg_phase'] += spider['leg_speed']
             spider['rotation'] += spider['rotation_speed']
-            
-            # Random direction changes for organic movement
-            if random.random() < 0.02:
-                spider['angle'] += random.uniform(-0.5, 0.5)
-            
-            # Wrap around screen
-            if spider['x'] < -100:
-                spider['x'] = self.screen_width + 100
-            elif spider['x'] > self.screen_width + 100:
-                spider['x'] = -100
-            if spider['y'] < -100:
-                spider['y'] = self.screen_height + 100
-            elif spider['y'] > self.screen_height + 100:
-                spider['y'] = -100
-            
+
+            # Screen wrapping
+            if spider['x'] < -80:
+                spider['x'] = self.screen_width + 80
+            elif spider['x'] > self.screen_width + 80:
+                spider['x'] = -80
+            if spider['y'] < -80:
+                spider['y'] = self.screen_height + 80
+            elif spider['y'] > self.screen_height + 80:
+                spider['y'] = -80
+
+            # Spark trail — store last 3 positions
+            trail = spider['trail']
+            trail.append((spider['x'], spider['y']))
+            if len(trail) > 3:
+                trail.pop(0)
+
             # Calculate pulsing alpha
             pulse = abs(math.sin(spider['leg_phase']))
-            spider_alpha = int(alpha * (0.7 + 0.3 * pulse))
-            
-            # Draw spider body (metallic block)
+            sp_alpha = int(alpha * (0.7 + 0.3 * pulse))
+            if sp_alpha <= 0:
+                continue
+
+            sx = int(spider['x'])
+            sy = int(spider['y'])
             body_size = spider['size']
-            body_color = (140, 140, 160, spider_alpha)
-            
-            # Main body (tilted square)
-            body_rect = pygame.Rect(
-                int(spider['x'] - body_size // 2),
-                int(spider['y'] - body_size // 2),
-                body_size,
-                body_size
-            )
-            
-            # Create rotated body surface
-            body_surf = pygame.Surface((body_size * 2, body_size * 2), pygame.SRCALPHA)
-            pygame.draw.rect(body_surf, body_color, 
-                           (body_size // 2, body_size // 2, body_size, body_size))
-            
-            # Add core glow
-            core_color = (180, 180, 200, spider_alpha // 2)
-            pygame.draw.rect(body_surf, core_color,
-                           (body_size // 2 + 2, body_size // 2 + 2, body_size - 4, body_size - 4))
-            
-            # Rotate body
-            rotated_body = pygame.transform.rotate(body_surf, spider['rotation'])
-            body_pos = (
-                int(spider['x'] - rotated_body.get_width() // 2),
-                int(spider['y'] - rotated_body.get_height() // 2)
-            )
-            overlay.blit(rotated_body, body_pos)
-            
-            # Draw 8 spider legs (4 on each side)
-            leg_color = (120, 120, 140, spider_alpha)
-            leg_length = body_size * 1.2
-            
+            shade = spider['shade']
+            rot_rad = math.radians(spider['rotation'])
+
+            # --- Draw spark trails ---
+            for ti, (tx, ty) in enumerate(trail[:-1]):
+                t_alpha = int(sp_alpha * 0.3 * (ti + 1) / len(trail))
+                if t_alpha > 0:
+                    spark_color = (200, 180, 140, t_alpha)
+                    pygame.draw.circle(overlay, spark_color, (int(tx), int(ty)), max(1, body_size // 4))
+
+            # --- Draw 8 legs with 3-segment articulation ---
+            leg_color = (shade - 30, shade - 30, shade - 10, sp_alpha)
+            leg_len = body_size * 1.4
+
             for i in range(8):
-                # Leg angle around the body
-                base_angle = (i * math.pi / 4) + math.radians(spider['rotation'])
-                
-                # Animate leg movement (walking motion)
-                leg_bend = math.sin(spider['leg_phase'] + i * math.pi / 4) * 0.3
-                
-                # Leg segments
-                mid_x = spider['x'] + math.cos(base_angle) * (leg_length * 0.5)
-                mid_y = spider['y'] + math.sin(base_angle) * (leg_length * 0.5)
-                
-                end_angle = base_angle + leg_bend
-                end_x = spider['x'] + math.cos(end_angle) * leg_length
-                end_y = spider['y'] + math.sin(end_angle) * leg_length
-                
-                # Draw leg (two segments for articulation)
-                pygame.draw.line(overlay, leg_color, 
-                               (int(spider['x']), int(spider['y'])),
-                               (int(mid_x), int(mid_y)), 2)
+                base_angle = self._leg_base[i] + rot_rad
+                walk = math.sin(spider['leg_phase'] + i * math.pi / 4) * 0.4
+
+                # Segment 1: body to shoulder
+                s1_len = leg_len * 0.35
+                s1_x = sx + math.cos(base_angle) * s1_len
+                s1_y = sy + math.sin(base_angle) * s1_len
+
+                # Segment 2: shoulder to knee (bends with walk)
+                s2_angle = base_angle + walk * 0.5
+                s2_len = leg_len * 0.35
+                s2_x = s1_x + math.cos(s2_angle) * s2_len
+                s2_y = s1_y + math.sin(s2_angle) * s2_len
+
+                # Segment 3: knee to foot (bends opposite)
+                s3_angle = s2_angle - walk * 0.7
+                s3_len = leg_len * 0.3
+                s3_x = s2_x + math.cos(s3_angle) * s3_len
+                s3_y = s2_y + math.sin(s3_angle) * s3_len
+
                 pygame.draw.line(overlay, leg_color,
-                               (int(mid_x), int(mid_y)),
-                               (int(end_x), int(end_y)), 2)
-        
-        surface.blit(overlay, (0, 0))
+                                 (sx, sy), (int(s1_x), int(s1_y)), 2)
+                pygame.draw.line(overlay, leg_color,
+                                 (int(s1_x), int(s1_y)), (int(s2_x), int(s2_y)), 2)
+                pygame.draw.line(overlay, leg_color,
+                                 (int(s2_x), int(s2_y)), (int(s3_x), int(s3_y)), 1)
+
+            # --- Draw spider body (hexagonal/diamond shape) ---
+            half = body_size // 2
+            body_pts = [
+                (sx, sy - half),           # top
+                (sx + half, sy - half // 3),
+                (sx + half, sy + half // 3),
+                (sx, sy + half),           # bottom
+                (sx - half, sy + half // 3),
+                (sx - half, sy - half // 3),
+            ]
+            # Rotate points around center
+            cos_r = math.cos(rot_rad)
+            sin_r = math.sin(rot_rad)
+            rotated_pts = []
+            for px, py in body_pts:
+                dx_ = px - sx
+                dy_ = py - sy
+                rotated_pts.append((
+                    sx + int(dx_ * cos_r - dy_ * sin_r),
+                    sy + int(dx_ * sin_r + dy_ * cos_r),
+                ))
+
+            body_color = (shade, shade, shade + 20, sp_alpha)
+            pygame.draw.polygon(overlay, body_color, rotated_pts)
+            # Metallic edge highlight
+            edge_color = (min(255, shade + 40), min(255, shade + 40), min(255, shade + 50), sp_alpha // 2)
+            pygame.draw.polygon(overlay, edge_color, rotated_pts, 1)
+
+            # --- Glowing eyes (red/orange) ---
+            eye_offset = body_size // 4
+            eye_angle = rot_rad - math.pi / 2  # Eyes face forward
+            eye_spread = body_size // 5
+            ecx = sx + int(math.cos(eye_angle) * eye_offset)
+            ecy = sy + int(math.sin(eye_angle) * eye_offset)
+            perp = eye_angle + math.pi / 2
+            e1x = ecx + int(math.cos(perp) * eye_spread)
+            e1y = ecy + int(math.sin(perp) * eye_spread)
+            e2x = ecx - int(math.cos(perp) * eye_spread)
+            e2y = ecy - int(math.sin(perp) * eye_spread)
+
+            eye_glow = int(200 + 55 * pulse)
+            eye_color = (min(255, eye_glow), int(80 * pulse), 0, sp_alpha)
+            eye_r = max(1, body_size // 6)
+            pygame.draw.circle(overlay, eye_color, (e1x, e1y), eye_r)
+            pygame.draw.circle(overlay, eye_color, (e2x, e2y), eye_r)
 
         surface.blit(overlay, (0, 0))
+
+    def get_gpu_params(self):
+        """Return shader parameters for metallic shimmer + chromatic aberration."""
+        if self.finished:
+            return None
+        progress = self.get_progress()
+        intensity = max(0.0, 1.0 - progress)
+        if intensity <= 0.0:
+            return None
+        return {
+            'type': 'replicator_swarm',
+            'center': (self.swarm_cx, self.swarm_cy),
+            'intensity': intensity,
+            'density': min(1.0, len(self.spiders) / 120.0),
+        }
 
 
 # ============================================================================
