@@ -483,8 +483,10 @@ class Drone:
             dist = math.hypot(nearest.x - self.x, nearest.y - self.y)
             if dist < 500:
                 self.fire_cooldown = self.fire_rate
-                # Calculate direction toward nearest enemy
-                direction = 1 if nearest.x > self.x else -1
+                # Calculate 2D direction toward nearest enemy
+                dx = nearest.x - self.x
+                dy = nearest.y - self.y
+                direction = (dx / dist, dy / dist)
                 return Laser(self.x, self.y, direction, (100, 255, 100), speed=20)
         return None
 
@@ -494,10 +496,12 @@ class Drone:
             sx, sy = camera.world_to_screen(self.x, self.y)
         else:
             sx, sy = self.x, self.y
-        drone_surf = pygame.Surface((20, 20), pygame.SRCALPHA)
-        pygame.draw.polygon(drone_surf, (100, 255, 100), [(10, 0), (20, 20), (0, 20)])
-        pygame.draw.polygon(drone_surf, (255, 255, 255), [(10, 0), (20, 20), (0, 20)], 2)
-        surface.blit(drone_surf, (int(sx - 10), int(sy - 10)))
+        if not hasattr(Drone, '_cached_surf'):
+            s = pygame.Surface((20, 20), pygame.SRCALPHA)
+            pygame.draw.polygon(s, (100, 255, 100), [(10, 0), (20, 20), (0, 20)])
+            pygame.draw.polygon(s, (255, 255, 255), [(10, 0), (20, 20), (0, 20)], 2)
+            Drone._cached_surf = s
+        surface.blit(Drone._cached_surf, (int(sx - 10), int(sy - 10)))
 
 
 class XPOrb:
@@ -726,6 +730,10 @@ class DamageNumber:
         # These are world-space coords — we'll convert at draw time
         self._world_x = self.x
         self._world_y = self.y
+        # Pre-render text surface once
+        self._text_surf = self.font.render(str(self.amount), True, self.color)
+        self._text_w = self._text_surf.get_width()
+        self._text_h = self._text_surf.get_height()
 
     def update(self):
         self.timer += 1
@@ -744,14 +752,11 @@ class DamageNumber:
         else:
             sx, sy = self._world_x, self._world_y
         alpha = max(0, int(255 * (1 - self.timer / self.duration)))
-        text = str(self.amount)
-        text_surf = self.font.render(text, True, self.color)
-        # Create alpha surface
-        alpha_surf = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
-        alpha_surf.blit(text_surf, (0, 0))
-        alpha_surf.set_alpha(alpha)
-        surface.blit(alpha_surf, (int(sx) - text_surf.get_width() // 2,
-                                  int(sy) - text_surf.get_height() // 2))
+        # Re-use pre-rendered text surface with alpha
+        tmp = self._text_surf.copy()
+        tmp.set_alpha(alpha)
+        surface.blit(tmp, (int(sx) - self._text_w // 2,
+                           int(sy) - self._text_h // 2))
 
 
 class PopupNotification:

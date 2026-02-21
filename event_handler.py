@@ -846,7 +846,7 @@ def handle_events(state, game, screen, dt):
 
                 # Select cards to mulligan (max 5)
                 for card in game.player1.hand:
-                    if card.rect.collidepoint(event.pos):
+                    if hasattr(card, 'rect') and card.rect.collidepoint(event.pos):
                         if card in state.mulligan_selected:
                             state.mulligan_selected.remove(card)
                         elif len(state.mulligan_selected) < 5:  # Max 5 cards

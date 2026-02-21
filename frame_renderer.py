@@ -770,10 +770,11 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             latency_text = latency_font.render(f"{rtt}ms ({latency_label})", True, latency_color)
             screen.blit(latency_text, (hud_text_x + dot_radius * 3, latency_y))
 
-        command_bar_surface = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
-        command_bar_surface.fill((10, 20, 35, 200))
-        pygame.draw.line(command_bar_surface, (80, 120, 180), (0, 0), (SCREEN_WIDTH, 0), 2)
-        screen.blit(command_bar_surface, (0, COMMAND_BAR_Y))
+        if not hasattr(render_frame, '_cmd_bar_surf') or render_frame._cmd_bar_surf.get_size() != (SCREEN_WIDTH, COMMAND_BAR_HEIGHT):
+            render_frame._cmd_bar_surf = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
+            render_frame._cmd_bar_surf.fill((10, 20, 35, 200))
+            pygame.draw.line(render_frame._cmd_bar_surf, (80, 120, 180), (0, 0), (SCREEN_WIDTH, 0), 2)
+        screen.blit(render_frame._cmd_bar_surf, (0, COMMAND_BAR_Y))
 
         board_renderer.draw_pass_button(screen, game, state.hud_pass_button_rect)
 

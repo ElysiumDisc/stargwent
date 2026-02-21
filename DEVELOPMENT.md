@@ -911,7 +911,7 @@ Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player
 
 ---
 
-## 🚀 Space Shooter Architecture (v7.3.0)
+## 🚀 Space Shooter Architecture (v7.4.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
 

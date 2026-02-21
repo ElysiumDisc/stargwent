@@ -1,3 +1,42 @@
+### Version 7.4.0 (February 2026)
+**Bug Hunt & Performance — Gameplay Fixes, Per-Frame Allocation Cleanup, Safety Hardening**
+
+#### Gameplay Bug Fixes
+
+- **Fire rate powerup restoration** — `rapid_fire` and `overcharge` powerups now save the original fire rate before modifying it. On expiration, the saved value is restored instead of reversing the math (which could give wrong values when the `max()` clamp activated or both powerups were stacked)
+- **Drone 2D aiming** — Drones now calculate a proper 2D direction vector `(dx/dist, dy/dist)` toward the nearest enemy instead of only firing horizontally (left/right)
+- **Mulligan card.rect crash guard** — Added `hasattr(card, 'rect')` check before `collidepoint()` in the mulligan click handler, preventing crashes if a card hasn't been rendered yet
+- **Temporal field speed restoration** — When temporal field upgrades are at 0 stacks and time warp is inactive, all slowed enemies now have their `_base_speed` properly restored and the attribute cleaned up
+- **Projectile budget cap** — Multi-targeting and scatter shot spawning now stops when total projectiles exceed 300, preventing frame drops with bullet_hell evolution + scatter_shot at fast fire rates
+
+#### Performance (Per-Frame Allocation Cleanup)
+
+- **Command bar surface cached** — The command bar `pygame.Surface` is now created once and reused every frame instead of being allocated fresh each render pass
+- **Screen shake surface cached** — The shake draw surface is created once as `_shake_surface` and reused during any screen shake
+- **Damage number text cached** — `DamageNumber` now pre-renders its text surface in `__init__()` and reuses it in `draw()` with `set_alpha()`, eliminating per-frame font rendering
+- **Drone surface cached** — Drone polygon surface is rendered once as a class-level `_cached_surf` instead of being redrawn every frame
+- **Level-up font cached** — "LEVEL UP!" text uses a fixed-size font rendered once, with the pulse effect applied via `pygame.transform.smoothscale` instead of recreating the font every frame
+- **Drag trail O(N) removal fixed** — Replaced `list.remove()` inside a loop (O(N) per removal) with a single list comprehension filter
+
+#### Safety & Robustness
+
+- **LAN host socket leak fixed** — `bind()`/`listen()`/`accept()` wrapped in try/except so the listener socket is always closed on failure
+- **LAN join socket leak fixed** — `connect()`/`_start()` wrapped in try/except so the connection socket is always closed on failure
+- **Deck save error propagated** — `save_decks()` now returns `True`/`False` so callers can detect save failures
+- **Mulligan iteration limit removed** — Removed the arbitrary 1000-iteration cap; the time-based timeout is sufficient and correct
+
+#### Files Modified
+- `space_shooter/game.py` — Fire rate save/restore, temporal field cleanup, projectile budget cap, shake surface cache
+- `space_shooter/entities.py` — Drone 2D direction fix, drone surface cache, damage number text cache
+- `space_shooter/ui.py` — Level-up font cache
+- `event_handler.py` — hasattr guard on card.rect in mulligan
+- `frame_renderer.py` — Command bar surface cache
+- `main.py` — Drag trail list comprehension, mulligan iteration limit cleanup
+- `lan_session.py` — Socket leak fixes for host and join
+- `deck_persistence.py` — save_decks() returns bool
+
+---
+
 ### Version 7.3.0 (February 2026)
 **Audio & UI Polish — Chevron SFX, Back Button Feedback, Options Layout Fix & Volume Defaults**
 

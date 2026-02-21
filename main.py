@@ -981,16 +981,12 @@ def main(lan_game_data=None):
             if not hasattr(state, '_mulligan_start_time'):
                 state._mulligan_start_time = pygame.time.get_ticks()
             mulligan_start_time = state._mulligan_start_time
-            max_iterations = 1000
-            iteration_count = 0
-
-            while iteration_count < max_iterations:
+            while True:
                 if pygame.time.get_ticks() - mulligan_start_time > mulligan_timeout:
                     print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
                     state.mulligan_remote_done = True
                     break
 
-                iteration_count += 1
                 msg = LAN_CONTEXT.session.receive()
                 if not msg:
                     break
@@ -1171,12 +1167,11 @@ def main(lan_game_data=None):
             state.drag_pickup_flash = max(0.0, state.drag_pickup_flash - dt / 350.0)
             state.drag_velocity *= 0.9
         state.drag_trail_emit_ms = max(0, state.drag_trail_emit_ms - dt)
-        for blob in state.drag_trail[:]:
+        for blob in state.drag_trail:
             blob["alpha"] -= dt * 0.35
             blob["width_scale"] += dt * 0.0008
             blob["height_scale"] += dt * 0.0006
-            if blob["alpha"] <= 0:
-                state.drag_trail.remove(blob)
+        state.drag_trail = [b for b in state.drag_trail if b["alpha"] > 0]
         if state.dragging_card:
             if state.drag_trail_emit_ms <= 0:
                 state.drag_trail.append({

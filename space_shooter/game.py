@@ -377,6 +377,8 @@ class SpaceShooterGame:
             self.player_ship.shields = min(self.player_ship.max_shields,
                                           self.player_ship.shields + 50)
         elif ptype == "rapid_fire":
+            if not hasattr(self, '_saved_fire_rate'):
+                self._saved_fire_rate = self.player_ship.fire_rate
             self.player_ship.fire_rate = max(5, self.player_ship.fire_rate // 2)
             self.active_powerups["rapid_fire"] = duration
         elif ptype == "drone":
@@ -392,6 +394,8 @@ class SpaceShooterGame:
             self.active_powerups["cloak"] = duration
         elif ptype == "overcharge":
             # Massive fire rate boost + extra projectiles
+            if not hasattr(self, '_saved_fire_rate'):
+                self._saved_fire_rate = self.player_ship.fire_rate
             self.player_ship.fire_rate = max(3, self.player_ship.fire_rate // 3)
             self.active_powerups["overcharge"] = duration
             # Visual feedback — screen shake burst
@@ -500,13 +504,25 @@ class SpaceShooterGame:
     def _expire_powerup(self, ptype):
         """Handle expiration of a power-up effect."""
         if ptype == "rapid_fire":
-            self.player_ship.fire_rate = min(self.player_ship.fire_rate * 2, 60)
+            if hasattr(self, '_saved_fire_rate'):
+                self.player_ship.fire_rate = self._saved_fire_rate
+                # Only delete saved rate if overcharge isn't also active
+                if self.active_powerups.get("overcharge", 0) <= 0:
+                    del self._saved_fire_rate
+            else:
+                self.player_ship.fire_rate = min(self.player_ship.fire_rate * 2, 60)
         elif ptype == "drone":
             self.drones = []
         elif ptype == "damage":
             self.base_damage_mult = 1.15  # Reset to base (not 1.0 — player gets innate bonus)
         elif ptype == "overcharge":
-            self.player_ship.fire_rate = min(self.player_ship.fire_rate * 3, 60)
+            if hasattr(self, '_saved_fire_rate'):
+                self.player_ship.fire_rate = self._saved_fire_rate
+                # Only delete saved rate if rapid_fire isn't also active
+                if self.active_powerups.get("rapid_fire", 0) <= 0:
+                    del self._saved_fire_rate
+            else:
+                self.player_ship.fire_rate = min(self.player_ship.fire_rate * 3, 60)
         elif ptype == "tauri_ancient_drones":
             self.drones = []
 
@@ -879,6 +895,12 @@ class SpaceShooterGame:
                 else:
                     if hasattr(enemy, '_base_speed'):
                         enemy.speed = enemy._base_speed
+        else:
+            # No temporal field or time warp — restore all slowed enemies
+            for enemy in self.ai_ships:
+                if hasattr(enemy, '_base_speed'):
+                    enemy.speed = enemy._base_speed
+                    del enemy._base_speed
 
         # Magnetize powerup: pull all orbs and powerups toward player
         if self.active_powerups.get("magnetize", 0) > 0:
@@ -1263,6 +1285,8 @@ class SpaceShooterGame:
                                         extra_dirs.append(('dir', (ddx, ddy)))
 
                         for entry in extra_dirs:
+                            if len(self.projectiles) > 300:
+                                break
                             if entry[0] == 'spread':
                                 spread = entry[1]
                                 d = self.player_ship.facing
@@ -1304,7 +1328,7 @@ class SpaceShooterGame:
                     cluster_bomb = "cluster_bomb" in self.evolutions
                     if cluster_bomb:
                         scatter_stacks = max(scatter_stacks, 3)
-                    if scatter_stacks > 0:
+                    if scatter_stacks > 0 and len(self.projectiles) <= 300:
                         fdx, fdy = self.player_ship.facing
                         num_pellets = scatter_stacks * 3
                         for p_idx in range(num_pellets):
@@ -1741,7 +1765,9 @@ class SpaceShooterGame:
 
         # Create draw surface (offset by shake)
         if shake_x != 0 or shake_y != 0:
-            draw_surface = pygame.Surface((self.screen_width, self.screen_height))
+            if not hasattr(self, '_shake_surface') or self._shake_surface.get_size() != (self.screen_width, self.screen_height):
+                self._shake_surface = pygame.Surface((self.screen_width, self.screen_height))
+            draw_surface = self._shake_surface
         else:
             draw_surface = surface
 

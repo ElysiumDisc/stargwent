@@ -380,11 +380,15 @@ def draw_level_up_screen(game, surface):
     overlay.fill((0, 0, 0, 150))
     surface.blit(overlay, (0, 0))
 
-    # "LEVEL UP!" text with pulse
+    # "LEVEL UP!" text with pulse (use fixed font, scale for pulse effect)
+    if not hasattr(draw_level_up_screen, '_title_font'):
+        draw_level_up_screen._title_font = pygame.font.SysFont("Arial", 64, bold=True)
+        draw_level_up_screen._title_surf = draw_level_up_screen._title_font.render("LEVEL UP!", True, (255, 215, 0))
     pulse = 1.0 + math.sin(time_tick * 0.005) * 0.1
-    title_size = int(64 * pulse)
-    title_font = pygame.font.SysFont("Arial", title_size, bold=True)
-    title = title_font.render("LEVEL UP!", True, (255, 215, 0))
+    base_surf = draw_level_up_screen._title_surf
+    w = int(base_surf.get_width() * pulse)
+    h = int(base_surf.get_height() * pulse)
+    title = pygame.transform.smoothscale(base_surf, (w, h))
     surface.blit(title, (game.screen_width // 2 - title.get_width() // 2, 80))
 
     subtitle = game.ui_font.render(f"Level {game.level} - Choose an upgrade:", True, (200, 200, 200))

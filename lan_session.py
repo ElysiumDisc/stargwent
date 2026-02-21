@@ -42,14 +42,17 @@ class LanSession:
             OSError: If port is unavailable
         """
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if timeout:
-            listener.settimeout(timeout)
-        listener.bind(("", port))
-        listener.listen(1)
         try:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if timeout:
+                listener.settimeout(timeout)
+            listener.bind(("", port))
+            listener.listen(1)
             conn, addr = listener.accept()
-        finally:
+        except Exception:
+            listener.close()
+            raise
+        else:
             listener.close()
         self._start(conn)
         return addr
@@ -68,10 +71,14 @@ class LanSession:
             ConnectionRefusedError: If host is not listening
         """
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        conn.settimeout(timeout)
-        conn.connect((host_ip, port))
-        conn.settimeout(None)  # Remove timeout after successful connection
-        self._start(conn)
+        try:
+            conn.settimeout(timeout)
+            conn.connect((host_ip, port))
+            conn.settimeout(None)  # Remove timeout after successful connection
+            self._start(conn)
+        except Exception:
+            conn.close()
+            raise
 
     def _start(self, conn):
         self.sock = conn

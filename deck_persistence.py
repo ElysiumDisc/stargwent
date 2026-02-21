@@ -100,13 +100,15 @@ class DeckPersistence:
         return self._get_default_unlock_data()
     
     def save_decks(self):
-        """Save current deck configurations"""
+        """Save current deck configurations. Returns True on success, False on failure."""
         try:
             with open(DECK_SAVE_FILE, 'w') as f:
                 json.dump(self.deck_data, f, indent=2)
             print(f"✓ Decks saved to {DECK_SAVE_FILE}")
+            return True
         except Exception as e:
             print(f"Error saving deck data: {e}")
+            return False
     
     def save_unlocks(self):
         """Save unlock progress"""
