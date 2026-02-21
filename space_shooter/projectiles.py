@@ -518,3 +518,76 @@ class ChainLightning:
                 pygame.draw.line(surface, (255, 255, 255),
                                (int(p1x), int(p1y)),
                                (int(p2x), int(p2y)), 1)
+
+
+class AreaBomb:
+    """Al'kesh bomber projectile — slow-falling bomb that detonates on a fuse.
+
+    Moves slowly toward a target area, then explodes after a fuse timer
+    dealing AoE damage within its blast radius.
+    """
+    def __init__(self, x, y, target_x, target_y, damage=30, blast_radius=120):
+        self.x = x
+        self.y = y
+        self.target_x = target_x
+        self.target_y = target_y
+        self.damage = damage
+        self.blast_radius = blast_radius
+        self.active = True
+        self.is_player_proj = False
+        self.fuse_timer = 0
+        self.fuse_duration = 120  # 2 seconds at 60fps
+        self.detonated = False
+        self.radius = 10
+        self.pulse = 0
+        # Slow drift toward target
+        dx = target_x - x
+        dy = target_y - y
+        dist = max(1, math.hypot(dx, dy))
+        speed = 2.0
+        self.vx = (dx / dist) * speed
+        self.vy = (dy / dist) * speed
+
+    def update(self):
+        self.fuse_timer += 1
+        self.pulse += 0.15
+        if not self.detonated:
+            self.x += self.vx
+            self.y += self.vy
+        if self.fuse_timer >= self.fuse_duration:
+            self.detonated = True
+            self.active = False
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) - self.radius, int(self.y) - self.radius,
+                          self.radius * 2, self.radius * 2)
+
+    def draw(self, surface, camera=None):
+        if not self.active:
+            return
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+
+        # Pulsing warning glow that intensifies as fuse burns down
+        progress = self.fuse_timer / self.fuse_duration
+        pulse_r = self.radius + int(math.sin(self.pulse) * 3)
+        warn_alpha = int(80 + 175 * progress)
+
+        bomb_surf = pygame.Surface((pulse_r * 4, pulse_r * 4), pygame.SRCALPHA)
+        c = pulse_r * 2
+        # Warning radius ring (grows as detonation nears)
+        if progress > 0.3:
+            warn_r = int(self.blast_radius * progress * 0.3)
+            pygame.draw.circle(bomb_surf, (255, 100, 0, int(30 * progress)),
+                             (c, c), warn_r, 1)
+        # Bomb body
+        pygame.draw.circle(bomb_surf, (200, 100, 0, warn_alpha), (c, c), pulse_r)
+        # Blinking core (faster as fuse runs out)
+        blink_rate = max(2, int(8 * (1 - progress)))
+        if int(self.pulse * 3) % blink_rate < blink_rate // 2:
+            pygame.draw.circle(bomb_surf, (255, 50, 0), (c, c), pulse_r // 2)
+        else:
+            pygame.draw.circle(bomb_surf, (255, 200, 50), (c, c), pulse_r // 2)
+        surface.blit(bomb_surf, (int(sx) - c, int(sy) - c))

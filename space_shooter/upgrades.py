@@ -163,6 +163,12 @@ UPGRADES = {
         "max": 5, "icon": "A", "color": (200, 200, 100),
         "rarity": "common",
     },
+    "summon_ally": {
+        "name": "Summon Ally",
+        "desc": "Summon an ally ship\n+5s duration/stack",
+        "max": 3, "icon": "F", "color": (100, 255, 100),
+        "rarity": "epic",
+    },
 }
 
 # Rarity colors for UI
@@ -207,11 +213,29 @@ EVOLUTIONS = {
     },
 }
 
-# Enemy type modifiers: (speed_mult, hp_mult, scale, xp_value, tint)
+# Enemy type modifiers: (speed_mult, hp_mult, scale, xp_value, tint, behavior)
 ENEMY_TYPES = {
-    "regular":  {"speed": 0.7, "hp": 1.0, "scale": 1.0, "xp": 30, "tint": None},
-    "fast":     {"speed": 1.0, "hp": 0.7, "scale": 0.9, "xp": 40, "tint": (100, 200, 255)},
-    "tank":     {"speed": 0.4, "hp": 2.5, "scale": 1.3, "xp": 55, "tint": (150, 150, 150)},
-    "elite":    {"speed": 0.8, "hp": 2.0, "scale": 1.1, "xp": 75, "tint": (255, 215, 0)},
-    "kamikaze": {"speed": 1.2, "hp": 0.4, "scale": 0.8, "xp": 45, "tint": (255, 60, 60)},
+    # --- Original types ---
+    "regular":  {"speed": 0.7, "hp": 1.0, "scale": 1.0, "xp": 30, "tint": None, "behavior": None},
+    "fast":     {"speed": 1.0, "hp": 0.7, "scale": 0.9, "xp": 40, "tint": (100, 200, 255), "behavior": None},
+    "tank":     {"speed": 0.4, "hp": 2.5, "scale": 1.3, "xp": 55, "tint": (150, 150, 150), "behavior": None},
+    "elite":    {"speed": 0.8, "hp": 2.0, "scale": 1.1, "xp": 75, "tint": (255, 215, 0), "behavior": None},
+    "kamikaze": {"speed": 1.2, "hp": 0.4, "scale": 0.8, "xp": 45, "tint": (255, 60, 60), "behavior": None},
+    # --- Stargate-themed enemies ---
+    "wraith_dart":    {"speed": 1.1, "hp": 0.6, "scale": 0.85, "xp": 50, "tint": (80, 0, 160), "behavior": "swarm_lifesteal"},
+    "replicator":     {"speed": 0.9, "hp": 0.3, "scale": 0.6, "xp": 25, "tint": (180, 180, 200), "behavior": "split_on_death"},
+    "ori_fighter":    {"speed": 0.7, "hp": 2.0, "scale": 1.15, "xp": 80, "tint": (255, 255, 200), "behavior": "shielded_charge"},
+    "ancient_drone":  {"speed": 1.0, "hp": 0.8, "scale": 0.7, "xp": 60, "tint": (255, 200, 50), "behavior": "homing"},
+    "death_glider":   {"speed": 0.8, "hp": 1.0, "scale": 1.0, "xp": 45, "tint": (200, 170, 0), "behavior": "paired"},
+    "alkesh_bomber":  {"speed": 0.4, "hp": 3.0, "scale": 1.4, "xp": 70, "tint": (200, 100, 0), "behavior": "bomber"},
+    "wraith_hive":    {"speed": 0.3, "hp": 5.0, "scale": 1.6, "xp": 150, "tint": (100, 0, 180), "behavior": "mini_boss_spawner"},
+}
+
+# Explosion color palettes per enemy behavior/type
+ENEMY_EXPLOSION_PALETTES = {
+    "wraith_dart": [(160, 0, 255), (100, 0, 180), (200, 100, 255)],
+    "wraith_hive": [(160, 0, 255), (100, 0, 180), (200, 100, 255)],
+    "replicator": [(200, 200, 220), (150, 150, 180), (255, 255, 255)],
+    "ori_fighter": [(255, 255, 200), (255, 220, 100), (255, 255, 255)],
+    "ancient_drone": [(255, 200, 50), (255, 180, 0), (255, 255, 150)],
 }

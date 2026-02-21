@@ -16,6 +16,8 @@ class CoopMsg:
     ACTION = "ss_action"        # Discrete one-shot actions (secondary fire, wormhole)
     LEVEL_UP = "ss_level_up"    # Host → Client: level-up choice notification
     GAME_OVER = "ss_game_over"  # Host → Client: game ended
+    HEARTBEAT = "ss_heartbeat"  # Bidirectional keep-alive
+    DISCONNECT = "ss_disconnect"  # Graceful disconnect notification
 
 
 def build_ready(faction):
@@ -60,3 +62,13 @@ def build_level_up(choices=None, selected=None):
 def build_game_over(stats):
     """Build a game-over message with combined stats."""
     return {"type": CoopMsg.GAME_OVER, "payload": stats}
+
+
+def build_heartbeat():
+    """Build a heartbeat keep-alive message."""
+    return {"type": CoopMsg.HEARTBEAT, "payload": {}}
+
+
+def build_disconnect(reason=""):
+    """Build a graceful disconnect notification."""
+    return {"type": CoopMsg.DISCONNECT, "payload": {"reason": reason}}

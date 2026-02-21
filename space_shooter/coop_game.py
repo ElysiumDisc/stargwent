@@ -3,10 +3,10 @@ Co-op Space Shooter Game — Host-Authoritative
 
 Subclasses SpaceShooterGame to add:
 - Partner ship (player 2)
-- Shared camera (midpoint between both ships)
+- Independent cameras (P1 follows host ship, P2 data sent to client)
 - Revival mechanic (killing an enemy revives dead partner)
 - Shared scoring / XP / upgrades
-- State snapshot serialization for network sync
+- State snapshot serialization for network sync (expanded for all entities)
 """
 
 import math
@@ -17,12 +17,13 @@ from .game import SpaceShooterGame
 from .ship import Ship
 from .camera import Camera
 from .spawner import ContinuousSpawner
-from .entities import Explosion, DamageNumber, PopupNotification
+from .entities import Explosion, DamageNumber, PopupNotification, XPOrb, PowerUp
 from .virtual_keys import VirtualKeys
+from .upgrades import ENEMY_TYPES
 
 
-# Distance at which we warn players they're too far apart
-LEASH_WARNING_DIST = 800
+# Distance at which we warn players they're too far apart (very generous)
+LEASH_WARNING_DIST = 5000
 
 
 class CoopSpaceShooterGame(SpaceShooterGame):
@@ -68,6 +69,10 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         # Snapshot frame counter (send every 3 frames = 20 Hz)
         self._snapshot_frame = 0
 
+        # Heartbeat tracking
+        self._heartbeat_timer = 0
+        self._last_partner_msg_frame = 0
+
         # Scale spawner for two players
         self.spawner = ContinuousSpawner(self.camera, p1_faction, self.all_factions,
                                           coop_scale=1.5)
@@ -79,6 +84,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         self.survival_frames += 1
         self._snapshot_frame += 1
+        self._heartbeat_timer += 1
 
         # Kill streak timer
         if self.kill_streak > 0:
@@ -103,7 +109,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             self.partner_ship.update(self.partner_keys)
             self._update_ship_facing(self.partner_ship)
 
-        # --- Camera follows midpoint of alive ships ---
+        # --- Camera follows P1 (independent cameras — client follows P2) ---
         self._update_coop_camera()
 
         # --- Leash check ---
@@ -121,26 +127,112 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         self.wormhole_effects = [e for e in self.wormhole_effects if e.update()]
 
         # --- Spawner (scaled for 2 players) ---
-        # Temporarily increase max_alive for co-op
         new_ships = self.spawner.update(self.ai_ships, self.screen_width, self.screen_height)
         self.ai_ships.extend(new_ships)
 
-        # --- Despawn far entities ---
+        # --- Despawn far entities based on NEAREST alive player ---
         despawn_dist = 2500
+        p1x = self.player_ship.x + self.player_ship.width // 2
+        p1y = self.player_ship.y
+        p2x = self.partner_ship.x + self.partner_ship.width // 2
+        p2y = self.partner_ship.y
+
+        def dist_from_nearest_player(ex, ey):
+            d1 = math.hypot(ex - p1x, ey - p1y) if self.p1_alive else float('inf')
+            d2 = math.hypot(ex - p2x, ey - p2y) if self.p2_alive else float('inf')
+            return min(d1, d2)
+
         self.ai_ships = [s for s in self.ai_ships
-                         if math.hypot(s.x - self.camera.x, s.y - self.camera.y) < despawn_dist]
+                         if dist_from_nearest_player(s.x, s.y) < despawn_dist]
         self.asteroids = [a for a in self.asteroids if a.active and
-                          math.hypot(a.x - self.camera.x, a.y - self.camera.y) < despawn_dist]
+                          dist_from_nearest_player(a.x, a.y) < despawn_dist]
         self.xp_orbs = [o for o in self.xp_orbs if o.active and
-                        math.hypot(o.x - self.camera.x, o.y - self.camera.y) < despawn_dist]
+                        dist_from_nearest_player(o.x, o.y) < despawn_dist]
         self.powerups = [p for p in self.powerups if p.active and
-                         math.hypot(p.x - self.camera.x, p.y - self.camera.y) < despawn_dist]
+                         dist_from_nearest_player(p.x, p.y) < despawn_dist]
+        self.area_bombs = [b for b in self.area_bombs
+                           if dist_from_nearest_player(b.x, b.y) < despawn_dist]
 
         # --- Upgrade passive effects (apply to both ships) ---
         self._apply_passive_upgrades()
 
+        # --- Update suns ---
+        from .entities import Sun
+        for sun in self.suns[:]:
+            entities_dict = {
+                "ships": ([self.player_ship] if self.p1_alive else []) +
+                         ([self.partner_ship] if self.p2_alive else []),
+                "enemies": self.ai_ships,
+                "allies": self.ally_ships,
+                "projectiles": self.projectiles,
+                "asteroids": self.asteroids,
+            }
+            sun.update(entities_dict)
+            if sun.phase == Sun.PHASE_EXPLODING and sun.timer == 1:
+                self.screen_shake.trigger(8, 15)
+            if not sun.active:
+                self.suns.remove(sun)
+
+        # Sun spawning
+        if self.survival_seconds >= 30:
+            if not self.sun_first_spawn_done:
+                self.sun_first_spawn_done = True
+                self.sun_spawn_timer = 0
+                self._sun_next_interval = random.randint(2400, 3600)
+                self._spawn_sun()
+            else:
+                self.sun_spawn_timer += 1
+                if not hasattr(self, '_sun_next_interval'):
+                    self._sun_next_interval = random.randint(2400, 3600)
+                if self.sun_spawn_timer >= self._sun_next_interval:
+                    self.sun_spawn_timer = 0
+                    self._sun_next_interval = random.randint(2400, 3600)
+                    self._spawn_sun()
+
+        # --- Update ally ships ---
+        for ally in self.ally_ships[:]:
+            proj = ally.update_ally_ai(self.player_ship, self.ai_ships)
+            if proj:
+                self.projectiles.append(proj)
+            ally.ally_lifetime -= 1
+            if ally.ally_lifetime <= 0 or ally.health <= 0:
+                self.explosions.append(Explosion(
+                    ally.x + ally.width // 2, ally.y, tier="small"))
+                self.ally_ships.remove(ally)
+
+        # --- Update area bombs ---
+        for bomb in self.area_bombs[:]:
+            bomb.update()
+            if bomb.detonated:
+                self.explosions.append(Explosion(bomb.x, bomb.y, tier="normal"))
+                self.screen_shake.trigger(4, 8)
+                # Damage both players
+                for ship, alive in [(self.player_ship, self.p1_alive),
+                                    (self.partner_ship, self.p2_alive)]:
+                    if not alive:
+                        continue
+                    sx = ship.x + ship.width // 2
+                    sy = ship.y
+                    d = math.hypot(sx - bomb.x, sy - bomb.y)
+                    if d < bomb.blast_radius:
+                        dmg = int(bomb.damage * (1.0 - d / bomb.blast_radius * 0.5))
+                        ship.take_damage(dmg)
+                        self.damage_numbers.append(DamageNumber(sx, sy, dmg, (255, 150, 50)))
+                        if ship.health <= 0:
+                            tag = "p1" if ship is self.player_ship else "p2"
+                            self._kill_player(tag)
+                self.area_bombs.remove(bomb)
+
         # --- Update AI ships (target nearest alive player) ---
         for ai_ship in self.ai_ships:
+            # Skip stunned enemies
+            if getattr(ai_ship, '_stunned', 0) > 0:
+                ai_ship._stunned -= 1
+                ai_ship.vx = 0
+                ai_ship.vy = 0
+                ai_ship.stop_beam()
+                continue
+
             target = self._nearest_alive_ship(ai_ship)
             ai_ship.update_ai(target, self.asteroids, self.ai_ships)
 
@@ -170,6 +262,33 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                         max(420, ai_ship.fire_rate * 7)
                     )
 
+            # Bomber behavior: fire area bombs
+            behavior = getattr(ai_ship, '_behavior', None)
+            if behavior == 'bomber':
+                ai_ship._bomber_timer = getattr(ai_ship, '_bomber_timer', 0) + 1
+                if ai_ship._bomber_timer >= 180:
+                    ai_ship._bomber_timer = 0
+                    from .projectiles import AreaBomb
+                    self.area_bombs.append(AreaBomb(
+                        ai_ship.x + ai_ship.width // 2, ai_ship.y,
+                        target.x + target.width // 2, target.y))
+            elif behavior == 'mini_boss_spawner':
+                ai_ship._spawner_timer = getattr(ai_ship, '_spawner_timer', 0) + 1
+                spawned = getattr(ai_ship, '_spawned_darts', [])
+                spawned = [d for d in spawned if d in self.ai_ships]
+                ai_ship._spawned_darts = spawned
+                if ai_ship._spawner_timer >= 300 and len(spawned) < 4:
+                    ai_ship._spawner_timer = 0
+                    tier = self.spawner.get_current_tier()
+                    dart = self.spawner._spawn_enemy(tier, self.screen_width, self.screen_height,
+                                                     force_type="wraith_dart")
+                    if dart:
+                        dart.x = ai_ship.x + random.randint(-80, 80)
+                        dart.y = ai_ship.y + random.randint(-80, 80)
+                        self.ai_ships.append(dart)
+                        spawned.append(dart)
+                        ai_ship._spawned_darts = spawned
+
         # --- Auto-fire for both alive players ---
         if self.p1_alive:
             self._auto_fire_ship(self.player_ship, keys)
@@ -182,6 +301,16 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         # --- Update powerups, XP orbs, explosions ---
         self._update_entities()
+
+        # --- Active powerup timer decrements ---
+        expired = []
+        for ptype, timer in list(self.active_powerups.items()):
+            if timer > 0:
+                self.active_powerups[ptype] = timer - 1
+                if timer - 1 <= 0:
+                    expired.append(ptype)
+        for ptype in expired:
+            self._expire_powerup(ptype)
 
         # --- Revival pulse decay ---
         if self.revival_pulse_timer > 0:
@@ -199,6 +328,23 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         if self.asteroid_spawn_timer >= self.asteroid_spawn_rate:
             self.asteroid_spawn_timer = 0
             self._spawn_asteroid()
+
+        # Periodic powerup spawns near a random alive player
+        self.powerup_spawn_timer += 1
+        if self.powerup_spawn_timer >= random.randint(240, 420):
+            self.powerup_spawn_timer = 0
+            alive_ships = []
+            if self.p1_alive:
+                alive_ships.append(self.player_ship)
+            if self.p2_alive:
+                alive_ships.append(self.partner_ship)
+            if alive_ships:
+                target = random.choice(alive_ships)
+                angle = random.uniform(0, math.pi * 2)
+                pdist = random.uniform(150, 350)
+                px = target.x + math.cos(angle) * pdist
+                py = target.y + math.sin(angle) * pdist
+                self.powerups.append(PowerUp.spawn_at(px, py, faction=self.p1_faction))
 
         # Update miscellaneous effects
         self.screen_shake.update()
@@ -224,18 +370,13 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 ship.set_facing((0, -1) if ship.vy < 0 else (0, 1))
 
     def _update_coop_camera(self):
-        """Camera follows midpoint of alive ships."""
-        if self.p1_alive and self.p2_alive:
-            p1_cx = self.player_ship.x + self.player_ship.width // 2
-            p1_cy = self.player_ship.y
-            p2_cx = self.partner_ship.x + self.partner_ship.width // 2
-            p2_cy = self.partner_ship.y
-            self.camera.follow_midpoint(p1_cx, p1_cy, p2_cx, p2_cy)
-        elif self.p1_alive:
+        """Camera follows P1 (host). Client follows P2 independently."""
+        if self.p1_alive:
             self.camera.follow(
                 self.player_ship.x + self.player_ship.width // 2,
                 self.player_ship.y)
         elif self.p2_alive:
+            # P1 dead — host camera follows P2 until revival
             self.camera.follow(
                 self.partner_ship.x + self.partner_ship.width // 2,
                 self.partner_ship.y)
@@ -296,11 +437,13 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                         self.damage_numbers.append(DamageNumber(
                             ai_ship.x + ai_ship.width // 2, ai_ship.y,
                             damage, (255, 255, 100)))
-                        if ai_ship.take_damage(damage):
+                        if self._damage_enemy(ai_ship, damage):
                             self._on_enemy_killed(ai_ship)
                         if not getattr(proj, 'piercing', False):
                             proj.active = False
                         break
+
+                # Player projectile → ally ships (skip — no friendly fire)
             else:
                 # Enemy projectile → player ships
                 if self.p1_alive:
@@ -314,8 +457,63 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                         proj.active = False
                         continue
 
+                # Enemy projectile → ally ships
+                for ally in self.ally_ships[:]:
+                    if pr.colliderect(ally.get_rect()):
+                        ally.hit_flash = 5
+                        ally.take_damage(getattr(proj, 'damage', 10))
+                        proj.active = False
+                        break
+
         # Remove inactive projectiles
         self.projectiles = [p for p in self.projectiles if p.active]
+
+        # Ship collision with asteroids (both players)
+        for asteroid in self.asteroids[:]:
+            if not asteroid.active:
+                continue
+            for ship, alive, tag in [(self.player_ship, self.p1_alive, "p1"),
+                                     (self.partner_ship, self.p2_alive, "p2")]:
+                if alive and asteroid.get_rect().colliderect(ship.get_rect()):
+                    ship.take_damage(25, is_asteroid=True)
+                    self.explosions.append(Explosion(asteroid.x, asteroid.y, tier="small"))
+                    asteroid.active = False
+                    self.screen_shake.trigger(3, 5)
+                    if ship.health <= 0:
+                        self._kill_player(tag)
+                    break
+            if not asteroid.active:
+                continue
+            for ai_ship in self.ai_ships:
+                if asteroid.get_rect().colliderect(ai_ship.get_rect()):
+                    ai_ship.hit_flash = 5
+                    ai_ship.take_damage(25, is_asteroid=True)
+                    self.explosions.append(Explosion(asteroid.x, asteroid.y, tier="small"))
+                    asteroid.active = False
+                    break
+
+        self.asteroids = [a for a in self.asteroids if a.active]
+
+        # Contact damage: enemy ships touching players
+        for ai_ship in self.ai_ships[:]:
+            if ai_ship.contact_damage_cooldown > 0:
+                continue
+            for ship, alive, tag in [(self.player_ship, self.p1_alive, "p1"),
+                                     (self.partner_ship, self.p2_alive, "p2")]:
+                if alive and ai_ship.get_rect().colliderect(ship.get_rect()):
+                    contact_dmg = 25 if getattr(ai_ship, 'is_boss', False) else 10
+                    ship.take_damage(contact_dmg)
+                    self.damage_numbers.append(DamageNumber(
+                        ship.x + ship.width // 2, ship.y,
+                        contact_dmg, (255, 80, 80)))
+                    ai_ship.contact_damage_cooldown = 60
+                    if ship.health <= 0:
+                        self._kill_player(tag)
+                    # Swarm lifesteal: heal on contact
+                    if getattr(ai_ship, '_behavior', None) == 'swarm_lifesteal':
+                        heal = min(contact_dmg, ai_ship.max_health - ai_ship.health)
+                        ai_ship.health += heal
+                    break
 
     def _hit_player(self, ship, proj, player_tag):
         """Apply damage to a player ship, handle death."""
@@ -341,17 +539,21 @@ class CoopSpaceShooterGame(SpaceShooterGame):
     def _kill_player(self, player_tag):
         """Mark a player as dead (ghost mode)."""
         if player_tag == "p1":
+            if not self.p1_alive:
+                return  # Already dead
             self.p1_alive = False
             self.p1_ghost = True
             ship = self.player_ship
         else:
+            if not self.p2_alive:
+                return  # Already dead
             self.p2_alive = False
             self.p2_ghost = True
             ship = self.partner_ship
 
         # Death explosion
         self.explosions.append(Explosion(
-            ship.x + ship.width // 2, ship.y, tier=2))
+            ship.x + ship.width // 2, ship.y, tier="large"))
         self.screen_shake.trigger(8, 15)
         self.popup_notifications.append(PopupNotification(
             ship.x + ship.width // 2, ship.y - 30,
@@ -359,7 +561,9 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             (255, 80, 80), duration=120))
 
     def _on_enemy_killed(self, enemy):
-        """Override: handle enemy kill with revival check."""
+        """Override: handle enemy kill with revival check and themed explosions."""
+        from .upgrades import ENEMY_EXPLOSION_PALETTES
+
         # Score
         score_val = self.SCORE_BOSS if getattr(enemy, 'is_boss', False) else self.SCORE_ENEMY
         self.score += score_val
@@ -373,7 +577,6 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             self.score += self.kill_streak * 25
 
         # XP orbs
-        from .entities import XPOrb
         xp_val = getattr(enemy, 'xp_value', 20)
         num_orbs = max(1, xp_val // 10)
         for _ in range(min(num_orbs, 5)):
@@ -382,16 +585,61 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 enemy.y + random.randint(-20, 20),
                 value=max(1, xp_val // num_orbs)))
 
-        # Explosion
-        tier = 2 if getattr(enemy, 'is_boss', False) else 0
+        # Explosion with themed palette
+        is_boss = getattr(enemy, 'is_boss', False)
+        tier = "large" if is_boss else "normal"
+        palette = ENEMY_EXPLOSION_PALETTES.get(getattr(enemy, 'enemy_type', ''))
         self.explosions.append(Explosion(
-            enemy.x + enemy.width // 2, enemy.y, tier=tier))
+            enemy.x + enemy.width // 2, enemy.y, tier=tier,
+            color_palette=palette))
+
+        # Secondary explosion for bosses and wraith_hive
+        if is_boss or getattr(enemy, 'enemy_type', '') == 'wraith_hive':
+            ox = enemy.x + enemy.width // 2 + random.randint(-30, 30)
+            oy = enemy.y + random.randint(-30, 30)
+            self.explosions.append(Explosion(ox, oy, tier=tier,
+                                             color_palette=palette, secondary=True))
+
+        # Replicator split-on-death
+        enemy_type = getattr(enemy, 'enemy_type', '')
+        behavior = ENEMY_TYPES.get(enemy_type, {}).get('behavior')
+        if behavior == 'split_on_death':
+            split_gen = getattr(enemy, '_split_gen', 0)
+            if split_gen < 2:
+                for _ in range(2):
+                    child = Ship(
+                        enemy.x + random.randint(-30, 30),
+                        enemy.y + random.randint(-30, 30),
+                        enemy.faction, is_player=False,
+                        screen_width=self.screen_width, screen_height=self.screen_height)
+                    child.max_health = max(10, enemy.max_health // 2)
+                    child.health = child.max_health
+                    child.speed = enemy.speed
+                    child.enemy_type = enemy_type
+                    child._behavior = behavior
+                    child._split_gen = split_gen + 1
+                    child.xp_value = max(5, getattr(enemy, 'xp_value', 25) // 2)
+                    # Scale down visually
+                    if child.image:
+                        new_w = int(child.width * 0.7)
+                        new_h = int(child.height * 0.7)
+                        child.image = pygame.transform.smoothscale(child.image, (new_w, new_h))
+                        child.width = new_w
+                        child.height = new_h
+                        child.image_right = child.image.copy()
+                        child.image_left = pygame.transform.flip(child.image, True, False)
+                        child.image_up = pygame.transform.rotate(child.image_right, 90)
+                        child.image_down = pygame.transform.rotate(child.image_right, -90)
+                    self.ai_ships.append(child)
 
         # Power-up drop
-        if random.random() < self.powerup_drop_chance:
-            from .entities import PowerUp
-            self.powerups.append(PowerUp(
-                enemy.x + enemy.width // 2, enemy.y))
+        drop_chance = self.powerup_drop_chance
+        if self.active_powerups.get("lucian_smugglers_luck", 0) > 0:
+            drop_chance = min(1.0, drop_chance * 2.0)
+        if random.random() < drop_chance:
+            self.powerups.append(PowerUp.spawn_at(
+                enemy.x + enemy.width // 2, enemy.y,
+                faction=self.p1_faction))
 
         # Remove from ai_ships
         if enemy in self.ai_ships:
@@ -423,6 +671,10 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         revived.shields = revived.max_shields // 2
         revived.vx = 0
         revived.vy = 0
+
+        # Brief invulnerability on revival (3 seconds)
+        self.active_powerups["goauld_sarcophagus"] = max(
+            self.active_powerups.get("goauld_sarcophagus", 0), 180)
 
         # Visual feedback
         self.revival_pulse_timer = 30
@@ -495,7 +747,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 dx = (ship.x + ship.width // 2) - pu.x
                 dy = ship.y - pu.y
                 if math.hypot(dx, dy) < 40:
-                    self._collect_powerup(pu)
+                    self._apply_powerup(pu)
                     pu.active = False
                     break
 
@@ -503,7 +755,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
     def _collect_powerup(self, pu):
         """Collect a powerup — benefits both players."""
-        pu_type = getattr(pu, 'powerup_type', 'shield')
+        pu_type = getattr(pu, 'type', 'shield')
         if pu_type == 'shield':
             for ship, alive in [(self.player_ship, self.p1_alive),
                                 (self.partner_ship, self.p2_alive)]:
@@ -521,12 +773,19 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
     def _update_projectiles(self):
         """Update all projectile positions."""
+        p1x = self.player_ship.x + self.player_ship.width // 2
+        p1y = self.player_ship.y
+        p2x = self.partner_ship.x + self.partner_ship.width // 2
+        p2y = self.partner_ship.y
         for proj in self.projectiles:
             proj.update()
-        # Remove off-screen or inactive
+        # Remove off-screen or inactive — despawn based on nearest player
+        def near_player(p):
+            d1 = math.hypot(p.x - p1x, p.y - p1y) if self.p1_alive else float('inf')
+            d2 = math.hypot(p.x - p2x, p.y - p2y) if self.p2_alive else float('inf')
+            return min(d1, d2) < 2500
         self.projectiles = [p for p in self.projectiles
-                            if p.active and
-                            math.hypot(p.x - self.camera.x, p.y - self.camera.y) < 2500]
+                            if p.active and near_player(p)]
 
     def _spawn_asteroid(self):
         """Spawn an asteroid near the viewport edge."""
@@ -548,6 +807,47 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         if self.wormhole_transit_timer >= self.wormhole_transit_duration:
             self.wormhole_active = False
             self.wormhole_cooldown = self.wormhole_max_cooldown
+
+    def fire_partner_secondary(self):
+        """Fire P2's secondary weapon."""
+        if not self.p2_alive:
+            return
+        result = self.partner_ship.fire_secondary()
+        if result:
+            result_type, result_data = result
+            if result_type == "projectile":
+                result_data.is_player_proj = True
+                self.projectiles.append(result_data)
+            elif result_type == "ion_pulse":
+                radius, damage = result_data
+                px = self.partner_ship.x + self.partner_ship.width // 2
+                py = self.partner_ship.y
+                self.screen_shake.trigger(5, 10)
+                self.ion_pulse_effects.append({
+                    "x": px, "y": py, "radius": 0,
+                    "max_radius": radius, "timer": 0, "duration": 20,
+                    "color": self.partner_ship.laser_color,
+                })
+                for enemy in self.ai_ships[:]:
+                    dist = math.hypot(enemy.x + enemy.width // 2 - px, enemy.y - py)
+                    if dist < radius:
+                        dmg = int(damage * (1.0 - dist / radius * 0.5))
+                        enemy.hit_flash = 5
+                        self.damage_numbers.append(DamageNumber(
+                            enemy.x + enemy.width // 2, enemy.y,
+                            dmg, (100, 255, 255)))
+                        if self._damage_enemy(enemy, dmg):
+                            self._on_enemy_killed(enemy)
+            elif result_type == "war_cry":
+                self.screen_shake.trigger(4, 8)
+                self.popup_notifications.append(PopupNotification(
+                    self.partner_ship.x + self.partner_ship.width // 2,
+                    self.partner_ship.y - 80,
+                    "WAR CRY!", (255, 150, 50)))
+            elif result_type == "mines":
+                for mine in result_data:
+                    mine.is_player_proj = True
+                    self.mines.append(mine)
 
     def draw(self, surface):
         """Override to draw both ships and co-op UI."""
@@ -635,7 +935,6 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         """Draw an arrow pointing to partner when near screen edge."""
         if not self.p2_alive and not self.p2_ghost:
             return
-        # Check if P1 is the local view — draw arrow to partner
         partner = self.partner_ship
         sx, sy = self.camera.world_to_screen(
             partner.x + partner.width // 2, partner.y)
@@ -658,7 +957,6 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         ax = int(cx + dx / dist * edge_dist)
         ay = int(cy + dy / dist * edge_dist)
 
-        # Draw arrow
         color = (100, 200, 255) if self.p2_alive else (255, 100, 100)
         angle = math.atan2(dy, dx)
         size = 12
@@ -673,7 +971,10 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         pygame.draw.polygon(surface, color, pts)
 
     def get_state_snapshot(self):
-        """Serialize game state for network transmission to client."""
+        """Serialize game state for network transmission to client.
+
+        Expanded to include all entity types for full client rendering.
+        """
         def ship_data(ship, alive, ghost):
             return {
                 'x': round(ship.x, 1), 'y': round(ship.y, 1),
@@ -695,13 +996,69 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 'max_health': getattr(ent, 'max_health', 100),
                 'faction': getattr(ent, 'faction', ''),
                 'facing': getattr(ent, 'facing', (1, 0)),
+                'is_boss': getattr(ent, 'is_boss', False),
+            }
+
+        def proj_data(p):
+            return {
+                'x': round(p.x, 1), 'y': round(p.y, 1),
+                'player': getattr(p, 'is_player_proj', False),
+                'color': getattr(p, 'color', (255, 255, 255)),
+            }
+
+        def powerup_data(pu):
+            return {
+                'x': round(pu.x, 1), 'y': round(pu.y, 1),
+                'type': pu.type,
+                'color': pu.props.get('color', (255, 255, 255)),
+                'rarity': pu.props.get('rarity', 'common'),
+            }
+
+        def xp_data(orb):
+            return {
+                'x': round(orb.x, 1), 'y': round(orb.y, 1),
+                'value': orb.value,
+            }
+
+        def explosion_data(exp):
+            return {
+                'x': round(exp.x, 1), 'y': round(exp.y, 1),
+                'tier': exp.tier,
+                'timer': exp.timer,
+                'duration': exp.duration,
+            }
+
+        def sun_data(s):
+            return {
+                'x': round(s.x, 1), 'y': round(s.y, 1),
+                'phase': s.phase,
+                'timer': s.timer,
+                'radius': getattr(s, 'radius', 80),
+            }
+
+        def ally_data(a):
+            return {
+                'x': round(a.x, 1), 'y': round(a.y, 1),
+                'health': round(a.health, 1),
+                'max_health': a.max_health,
+                'facing': a.facing,
+                'faction': a.faction,
             }
 
         return {
             'frame': self.survival_frames,
             'p1': ship_data(self.player_ship, self.p1_alive, self.p1_ghost),
             'p2': ship_data(self.partner_ship, self.p2_alive, self.p2_ghost),
-            'enemies': [entity_data(e) for e in self.ai_ships[:30]],  # Cap at 30
+            'enemies': [entity_data(e) for e in self.ai_ships[:60]],
+            'projectiles': [proj_data(p) for p in self.projectiles[:100]],
+            'powerups': [powerup_data(p) for p in self.powerups[:20]],
+            'xp_orbs': [xp_data(o) for o in self.xp_orbs[:50]],
+            'explosions': [explosion_data(e) for e in self.explosions[:20]],
+            'suns': [sun_data(s) for s in self.suns],
+            'allies': [ally_data(a) for a in self.ally_ships],
+            'area_bombs': [{'x': round(b.x, 1), 'y': round(b.y, 1),
+                           'fuse': b.fuse_timer, 'fuse_duration': b.fuse_duration}
+                          for b in self.area_bombs],
             'score': self.score,
             'level': self.level,
             'xp': self.xp,
@@ -711,8 +1068,16 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             'showing_level_up': self.showing_level_up,
             'leash_warning': self.leash_warning,
             'difficulty': self.spawner.get_difficulty_label(),
+            'active_powerups': {k: v for k, v in self.active_powerups.items() if v > 0},
+            'revival_pulse': self.revival_pulse_timer,
+            'revival_target': self.revival_target,
         }
 
     def apply_partner_input(self, input_dict):
         """Apply input from the network partner."""
         self.partner_keys.update(input_dict)
+        self._last_partner_msg_frame = self.survival_frames
+
+    def is_partner_connected(self):
+        """Check if partner has sent input recently (within 5 seconds)."""
+        return (self.survival_frames - self._last_partner_msg_frame) < 300

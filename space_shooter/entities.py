@@ -286,6 +286,158 @@ class PowerUp:
             "rarity": "legendary",
             "faction": "lucian alliance",
         },
+        # --- NEW FACTION EPIC POWERUPS (2 per faction) ---
+        "tauri_f302_squadron": {
+            "name": "F-302 Squadron",
+            "color": (80, 180, 255),
+            "duration": 480,  # 8 seconds
+            "spawn_weight": 0,
+            "icon": "F",
+            "icon_file": "siege.png",
+            "rarity": "epic",
+            "faction": "tau'ri",
+        },
+        "tauri_prometheus_shield": {
+            "name": "Prometheus Shield",
+            "color": (100, 200, 255),
+            "duration": 600,  # 10 seconds
+            "spawn_weight": 0,
+            "icon": "P",
+            "icon_file": "special.png",
+            "rarity": "epic",
+            "faction": "tau'ri",
+        },
+        "goauld_kull_warrior": {
+            "name": "Kull Warrior",
+            "color": (50, 50, 50),
+            "duration": 240,  # 4 seconds
+            "spawn_weight": 0,
+            "icon": "K",
+            "icon_file": "close.png",
+            "rarity": "epic",
+            "faction": "goa'uld",
+        },
+        "goauld_hand_device": {
+            "name": "Hand Device",
+            "color": (255, 200, 100),
+            "duration": 0,  # Instant
+            "spawn_weight": 0,
+            "icon": "H",
+            "icon_file": "close.png",
+            "rarity": "epic",
+            "faction": "goa'uld",
+        },
+        "asgard_time_dilation": {
+            "name": "Time Dilation",
+            "color": (100, 180, 255),
+            "duration": 300,  # 5 seconds
+            "spawn_weight": 0,
+            "icon": "T",
+            "icon_file": "all.png",
+            "rarity": "epic",
+            "faction": "asgard",
+        },
+        "asgard_matter_converter": {
+            "name": "Matter Converter",
+            "color": (200, 200, 255),
+            "duration": 0,  # Instant
+            "spawn_weight": 0,
+            "icon": "C",
+            "icon_file": "all.png",
+            "rarity": "epic",
+            "faction": "asgard",
+        },
+        "jaffa_tretonin": {
+            "name": "Tretonin",
+            "color": (100, 255, 100),
+            "duration": 600,  # 10 seconds
+            "spawn_weight": 0,
+            "icon": "T",
+            "icon_file": "weather.png",
+            "rarity": "epic",
+            "faction": "jaffa rebellion",
+        },
+        "jaffa_rite_sharran": {
+            "name": "Rite of M'al Sharran",
+            "color": (255, 180, 80),
+            "duration": 0,  # Instant (conditional)
+            "spawn_weight": 0,
+            "icon": "R",
+            "icon_file": "weather.png",
+            "rarity": "epic",
+            "faction": "jaffa rebellion",
+        },
+        "lucian_smugglers_luck": {
+            "name": "Smuggler's Luck",
+            "color": (200, 255, 100),
+            "duration": 900,  # 15 seconds
+            "spawn_weight": 0,
+            "icon": "L",
+            "icon_file": "agile.png",
+            "rarity": "epic",
+            "faction": "lucian alliance",
+        },
+        "lucian_black_market": {
+            "name": "Black Market",
+            "color": (180, 80, 200),
+            "duration": 0,  # Instant
+            "spawn_weight": 0,
+            "icon": "B",
+            "icon_file": "agile.png",
+            "rarity": "epic",
+            "faction": "lucian alliance",
+        },
+        # --- NEW FACTION LEGENDARY POWERUPS (1 per faction) ---
+        "tauri_ancient_tech": {
+            "name": "Ancient Tech",
+            "color": (255, 220, 100),
+            "duration": 480,  # 8 seconds
+            "spawn_weight": 0,
+            "icon": "A",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+            "faction": "tau'ri",
+        },
+        "goauld_ribbon_device": {
+            "name": "Ribbon Device",
+            "color": (255, 180, 50),
+            "duration": 360,  # 6 seconds
+            "spawn_weight": 0,
+            "icon": "R",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+            "faction": "goa'uld",
+        },
+        "asgard_replicator_disruptor": {
+            "name": "Replicator Disruptor",
+            "color": (100, 220, 255),
+            "duration": 0,  # Instant
+            "spawn_weight": 0,
+            "icon": "D",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+            "faction": "asgard",
+        },
+        "jaffa_free_jaffa_rally": {
+            "name": "Free Jaffa Rally",
+            "color": (255, 150, 50),
+            "duration": 600,  # 10 seconds
+            "spawn_weight": 0,
+            "icon": "J",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+            "faction": "jaffa rebellion",
+        },
+        "lucian_kassa_stash": {
+            "name": "Kassa Stash",
+            "color": (255, 80, 200),
+            "duration": 240,  # 4 seconds
+            "spawn_weight": 0,
+            "icon": "K",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+            "faction": "lucian alliance",
+        },
     }
 
     # Rarity colors for powerup border glow
@@ -625,13 +777,22 @@ class WormholeEffect:
 
 
 class Explosion:
-    """Explosion effect when a ship is destroyed. 3 tiers: small, normal, large."""
-    def __init__(self, x, y, tier="normal"):
+    """Explosion effect when a ship is destroyed. 3 tiers: small, normal, large.
+
+    Supports custom color_palette for faction/enemy-themed explosions and
+    an initial flash frame for visual punch.
+    """
+
+    # Default orange/yellow/red palette
+    DEFAULT_PALETTE = [(255, 100, 0), (255, 200, 0), (255, 50, 0), (255, 255, 100)]
+
+    def __init__(self, x, y, tier="normal", color_palette=None, secondary=False):
         self.x = x
         self.y = y
         self.tier = tier
         self.particles = []
         self.timer = 0
+        palette = color_palette or self.DEFAULT_PALETTE
 
         if tier == "small":
             self.duration = 30
@@ -645,9 +806,13 @@ class Explosion:
             size_range = (4, 18)
         else:  # normal
             self.duration = 60
-            num_particles = 30
+            num_particles = 40
             speed_range = (2, 10)
             size_range = (3, 12)
+
+        # Secondary explosions are slightly offset and delayed-feeling
+        if secondary:
+            num_particles = num_particles // 2
 
         # Create explosion particles
         for _ in range(num_particles):
@@ -659,17 +824,17 @@ class Explosion:
                 'vx': math.cos(angle) * speed,
                 'vy': math.sin(angle) * speed,
                 'size': random.randint(*size_range),
-                'color': random.choice([
-                    (255, 100, 0),
-                    (255, 200, 0),
-                    (255, 50, 0),
-                    (255, 255, 100)
-                ])
+                'color': random.choice(palette)
             })
 
         # Large explosions get a shockwave ring
         self.shockwave_radius = 0
         self.shockwave_max = 120 if tier == "large" else (60 if tier == "normal" else 0)
+
+        # Flash frame: initial white pop
+        self.flash_radius = {
+            "small": 20, "normal": 35, "large": 60
+        }.get(tier, 35)
 
     def update(self):
         self.timer += 1
@@ -686,12 +851,22 @@ class Explosion:
     def draw(self, surface, camera=None):
         alpha = int(255 * (1 - self.timer / self.duration))
 
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+
+        # Flash frame: bright white circle on frames 0-2
+        if self.timer <= 2:
+            flash_alpha = int(255 * (1 - self.timer / 3))
+            fr = self.flash_radius
+            flash_surf = pygame.Surface((fr * 2, fr * 2), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 255, 255, flash_alpha),
+                             (fr, fr), fr)
+            surface.blit(flash_surf, (int(sx) - fr, int(sy) - fr))
+
         # Draw shockwave ring
         if self.shockwave_radius > 5:
-            if camera:
-                sx, sy = camera.world_to_screen(self.x, self.y)
-            else:
-                sx, sy = self.x, self.y
             ring_alpha = max(0, int(alpha * 0.6))
             sz = self.shockwave_radius * 2 + 10
             ring_surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
@@ -870,3 +1045,221 @@ class GravityWell:
         pygame.draw.circle(surf, (200, 150, 255, core_a), (c, c), 8)
 
         surface.blit(surf, (int(draw_x) - c, int(draw_y) - c))
+
+
+class Sun:
+    """Environmental hazard: Sun that collapses into a wormhole gravity well.
+
+    Lifecycle phases (all in frames at 60fps):
+    1. Growing (60f/1s): Orange circle expands from 0 to max_radius=80
+    2. Stable (180f/3s): Full sun with pulsing corona glow, particle emission
+    3. Exploding (30f/0.5s): White flash, expanding shockwave ring, screen shake
+    4. Wormhole (300f/5s): Spinning blue-purple vortex, gravity pull 300px, 2 DPS core
+    5. Closing (30f/0.5s): Shrinking vortex, flash, entity removed
+    """
+
+    PHASE_GROWING = 0
+    PHASE_STABLE = 1
+    PHASE_EXPLODING = 2
+    PHASE_WORMHOLE = 3
+    PHASE_CLOSING = 4
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.active = True
+        self.phase = self.PHASE_GROWING
+        self.timer = 0
+        self.max_radius = 80
+        self.current_radius = 0
+        self.pulse = 0
+        self.rotation = 0
+        self.particles = []
+        self.triggered_shake = False
+
+        # Phase durations (frames)
+        self.phase_durations = {
+            self.PHASE_GROWING: 60,
+            self.PHASE_STABLE: 180,
+            self.PHASE_EXPLODING: 30,
+            self.PHASE_WORMHOLE: 300,
+            self.PHASE_CLOSING: 30,
+        }
+
+    def update(self, entities_dict=None):
+        """Update sun state. entities_dict has 'ships', 'enemies', 'projectiles', 'asteroids'."""
+        self.timer += 1
+        self.pulse += 0.08
+        self.rotation += 2
+
+        dur = self.phase_durations[self.phase]
+        progress = min(1.0, self.timer / dur)
+
+        if self.phase == self.PHASE_GROWING:
+            self.current_radius = int(self.max_radius * progress)
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_STABLE:
+            self.current_radius = self.max_radius
+            # Emit particles
+            if random.random() < 0.3:
+                angle = random.uniform(0, math.pi * 2)
+                dist = self.max_radius + random.uniform(0, 20)
+                self.particles.append({
+                    'x': self.x + math.cos(angle) * dist,
+                    'y': self.y + math.sin(angle) * dist,
+                    'vx': math.cos(angle) * random.uniform(0.5, 1.5),
+                    'vy': math.sin(angle) * random.uniform(0.5, 1.5),
+                    'life': 1.0, 'size': random.randint(2, 5),
+                })
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_EXPLODING:
+            self.current_radius = int(self.max_radius * (1 - progress * 0.3))
+            if not self.triggered_shake:
+                self.triggered_shake = True
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_WORMHOLE:
+            self.current_radius = int(self.max_radius * 0.7)
+            # Apply gravity pull to all entities
+            if entities_dict:
+                self._apply_gravity(entities_dict)
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_CLOSING:
+            self.current_radius = int(self.max_radius * 0.7 * (1 - progress))
+            if self.timer >= dur:
+                self.active = False
+
+        # Update particles
+        for p in self.particles:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= 0.03
+        self.particles = [p for p in self.particles if p['life'] > 0]
+
+    def _next_phase(self):
+        self.phase += 1
+        self.timer = 0
+        self.triggered_shake = False
+
+    def _apply_gravity(self, entities_dict):
+        """Pull everything within 300px toward center. 2 DPS at inner 50px."""
+        pull_radius = 300
+        core_radius = 50
+        max_accel = 3.0
+
+        all_entities = []
+        for ship in entities_dict.get('ships', []):
+            all_entities.append(ship)
+        for enemy in entities_dict.get('enemies', []):
+            all_entities.append(enemy)
+        for ally in entities_dict.get('allies', []):
+            all_entities.append(ally)
+
+        for ent in all_entities:
+            ex = getattr(ent, 'x', 0) + getattr(ent, 'width', 0) // 2
+            ey = getattr(ent, 'y', 0)
+            dx = self.x - ex
+            dy = self.y - ey
+            dist = math.hypot(dx, dy)
+            if dist < pull_radius and dist > 1:
+                strength = max_accel * (1 - dist / pull_radius)
+                ent.x += (dx / dist) * strength
+                ent.y += (dy / dist) * strength
+                # Core damage (2 DPS = 2/60 per frame)
+                if dist < core_radius and hasattr(ent, 'take_damage'):
+                    ent.take_damage(2.0 / 60.0)
+
+        # Pull projectiles
+        for proj in entities_dict.get('projectiles', []):
+            dx = self.x - proj.x
+            dy = self.y - proj.y
+            dist = math.hypot(dx, dy)
+            if dist < pull_radius and dist > 1:
+                strength = max_accel * 0.5 * (1 - dist / pull_radius)
+                proj.x += (dx / dist) * strength
+                proj.y += (dy / dist) * strength
+
+        # Pull asteroids
+        for ast in entities_dict.get('asteroids', []):
+            dx = self.x - ast.x
+            dy = self.y - ast.y
+            dist = math.hypot(dx, dy)
+            if dist < pull_radius and dist > 1:
+                strength = max_accel * 0.7 * (1 - dist / pull_radius)
+                ast.vx += (dx / dist) * strength * 0.1
+                ast.vy += (dy / dist) * strength * 0.1
+
+    def draw(self, surface, camera=None):
+        if not self.active or self.current_radius < 2:
+            return
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+
+        r = self.current_radius
+        sz = r * 3 + 20
+        surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        c = sz // 2
+
+        if self.phase in (self.PHASE_GROWING, self.PHASE_STABLE):
+            # Sun: orange/yellow with corona
+            corona_pulse = int(math.sin(self.pulse) * 8)
+            pygame.draw.circle(surf, (255, 150, 0, 40), (c, c), r + 15 + corona_pulse)
+            pygame.draw.circle(surf, (255, 200, 50, 80), (c, c), r + 5)
+            pygame.draw.circle(surf, (255, 200, 50), (c, c), r)
+            pygame.draw.circle(surf, (255, 255, 200), (c, c), r // 2)
+
+        elif self.phase == self.PHASE_EXPLODING:
+            dur = self.phase_durations[self.phase]
+            progress = min(1.0, self.timer / dur)
+            flash_r = int(r * (1 + progress * 2))
+            flash_alpha = int(255 * (1 - progress))
+            pygame.draw.circle(surf, (255, 255, 255, flash_alpha), (c, c), flash_r)
+            ring_r = int(r + progress * 150)
+            ring_alpha = int(180 * (1 - progress))
+            if ring_r > 0:
+                pygame.draw.circle(surf, (200, 220, 255, ring_alpha), (c, c), ring_r, 3)
+
+        elif self.phase in (self.PHASE_WORMHOLE, self.PHASE_CLOSING):
+            num_rings = 5
+            for i in range(num_rings):
+                ring_r = int(r * (0.3 + i * 0.15))
+                angle_off = math.radians(self.rotation + i * 72)
+                a = max(0, int(150 - i * 25))
+                blue = min(255, 100 + i * 30)
+                pygame.draw.circle(surf, (100, blue, 255, a), (c, c), ring_r, 2)
+                for j in range(3):
+                    spot_angle = angle_off + j * (math.pi * 2 / 3)
+                    spot_x = c + int(math.cos(spot_angle) * ring_r)
+                    spot_y = c + int(math.sin(spot_angle) * ring_r)
+                    pygame.draw.circle(surf, (180, 200, 255, a),
+                                     (spot_x, spot_y), max(2, 4 - i))
+            pygame.draw.circle(surf, (20, 0, 40, 200), (c, c), int(r * 0.25))
+            core_a = int(120 + math.sin(self.pulse * 2) * 60)
+            pygame.draw.circle(surf, (150, 100, 255, core_a), (c, c), int(r * 0.15))
+
+        # Draw particles
+        for p in self.particles:
+            if camera:
+                px, py = camera.world_to_screen(p['x'], p['y'])
+            else:
+                px, py = p['x'], p['y']
+            pa = max(0, int(p['life'] * 200))
+            ps = max(1, int(p['size'] * p['life']))
+            if self.phase <= self.PHASE_STABLE:
+                pc = (255, 200, 50, pa)
+            else:
+                pc = (150, 100, 255, pa)
+            p_surf = pygame.Surface((ps * 2, ps * 2), pygame.SRCALPHA)
+            pygame.draw.circle(p_surf, pc, (ps, ps), ps)
+            surface.blit(p_surf, (int(px) - ps, int(py) - ps))
+
+        surface.blit(surf, (int(sx) - c, int(sy) - c))

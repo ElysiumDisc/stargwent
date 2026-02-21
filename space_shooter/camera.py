@@ -84,3 +84,26 @@ class Camera:
         wx = self.x + math.cos(angle) * (half_w + dist)
         wy = self.y + math.sin(angle) * (half_h + dist)
         return wx, wy
+
+    def get_spawn_ring_for_coop(self, p1_pos, p2_pos, min_dist=400, max_dist=600):
+        """Get a spawn position outside BOTH players' viewports.
+
+        Used in co-op mode so enemies don't pop in on either player's screen.
+        """
+        half_w = self.screen_width / 2
+        half_h = self.screen_height / 2
+        for _ in range(10):  # Try up to 10 times
+            angle = random.uniform(0, math.pi * 2)
+            dist = random.uniform(min_dist, max_dist)
+            # Pick a random center between the two players
+            cx = (p1_pos[0] + p2_pos[0]) / 2
+            cy = (p1_pos[1] + p2_pos[1]) / 2
+            wx = cx + math.cos(angle) * (half_w + dist)
+            wy = cy + math.sin(angle) * (half_h + dist)
+            # Check that it's outside both viewports
+            d1 = max(abs(wx - p1_pos[0]) - half_w, abs(wy - p1_pos[1]) - half_h)
+            d2 = max(abs(wx - p2_pos[0]) - half_w, abs(wy - p2_pos[1]) - half_h)
+            if d1 > 100 and d2 > 100:
+                return wx, wy
+        # Fallback: just use camera center
+        return self.get_spawn_ring(min_dist, max_dist)

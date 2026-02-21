@@ -4,6 +4,8 @@ Co-op Space Shooter Client
 Receives state snapshots from the host and renders them locally.
 Sends local input to the host each frame.
 The client does NOT run game simulation — it's a pure renderer.
+
+Each player has an independent camera following their own ship.
 """
 
 import math
@@ -31,7 +33,7 @@ class CoopSpaceShooterClient:
         self.running = True
         self.exit_to_menu = False
 
-        # Camera for rendering
+        # Camera for rendering — follows LOCAL (P2) ship independently
         self.camera = Camera(screen_width, screen_height)
 
         # Visual effects
@@ -47,7 +49,7 @@ class CoopSpaceShooterClient:
         # Latest state from host
         self.state = None
         self.prev_state = None
-        self.interp_t = 0.0  # Interpolation progress between snapshots
+        self.interp_t = 0.0
 
         # Create ship sprites for rendering (faction-specific visuals)
         self._p1_ship = Ship(0, 0, remote_faction, is_player=True,
@@ -61,12 +63,17 @@ class CoopSpaceShooterClient:
         # Game over state
         self.game_over = False
 
+        # Host disconnect detection
+        self._frames_since_last_state = 0
+        self.host_disconnected = False
+
     def apply_state(self, snapshot):
         """Apply a new state snapshot from the host."""
         self.prev_state = self.state
         self.state = snapshot
         self.interp_t = 0.0
         self.game_over = snapshot.get('game_over', False)
+        self._frames_since_last_state = 0
 
     def get_input_state(self):
         """Capture local keyboard input as a dict for transmission."""
@@ -83,31 +90,40 @@ class CoopSpaceShooterClient:
 
     def update(self):
         """Advance interpolation between snapshots."""
-        # Smooth interpolation toward latest snapshot (3 frames between snapshots)
         self.interp_t = min(1.0, self.interp_t + 1.0 / 3.0)
+        self._frames_since_last_state += 1
 
-        # Update camera based on P2 (local player) position
+        # Detect host disconnect (no state for 5 seconds)
+        if self._frames_since_last_state > 300 and not self.game_over:
+            self.host_disconnected = True
+
+        # Camera follows P2 (local player) independently
         if self.state:
             p2 = self.state.get('p2', {})
-            p1 = self.state.get('p1', {})
             p2_x = p2.get('x', 0)
             p2_y = p2.get('y', 0)
-            p1_x = p1.get('x', 0)
-            p1_y = p1.get('y', 0)
-            # Camera follows midpoint like host
-            if p1.get('alive') and p2.get('alive'):
-                self.camera.follow_midpoint(p1_x, p1_y, p2_x, p2_y)
-            elif p2.get('alive'):
+            if p2.get('alive') or p2.get('ghost'):
                 self.camera.follow(p2_x, p2_y)
-            elif p1.get('alive'):
-                self.camera.follow(p1_x, p1_y)
+            else:
+                # P2 dead and not ghost — follow P1
+                p1 = self.state.get('p1', {})
+                self.camera.follow(p1.get('x', 0), p1.get('y', 0))
 
         self.screen_shake.update()
 
     def draw(self, surface):
         """Render the game state."""
+        if self.host_disconnected:
+            surface.fill((5, 5, 20))
+            text = self.title_font.render("Host Disconnected", True, (255, 80, 80))
+            surface.blit(text, text.get_rect(center=(self.screen_width // 2,
+                                                      self.screen_height // 2 - 30)))
+            hint = self.small_font.render("Press ESC to return to menu", True, (150, 150, 150))
+            surface.blit(hint, hint.get_rect(center=(self.screen_width // 2,
+                                                      self.screen_height // 2 + 30)))
+            return
+
         if not self.state:
-            # Waiting for first snapshot
             surface.fill((5, 5, 20))
             text = self.title_font.render("Waiting for host...", True, (150, 150, 200))
             surface.blit(text, text.get_rect(center=(self.screen_width // 2,
@@ -120,13 +136,56 @@ class CoopSpaceShooterClient:
 
         state = self.state
 
-        # Draw enemies
+        # --- Draw suns ---
+        for sun in state.get('suns', []):
+            self._draw_sun(surface, sun)
+
+        # --- Draw XP orbs ---
+        for orb in state.get('xp_orbs', []):
+            sx, sy = self.camera.world_to_screen(orb['x'], orb['y'])
+            if -20 < sx < self.screen_width + 20 and -20 < sy < self.screen_height + 20:
+                glow_size = 4 + min(orb.get('value', 10) // 5, 6)
+                pygame.draw.circle(surface, (200, 200, 255), (int(sx), int(sy)), glow_size)
+                pygame.draw.circle(surface, (255, 255, 255), (int(sx), int(sy)), glow_size - 2)
+
+        # --- Draw powerups ---
+        for pu in state.get('powerups', []):
+            sx, sy = self.camera.world_to_screen(pu['x'], pu['y'])
+            if -30 < sx < self.screen_width + 30 and -30 < sy < self.screen_height + 30:
+                color = tuple(pu.get('color', (255, 255, 255)))
+                rarity = pu.get('rarity', 'common')
+                size = 12
+                # Draw glow
+                glow_color = color + (60,) if len(color) == 3 else color
+                glow_surf = pygame.Surface((size * 4, size * 4), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (*color[:3], 60), (size * 2, size * 2), size * 2)
+                surface.blit(glow_surf, (int(sx - size * 2), int(sy - size * 2)))
+                # Draw core
+                pygame.draw.circle(surface, color[:3], (int(sx), int(sy)), size)
+                # Rarity border
+                if rarity == 'epic':
+                    pygame.draw.circle(surface, (180, 80, 255), (int(sx), int(sy)), size + 2, 2)
+                elif rarity == 'legendary':
+                    pygame.draw.circle(surface, (255, 200, 50), (int(sx), int(sy)), size + 2, 2)
+
+        # --- Draw area bombs ---
+        for bomb in state.get('area_bombs', []):
+            sx, sy = self.camera.world_to_screen(bomb['x'], bomb['y'])
+            if -60 < sx < self.screen_width + 60 and -60 < sy < self.screen_height + 60:
+                fuse_pct = bomb.get('fuse', 0) / max(1, bomb.get('fuse_duration', 120))
+                pulse = 6 + int(fuse_pct * 8)
+                pygame.draw.circle(surface, (255, 150, 50), (int(sx), int(sy)), pulse)
+                # Warning ring
+                warn_r = int(120 * fuse_pct)
+                if warn_r > 10:
+                    pygame.draw.circle(surface, (255, 100, 50, 100), (int(sx), int(sy)), warn_r, 1)
+
+        # --- Draw enemies ---
         for enemy in state.get('enemies', []):
             ex, ey = enemy['x'], enemy['y']
             sx, sy = self.camera.world_to_screen(ex, ey)
             if -100 < sx < self.screen_width + 100 and -100 < sy < self.screen_height + 100:
-                # Get or create enemy sprite
-                faction = enemy.get('faction', 'Goa\'uld')
+                faction = enemy.get('faction', "Goa'uld")
                 if faction not in self._enemy_cache:
                     self._enemy_cache[faction] = Ship(
                         0, 0, faction, is_player=False,
@@ -151,20 +210,161 @@ class CoopSpaceShooterClient:
                     pygame.draw.rect(surface, (255, 50, 50),
                                      (int(sx - bar_w // 2), int(sy - 25), int(bar_w * pct), 4))
 
-        # Draw P1 (host)
+                # Boss indicator
+                if enemy.get('is_boss'):
+                    boss_lbl = self.tiny_font.render("BOSS", True, (255, 80, 80))
+                    surface.blit(boss_lbl, (int(sx - boss_lbl.get_width() // 2), int(sy - 35)))
+
+        # --- Draw ally ships ---
+        for ally in state.get('allies', []):
+            sx, sy = self.camera.world_to_screen(ally['x'], ally['y'])
+            if -60 < sx < self.screen_width + 60 and -60 < sy < self.screen_height + 60:
+                faction = ally.get('faction', "Tau'ri")
+                cache_key = f"ally_{faction}"
+                if cache_key not in self._enemy_cache:
+                    self._enemy_cache[cache_key] = Ship(
+                        0, 0, faction, is_player=True,
+                        screen_width=self.screen_width, screen_height=self.screen_height)
+                template = self._enemy_cache[cache_key]
+                img = template.get_image()
+                if img:
+                    draw_x = int(sx - img.get_width() // 2)
+                    draw_y = int(sy - img.get_height() // 2)
+                    surface.blit(img, (draw_x, draw_y))
+                # ALLY label
+                ally_lbl = self.tiny_font.render("ALLY", True, (100, 255, 100))
+                surface.blit(ally_lbl, (int(sx - ally_lbl.get_width() // 2), int(sy - 30)))
+
+        # --- Draw projectiles ---
+        for proj in state.get('projectiles', []):
+            sx, sy = self.camera.world_to_screen(proj['x'], proj['y'])
+            if -10 < sx < self.screen_width + 10 and -10 < sy < self.screen_height + 10:
+                color = tuple(proj.get('color', (255, 255, 255)))
+                if len(color) < 3:
+                    color = (255, 255, 255)
+                is_player = proj.get('player', False)
+                size = 3 if is_player else 2
+                pygame.draw.circle(surface, color[:3], (int(sx), int(sy)), size)
+
+        # --- Draw explosions ---
+        for exp in state.get('explosions', []):
+            sx, sy = self.camera.world_to_screen(exp['x'], exp['y'])
+            if -100 < sx < self.screen_width + 100 and -100 < sy < self.screen_height + 100:
+                tier = exp.get('tier', 'normal')
+                timer = exp.get('timer', 0)
+                duration = exp.get('duration', 60)
+                progress = min(1.0, timer / max(1, duration))
+                base_r = {'small': 15, 'normal': 30, 'large': 50}.get(tier, 30)
+                radius = int(base_r * (1.0 - progress * 0.5))
+                alpha = int(200 * (1.0 - progress))
+                if radius > 0 and alpha > 0:
+                    exp_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                    pygame.draw.circle(exp_surf, (255, 150, 50, alpha),
+                                       (radius, radius), radius)
+                    surface.blit(exp_surf, (int(sx - radius), int(sy - radius)))
+
+        # --- Draw P1 (host) ---
         p1 = state.get('p1', {})
         self._draw_player_ship(surface, p1, self._p1_ship, "P1")
 
-        # Draw P2 (client / local player)
+        # --- Draw P2 (client / local player) ---
         p2 = state.get('p2', {})
         self._draw_player_ship(surface, p2, self._p2_ship, "P2")
+
+        # --- Partner arrow (pointing to P1 when off-screen) ---
+        if p1.get('alive') or p1.get('ghost'):
+            self._draw_partner_arrow(surface, p1)
 
         # --- UI ---
         self._draw_ui(surface, state)
 
+        # --- Revival pulse ---
+        if state.get('revival_pulse', 0) > 0:
+            target = state.get('revival_target')
+            if target:
+                rship = p1 if target == 'p1' else p2
+                sx, sy = self.camera.world_to_screen(rship.get('x', 0), rship.get('y', 0))
+                timer = state['revival_pulse']
+                radius = int(40 + (30 - timer) * 3)
+                alpha = int(200 * timer / 30)
+                pulse_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(pulse_surf, (100, 255, 100, alpha),
+                                   (radius, radius), radius, 3)
+                surface.blit(pulse_surf, (int(sx - radius), int(sy - radius)))
+
         # Game over overlay
         if state.get('game_over'):
             self._draw_game_over(surface, state)
+
+    def _draw_sun(self, surface, sun_info):
+        """Draw a sun/wormhole hazard from snapshot data."""
+        sx, sy = self.camera.world_to_screen(sun_info['x'], sun_info['y'])
+        if -200 < sx < self.screen_width + 200 and -200 < sy < self.screen_height + 200:
+            phase = sun_info.get('phase', 0)
+            timer = sun_info.get('timer', 0)
+            radius = sun_info.get('radius', 80)
+
+            if phase <= 1:  # GROWING or STABLE
+                # Orange sun
+                glow_size = min(radius, int(radius * (timer / 60.0))) if phase == 0 else radius
+                if glow_size > 0:
+                    glow = pygame.Surface((glow_size * 4, glow_size * 4), pygame.SRCALPHA)
+                    pygame.draw.circle(glow, (255, 180, 50, 40), (glow_size * 2, glow_size * 2), glow_size * 2)
+                    pygame.draw.circle(glow, (255, 200, 80, 80), (glow_size * 2, glow_size * 2), glow_size)
+                    surface.blit(glow, (int(sx - glow_size * 2), int(sy - glow_size * 2)))
+            elif phase == 2:  # EXPLODING
+                flash_size = radius + timer * 5
+                flash = pygame.Surface((flash_size * 2, flash_size * 2), pygame.SRCALPHA)
+                alpha = max(0, 200 - timer * 6)
+                pygame.draw.circle(flash, (255, 255, 255, alpha), (flash_size, flash_size), flash_size)
+                surface.blit(flash, (int(sx - flash_size), int(sy - flash_size)))
+            elif phase == 3:  # WORMHOLE
+                wh_size = radius
+                wh = pygame.Surface((wh_size * 4, wh_size * 4), pygame.SRCALPHA)
+                pygame.draw.circle(wh, (80, 50, 200, 60), (wh_size * 2, wh_size * 2), wh_size * 2)
+                pygame.draw.circle(wh, (100, 80, 255, 100), (wh_size * 2, wh_size * 2), wh_size)
+                pygame.draw.circle(wh, (150, 120, 255, 150), (wh_size * 2, wh_size * 2), wh_size // 2)
+                surface.blit(wh, (int(sx - wh_size * 2), int(sy - wh_size * 2)))
+
+    def _draw_partner_arrow(self, surface, partner_data):
+        """Draw an arrow pointing toward P1 (partner) when off-screen."""
+        px, py = partner_data.get('x', 0), partner_data.get('y', 0)
+        sx, sy = self.camera.world_to_screen(px, py)
+
+        margin = 60
+        if margin < sx < self.screen_width - margin and margin < sy < self.screen_height - margin:
+            return
+
+        cx, cy = self.screen_width // 2, self.screen_height // 2
+        dx = sx - cx
+        dy = sy - cy
+        dist = max(1, math.hypot(dx, dy))
+        edge_dist = min(
+            (self.screen_width // 2 - 30) / max(1, abs(dx / dist)),
+            (self.screen_height // 2 - 30) / max(1, abs(dy / dist))
+        )
+        ax = int(cx + dx / dist * edge_dist)
+        ay = int(cy + dy / dist * edge_dist)
+
+        color = (100, 200, 255) if partner_data.get('alive') else (255, 100, 100)
+        angle = math.atan2(dy, dx)
+        size = 12
+        pts = [
+            (ax + int(math.cos(angle) * size),
+             ay + int(math.sin(angle) * size)),
+            (ax + int(math.cos(angle + 2.5) * size * 0.6),
+             ay + int(math.sin(angle + 2.5) * size * 0.6)),
+            (ax + int(math.cos(angle - 2.5) * size * 0.6),
+             ay + int(math.sin(angle - 2.5) * size * 0.6)),
+        ]
+        pygame.draw.polygon(surface, color, pts)
+
+        # Distance text
+        world_dist = math.hypot(
+            partner_data.get('x', 0) - (self.state or {}).get('p2', {}).get('x', 0),
+            partner_data.get('y', 0) - (self.state or {}).get('p2', {}).get('y', 0))
+        dist_text = self.tiny_font.render(f"{int(world_dist)}px", True, color)
+        surface.blit(dist_text, (ax - dist_text.get_width() // 2, ay + 15))
 
     def _draw_player_ship(self, surface, data, ship_template, label):
         """Draw a player ship from state data."""
@@ -203,7 +403,7 @@ class CoopSpaceShooterClient:
         if p1.get('alive'):
             self._draw_health_bar(surface, p1, 10, 10, "P1")
         elif p1.get('ghost'):
-            text = self.tiny_font.render("P1 DOWN", True, (255, 80, 80))
+            text = self.tiny_font.render("P1 DOWN — Kill to revive!", True, (255, 80, 80))
             surface.blit(text, (10, 10))
 
         # P2 health (top-right)
@@ -235,10 +435,15 @@ class CoopSpaceShooterClient:
             surface.blit(wait_text, wait_text.get_rect(
                 center=(self.screen_width // 2, self.screen_height // 2)))
 
-        # Leash warning
-        if state.get('leash_warning'):
-            warn = self.small_font.render("TOO FAR APART!", True, (255, 200, 50))
-            surface.blit(warn, (self.screen_width // 2 - warn.get_width() // 2, 100))
+        # Active powerups display
+        active = state.get('active_powerups', {})
+        if active:
+            y_offset = 105
+            for ptype, timer in list(active.items())[:5]:
+                secs_left = timer / 60.0
+                pu_text = self.tiny_font.render(f"{ptype}: {secs_left:.0f}s", True, (200, 200, 100))
+                surface.blit(pu_text, (self.screen_width // 2 - pu_text.get_width() // 2, y_offset))
+                y_offset += 18
 
         # Latency
         latency = self.session.get_latency() if hasattr(self.session, 'get_latency') else 0

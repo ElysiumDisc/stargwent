@@ -1,3 +1,78 @@
+### Version 8.0.0 (February 2026)
+**Major Content & Co-op Overhaul — New Enemies, Environmental Hazards, Ally Ships, Faction Powerups, LAN Independent Cameras**
+
+#### 7 New Stargate-Themed Enemies with Unique AI Behaviors
+- **Wraith Dart** (swarm_lifesteal): weaving approach in groups of 3-5, heals on contact damage
+- **Replicator** (split_on_death): splits into 2 smaller copies on death, max 2 generations deep
+- **Ori Fighter** (shielded_charge): extra golden shield bar; when shields break, enters zealous charge at 1.5x speed
+- **Ancient Drone** (homing): smooth angular pursuit with 5 deg/frame turn rate, orbits target
+- **Death Glider** (paired): always spawns in pairs, tries to stay near its partner
+- **Al'kesh Bomber** (bomber): stays at 400px range, drops AreaBomb projectiles (2s fuse, 120px AoE, 30 dmg)
+- **Wraith Hive** (mini_boss_spawner): mini-boss that orbits at 500px and spawns wraith darts (max 4 active)
+- Themed explosion palettes: wraith purple, replicator silver sparks, ori holy gold, ancient golden sparkle
+- Flash frame effect on all explosions (white pop on frames 0-2)
+- Secondary chain-explosions for bosses and wraith hive kills
+
+#### Sun/Wormhole Environmental Hazard
+- **Sun entity** with 5 lifecycle phases: Growing (1s) → Stable (3s) → Exploding (0.5s) → Wormhole (5s) → Closing (0.5s)
+- **Gravity pull** during wormhole phase affects ships, enemies, allies, projectiles, asteroids within 300px
+- 2 DPS damage at inner 50px core
+- First sun spawns at 30s, then every 40-60s at random 600-1000px from player
+- Screen shake on explosion phase
+
+#### Summon Ally Ship System
+- New **summon_ally** upgrade (epic rarity, max 3 stacks, +5s duration per stack)
+- Ally ships follow owner within 250px, engage nearest enemy within 400px, auto-fire lasers
+- Green "ALLY" label above allied ships
+- Enemy projectiles can hit allies (no friendly fire from player)
+
+#### 15 New Faction Power-ups
+- **Tau'ri**: F-302 Squadron (epic, 3 ally ships), Prometheus Shield (epic, absorb 200 dmg + 50% reflect), Ancient Tech (legendary, piercing + homing)
+- **Goa'uld**: Kull Warrior (epic, invuln + 2x dmg), Hand Device (epic, stun 300px/3s), Ribbon Device (legendary, drain HP beam)
+- **Asgard**: Time Dilation (epic, 25% enemy speed), Matter Converter (epic, convert 5 enemies to XP), Replicator Disruptor (legendary, chain-kill all same-type)
+- **Jaffa**: Tretonin (epic, double HP regen), Rite of M'al Sharran (epic, full heal if <30% HP), Free Jaffa Rally (legendary, 5 ally ships)
+- **Lucian**: Smuggler's Luck (epic, 2x drop rate), Black Market (epic, 2 random upgrade stacks), Kassa Stash (legendary, 3x fire + speed + invuln)
+
+#### LAN Co-op Overhaul
+- **Independent cameras**: host follows P1, client follows P2 (no more forced midpoint)
+- **Leash distance** increased from 800 to 5000px for true roaming freedom
+- **Despawn** based on nearest alive player, not camera center
+- **Expanded state snapshot**: enemies 30→60, plus projectiles (100), powerups (20), XP orbs (50), explosions (20), suns, allies, area bombs, active powerup timers
+- **Client renders all entities**: projectiles, powerups, XP orbs, explosions, suns, ally ships, area bombs
+- **Partner arrow** with distance indicator on client
+- **Partner secondary fire** (E key) now works — replaces TODO stub
+- **Graceful disconnection**: heartbeat + disconnect message types, host continues solo on client drop, client shows "Host Disconnected" overlay
+- **Revival invulnerability**: 3s invuln on revive to prevent instant re-death
+- **Improved _on_enemy_killed**: themed explosions, replicator split, powerup drop with faction, smuggler's luck bonus
+
+#### Arcade Button Visual Upgrade
+- Draft mode ARCADE button now uses `assets/icons/siege.png` image instead of procedural drawing
+- Hover brightening effect on the icon
+
+#### Bug Fixes
+- Fixed `_damage_enemy()` not wired into projectile collision loop (Ori fighter shields never worked)
+- Fixed sun spawn timer using random-every-frame instead of fixed threshold
+- Fixed co-op explosion tiers using integers (2, 0) instead of strings ("large", "normal")
+- Fixed co-op `_on_enemy_killed` creating PowerUp without faction (no faction-specific drops)
+- Fixed co-op `_kill_player` not guarding against double-death
+- Wired `_damage_enemy()` into all 15+ enemy damage call sites for consistent Ori shield handling
+
+#### Files Modified/Created
+- `space_shooter/upgrades.py` — 7 new enemy types with behaviors + ENEMY_EXPLOSION_PALETTES + summon_ally upgrade
+- `space_shooter/ship.py` — 6 behavior AI methods + ally AI + behavior attributes + Ori shield bar
+- `space_shooter/spawner.py` — New enemies in difficulty tiers + paired/swarm spawning
+- `space_shooter/projectiles.py` — AreaBomb class for Al'kesh bomber
+- `space_shooter/entities.py` — Sun class (5 phases) + 15 new PowerUp.TYPES + enhanced Explosion (palettes, flash, secondary)
+- `space_shooter/game.py` — All new entity loops, _damage_enemy integration, sun/ally/bomb management, 15 powerup handlers
+- `space_shooter/coop_game.py` — Independent P1 camera, expanded snapshot, fire_partner_secondary, nearest-player despawn, improved revival
+- `space_shooter/coop_client.py` — Independent P2 camera, full entity rendering, partner arrow with distance, disconnect overlay
+- `space_shooter/coop_protocol.py` — HEARTBEAT + DISCONNECT message types
+- `space_shooter/__init__.py` — Partner secondary fire wired, disconnect handling
+- `space_shooter/camera.py` — get_spawn_ring_for_coop() for dual viewports
+- `draft_controller.py` — Arcade button uses siege.png icon image
+
+---
+
 ### Version 7.5.0 (February 2026)
 **LAN Co-op Arcade + Replicator Animation + Leader Quotes**
 

@@ -911,7 +911,7 @@ Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player
 
 ---
 
-## 🚀 Space Shooter Architecture (v7.4.0)
+## 🚀 Space Shooter Architecture (v8.0.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
 
@@ -919,25 +919,35 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `__init__.py` | ~90 | Public API `run_space_shooter()`, main game loop |
-| `game.py` | ~1700 | SpaceShooterGame class — update, draw, collisions, upgrades |
-| `ship.py` | ~700 | Ship class — player + AI movement, weapons, secondary fire, thrusters |
-| `projectiles.py` | ~500 | Projectile types: Laser, Missile, Beam, EnergyBall, StaffBlast, Railgun, ProximityMine, ChainLightning |
-| `entities.py` | ~750 | Asteroid, PowerUp (18 types: 8 generic + 10 faction-specific), Drone, XPOrb, Explosion, DamageNumber, GravityWell |
+| `__init__.py` | ~300 | Public API `run_space_shooter()`, `run_coop_space_shooter()`, game loops, disconnect handling |
+| `game.py` | ~2100 | SpaceShooterGame — update, draw, collisions, upgrades, 15+ powerup handlers, sun/ally/bomb management |
+| `ship.py` | ~900 | Ship class — player + AI + 6 behavior AIs (swarm, homing, charge, bomber, mini_boss, strafe) + ally AI |
+| `projectiles.py` | ~600 | Projectile types: Laser, Missile, Beam, EnergyBall, StaffBlast, Railgun, ProximityMine, ChainLightning, AreaBomb |
+| `entities.py` | ~950 | Asteroid, PowerUp (33 types: 8 generic + 25 faction-specific), Drone, XPOrb, Explosion (themed palettes + flash), Sun (5 phases), DamageNumber, GravityWell |
 | `effects.py` | ~270 | StarField (infinite tiling), ScreenShake, ParticleTrail |
-| `upgrades.py` | ~220 | UPGRADES (26), EVOLUTIONS (5), ENEMY_TYPES (5), RARITY_COLORS |
+| `upgrades.py` | ~280 | UPGRADES (27), EVOLUTIONS (5), ENEMY_TYPES (12), ENEMY_EXPLOSION_PALETTES, RARITY_COLORS |
 | `ui.py` | ~500 | HUD, survival timer, mini-radar, level-up cards, game over screen |
-| `camera.py` | ~120 | Camera with smooth follow, world_to_screen, culling, spawn ring |
-| `spawner.py` | ~250 | ContinuousSpawner with 10 difficulty tiers |
+| `camera.py` | ~140 | Camera with smooth follow, world_to_screen, culling, spawn ring, `get_spawn_ring_for_coop()` |
+| `spawner.py` | ~280 | ContinuousSpawner with 10 tiers, paired/swarm spawning for new enemy types |
 | `ship_select.py` | ~120 | Ship selection screen |
+| `coop_game.py` | ~700 | CoopSpaceShooterGame — host-authoritative co-op, independent P1 camera, expanded snapshot, revival |
+| `coop_client.py` | ~400 | Client renderer — independent P2 camera, full entity rendering, partner arrow, disconnect overlay |
+| `coop_protocol.py` | ~80 | Message types: INPUT, STATE, ACTION, LEVEL_UP, GAME_OVER, HEARTBEAT, DISCONNECT |
+| `coop_ui.py` | ~130 | Dual health bars, partner arrow, revival pulse, leash warning |
+| `virtual_keys.py` | ~55 | Network input translation for co-op |
 
 ### Key Systems
 
-- **Camera**: Smooth lerp follow, world-to-screen conversion, `is_visible()` for draw culling
-- **Spawner**: Time-based difficulty tiers interpolate spawn rate, enemy types, HP/speed multipliers
-- **Secondary Fire**: Each faction has a unique E-key ability with its own cooldown
+- **Camera**: Smooth lerp follow, world-to-screen conversion, `is_visible()` for draw culling. Co-op: independent cameras per player
+- **Spawner**: Time-based difficulty tiers interpolate spawn rate, enemy types, HP/speed multipliers. Paired (death gliders) and swarm (wraith darts) spawning
+- **Enemy Behaviors**: 7 unique AI behaviors dispatched via `_behavior` attribute — swarm_lifesteal, split_on_death, shielded_charge, homing, paired, bomber, mini_boss_spawner
+- **Secondary Fire**: Each faction has a unique E-key ability with its own cooldown. Now works in co-op for P2
 - **Thrusters**: Faction-specific particle configs (color, shape, emit rate, spread), SHIFT to boost
 - **Movement**: Velocity-based with acceleration/friction for smooth feel
 - **Evolutions**: When both prerequisite upgrades are maxed, a legendary evolution is offered
 - **Audio**: Background music loop via `pygame.mixer.music`, per-faction hit SFX + boost SFX + shield hit SFX via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
-- **Faction Power-Ups**: Epic + Legendary rarity with unique effects per faction, rarity glow rendering (purple/gold)
+- **Faction Power-Ups**: 33 total (8 generic + 15 epic + 10 legendary) with unique effects per faction, rarity glow rendering (purple/gold)
+- **Environmental Hazards**: Sun/wormhole with 5 lifecycle phases, gravity pull, core damage
+- **Ally Ships**: Summoned via upgrades/powerups, follow owner, engage enemies, auto-fire
+- **Co-op Revival**: Ghost mode on death, revive by killing any enemy, 3s invuln on respawn
+- **Co-op Networking**: 20 Hz state snapshots with expanded entity serialization, heartbeat/disconnect handling

@@ -142,6 +142,24 @@ class Ship:
         self.ai_fire_timer = 0
         self.hit_flash = 0
 
+        # Behavior system (set by spawner from ENEMY_TYPES)
+        self._behavior = None
+        self._split_gen = 0  # Replicator split generation (max 2 deep)
+        self._shield_hp = 0  # Ori fighter extra shield bar
+        self._shield_max = 0
+        self._charge_timer = 0  # Ori zealous charge countdown
+        self._charging = False
+        self._homing_angle = random.uniform(0, math.pi * 2)  # Ancient drone turn angle
+        self._bomber_timer = 0  # Al'kesh bomb timer
+        self._spawner_timer = 0  # Wraith hive dart spawn timer
+        self._spawned_darts = []  # Track spawned darts (refs)
+        self._swarm_weave = random.uniform(0, math.pi * 2)  # Wraith dart weave offset
+
+        # Ally ship attributes
+        self.is_friendly = False
+        self.ally_owner = None
+        self.ally_lifetime = 0
+
         # Smooth velocity-based movement (player only)
         self.vx = 0.0
         self.vy = 0.0
@@ -451,6 +469,80 @@ class Ship:
             self.image = pygame.transform.rotate(self.image_right, self._current_angle)
             self._cached_draw_angle = self._current_angle
 
+    def update_ally_ai(self, owner, enemies):
+        """AI for friendly ally ships. Follow owner, engage enemies, return projectile."""
+        if self.ally_lifetime > 0:
+            self.ally_lifetime -= 1
+        if self.fire_cooldown > 0:
+            self.fire_cooldown -= 1
+
+        # Follow owner loosely (keep within 250px)
+        ox = owner.x + owner.width // 2
+        oy = owner.y
+        dx = ox - (self.x + self.width // 2)
+        dy = oy - self.y
+        dist = math.hypot(dx, dy)
+
+        if dist > 250:
+            # Move toward owner
+            if dist > 1:
+                self.x += (dx / dist) * self.speed * 0.8
+                self.y += (dy / dist) * self.speed * 0.8
+        elif enemies:
+            # Engage nearest enemy within 400px
+            nearest = None
+            nearest_dist = 400
+            for e in enemies:
+                ed = math.hypot(e.x - self.x, e.y - self.y)
+                if ed < nearest_dist:
+                    nearest = e
+                    nearest_dist = ed
+            if nearest:
+                ex = nearest.x + nearest.width // 2
+                ey = nearest.y
+                edx = ex - (self.x + self.width // 2)
+                edy = ey - self.y
+                edist = math.hypot(edx, edy)
+                # Approach to 200px range
+                if edist > 200 and edist > 1:
+                    self.x += (edx / edist) * self.speed * 0.6
+                    self.y += (edy / edist) * self.speed * 0.6
+                elif edist > 1:
+                    # Strafe
+                    perp_x = -edy / edist
+                    perp_y = edx / edist
+                    self.x += perp_x * self.speed * 0.4
+                    self.y += perp_y * self.speed * 0.4
+
+                # Face enemy
+                if edx > 0:
+                    self.set_facing((1, 0))
+                else:
+                    self.set_facing((-1, 0))
+
+                # Fire at enemy
+                if self.fire_cooldown <= 0 and edist < 400:
+                    self.fire_cooldown = self.fire_rate
+                    direction = (edx / edist, edy / edist) if edist > 1 else self.facing
+                    from .projectiles import Laser
+                    proj = Laser(self.x + self.width // 2, self.y, direction,
+                               self.laser_color, speed=18)
+                    proj.damage = 10
+                    proj.is_player_proj = True
+                    self._update_rotation()
+                    self._update_engine_trail()
+                    return proj
+
+        # Face owner direction if idle
+        if dx > 0:
+            self.set_facing((1, 0))
+        elif dx < 0:
+            self.set_facing((-1, 0))
+
+        self._update_rotation()
+        self._update_engine_trail()
+        return None
+
     def update_ai(self, target_ship, asteroids, other_ships=None):
         """Space-battle AI: approach to combat range, then strafe/orbit the target."""
         player_ship = target_ship  # local alias for backwards compat
@@ -473,6 +565,24 @@ class Ship:
         dx = player_cx - (self.x + self.width // 2)
         dy = player_cy - self.y
         dist_to_player = math.hypot(dx, dy)
+
+        # --- Behavior-specific AI dispatch ---
+        if self._behavior == "swarm_lifesteal":
+            self._ai_swarm_lifesteal(dx, dy, dist_to_player, player_ship)
+            return
+        elif self._behavior == "homing":
+            self._ai_homing(dx, dy, dist_to_player, player_ship)
+            return
+        elif self._behavior == "shielded_charge":
+            self._ai_shielded_charge(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
+            return
+        elif self._behavior == "bomber":
+            self._ai_bomber(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
+            return
+        elif self._behavior == "mini_boss_spawner":
+            self._ai_mini_boss(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
+            return
+        # "paired" and "split_on_death" use standard strafe AI (handled by spawner/game.py)
 
         # --- Kamikaze behavior: charge straight at player ---
         if self.enemy_type == "kamikaze":
@@ -874,3 +984,172 @@ class Ship:
             pygame.draw.rect(surface, (20, 30, 50), (bar_x, shield_bar_y, bar_width, shield_bar_h))
             pygame.draw.rect(surface, (80, 170, 255), (bar_x, shield_bar_y, int(bar_width * shield_pct), shield_bar_h))
             pygame.draw.rect(surface, (100, 180, 255), (bar_x, shield_bar_y, bar_width, shield_bar_h), 1)
+
+        # Ori fighter extra shield bar (golden)
+        if self._shield_max > 0:
+            ori_bar_y = (shield_bar_y + shield_bar_h + 2) if self.max_shields > 0 else (health_bar_y + bar_height + 2)
+            ori_bar_h = 3
+            ori_pct = self._shield_hp / max(self._shield_max, 1)
+            pygame.draw.rect(surface, (40, 30, 10), (bar_x, ori_bar_y, bar_width, ori_bar_h))
+            pygame.draw.rect(surface, (255, 215, 100), (bar_x, ori_bar_y, int(bar_width * ori_pct), ori_bar_h))
+            pygame.draw.rect(surface, (200, 180, 80), (bar_x, ori_bar_y, bar_width, ori_bar_h), 1)
+
+    # --- Behavior AI methods ---
+
+    def _ai_swarm_lifesteal(self, dx, dy, dist, target):
+        """Wraith dart: weaving approach, heals on contact."""
+        self._swarm_weave += 0.08
+        if dist > 1:
+            ux = dx / dist
+            uy = dy / dist
+            # Weave perpendicular
+            weave = math.sin(self._swarm_weave) * 3.0
+            perp_x = -uy
+            perp_y = ux
+            self.x += ux * self.speed * 0.7 + perp_x * weave
+            self.y += uy * self.speed * 0.7 + perp_y * weave
+        # Face player
+        if dx > 0:
+            self.set_facing((1, 0))
+        else:
+            self.set_facing((-1, 0))
+        self._update_rotation()
+        self._update_engine_trail()
+
+    def _ai_homing(self, dx, dy, dist, target):
+        """Ancient drone: smooth pursuit curves, orbits if close."""
+        # Angular turn toward target
+        target_angle = math.atan2(dy, dx)
+        angle_diff = target_angle - self._homing_angle
+        # Normalize
+        while angle_diff > math.pi:
+            angle_diff -= 2 * math.pi
+        while angle_diff < -math.pi:
+            angle_diff += 2 * math.pi
+        # Turn at max 5 degrees/frame
+        max_turn = math.radians(5)
+        if abs(angle_diff) > max_turn:
+            self._homing_angle += max_turn if angle_diff > 0 else -max_turn
+        else:
+            self._homing_angle = target_angle
+
+        # Always move forward along current heading
+        self.x += math.cos(self._homing_angle) * self.speed
+        self.y += math.sin(self._homing_angle) * self.speed
+
+        # Face movement direction
+        if math.cos(self._homing_angle) > 0:
+            self.set_facing((1, 0))
+        else:
+            self.set_facing((-1, 0))
+        self._update_rotation()
+        self._update_engine_trail()
+
+    def _ai_shielded_charge(self, dx, dy, dist, target, asteroids, other_ships):
+        """Ori fighter: ranged while shields up, zealous charge when shields break."""
+        # Check if extra shields are broken
+        if self._shield_hp > 0:
+            # Standard ranged behavior (reuse normal strafe logic)
+            self._ai_standard_strafe(dx, dy, dist, target, asteroids, other_ships, preferred_range=350)
+        else:
+            # Zealous charge!
+            if not self._charging:
+                self._charging = True
+                self._charge_timer = 180  # 3 seconds of charging
+                self.speed = int(self.speed * 1.5)
+
+            self._charge_timer -= 1
+            if dist > 1:
+                ux = dx / dist
+                uy = dy / dist
+                self.x += ux * self.speed
+                self.y += uy * self.speed
+            if dx > 0:
+                self.set_facing((1, 0))
+            else:
+                self.set_facing((-1, 0))
+            self._update_rotation()
+            self._update_engine_trail()
+
+    def _ai_bomber(self, dx, dy, dist, target, asteroids, other_ships):
+        """Al'kesh bomber: stays at 400px range, drops area bombs."""
+        self._bomber_timer += 1
+        self._ai_standard_strafe(dx, dy, dist, target, asteroids, other_ships, preferred_range=400)
+
+    def _ai_mini_boss(self, dx, dy, dist, target, asteroids, other_ships):
+        """Wraith hive: orbits at 500px, spawns darts."""
+        self._spawner_timer += 1
+        self._ai_standard_strafe(dx, dy, dist, target, asteroids, other_ships, preferred_range=500)
+
+    def _ai_standard_strafe(self, dx, dy, dist, target, asteroids, other_ships, preferred_range=275):
+        """Common strafe AI reused by multiple behaviors."""
+        range_tolerance = 75
+        move_x, move_y = 0.0, 0.0
+
+        if dist > 1:
+            ux = dx / dist
+            uy = dy / dist
+            strafe_sign = 1 if id(self) % 2 == 0 else -1
+            perp_x = -uy * strafe_sign
+            perp_y = ux * strafe_sign
+
+            if dist > preferred_range + range_tolerance:
+                move_x = ux * self.speed * 0.8
+                move_y = uy * self.speed * 0.8
+            elif dist < preferred_range - range_tolerance:
+                move_x = -ux * self.speed * 0.4 + perp_x * self.speed * 0.5
+                move_y = -uy * self.speed * 0.4 + perp_y * self.speed * 0.5
+            else:
+                drift = (dist - preferred_range) / range_tolerance
+                move_x = ux * self.speed * 0.15 * drift + perp_x * self.speed * 0.5
+                move_y = uy * self.speed * 0.15 * drift + perp_y * self.speed * 0.5
+
+        # Asteroid dodge
+        dodge_x, dodge_y = 0.0, 0.0
+        if asteroids:
+            closest_threat_dist = float('inf')
+            for asteroid in asteroids:
+                ax = asteroid.x - self.x
+                ay = asteroid.y - self.y
+                ad = math.hypot(ax, ay)
+                if ad < 400 and ad < closest_threat_dist:
+                    threat_radius = asteroid.size + max(self.width, self.height) // 2 + 50
+                    if ad < threat_radius + 200 and ad > 1:
+                        closest_threat_dist = ad
+                        dodge_x = -(ax / ad) * self.speed * 1.0
+                        dodge_y = -(ay / ad) * self.speed * 1.0
+
+        # Separation
+        sep_x, sep_y = 0.0, 0.0
+        if other_ships:
+            for other in other_ships:
+                if other is self:
+                    continue
+                sx = self.x - other.x
+                sy = self.y - other.y
+                sdist = math.hypot(sx, sy)
+                if sdist < 180:
+                    if sdist > 1:
+                        force = min(8.0, 120.0 / max(sdist, 10))
+                        sep_x += (sx / sdist) * force
+                        sep_y += (sy / sdist) * force
+
+        if dodge_x != 0 or dodge_y != 0:
+            self.x += dodge_x + sep_x
+            self.y += dodge_y + sep_y
+        else:
+            self.x += move_x + sep_x
+            self.y += move_y + sep_y
+
+        if dx > 0:
+            self.set_facing((1, 0))
+        elif dx < 0:
+            self.set_facing((-1, 0))
+
+        if self.current_beam:
+            self.current_beam.update()
+            self.beam_duration_timer += 1
+            if self.beam_duration_timer >= 90:
+                self.stop_beam()
+        self._update_rotation()
+        self._update_engine_trail()

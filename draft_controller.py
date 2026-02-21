@@ -300,6 +300,7 @@ class DraftModeController:
     def _draw_arcade_button(self, surface: pygame.Surface):
         """Draw the arcade mini-game button in bottom right corner."""
         import math
+        import os
 
         # Button position and size — large enough to be easily visible
         btn_size = 100
@@ -314,41 +315,45 @@ class DraftModeController:
         mouse_pos = pygame.mouse.get_pos()
         is_hovered = self.arcade_button_rect.collidepoint(mouse_pos)
 
-        # Draw button background (circular, stargate-like)
         center = (btn_x + btn_size // 2, btn_y + btn_size // 2)
         radius = btn_size // 2
 
-        # Outer ring (pulsing glow when hovered)
+        # Hover glow
         if is_hovered:
             glow_alpha = int(150 + 50 * math.sin(pygame.time.get_ticks() / 200))
             glow_surf = pygame.Surface((btn_size + 30, btn_size + 30), pygame.SRCALPHA)
-            pygame.draw.circle(glow_surf, (255, 150, 0, glow_alpha), (btn_size // 2 + 15, btn_size // 2 + 15), radius + 12)
+            pygame.draw.circle(glow_surf, (100, 180, 255, glow_alpha),
+                               (btn_size // 2 + 15, btn_size // 2 + 15), radius + 12)
             surface.blit(glow_surf, (btn_x - 15, btn_y - 15))
 
-        # Main circle (dark background)
-        pygame.draw.circle(surface, (30, 30, 50), center, radius)
+        # Load and draw the arcade icon (siege.png)
+        if not hasattr(self, '_arcade_icon'):
+            self._arcade_icon = None
+            icon_path = os.path.join("assets", "icons", "siege.png")
+            if os.path.exists(icon_path):
+                try:
+                    img = pygame.image.load(icon_path).convert_alpha()
+                    self._arcade_icon = pygame.transform.smoothscale(img, (btn_size, btn_size))
+                except Exception:
+                    pass
 
-        # Inner ring (stargate orange)
-        ring_color = (255, 180, 50) if is_hovered else (200, 140, 40)
-        pygame.draw.circle(surface, ring_color, center, radius, 3)
-
-        # Draw chevrons around the ring (9 chevrons like a stargate)
-        for i in range(9):
-            angle = math.radians(i * 40 - 90)  # Start from top
-            chev_x = center[0] + math.cos(angle) * (radius - 12)
-            chev_y = center[1] + math.sin(angle) * (radius - 12)
-            chev_color = (255, 200, 100) if is_hovered else (180, 140, 60)
-            pygame.draw.circle(surface, chev_color, (int(chev_x), int(chev_y)), 5)
-
-        # Draw spaceship icon in center (scaled up)
-        ship_color = (100, 200, 255) if is_hovered else (80, 150, 200)
-        ship_points = [
-            (center[0] + 20, center[1]),       # Nose
-            (center[0] - 14, center[1] - 16),  # Top wing
-            (center[0] - 6, center[1]),         # Body indent
-            (center[0] - 14, center[1] + 16),  # Bottom wing
-        ]
-        pygame.draw.polygon(surface, ship_color, ship_points)
+        if self._arcade_icon:
+            icon = self._arcade_icon
+            if is_hovered:
+                # Brighten on hover
+                icon = icon.copy()
+                bright = pygame.Surface(icon.get_size(), pygame.SRCALPHA)
+                bright.fill((40, 40, 40, 0))
+                icon.blit(bright, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+            surface.blit(icon, (btn_x, btn_y))
+        else:
+            # Fallback: draw a simple circle if image missing
+            pygame.draw.circle(surface, (30, 30, 50), center, radius)
+            pygame.draw.circle(surface, (100, 180, 255), center, radius, 3)
+            font_fb = pygame.font.SysFont("Arial", 36, bold=True)
+            icon_text = font_fb.render("🚀", True, (100, 200, 255))
+            surface.blit(icon_text, (center[0] - icon_text.get_width() // 2,
+                                     center[1] - icon_text.get_height() // 2))
 
         # Always draw "ARCADE" label below the icon
         font = pygame.font.SysFont("Arial", 18, bold=True)

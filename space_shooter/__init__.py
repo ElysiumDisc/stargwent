@@ -198,9 +198,18 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
                     payload = msg.get("payload", {})
                     action = payload.get("action")
                     if action == "secondary":
-                        # Trigger partner secondary fire
-                        pass  # TODO: partner secondary fire
+                        game.fire_partner_secondary()
+                elif mtype == CoopMsg.DISCONNECT:
+                    # Client disconnected gracefully — continue as solo
+                    game.p2_alive = False
+                    game.p2_ghost = False
                 msg = session.receive()
+
+            # Check for partner disconnect (no input for 5 seconds)
+            if hasattr(session, 'is_connected') and not session.is_connected():
+                if game.p2_alive:
+                    game.p2_alive = False
+                    game.p2_ghost = False
 
             game.update()
             game.draw(screen)
@@ -242,7 +251,20 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
 
             # Send input to host every frame
             input_state = client.get_input_state()
-            session.send(CoopMsg.INPUT, input_state)
+            try:
+                session.send(CoopMsg.INPUT, input_state)
+            except Exception:
+                client.host_disconnected = True
+
+            # Send secondary fire action on E press
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_e] and not getattr(client, '_e_was_pressed', False):
+                try:
+                    from .coop_protocol import build_action
+                    session.send(CoopMsg.ACTION, {"action": "secondary", "data": {}})
+                except Exception:
+                    pass
+            client._e_was_pressed = keys[pygame.K_e]
 
             # Receive state snapshots
             msg = session.receive()
@@ -252,19 +274,34 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
                     client.apply_state(msg.get("payload", {}))
                 elif mtype == CoopMsg.GAME_OVER:
                     client.game_over = True
-                    # Apply final state
                     client.apply_state(msg.get("payload", {}))
+                elif mtype == CoopMsg.DISCONNECT:
+                    client.host_disconnected = True
                 msg = session.receive()
+
+            # Check connection health
+            if hasattr(session, 'is_connected') and not session.is_connected():
+                client.host_disconnected = True
 
             client.update()
             client.draw(screen)
 
+            # Host disconnected — show message and wait for ESC
+            if client.host_disconnected:
+                pass  # draw() handles the disconnect overlay
+
             if client.game_over:
-                # Stay on game over screen until ESC
-                pass
+                pass  # Stay on game over screen until ESC
 
             display_manager.gpu_flip()
             clock.tick(60)
+
+        # Send disconnect notification to host
+        try:
+            from .coop_protocol import build_disconnect
+            session.send(CoopMsg.DISCONNECT, {"reason": "client_exit"})
+        except Exception:
+            pass
 
         _stop_space_music()
         return None

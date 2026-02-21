@@ -17,16 +17,16 @@ from .upgrades import ENEMY_TYPES
 # Designed so the first few minutes are relaxed — player can farm XP and upgrades.
 DIFFICULTY_TIERS = [
     # time_s  label              interval  max   types                              hp    spd   elite  boss_interval
-    (0,       "Calm",            240,      6,    ["regular"],                        0.7,  0.6,  0.00,  None),
-    (30,      "Warming Up",      180,      8,    ["regular"],                        0.8,  0.65, 0.00,  None),
-    (60,      "Skirmish",        140,      10,   ["regular", "fast"],                0.9,  0.7,  0.00,  None),
-    (120,     "Engaged",         110,      14,   ["regular", "fast", "kamikaze"],    1.0,  0.8,  0.00,  600),
-    (180,     "Contested",       90,       18,   ["regular", "fast", "kamikaze"],    1.1,  0.85, 0.05,  600),
-    (300,     "Intense",         70,       24,   ["regular", "fast", "kamikaze", "tank"], 1.2, 0.9, 0.10, 480),
-    (420,     "Dangerous",       55,       30,   ["regular", "fast", "kamikaze", "tank", "elite"], 1.4, 0.95, 0.15, 420),
-    (600,     "Overwhelming",    45,       40,   ["regular", "fast", "kamikaze", "tank", "elite"], 1.7, 1.0, 0.20, 360),
-    (900,     "Apocalypse",      35,       50,   ["regular", "fast", "kamikaze", "tank", "elite"], 2.0, 1.1, 0.25, 300),
-    (1200,    "Beyond",          28,       60,   ["regular", "fast", "kamikaze", "tank", "elite"], 2.5, 1.2, 0.30, 240),
+    (0,       "Calm",            180,      8,    ["regular"],                        0.8,  0.7,  0.00,  None),
+    (20,      "Warming Up",      140,      10,   ["regular", "fast"],                0.9,  0.75, 0.00,  None),
+    (45,      "Skirmish",        110,      14,   ["regular", "fast", "kamikaze"],    1.0,  0.8,  0.00,  None),
+    (90,      "Engaged",         85,       18,   ["regular", "fast", "kamikaze", "death_glider"],    1.1,  0.85, 0.03,  480),
+    (150,     "Contested",       70,       22,   ["regular", "fast", "kamikaze", "death_glider", "wraith_dart", "ancient_drone"],    1.2,  0.9,  0.08,  420),
+    (240,     "Intense",         55,       28,   ["regular", "fast", "kamikaze", "tank", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator"], 1.4, 0.95, 0.12, 360),
+    (360,     "Dangerous",       42,       36,   ["regular", "fast", "kamikaze", "tank", "elite", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator"], 1.6, 1.0, 0.18, 300),
+    (500,     "Overwhelming",    34,       45,   ["regular", "fast", "kamikaze", "tank", "elite", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive"], 1.9, 1.1, 0.22, 240),
+    (720,     "Apocalypse",      28,       55,   ["regular", "fast", "kamikaze", "tank", "elite", "death_glider", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive"], 2.3, 1.2, 0.28, 200),
+    (1000,    "Beyond",          22,       70,   ["regular", "fast", "kamikaze", "tank", "elite", "death_glider", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive"], 2.8, 1.3, 0.35, 180),
 ]
 
 
@@ -129,6 +129,28 @@ class ContinuousSpawner:
             ship = self._spawn_enemy(tier, screen_width, screen_height)
             if ship:
                 new_ships.append(ship)
+                # Paired behavior: death_gliders always come in pairs
+                behavior = ENEMY_TYPES.get(ship.enemy_type, {}).get("behavior")
+                if behavior == "paired":
+                    pair = self._spawn_enemy(tier, screen_width, screen_height,
+                                            force_type=ship.enemy_type)
+                    if pair:
+                        # Spawn near the first one
+                        pair.x = ship.x + random.randint(-80, 80)
+                        pair.y = ship.y + random.randint(-80, 80)
+                        new_ships.append(pair)
+                # Swarm behavior: wraith_darts come in groups of 3-5
+                elif behavior == "swarm_lifesteal":
+                    swarm_count = random.randint(2, 4)  # +1 already spawned = 3-5 total
+                    for _ in range(swarm_count):
+                        if len(ai_ships) + len(new_ships) >= effective_max:
+                            break
+                        dart = self._spawn_enemy(tier, screen_width, screen_height,
+                                               force_type="wraith_dart")
+                        if dart:
+                            dart.x = ship.x + random.randint(-120, 120)
+                            dart.y = ship.y + random.randint(-120, 120)
+                            new_ships.append(dart)
 
         # Boss spawn check
         if tier["boss_interval"] is not None:
@@ -142,7 +164,7 @@ class ContinuousSpawner:
 
         return new_ships
 
-    def _spawn_enemy(self, tier, screen_width, screen_height):
+    def _spawn_enemy(self, tier, screen_width, screen_height, force_type=None):
         """Spawn a single enemy at the viewport edge ring."""
         import pygame  # deferred import
 
@@ -151,10 +173,13 @@ class ContinuousSpawner:
         wx, wy = self.camera.get_spawn_ring(300, 500)
 
         # Pick enemy type
-        enemy_type = random.choice(tier["types"])
-        # Elite chance override
-        if random.random() < tier["elite_chance"] and "elite" in ENEMY_TYPES:
-            enemy_type = "elite"
+        if force_type:
+            enemy_type = force_type
+        else:
+            enemy_type = random.choice(tier["types"])
+            # Elite chance override
+            if random.random() < tier["elite_chance"] and "elite" in ENEMY_TYPES:
+                enemy_type = "elite"
 
         mods = ENEMY_TYPES[enemy_type]
 
@@ -191,6 +216,17 @@ class ContinuousSpawner:
         ship.xp_value = mods["xp"]
         ship.enemy_type = enemy_type
         ship.ai_fire_timer = random.randint(0, 60)
+
+        # Set behavior from ENEMY_TYPES
+        ship._behavior = mods.get("behavior")
+
+        # Behavior-specific init
+        if ship._behavior == "shielded_charge":
+            ship._shield_hp = int(ship.max_health * 0.5)
+            ship._shield_max = ship._shield_hp
+        elif ship._behavior == "mini_boss_spawner":
+            ship.is_boss = True  # Wraith hive is a mini-boss
+
         return ship
 
     def _spawn_boss(self, tier, screen_width, screen_height):
