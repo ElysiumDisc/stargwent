@@ -1,3 +1,23 @@
+### Version 8.4.0 (February 2026)
+**Stargate Menu Border, Button Scaling, Performance Optimizations**
+
+#### Main Menu — Stargate-Themed Border & Larger Buttons
+- **Stargate ring border**: New pre-rendered translucent border around the menu button area featuring Ancient blue outer glow, gold naquadah inner accent, and 6 amber chevron markers (top/bottom center + corners)
+- **Dark panel fill**: Semi-transparent dark background behind buttons so they stand out against any background image
+- **Dynamic button width**: Buttons now measure the widest text label (e.g. "GALACTIC CONQUEST") and auto-size with padding — no more text overflow at any resolution
+- **Minimum width 500px at 1080p** (was 400px) — all labels fit comfortably with room for the border
+
+#### DHD Button Performance Overhaul
+- **Cached radial gradient**: The ~20-ellipse radial gradient for hovered buttons is now rendered once per button size/color and cached — eliminates expensive per-frame re-draw
+- **Cached text rendering**: Button text is pre-rendered at init with auto-scaling — if text is wider than the button, the font size shrinks automatically until it fits
+- **Cached title surface**: The multi-layer STARGWENT title (6 shadow passes + glow + highlight) is pre-rendered once instead of re-drawn every frame
+
+#### Files Modified
+- `main_menu.py` — Stargate border, dynamic button width, cached title rendering
+- `dhd_button.py` — Gradient caching, text auto-fit, cached text surfaces
+
+---
+
 ### Version 8.3.0 (February 2026)
 **Galactic Conquest — Customize Run, Faction Bonuses, Defense Rewards, CRT Menu**
 

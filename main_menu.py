@@ -268,8 +268,13 @@ class MainMenu:
         
         # Initialize DHD button system
         self.dhd_manager = DHDButtonManager()
-        
+
         self.setup_buttons()
+
+        # Pre-render the multi-layer title (expensive; only needs to happen once)
+        self._title_surf = None
+        self._title_pad = 0
+        self._build_title_cache()
 
     def _unlock_override_state(self) -> bool:
         if self.unlock_system and hasattr(self.unlock_system, "is_unlock_override_enabled"):
@@ -750,23 +755,28 @@ class MainMenu:
     def setup_buttons(self):
         """Setup menu button positions with proper scaling for all resolutions."""
         num_options = len(self.options)
-        
+
         # Scale button dimensions based on screen size (use height as reference)
         # Design baseline: 1080p (1920x1080)
         scale_factor = min(self.screen_height / 1080.0, self.screen_width / 1920.0)
-        
-        button_width = int(400 * scale_factor)
+
+        # Measure widest button text to guarantee no overflow
+        min_button_width = int(500 * scale_factor)
+        for option in self.options:
+            text_w = self.button_font.size(option['text'])[0]
+            min_button_width = max(min_button_width, text_w + int(40 * scale_factor))
+        button_width = min_button_width
         button_height = int(70 * scale_factor)
         spacing = int(15 * scale_factor)
-        
+
         # Calculate total menu height
         total_menu_height = num_options * button_height + (num_options - 1) * spacing
-        
+
         # Ensure buttons fit in available space (leave room for title and bottom margin)
         title_space = int(self.screen_height * 0.25)  # Reserve 25% for title area
         bottom_margin = int(self.screen_height * 0.05)  # 5% bottom margin
         available_height = self.screen_height - title_space - bottom_margin
-        
+
         # If buttons don't fit, shrink them
         if total_menu_height > available_height:
             # Calculate maximum button height that fits
@@ -774,24 +784,137 @@ class MainMenu:
             button_height = max(30, min(button_height, max_button_height))
             spacing = max(5, int(spacing * 0.6))  # Reduce spacing proportionally
             total_menu_height = num_options * button_height + (num_options - 1) * spacing
-        
+
         # Center buttons horizontally
         start_x = (self.screen_width - button_width) // 2
-        
+
         # Start buttons below title area, centered in remaining space
         start_y = title_space + (available_height - total_menu_height) // 2
-        
+
+        # Store menu box geometry for the Stargate border
+        box_pad_x = int(30 * scale_factor)
+        box_pad_top = int(25 * scale_factor)
+        box_pad_bottom = int(25 * scale_factor)
+        self._menu_box_rect = pygame.Rect(
+            start_x - box_pad_x,
+            start_y - box_pad_top,
+            button_width + box_pad_x * 2,
+            total_menu_height + box_pad_top + box_pad_bottom,
+        )
+        self._menu_box_scale = scale_factor
+        # Pre-render the Stargate border overlay
+        self._menu_border_surf = self._build_stargate_border(
+            self._menu_box_rect.width, self._menu_box_rect.height, scale_factor
+        )
+
         # Clear existing DHD buttons
         self.dhd_manager.buttons.clear()
-        
+
         for i, option in enumerate(self.options):
             y = start_y + i * (button_height + spacing)
             option['rect'] = pygame.Rect(start_x, y, button_width, button_height)
             option['hovered'] = False
-            
+
             # Add DHD button
             self.dhd_manager.add_button(i, option['rect'], option['text'], self.button_font)
-    
+
+    # ------------------------------------------------------------------
+    # Stargate-themed menu border  (pre-rendered once, blitted each frame)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _build_stargate_border(w, h, scale):
+        """Build a translucent Stargate-ring border surface with chevron accents."""
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        r = int(8 * scale)  # corner radius
+
+        # -- Outer glow (dim naquadah blue) --
+        for thickness in (5, 3, 1):
+            t = int(thickness * scale)
+            glow_alpha = 35 + thickness * 18  # brighter toward inside
+            color = (60, 160, 220, glow_alpha)
+            pygame.draw.rect(surf, color, (0, 0, w, h), width=max(1, t), border_radius=r)
+
+        # -- Main border ring (bright Ancient blue) --
+        border_t = max(2, int(3 * scale))
+        pygame.draw.rect(surf, (90, 180, 255, 210), (0, 0, w, h),
+                         width=border_t, border_radius=r)
+
+        # -- Inner accent line (gold / naquadah) --
+        inset = border_t + max(1, int(2 * scale))
+        pygame.draw.rect(surf, (200, 170, 80, 140),
+                         (inset, inset, w - inset * 2, h - inset * 2),
+                         width=max(1, int(1 * scale)), border_radius=max(1, r - 2))
+
+        # -- Chevron markers (top-center and bottom-center + corners) --
+        chev_w = max(8, int(14 * scale))
+        chev_h = max(4, int(7 * scale))
+        chev_color = (255, 190, 60, 220)  # warm amber like lit chevrons
+
+        # positions: top-center, bottom-center, top-left, top-right
+        positions = [
+            (w // 2 - chev_w // 2, 0),                     # top center
+            (w // 2 - chev_w // 2, h - chev_h),            # bottom center
+            (int(18 * scale), 0),                           # top left
+            (w - int(18 * scale) - chev_w, 0),             # top right
+            (int(18 * scale), h - chev_h),                 # bottom left
+            (w - int(18 * scale) - chev_w, h - chev_h),   # bottom right
+        ]
+        for px, py in positions:
+            # Small filled chevron triangle
+            pts = [(px, py + chev_h), (px + chev_w // 2, py), (px + chev_w, py + chev_h)]
+            if py > 0:  # bottom chevrons point up
+                pts = [(px, py), (px + chev_w // 2, py + chev_h), (px + chev_w, py)]
+            pygame.draw.polygon(surf, chev_color, pts)
+
+        # -- Dark semi-transparent fill so buttons stand out against any BG --
+        fill_inset = inset + max(1, int(2 * scale))
+        inner_r = max(1, r - 4)
+        pygame.draw.rect(surf, (5, 10, 25, 150),
+                         (fill_inset, fill_inset, w - fill_inset * 2, h - fill_inset * 2),
+                         border_radius=inner_r)
+
+        return surf
+
+    def _build_title_cache(self):
+        """Pre-render the multi-layer title to a single surface (called once)."""
+        title_text = "STARGWENT"
+        pad = int(30 * self.scale_factor)
+        title_render = self.title_font.render(title_text, True, (255, 255, 255))
+        tw, th = title_render.get_size()
+        surf_w = tw + pad * 2
+        surf_h = th + pad * 2
+        surf = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
+        cx, cy = surf_w // 2, surf_h // 2
+
+        # Shadow layers
+        shadow_scale = max(1, int(4 * self.scale_factor))
+        for offset in range(shadow_scale * 2, 0, -(shadow_scale // 2 or 1)):
+            shadow = self.title_font.render(title_text, True, (0, 0, 0))
+            r = shadow.get_rect(center=(cx + offset, cy + offset))
+            surf.blit(shadow, r)
+
+        # Outer glow (blue/cyan)
+        for i in range(6, 0, -1):
+            glow = self.title_font.render(title_text, True, (*self.highlight_color, 30))
+            r = glow.get_rect(center=(cx + i, cy + i))
+            surf.blit(glow, r)
+
+        # Inner glow
+        inner = self.title_font.render(title_text, True, (255, 255, 200, 80))
+        surf.blit(inner, inner.get_rect(center=(cx, cy)))
+
+        # Main title
+        main = self.title_font.render(title_text, True, self.highlight_color)
+        surf.blit(main, main.get_rect(center=(cx, cy)))
+
+        # Highlight edge
+        hl = self.title_font.render(title_text, True, (255, 255, 255))
+        hl.set_alpha(150)
+        surf.blit(hl, hl.get_rect(center=(cx - 2, cy - 2)))
+
+        self._title_surf = surf
+        self._title_pad = pad
+
     def handle_event(self, event):
         """Handle input events."""
         if event.type == pygame.MOUSEMOTION:
@@ -853,63 +976,36 @@ class MainMenu:
         """Draw the main menu."""
         # Apply screen shake offset if active
         shake_offset = self.dhd_manager.get_shake_offset()
-        
+
         # Create a temporary surface if shake is active
         if shake_offset != (0, 0):
             temp_surface = pygame.Surface((self.screen_width, self.screen_height))
             draw_target = temp_surface
         else:
             draw_target = surface
-        
+
         # Draw background
         if self.background:
             draw_target.blit(self.background, (0, 0))
         else:
             draw_target.fill(self.bg_color)
-        
-        # IMPRESSIVE TITLE with multiple effects - scale position based on screen
-        title_y = int(self.screen_height * 0.12)  # 12% from top
-        
-        # Create gradient effect - draw multiple layers
-        title_text = "STARGWENT"
-        
-        # Shadow layers (black, offset) - scale shadow offset
-        shadow_scale = max(1, int(4 * self.scale_factor))
-        for offset in range(shadow_scale * 2, 0, -shadow_scale // 2 or 1):
-            shadow = self.title_font.render(title_text, True, (0, 0, 0))
-            shadow_rect = shadow.get_rect(center=(self.screen_width // 2 + offset, title_y + offset))
-            draw_target.blit(shadow, shadow_rect)
-        
-        # Outer glow (blue/cyan)
-        glow_height = int(200 * self.scale_factor)
-        glow_surf = pygame.Surface((self.screen_width, glow_height), pygame.SRCALPHA)
-        for i in range(6, 0, -1):
-            glow_color = (*self.highlight_color, 30)
-            glow_text = self.title_font.render(title_text, True, glow_color)
-            glow_rect = glow_text.get_rect(center=(self.screen_width // 2 + i, glow_height // 2 + i))
-            glow_surf.blit(glow_text, glow_rect)
-        draw_target.blit(glow_surf, (0, title_y - glow_height // 2))
-        
-        # Inner glow (brighter)
-        inner_glow_color = (255, 255, 200, 80)
-        inner_glow = self.title_font.render(title_text, True, inner_glow_color)
-        inner_rect = inner_glow.get_rect(center=(self.screen_width // 2, title_y))
-        draw_target.blit(inner_glow, inner_rect)
-        
-        # Main title (gold/yellow)
-        main_title = self.title_font.render(title_text, True, self.highlight_color)
-        main_rect = main_title.get_rect(center=(self.screen_width // 2, title_y))
-        draw_target.blit(main_title, main_rect)
-        
-        # Highlight edge (white)
-        highlight = self.title_font.render(title_text, True, (255, 255, 255))
-        highlight_rect = highlight.get_rect(center=(self.screen_width // 2 - 2, title_y - 2))
-        highlight.set_alpha(150)
-        draw_target.blit(highlight, highlight_rect)
-        
+
+        # TITLE — blit pre-rendered cached surface (no per-frame font.render calls)
+        title_y = int(self.screen_height * 0.12)
+        if self._title_surf is not None:
+            tr = self._title_surf.get_rect(
+                center=(self.screen_width // 2, title_y)
+            )
+            draw_target.blit(self._title_surf, tr)
+
+        # Stargate-themed menu border (pre-rendered surface)
+        if self._menu_border_surf is not None:
+            draw_target.blit(self._menu_border_surf,
+                             self._menu_box_rect.topleft)
+
         # Draw DHD buttons with enhanced effects
         self.dhd_manager.draw(draw_target, self.selected_option)
-        
+
         # Blit temp surface with shake offset if active
         if shake_offset != (0, 0):
             surface.blit(temp_surface, shake_offset)
