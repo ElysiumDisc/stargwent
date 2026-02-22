@@ -1,0 +1,628 @@
+"""
+STARGWENT - GALACTIC CONQUEST - Conquest Submenu
+
+Entry screen: New Run / Resume / Customize Run / Back.
+CRT-themed Stargate terminal UI with scanline overlay.
+"""
+
+import pygame
+import os
+import math
+import display_manager
+
+from .campaign_persistence import (has_campaign_save, load_campaign,
+                                    load_conquest_settings, save_conquest_settings)
+from .galaxy_map import ALL_FACTIONS
+
+
+# CRT UI colors
+CRT_AMBER = (255, 200, 80)
+CRT_CYAN = (100, 220, 255)
+CRT_GREEN = (80, 255, 140)
+CRT_BORDER = (80, 140, 100)
+CRT_BTN_BG = (15, 25, 18)
+CRT_BTN_HOVER = (30, 60, 40)
+CRT_BTN_BORDER = (60, 160, 90)
+CRT_BTN_BORDER_HOVER = (100, 255, 140)
+CRT_TEXT = (180, 255, 200)
+CRT_TEXT_DIM = (60, 90, 70)
+
+FACTION_DISPLAY_COLORS = {
+    "Tau'ri": (80, 160, 255),
+    "Goa'uld": (255, 80, 80),
+    "Jaffa Rebellion": (255, 220, 80),
+    "Lucian Alliance": (255, 120, 220),
+    "Asgard": (140, 220, 255),
+}
+
+# Pre-rendered scanline surface (created lazily)
+_scanline_cache = {}
+
+
+def _get_scanline_overlay(width, height, alpha=25):
+    """Get or create a cached CRT scanline overlay surface."""
+    key = (width, height, alpha)
+    if key not in _scanline_cache:
+        surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        line = pygame.Surface((width, 2), pygame.SRCALPHA)
+        line.fill((0, 0, 0, alpha))
+        for y in range(0, height, 4):
+            surf.blit(line, (0, y))
+        _scanline_cache[key] = surf
+    return _scanline_cache[key]
+
+
+class ConquestMenu:
+    """Submenu for Galactic Conquest — CRT terminal UI."""
+
+    def __init__(self, screen_width, screen_height):
+        self.sw = screen_width
+        self.sh = screen_height
+        self.frame_count = 0
+
+        # Load background
+        self.background = None
+        bg_path = os.path.join("assets", "conquest_menu_bg.png")
+        if not os.path.exists(bg_path):
+            bg_path = os.path.join("assets", "conquest.png")
+        try:
+            raw = pygame.image.load(bg_path).convert()
+            self.background = pygame.transform.smoothscale(raw, (self.sw, self.sh))
+        except (pygame.error, FileNotFoundError):
+            self.background = pygame.Surface((self.sw, self.sh))
+            self.background.fill((8, 12, 10))
+
+        # Fonts
+        self.title_font = pygame.font.SysFont("Impact, Arial", max(72, self.sh // 12), bold=True)
+        self.button_font = pygame.font.SysFont("Impact, Arial Black, Arial",
+                                                max(28, self.sh // 36), bold=True)
+        self.info_font = pygame.font.SysFont("Arial", max(15, self.sh // 65))
+
+        # Buttons — clean vertical stack, no panel
+        btn_w = int(self.sw * 0.28)
+        btn_h = int(self.sh * 0.065)
+        btn_x = self.sw // 2 - btn_w // 2
+        btn_y_start = int(self.sh * 0.45)
+        btn_spacing = int(self.sh * 0.09)
+
+        self.buttons = []
+        labels = [
+            ("NEW CAMPAIGN", "new_run"),
+            ("RESUME", "resume"),
+            ("CUSTOMIZE RUN", "customize_run"),
+            ("BACK", "back"),
+        ]
+        for i, (label, action) in enumerate(labels):
+            rect = pygame.Rect(btn_x, btn_y_start + i * btn_spacing, btn_w, btn_h)
+            self.buttons.append({"label": label, "action": action, "rect": rect})
+
+        self.hovered = -1
+        self.has_save = has_campaign_save()
+
+        # Load save info for display
+        self.save_info = None
+        if self.has_save:
+            try:
+                state = load_campaign()
+                if state:
+                    self.save_info = {
+                        "faction": state.player_faction,
+                        "turn": state.turn_number,
+                        "naquadah": state.naquadah,
+                        "deck_size": len(state.current_deck),
+                    }
+            except Exception:
+                pass
+
+    def handle_event(self, event):
+        """Handle input. Returns action string or None."""
+        if event.type == pygame.MOUSEMOTION:
+            mx, my = event.pos
+            self.hovered = -1
+            for i, btn in enumerate(self.buttons):
+                if btn["rect"].collidepoint(mx, my):
+                    self.hovered = i
+                    break
+
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mx, my = event.pos
+            for i, btn in enumerate(self.buttons):
+                if btn["rect"].collidepoint(mx, my):
+                    action = btn["action"]
+                    if action == "resume" and not self.has_save:
+                        return None
+                    return action
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return "back"
+
+        return None
+
+    def draw(self, screen):
+        """Render the conquest menu with CRT scanline effect."""
+        self.frame_count += 1
+
+        # Background
+        screen.blit(self.background, (0, 0))
+
+        # Dark overlay
+        overlay = pygame.Surface((self.sw, self.sh), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        screen.blit(overlay, (0, 0))
+
+        # Title with pulse
+        pulse = 0.85 + 0.15 * math.sin(self.frame_count * 0.03)
+        title_color = tuple(int(c * pulse) for c in CRT_AMBER)
+        title1 = self.title_font.render("GALACTIC", True, title_color)
+        title2 = self.title_font.render("CONQUEST", True, title_color)
+        t1_y = int(self.sh * 0.08)
+        screen.blit(title1, (self.sw // 2 - title1.get_width() // 2, t1_y))
+        screen.blit(title2, (self.sw // 2 - title2.get_width() // 2,
+                             t1_y + title1.get_height() - 5))
+
+        # Decorative line
+        line_y = t1_y + title1.get_height() + title2.get_height()
+        line_w = int(self.sw * 0.3)
+        line_color = tuple(int(c * pulse) for c in CRT_BORDER)
+        pygame.draw.line(screen, line_color,
+                         (self.sw // 2 - line_w // 2, line_y),
+                         (self.sw // 2 + line_w // 2, line_y), 2)
+
+        # Buttons
+        for i, btn in enumerate(self.buttons):
+            rect = btn["rect"]
+            action = btn["action"]
+
+            enabled = True
+            if action == "resume" and not self.has_save:
+                enabled = False
+
+            if not enabled:
+                bg_color = (10, 12, 10)
+                border_color = (30, 40, 30)
+                text_color = CRT_TEXT_DIM
+            elif i == self.hovered:
+                bg_color = CRT_BTN_HOVER
+                border_color = CRT_BTN_BORDER_HOVER
+                text_color = (255, 255, 255)
+            else:
+                bg_color = CRT_BTN_BG
+                border_color = CRT_BTN_BORDER
+                text_color = CRT_TEXT
+
+            btn_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            btn_surf.fill((*bg_color, 220))
+            screen.blit(btn_surf, rect.topleft)
+            pygame.draw.rect(screen, border_color, rect, 2)
+
+            if i == self.hovered and enabled:
+                glow = pygame.Surface((rect.width + 6, rect.height + 6), pygame.SRCALPHA)
+                glow.fill((*CRT_BTN_BORDER_HOVER, 20))
+                screen.blit(glow, (rect.x - 3, rect.y - 3))
+
+            label = self.button_font.render(btn["label"], True, text_color)
+            screen.blit(label, (rect.centerx - label.get_width() // 2,
+                                rect.centery - label.get_height() // 2))
+
+            # Resume save info
+            if action == "resume":
+                if not self.has_save:
+                    no_save = self.info_font.render("(No save found)", True, CRT_TEXT_DIM)
+                    screen.blit(no_save, (rect.centerx - no_save.get_width() // 2,
+                                          rect.bottom + 4))
+                elif self.save_info and i != self.hovered:
+                    info = self.save_info
+                    save_text = (f"Turn {info['turn']} | {info['faction']} | "
+                                 f"{info['deck_size']} cards | {info['naquadah']} naq")
+                    save_surf = self.info_font.render(save_text, True, CRT_TEXT_DIM)
+                    screen.blit(save_surf, (rect.centerx - save_surf.get_width() // 2,
+                                            rect.bottom + 4))
+
+        # CRT scanlines overlay
+        scanlines = _get_scanline_overlay(self.sw, self.sh, alpha=25)
+        screen.blit(scanlines, (0, 0))
+
+        # Bottom bar
+        bar_h = int(self.sh * 0.035)
+        bar_rect = pygame.Rect(0, self.sh - bar_h, self.sw, bar_h)
+        bar_surf = pygame.Surface((bar_rect.width, bar_rect.height), pygame.SRCALPHA)
+        bar_surf.fill((0, 0, 0, 180))
+        screen.blit(bar_surf, bar_rect.topleft)
+        status = self.info_font.render("ESC to return", True, CRT_TEXT_DIM)
+        screen.blit(status, (int(self.sw * 0.04), bar_rect.centery - status.get_height() // 2))
+
+
+class CustomizeRunScreen:
+    """Settings screen for customizing campaign parameters before starting a run."""
+
+    def __init__(self, screen_width, screen_height):
+        self.sw = screen_width
+        self.sh = screen_height
+        self.frame_count = 0
+
+        # Load current settings
+        self.settings = load_conquest_settings()
+
+        # Faction options: None + all 5 factions
+        self.faction_options = [None] + list(ALL_FACTIONS)
+        # Neutral event count options
+        self.neutral_options = [3, 5, 7, 9]
+
+        # Current indices
+        self.faction_index = 0
+        ff = self.settings.get("friendly_faction")
+        if ff in self.faction_options:
+            self.faction_index = self.faction_options.index(ff)
+
+        self.neutral_index = 1  # default 5
+        nc = self.settings.get("neutral_count", 5)
+        if nc in self.neutral_options:
+            self.neutral_index = self.neutral_options.index(nc)
+
+        # Enemy leader settings per faction
+        self.enemy_leaders = dict(self.settings.get("enemy_leaders", {}))
+        self._load_faction_leaders()
+
+        # Background
+        self.background = None
+        bg_path = os.path.join("assets", "conquest_menu_bg.png")
+        if not os.path.exists(bg_path):
+            bg_path = os.path.join("assets", "conquest.png")
+        try:
+            raw = pygame.image.load(bg_path).convert()
+            self.background = pygame.transform.smoothscale(raw, (self.sw, self.sh))
+        except (pygame.error, FileNotFoundError):
+            self.background = pygame.Surface((self.sw, self.sh))
+            self.background.fill((8, 12, 10))
+
+        # Fonts
+        self.title_font = pygame.font.SysFont("Impact, Arial", max(48, self.sh // 18), bold=True)
+        self.label_font = pygame.font.SysFont("Arial", max(22, self.sh // 42), bold=True)
+        self.value_font = pygame.font.SysFont("Impact, Arial", max(24, self.sh // 40), bold=True)
+        self.info_font = pygame.font.SysFont("Arial", max(14, self.sh // 70))
+
+        # Build layout rects
+        self._build_layout()
+
+        self.hovered_btn = None
+
+    def _load_faction_leaders(self):
+        """Load available leaders for each faction."""
+        from content_registry import get_all_leaders_for_faction
+        self.faction_leaders = {}  # faction → list of leader names
+        self.faction_leader_index = {}  # faction → current index
+
+        for faction in ALL_FACTIONS:
+            leaders = get_all_leaders_for_faction(faction)
+            names = ["Random"] + [l.get("name", "?") for l in leaders]
+            self.faction_leaders[faction] = names
+
+            # Set initial index from settings
+            current = self.enemy_leaders.get(faction)
+            if current and current in names:
+                self.faction_leader_index[faction] = names.index(current)
+            else:
+                self.faction_leader_index[faction] = 0  # "Random"
+
+    def _build_layout(self):
+        """Build UI element rectangles."""
+        arrow_w = int(self.sw * 0.025)
+        arrow_h = int(self.sh * 0.035)
+
+        # Friendly Faction row
+        row_y = int(self.sh * 0.22)
+        self.friendly_left = pygame.Rect(
+            int(self.sw * 0.30), row_y, arrow_w, arrow_h)
+        self.friendly_right = pygame.Rect(
+            int(self.sw * 0.70) - arrow_w, row_y, arrow_w, arrow_h)
+
+        # Neutral Events row
+        row_y2 = int(self.sh * 0.34)
+        self.neutral_left = pygame.Rect(
+            int(self.sw * 0.30), row_y2, arrow_w, arrow_h)
+        self.neutral_right = pygame.Rect(
+            int(self.sw * 0.70) - arrow_w, row_y2, arrow_w, arrow_h)
+
+        # Enemy leader rows (up to 5 factions)
+        self.leader_rows = {}
+        base_y = int(self.sh * 0.50)
+        spacing = int(self.sh * 0.065)
+        for i, faction in enumerate(ALL_FACTIONS):
+            y = base_y + i * spacing
+            self.leader_rows[faction] = {
+                "y": y,
+                "left": pygame.Rect(int(self.sw * 0.55), y, arrow_w, arrow_h),
+                "right": pygame.Rect(int(self.sw * 0.82) - arrow_w, y, arrow_w, arrow_h),
+            }
+
+        # Apply / Back buttons
+        btn_w = int(self.sw * 0.15)
+        btn_h = int(self.sh * 0.055)
+        btn_y = int(self.sh * 0.88)
+        self.apply_rect = pygame.Rect(self.sw // 2 - btn_w - 20, btn_y, btn_w, btn_h)
+        self.back_rect = pygame.Rect(self.sw // 2 + 20, btn_y, btn_w, btn_h)
+
+    def handle_event(self, event):
+        """Handle input. Returns 'back' to close, None to continue."""
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mx, my = event.pos
+
+            # Friendly faction arrows
+            if self.friendly_left.collidepoint(mx, my):
+                self.faction_index = (self.faction_index - 1) % len(self.faction_options)
+            elif self.friendly_right.collidepoint(mx, my):
+                self.faction_index = (self.faction_index + 1) % len(self.faction_options)
+
+            # Neutral event arrows
+            elif self.neutral_left.collidepoint(mx, my):
+                self.neutral_index = (self.neutral_index - 1) % len(self.neutral_options)
+            elif self.neutral_right.collidepoint(mx, my):
+                self.neutral_index = (self.neutral_index + 1) % len(self.neutral_options)
+
+            # Leader arrows
+            else:
+                for faction, row in self.leader_rows.items():
+                    if row["left"].collidepoint(mx, my):
+                        names = self.faction_leaders.get(faction, ["Random"])
+                        idx = self.faction_leader_index.get(faction, 0)
+                        self.faction_leader_index[faction] = (idx - 1) % len(names)
+                        break
+                    elif row["right"].collidepoint(mx, my):
+                        names = self.faction_leaders.get(faction, ["Random"])
+                        idx = self.faction_leader_index.get(faction, 0)
+                        self.faction_leader_index[faction] = (idx + 1) % len(names)
+                        break
+
+            # Apply
+            if self.apply_rect.collidepoint(mx, my):
+                self._save_settings()
+                return "back"
+            # Back
+            if self.back_rect.collidepoint(mx, my):
+                return "back"
+
+        elif event.type == pygame.MOUSEMOTION:
+            mx, my = event.pos
+            self.hovered_btn = None
+            if self.apply_rect.collidepoint(mx, my):
+                self.hovered_btn = "apply"
+            elif self.back_rect.collidepoint(mx, my):
+                self.hovered_btn = "back"
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return "back"
+
+        return None
+
+    def _save_settings(self):
+        """Save current settings to disk."""
+        # Build enemy leaders dict (only non-Random)
+        leaders = {}
+        for faction in ALL_FACTIONS:
+            idx = self.faction_leader_index.get(faction, 0)
+            names = self.faction_leaders.get(faction, ["Random"])
+            if idx > 0 and idx < len(names):
+                leaders[faction] = names[idx]
+
+        self.settings = {
+            "friendly_faction": self.faction_options[self.faction_index],
+            "neutral_count": self.neutral_options[self.neutral_index],
+            "enemy_leaders": leaders,
+        }
+        save_conquest_settings(self.settings)
+
+    def draw(self, screen):
+        """Render the customize run screen with CRT aesthetic."""
+        self.frame_count += 1
+
+        # Background
+        screen.blit(self.background, (0, 0))
+        overlay = pygame.Surface((self.sw, self.sh), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        # Title
+        pulse = 0.85 + 0.15 * math.sin(self.frame_count * 0.03)
+        title_color = tuple(int(c * pulse) for c in CRT_AMBER)
+        title = self.title_font.render("CUSTOMIZE RUN", True, title_color)
+        screen.blit(title, (self.sw // 2 - title.get_width() // 2, int(self.sh * 0.06)))
+
+        # Decorative line
+        line_y = int(self.sh * 0.06) + title.get_height() + 8
+        line_w = int(self.sw * 0.25)
+        pygame.draw.line(screen, tuple(int(c * pulse) for c in CRT_BORDER),
+                         (self.sw // 2 - line_w // 2, line_y),
+                         (self.sw // 2 + line_w // 2, line_y), 2)
+
+        # --- Friendly Faction ---
+        self._draw_option_row(screen, "FRIENDLY FACTION",
+                              "Allied faction — their territory starts as yours",
+                              self._get_faction_text(), self._get_faction_color(),
+                              int(self.sh * 0.18), self.friendly_left, self.friendly_right)
+
+        # --- Neutral Events ---
+        nc_val = self.neutral_options[self.neutral_index]
+        self._draw_option_row(screen, "NEUTRAL EVENTS",
+                              f"Number of neutral planets with text events (max {self.neutral_options[-1]})",
+                              str(nc_val), CRT_CYAN,
+                              int(self.sh * 0.30), self.neutral_left, self.neutral_right)
+
+        # --- Enemy Leaders Section ---
+        section_y = int(self.sh * 0.44)
+        section_label = self.label_font.render("ENEMY LEADERS", True, CRT_AMBER)
+        screen.blit(section_label, (self.sw // 2 - section_label.get_width() // 2, section_y))
+        desc = self.info_font.render("Homeworld defenders — choose or leave random", True, CRT_TEXT_DIM)
+        screen.blit(desc, (self.sw // 2 - desc.get_width() // 2, section_y + section_label.get_height() + 2))
+
+        friendly = self.faction_options[self.faction_index]
+        for faction in ALL_FACTIONS:
+            row = self.leader_rows[faction]
+            y = row["y"]
+            is_friendly = (faction == friendly)
+
+            # Faction name
+            faction_color = FACTION_DISPLAY_COLORS.get(faction, CRT_TEXT)
+            if is_friendly:
+                faction_color = CRT_TEXT_DIM
+            fname = self.label_font.render(faction, True, faction_color)
+            screen.blit(fname, (int(self.sw * 0.15), y + 4))
+
+            if is_friendly:
+                tag = self.info_font.render("(Allied)", True, CRT_GREEN)
+                screen.blit(tag, (int(self.sw * 0.15) + fname.get_width() + 10, y + 8))
+                continue
+
+            # Leader name with arrows
+            idx = self.faction_leader_index.get(faction, 0)
+            names = self.faction_leaders.get(faction, ["Random"])
+            leader_name = names[idx] if idx < len(names) else "Random"
+            leader_color = CRT_TEXT if idx == 0 else (255, 255, 255)
+
+            # Left arrow
+            self._draw_arrow(screen, row["left"], "left", CRT_BTN_BORDER)
+            # Right arrow
+            self._draw_arrow(screen, row["right"], "right", CRT_BTN_BORDER)
+            # Leader name centered between arrows
+            lname = self.value_font.render(leader_name, True, leader_color)
+            center_x = (row["left"].right + row["right"].left) // 2
+            screen.blit(lname, (center_x - lname.get_width() // 2, y + 3))
+
+        # --- Apply / Back buttons ---
+        for rect, label_text, key in [(self.apply_rect, "APPLY", "apply"),
+                                       (self.back_rect, "BACK", "back")]:
+            hovered = (self.hovered_btn == key)
+            bg_color = CRT_BTN_HOVER if hovered else CRT_BTN_BG
+            border_color = CRT_BTN_BORDER_HOVER if hovered else CRT_BTN_BORDER
+
+            btn_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            btn_surf.fill((*bg_color, 220))
+            screen.blit(btn_surf, rect.topleft)
+            pygame.draw.rect(screen, border_color, rect, 2)
+
+            label = self.label_font.render(label_text, True,
+                                           (255, 255, 255) if hovered else CRT_TEXT)
+            screen.blit(label, (rect.centerx - label.get_width() // 2,
+                                rect.centery - label.get_height() // 2))
+
+        # CRT scanlines
+        scanlines = _get_scanline_overlay(self.sw, self.sh, alpha=25)
+        screen.blit(scanlines, (0, 0))
+
+    def _draw_option_row(self, screen, label_text, desc_text, value_text, value_color,
+                         y, left_rect, right_rect):
+        """Draw a labeled option row with left/right arrows and a centered value."""
+        # Label
+        label = self.label_font.render(label_text, True, CRT_TEXT)
+        screen.blit(label, (self.sw // 2 - label.get_width() // 2, y))
+        # Description
+        desc = self.info_font.render(desc_text, True, CRT_TEXT_DIM)
+        screen.blit(desc, (self.sw // 2 - desc.get_width() // 2, y + label.get_height() + 2))
+        # Value row
+        val_y = y + label.get_height() + desc.get_height() + 8
+        # Left arrow
+        lr = pygame.Rect(left_rect.x, val_y, left_rect.width, left_rect.height)
+        left_rect.y = val_y
+        self._draw_arrow(screen, lr, "left", CRT_BTN_BORDER)
+        # Right arrow
+        rr = pygame.Rect(right_rect.x, val_y, right_rect.width, right_rect.height)
+        right_rect.y = val_y
+        self._draw_arrow(screen, rr, "right", CRT_BTN_BORDER)
+        # Value centered
+        val = self.value_font.render(value_text, True, value_color)
+        center_x = (lr.right + rr.left) // 2
+        screen.blit(val, (center_x - val.get_width() // 2, val_y + 2))
+
+    def _draw_arrow(self, screen, rect, direction, color):
+        """Draw a triangle arrow (left or right)."""
+        cx, cy = rect.center
+        hw = rect.width // 3
+        hh = rect.height // 3
+        if direction == "left":
+            points = [(cx + hw, cy - hh), (cx - hw, cy), (cx + hw, cy + hh)]
+        else:
+            points = [(cx - hw, cy - hh), (cx + hw, cy), (cx - hw, cy + hh)]
+        pygame.draw.polygon(screen, color, points)
+
+    def _get_faction_text(self):
+        """Get display text for current friendly faction selection."""
+        val = self.faction_options[self.faction_index]
+        return val if val else "NONE"
+
+    def _get_faction_color(self):
+        """Get display color for current friendly faction selection."""
+        val = self.faction_options[self.faction_index]
+        if val:
+            return FACTION_DISPLAY_COLORS.get(val, CRT_TEXT)
+        return CRT_TEXT_DIM
+
+
+def run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback=None):
+    """
+    Run the Galactic Conquest submenu.
+
+    Returns:
+        'new_run' | 'resume' | 'customize_run' | 'back' | None (quit)
+    """
+    clock = pygame.time.Clock()
+    menu = ConquestMenu(screen.get_width(), screen.get_height())
+
+    while True:
+        clock.tick(60)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return None
+
+            # Handle fullscreen toggle
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                if toggle_fullscreen_callback:
+                    toggle_fullscreen_callback()
+                else:
+                    display_manager.toggle_fullscreen_mode()
+                screen = display_manager.screen
+                menu = ConquestMenu(screen.get_width(), screen.get_height())
+                pygame.event.clear()
+                break
+
+            action = menu.handle_event(event)
+            if action:
+                return action
+
+        menu.draw(screen)
+        display_manager.gpu_flip()
+
+
+def run_customize_screen(screen, toggle_fullscreen_callback=None):
+    """
+    Run the Customize Run settings screen.
+
+    Returns when player clicks Apply or Back.
+    """
+    clock = pygame.time.Clock()
+    customize = CustomizeRunScreen(screen.get_width(), screen.get_height())
+
+    while True:
+        clock.tick(60)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                if toggle_fullscreen_callback:
+                    toggle_fullscreen_callback()
+                else:
+                    display_manager.toggle_fullscreen_mode()
+                screen = display_manager.screen
+                customize = CustomizeRunScreen(screen.get_width(), screen.get_height())
+                pygame.event.clear()
+                break
+
+            action = customize.handle_event(event)
+            if action == "back":
+                return
+
+        customize.draw(screen)
+        display_manager.gpu_flip()

@@ -27,12 +27,18 @@ class SpaceShooterGame:
     SCORE_BOSS = 1000
     SCORE_ASTEROID = 50
 
-    def __init__(self, screen_width, screen_height, player_faction, ai_faction, session_scores=None):
+    def __init__(self, screen_width, screen_height, player_faction, ai_faction, session_scores=None,
+                 mission_type=None, mission_target=None, starting_upgrades=None):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.player_faction = player_faction
         self.ai_faction = ai_faction
         self.session_scores = session_scores if session_scores is not None else []
+
+        # Mission mode
+        self.mission_type = mission_type          # "eliminate" | None (infinite)
+        self.mission_target = mission_target      # kill count to win
+        self.mission_complete = False             # set True when objective met
 
         # Game state
         self.running = True
@@ -196,6 +202,11 @@ class SpaceShooterGame:
 
         # Hit flash effect
         self.player_hit_flash = 0
+
+        # Apply starting upgrades (roguelite carry-over from Galactic Conquest)
+        if starting_upgrades:
+            for upgrade_name, stacks in starting_upgrades.items():
+                self.upgrades[upgrade_name] = self.upgrades.get(upgrade_name, 0) + stacks
 
     @property
     def survival_seconds(self):
@@ -769,6 +780,13 @@ class SpaceShooterGame:
                 self.ai_ships.append(child)
         self.enemies_defeated += 1
         self.total_kills += 1
+
+        # Mission completion check
+        if (self.mission_type == "eliminate" and self.mission_target
+                and self.enemies_defeated >= self.mission_target):
+            self.mission_complete = True
+            self.running = False
+            return
 
         # Kill streak
         self.kill_streak += 1

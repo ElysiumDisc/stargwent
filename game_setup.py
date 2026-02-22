@@ -34,8 +34,11 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
     if lan_game_data:
         # We assume lan_game_data contains { 'game': ..., 'player_faction': ..., etc }
         if 'game' in lan_game_data:
-             # Just return the game object directly
-             return lan_game_data['game'], None, None, 'lan_game'
+             # Return the game object + optional ai_controller
+             ai_ctrl = lan_game_data.get('ai_controller')
+             if ai_ctrl is None and lan_game_data['game'].player2.is_ai:
+                 ai_ctrl = AIController(lan_game_data['game'], lan_game_data['game'].player2, difficulty="hard")
+             return lan_game_data['game'], ai_ctrl, None, 'lan_game'
 
         # Rematch: If we have faction info but no game object, set up for rematch
         if 'player_faction' in lan_game_data:

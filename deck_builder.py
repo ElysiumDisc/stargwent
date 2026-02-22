@@ -140,7 +140,7 @@ FACTION_BACKGROUND_ASSET_IDS = {
 class DeckBuilderUI:
     """Deck builder interface with Accordion Preview and Split Layout."""
 
-    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False, unlock_system=None, exclude_user_content=False):
+    def __init__(self, screen_width, screen_height, for_new_game=True, *, unlock_override=False, unlock_system=None, exclude_user_content=False, conquest_save_callback=None, preset_faction=None, preset_leader=None, preset_deck_ids=None):
         reload_card_images()
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -148,6 +148,10 @@ class DeckBuilderUI:
         self.unlock_override = unlock_override
         self.unlock_system = unlock_system or CardUnlockSystem()
         self.exclude_user_content = exclude_user_content  # CRITICAL: Filter user content for multiplayer
+        self.conquest_save_callback = conquest_save_callback  # Conquest mode: save deck to campaign state
+        self._preset_faction = preset_faction
+        self._preset_leader = preset_leader
+        self._preset_deck_ids = preset_deck_ids
         self.selected_faction = None
         self.selected_leader = None
         self.state = "faction_select"  # faction_select, leader_select, deck_review, complete
@@ -251,6 +255,18 @@ class DeckBuilderUI:
         
         # Layout
         self.setup_layout()
+
+        # Apply presets (for conquest mode deck viewing)
+        if self._preset_faction and self._preset_leader and self._preset_deck_ids is not None:
+            self.selected_faction = self._preset_faction
+            self.selected_leader = self._preset_leader
+            self.deck_preview_ids = list(self._preset_deck_ids)
+            # Same card pool as normal: player's faction + weather + neutral
+            self.card_pool_ids = get_faction_card_pool(
+                self._preset_faction, self.unlock_system, self.unlock_override,
+                exclude_user_content=self.exclude_user_content)
+            self.state = "deck_review"
+            self.current_tab = "all"
 
     def load_tab_icons(self):
         """Load icons for deck builder tabs."""
@@ -395,16 +411,17 @@ class DeckBuilderUI:
         )
         
         # Save button (for deck building mode) - positioned above accordion
+        save_btn_w = 200
         self.save_button = pygame.Rect(
-            self.screen_width // 2 - 100,
+            self.screen_width // 2 - save_btn_w // 2,
             self.screen_height - accordion_height - 60,
-            200,
+            save_btn_w,
             50
         )
 
         # Reset to Default button (next to save button)
         self.reset_default_button = pygame.Rect(
-            self.screen_width // 2 + 120,
+            self.save_button.right + 20,
             self.screen_height - accordion_height - 60,
             180,
             50
@@ -418,9 +435,14 @@ class DeckBuilderUI:
         if not self.selected_faction or not self.selected_leader or not self.deck_preview_ids:
             return False
         card_ids = list(self.deck_preview_ids)
-        save_player_deck(self.selected_faction, self.selected_leader['card_id'], card_ids)
-        save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
-        self.last_save_message = f"Saved deck for {self.selected_faction}: {len(card_ids)} cards"
+        # Conquest mode: save to campaign state instead of player_decks.json
+        if self.conquest_save_callback:
+            self.conquest_save_callback(card_ids)
+            self.last_save_message = f"Conquest deck saved: {len(card_ids)} cards"
+        else:
+            save_player_deck(self.selected_faction, self.selected_leader['card_id'], card_ids)
+            save_leader_choice(self.selected_faction, self.selected_leader['card_id'])
+            self.last_save_message = f"Saved deck for {self.selected_faction}: {len(card_ids)} cards"
         self.last_save_time = pygame.time.get_ticks()
         if reason:
             print(f"✓ {reason} | {self.last_save_message}")
@@ -551,15 +573,28 @@ class DeckBuilderUI:
                 pass
     
     def load_deck_building_bg(self):
-        """Load deck building background image."""
+        """Load deck building background image.
+
+        In conquest mode, prefer ``deck_building_conquest_bg.png``.
+        """
         import os
+        # Conquest mode uses its own background
+        if self.conquest_save_callback:
+            conquest_bg = os.path.join("assets", "deck_building_conquest_bg.png")
+            if os.path.exists(conquest_bg):
+                try:
+                    bg_image = pygame.image.load(conquest_bg).convert()
+                    self.deck_building_bg = pygame.transform.scale(bg_image, (self.screen_width, self.screen_height))
+                    return
+                except Exception:
+                    pass
+
         bg_path = os.path.join("assets", "deck_building_bg.png")
 
         if os.path.exists(bg_path):
             try:
                 bg_image = pygame.image.load(bg_path).convert()
                 self.deck_building_bg = pygame.transform.scale(bg_image, (self.screen_width, self.screen_height))
-                print("✓ Loaded deck_building_bg.png")
             except Exception as e:
                 print(f"Warning: Could not load {bg_path}: {e}")
                 self.deck_building_bg = None
@@ -1352,7 +1387,11 @@ class DeckBuilderUI:
                 if event.button == 1:
                     if self.back_button.collidepoint(mouse_pos):
                         _play_menu_select_sound()
-                        if self.for_new_game:
+                        if self.conquest_save_callback:
+                            # Conquest mode: save and close — return to galaxy map
+                            self.save_current_deck("Conquest deck saved")
+                            self.return_to_menu = True
+                        elif self.for_new_game:
                             self.state = "leader_select"
                         else:
                             # Go back to faction select, not main menu
@@ -1751,9 +1790,11 @@ class DeckBuilderUI:
             self.reset_default_button = reset_btn_rect
         else:
             # SAVE DECK button
-            pygame.draw.rect(surface, (50, 180, 50), self.save_button, border_radius=8)
+            save_label = "SAVE DECK"
+            btn_color = (50, 140, 80) if self.conquest_save_callback else (50, 180, 50)
+            pygame.draw.rect(surface, btn_color, self.save_button, border_radius=8)
             pygame.draw.rect(surface, (100, 255, 100), self.save_button, width=2, border_radius=8)
-            save_text = self.button_font.render("SAVE DECK", True, (255, 255, 255))
+            save_text = self.button_font.render(save_label, True, (255, 255, 255))
             surface.blit(save_text, save_text.get_rect(center=self.save_button.center))
 
         # RESET TO DEFAULT button (shown in both modes)
@@ -1793,7 +1834,8 @@ class DeckBuilderUI:
         surface.blit(s, self.stats_box_rect.topleft)
 
         # Title with glow effect
-        title = self.subtitle_font.render("DECK STATS", True, self.highlight_color)
+        title_text = "CONQUEST DECK" if self.conquest_save_callback else "DECK STATS"
+        title = self.subtitle_font.render(title_text, True, self.highlight_color)
         surface.blit(title, (self.stats_box_rect.x + 20, self.stats_box_rect.y + 10))
         
         # Calculate stats
@@ -1804,17 +1846,18 @@ class DeckBuilderUI:
         neutral_count = len([c for c in deck_cards if c.faction == FACTION_NEUTRAL])
         total_power = sum(c.power for c in deck_cards if c.row not in ["special", "weather"])
 
-        # Calculate Naquadah cost
+        # Calculate Naquadah cost — conquest decks are exempt from budget
         NAQUADAH_BUDGET = 230
         total_naquadah = sum(c.naquadah_cost for c in deck_cards)
-        naquadah_over = total_naquadah > NAQUADAH_BUDGET
+        is_conquest = bool(self.conquest_save_callback)
+        naquadah_over = total_naquadah > NAQUADAH_BUDGET and not is_conquest
 
         # Deck validity check
         is_valid, status_msg = validate_deck(deck_cards)
 
-        # Check for Mercenary Tax (Neutral Penalty)
+        # Check for Mercenary Tax (Neutral Penalty) — conquest decks are exempt
         mercenary_tax = False
-        if len(deck_cards) > 0 and neutral_count > len(deck_cards) / 2:
+        if not is_conquest and len(deck_cards) > 0 and neutral_count > len(deck_cards) / 2:
             mercenary_tax = True
 
         stats = [
@@ -1827,6 +1870,9 @@ class DeckBuilderUI:
         if mercenary_tax:
             stats.append(("! MERCENARY TAX ACTIVE !", (255, 50, 50)))
 
+        if is_conquest:
+            stats.append(("Conquest: No Tax / No Naq Penalty", (100, 220, 140)))
+
         y_offset = self.stats_box_rect.y + 55
         for text, color in stats:
             txt_surf = self.stat_font.render(text, True, color)
@@ -1837,7 +1883,8 @@ class DeckBuilderUI:
         y_offset += 8
         # Naquadah has a grayish-silver crystalline appearance
         naquadah_color = (180, 195, 210) if not naquadah_over else (255, 120, 120)
-        naquadah_label = self.stat_font.render(f"Naquadah: {total_naquadah}/{NAQUADAH_BUDGET}", True, naquadah_color)
+        naq_label_text = f"Naquadah: {total_naquadah} (no limit)" if is_conquest else f"Naquadah: {total_naquadah}/{NAQUADAH_BUDGET}"
+        naquadah_label = self.stat_font.render(naq_label_text, True, naquadah_color)
         surface.blit(naquadah_label, (self.stats_box_rect.x + 20, y_offset))
         y_offset += 22
 
@@ -2701,7 +2748,7 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     return sorted_ids
 
 
-def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None, exclude_user_content=False):
+def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None, exclude_user_content=False, conquest_save_callback=None, preset_faction=None, preset_leader=None, preset_deck_ids=None):
     """
     Run the deck builder interface.
     Args:
@@ -2709,6 +2756,11 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
         for_new_game: If True, full flow with leader selection for starting a new game.
                      If False, skip directly to deck customization (from main menu deck building).
         exclude_user_content: If True, filter out all user-created content (for multiplayer/LAN).
+        conquest_save_callback: If set, save deck calls this function instead of player_decks.json.
+                               Used by Galactic Conquest to save deck to campaign state.
+        preset_faction: Pre-select this faction (skips faction select).
+        preset_leader: Pre-select this leader dict (skips leader select).
+        preset_deck_ids: Pre-load this deck (skips to deck review).
     Returns the selected faction and leader, or None if cancelled.
     """
     # CRITICAL: Reload card images to ensure they're loaded with proper screen dimensions
@@ -2725,7 +2777,11 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
         for_new_game=for_new_game,
         unlock_override=unlock_override,
         unlock_system=unlock_system,
-        exclude_user_content=exclude_user_content
+        exclude_user_content=exclude_user_content,
+        conquest_save_callback=conquest_save_callback,
+        preset_faction=preset_faction,
+        preset_leader=preset_leader,
+        preset_deck_ids=preset_deck_ids,
     )
     clock = pygame.time.Clock()
 

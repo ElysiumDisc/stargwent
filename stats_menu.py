@@ -502,10 +502,66 @@ def run_stats_menu(screen):
     back_rect = pygame.Rect(20, 20, 80, 104)
     reset_rect = pygame.Rect(panel_rect.right - 90, panel_rect.bottom - 90, 70, 70)
 
+    def build_conquest_tab(stats, computed):
+        rows = []
+        add_section(rows, "Galactic Conquest")
+        conquest = stats.get("conquest_stats", {})
+        if conquest and conquest.get("campaigns_started", 0) > 0:
+            add_row(rows, "Campaigns Started", str(conquest.get("campaigns_started", 0)))
+            add_row(rows, "Campaigns Won", str(conquest.get("campaigns_won", 0)))
+            add_row(rows, "Campaigns Lost", str(conquest.get("campaigns_lost", 0)))
+            battles_won = conquest.get("battles_won", 0)
+            battles_lost = conquest.get("battles_lost", 0)
+            total_battles = battles_won + battles_lost
+            if total_battles > 0:
+                battle_wr = (battles_won / total_battles) * 100
+                add_bar_row(rows, "Battle Record", f"{battles_won}W / {battles_lost}L ({battle_wr:.1f}%)", battle_wr / 100.0, (100, 220, 140))
+            else:
+                add_row(rows, "Battle Record", "No battles yet")
+            planets_conquered = conquest.get("planets_conquered", 0)
+            add_row(rows, "Total Planets Conquered", str(planets_conquered))
+            defenses_won = conquest.get("defenses_won", 0)
+            defenses_lost = conquest.get("defenses_lost", 0)
+            if defenses_won + defenses_lost > 0:
+                add_row(rows, "Defenses", f"{defenses_won}W / {defenses_lost}L")
+            best_turn = conquest.get("best_victory_turn")
+            if best_turn:
+                add_row(rows, "Fastest Victory", f"Turn {best_turn}")
+            cards_drafted = conquest.get("cards_drafted", 0)
+            if cards_drafted > 0:
+                add_row(rows, "Cards Drafted", str(cards_drafted))
+            cards_upgraded = conquest.get("cards_upgraded", 0)
+            if cards_upgraded > 0:
+                add_row(rows, "Cards Upgraded", str(cards_upgraded))
+            naq_earned = conquest.get("naquadah_earned", 0)
+            if naq_earned > 0:
+                add_row(rows, "Total Naquadah Earned", str(naq_earned))
+
+            # Conquest achievements
+            add_section(rows, "Conquest Achievements")
+            if conquest.get("campaigns_won", 0) >= 1:
+                rows.append({"type": "achievement", "text": "* Galaxy Conqueror (Won a campaign)"})
+            if conquest.get("campaigns_won", 0) >= 5:
+                rows.append({"type": "achievement", "text": "* Galactic Emperor (Won 5 campaigns)"})
+            if best_turn and best_turn <= 15:
+                rows.append({"type": "achievement", "text": "* Blitzkrieg (Won in 15 turns or fewer)"})
+            if planets_conquered >= 50:
+                rows.append({"type": "achievement", "text": "* Planet Hoarder (50+ planets conquered)"})
+            if not any(r.get("type") == "achievement" for r in rows if isinstance(r, dict)):
+                add_row(rows, "Achievements", "Keep conquering to unlock!")
+        else:
+            add_row(rows, "Conquest Runs", "Play Galactic Conquest to see stats!")
+            add_section(rows, "About Conquest Mode")
+            add_row(rows, "Mode", "Roguelite card-battle campaign")
+            add_row(rows, "Goal", "Capture all enemy homeworlds")
+            add_row(rows, "Deck", "Grows via rewards from victories")
+            add_row(rows, "Planets", "20 planets across 5 factions")
+        return rows
+
     # Tab state
-    TAB_NAMES = ["Overview", "Factions", "Leaders", "Records", "Draft"]
-    TAB_KEYS = ["overview", "factions", "leaders", "records", "draft"]
-    TAB_BUILDERS = [build_overview_tab, build_factions_tab, build_leaders_tab, build_records_tab, build_draft_tab]
+    TAB_NAMES = ["Overview", "Factions", "Leaders", "Records", "Draft", "Conquest"]
+    TAB_KEYS = ["overview", "factions", "leaders", "records", "draft", "conquest"]
+    TAB_BUILDERS = [build_overview_tab, build_factions_tab, build_leaders_tab, build_records_tab, build_draft_tab, build_conquest_tab]
     active_tab_idx = 0
     tab_scroll_offsets = {k: 0 for k in TAB_KEYS}
 
@@ -563,7 +619,7 @@ def run_stats_menu(screen):
                     active_tab_idx = (active_tab_idx + 1) % num_tabs
                     current_key = TAB_KEYS[active_tab_idx]
                     scroll_offset = tab_scroll_offsets[current_key]
-                elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5):
+                elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5, pygame.K_6):
                     idx = event.key - pygame.K_1
                     if idx < num_tabs:
                         tab_scroll_offsets[current_key] = scroll_offset
@@ -845,7 +901,7 @@ def run_stats_menu(screen):
                 draw_y = (panel_rect.height - preview_h) // 2
                 panel_surf.blit(preview, (draw_x, draw_y))
 
-        hint = value_font.render("Tab / 1-5: switch tabs | Scroll | ESC to go back", True, (170, 190, 210))
+        hint = value_font.render("Tab / 1-6: switch tabs | Scroll | ESC to go back", True, (170, 190, 210))
         hint_rect = hint.get_rect(center=(panel_rect.width // 2, panel_rect.height - 50))
         panel_surf.blit(hint, hint_rect)
 

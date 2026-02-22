@@ -33,6 +33,8 @@ Generated on 2026-02-18 22:49 UTC using cards.py, content_registry.py, unlocks.p
 - **Progression:** Winning any match unlocks one of three random cards (weighted to your faction/Neutral). Three consecutive wins unlock one of three faction leaders. Unlock state stored in `player_unlocks.json`.
 - **Controls Recap:** Drag/drop to play, right-click to inspect, SPACE to trigger Faction Power (once per game), ESC to pause, D to view discard, mouse wheel to scroll panels.
 - **Battlefield Cues:** Weather slots on the left show hazards affecting rows; horn slots highlight Command Network placement; discard, artifact, and history panels remain clickable from this tab to reinforce UI literacy.
+- **Game Modes:** Standard (vs AI), LAN Multiplayer, Draft Mode (arena-style: build a random deck and battle through 8 opponents), Space Shooter Arcade (survival shooter mini-game), and Galactic Conquest (roguelite card-battle campaign).
+- **Galactic Conquest:** A single-player roguelite campaign where you conquer a galaxy of 20 planets through card battles. Pick your faction and leader, then attack adjacent planets on a strategic galaxy map. Win card battles to claim territory and earn rewards — choose new cards from defeated factions to strengthen your deck. Enemy factions can counterattack your territory. Capture all 4 enemy homeworlds to win. Your conquest deck is separate from your standard deck and is immune to Mercenary Tax and Naquadah budget penalties (like Draft Mode). Neutral planets offer text events with roguelite choices: bonus cards, naquadah, card upgrades, or deck trimming. The more planets you control, the better your victory rewards become.
 
 
 ## Tab 2 – Turn Structure

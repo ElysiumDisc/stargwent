@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-8.0.0-blue)
+![Version](https://img.shields.io/badge/version-8.3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -96,6 +96,17 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, and thruster boost activation sound
 - **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
+
+### 🌌 Galactic Conquest (Roguelite Campaign)
+- **Territory Conquest**: Conquer a galaxy of 20+ planets through card battles across 5 faction territories
+- **Roguelite Deck Progression**: Draft cards from defeated factions, upgrade card power, trim weak cards
+- **Customize Your Run**: Choose friendly factions, neutral event count, and enemy leaders before starting
+- **Faction Conquest Bonuses**: Each faction grants unique rewards — Tau'ri intel, Goa'uld domination, Jaffa training, Lucian trade, Asgard tech
+- **Neutral Planet Events**: 7 text events with choices — trader caravans, ancient outposts, Ori plagues, naquadah mines
+- **AI Counterattacks**: Enemy factions attack your borders; successful defense earns cards and upgrades
+- **Planet Control Scaling**: More planets = better rewards (Standard / Enhanced / Supreme tiers)
+- **Campaign Persistence**: Auto-saves every turn; resume from exact state
+- **CRT Terminal Menu**: Retro scanline aesthetic with pulsing amber title
 
 ### 🌐 LAN Multiplayer
 - **Full 2-Player Networked Gameplay** - Host/Join with deck selection and chat
@@ -444,10 +455,15 @@ All abilities renamed and themed around Stargate lore:
 
 ## 🏆 Progression System
 
+### 🌌 Galactic Conquest Mode
+- **GALACTIC CONQUEST** from main menu launches the roguelite campaign
+- **Customize Run** — set friendly faction, neutral event count, enemy leaders
+- **New Campaign** — pick faction, leader, deck, then conquer the galaxy
+- **Galaxy Map** — click adjacent enemy planets to attack, end turn for AI counterattacks
+- **Win card battles** and neutral events to claim planets
+- **Capture all 4 enemy homeworlds** to win; lose your homeworld = defeat
+
 ## 🔮 Future Roadmap (Ideas)
-- **Single-Player Campaign**: Story-driven runs for all four factions, blending comic-book style cutscenes, roguelite replayability, and branching scenarios.
-- **Cinematic Comic Panels**: Hand-drawn panels and motion layouts between missions to deliver a gripping Stargate narrative.
-- **Roguelite Progression**: Draft between battles, evolving decks, leader upgrades, and escalating anomalies to keep each run fresh.
 
 ### Card Unlocks ✅
 - **Trigger**: Win any game

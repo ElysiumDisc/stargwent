@@ -255,6 +255,7 @@ class MainMenu:
         # Menu options
         self.options = [
             {'text': 'NEW GAME', 'action': 'new_game'},
+            {'text': 'GALACTIC CONQUEST', 'action': 'galactic_conquest'},
             {'text': 'DRAFT MODE', 'action': 'draft_mode'},
             {'text': 'DECK BUILDING', 'action': 'deck_building'},
             {'text': 'MULTIPLAYER', 'action': 'lan_menu'},
@@ -1307,6 +1308,15 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             if action == 'new_game':
                 stop_menu_music()
                 return 'new_game'
+            elif action == 'galactic_conquest':
+                stop_menu_music()
+                from galactic_conquest import run_galactic_conquest
+                run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback)
+                # Returned from conquest — refresh and resume menu
+                screen = display_manager.screen
+                main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
+                main_menu.screen_surface = screen
+                start_menu_music()
             elif action == 'draft_mode':
                 stop_menu_music()
                 return 'draft_mode'

@@ -1,3 +1,120 @@
+### Version 8.3.0 (February 2026)
+**Galactic Conquest — Customize Run, Faction Bonuses, Defense Rewards, CRT Menu**
+
+#### Conquest Menu Overhaul — CRT Terminal UI
+- **CRT scanline effect**: Semi-transparent scanline overlay on the conquest menu for retro Stargate terminal aesthetic
+- **Minimal layout**: Removed large description panel — clean title + 4 buttons: NEW CAMPAIGN, RESUME, CUSTOMIZE RUN, BACK
+- **Pulsing amber title**: Animated "GALACTIC CONQUEST" with subtle brightness pulse
+- **Pre-cached scanlines**: Scanline overlay surface rendered once and reused for performance at 4K
+
+#### Customize Run Screen (New)
+- **Friendly Faction**: Choose an allied faction whose territory starts as yours (None by default); they don't counterattack
+- **Neutral Events**: Set the number of neutral planet events (3, 5, 7, or 9); 4 additional Stargate-canon planets added (Kheb, Proclarush, Vagonbrei, P3X-888)
+- **Enemy Leader Selection**: Per-faction leader picker for homeworld defenders — cycle through each faction's leaders or leave as Random
+- **Persistent settings**: Saved to `conquest_settings.json` via XDG data paths; applied when starting new campaigns
+- **CRT-themed UI**: Arrow selectors for each option, faction-colored labels, allied faction tags
+
+#### Faction-Specific Conquest Bonuses (New)
+- **Tau'ri** (Intel): +1 random card from any faction on conquest
+- **Goa'uld** (Domination): +2 power upgrade to a random card on conquest
+- **Jaffa Rebellion** (Training): Remove weakest card from deck on conquest (if deck > 15 cards)
+- **Lucian Alliance** (Trade): +50 bonus naquadah on conquest
+- **Asgard** (Technology): +1 power upgrade to 2 random cards on conquest
+- Faction bonuses displayed on reward screen after card pick
+
+#### Counterattack Defense Bonuses (New)
+- **Card reward**: Successful defense now awards +1 random card from the attacking faction
+- **Upgrade chance**: 30% chance to upgrade a random card +1 power on successful defense
+- Defense bonus details appended to the flash message
+
+#### Leader Portrait in Neutral Events (New)
+- Player's leader portrait displayed alongside event text using card art asset (`assets/{card_id}.png`)
+- Portrait with border glow and leader name label below
+- Event text layout shifts right when portrait is present for clean side-by-side arrangement
+
+#### Campaign State Expansion
+- Added `friendly_faction`, `neutral_count`, and `enemy_leaders` fields to CampaignState
+- Full serialization support in save/load for all new settings
+- Galaxy map `generate()` accepts friendly faction, neutral count, and enemy leader parameters
+- Friendly faction planets start as player-owned in galaxy generation
+
+#### Files Modified
+- `galactic_conquest/conquest_menu.py` — Complete rewrite: CRT theme, 4 buttons, CustomizeRunScreen class
+- `galactic_conquest/__init__.py` — Wire customize_run action, pass settings to new campaign
+- `galactic_conquest/campaign_state.py` — Added friendly_faction, neutral_count, enemy_leaders fields
+- `galactic_conquest/campaign_persistence.py` — Added conquest settings save/load functions
+- `galactic_conquest/campaign_controller.py` — Faction bonuses, defense bonuses, skip friendly faction counterattacks
+- `galactic_conquest/galaxy_map.py` — 9 neutral planets, friendly faction support, enemy leader assignment
+- `galactic_conquest/neutral_events.py` — Leader portrait display alongside event text
+- `galactic_conquest/reward_screen.py` — Faction bonus message display
+
+---
+
+### Version 8.2.0 (February 2026)
+**Galactic Conquest — Roguelite Card-Battle Campaign Mode**
+
+#### Galactic Conquest Mode (New)
+- **Full roguelite campaign**: Conquer a galaxy of 20 planets through card battles
+- **Galaxy map**: Stargate-themed star map with 5 faction homeworlds, 10 territory planets, and 5 neutral planets connected by hyperspace lanes
+- **Strategic territory**: Only attack planets adjacent to your territory; enemy factions can counterattack your borders
+- **Roguelite deck progression**: Win battles to draft cards from defeated factions; deck evolves throughout the campaign
+- **Neutral planet events**: 7 text events with choices — bonus cards, naquadah, card upgrades, deck trimming, and more; every event offers an optional neutral card recruit
+- **Planet control scaling**: More planets = better rewards (Standard → Enhanced → Supreme tiers with increasing card choices and naquadah multipliers)
+- **Card upgrade system**: Permanently boost card power via naquadah or event rewards for the current run
+- **AI counterattacks**: Each enemy faction with border territory has a 30% chance per turn to attack one of your planets
+- **Win condition**: Capture all 4 enemy homeworlds; Lose condition: your homeworld falls
+- **Conquest deck builder**: Full deck builder UI with separate conquest deck save; immune to Mercenary Tax and Naquadah budget penalties (like Draft Mode)
+- **Conquest deck background**: Dedicated `deck_building_conquest_bg.png` background for the deck builder in conquest mode
+- **Campaign persistence**: Auto-saves after every turn; resume from exact state
+- **Run Info screen**: View territory, reward tier, upgraded cards, cooldowns, and enemy homeworld status mid-campaign
+
+#### Conquest Submenu (StarCraft-meets-Stargate UI)
+- **Cinematic panel UI**: Framed center panel with animated pulsing corner accents, split "GALACTIC / CONQUEST" gold title
+- **Buttons with hover glow**: New Campaign, Resume (shows save info: turn, faction, deck size, naquadah), Back
+- **Separate backgrounds**: `conquest_menu_bg.png` for submenu, `conquest.png` for galaxy map — both with Stargate-themed Milky Way galaxy art
+
+#### Galaxy Map HUD
+- **Two-row bottom HUD**: Info row (planet details, defender, weather) above button row (Save & Quit, Run Info, View Deck, End Turn, Attack)
+- **Top HUD**: Turn number, naquadah, deck size, planet control count, upgrade count
+- **Planet interaction**: Click planets to see details; glow effects on attackable planets; cooldown timers displayed
+- **Keyboard shortcuts**: D = View Deck, I = Run Info, ESC = Save & Quit
+
+#### Stats Menu — Conquest Tab
+- **New "Conquest" tab** (6th tab): Campaigns started/won/lost, battle record, planets conquered, defenses, fastest victory, cards drafted/upgraded, naquadah earned
+- **Conquest achievements**: Galaxy Conqueror, Galactic Emperor, Blitzkrieg, Planet Hoarder
+
+#### Rules Menu — Conquest Info
+- **Game Modes section** added to Basic Rules tab with full Galactic Conquest description
+
+#### New Placeholder Assets
+- `conquest.png` — 4K Stargate galaxy map with 70+ named canon planets, faction territories, cyan diamond markers
+- `conquest_menu_bg.png` — Darker cinematic version with StarCraft-style border frame
+- `deck_building_conquest_bg.png` — Purple energy beam interior with golden Goa'uld ornate framing
+
+#### New Package: `galactic_conquest/`
+- `__init__.py` — Entry point: `run_galactic_conquest(screen, unlock_system)`
+- `campaign_state.py` — CampaignState dataclass with serialization
+- `campaign_persistence.py` — Save/load/clear campaign JSON via XDG data paths
+- `campaign_controller.py` — Main orchestrator: turn loop, attacks, AI counterattacks, deck viewer, run info
+- `galaxy_map.py` — GalaxyMap with procedural generation, Planet dataclass, adjacency graph
+- `map_renderer.py` — Galaxy map renderer with planet clicks, HUD, button interactions
+- `conquest_menu.py` — StarCraft-style submenu: New Run / Resume / Back
+- `faction_setup.py` — Faction + leader selection for campaign start
+- `reward_screen.py` — Post-victory card picks with planet control tier scaling
+- `neutral_events.py` — 7 text events with roguelite choices
+- `card_battle.py` — Card battle wrapper using existing game loop
+
+#### Files Modified
+- `deck_builder.py` — Conquest mode integration: `conquest_save_callback`, `preset_faction/leader/deck_ids`, conquest-specific background loading, penalty exemption display
+- `scripts/create_placeholders.py` — Three new background generators
+- `stats_menu.py` — Added Conquest tab (6th tab) with campaign statistics and achievements
+- `docs/rules_menu_spec.md` — Added Game Modes and Galactic Conquest descriptions
+- `main_menu.py` — Added "GALACTIC CONQUEST" menu option
+- `game_setup.py` — Added routing for galactic_conquest action
+- `save_paths.py` — Added campaign save path
+
+---
+
 ### Version 8.0.0 (February 2026)
 **Major Content & Co-op Overhaul — New Enemies, Environmental Hazards, Ally Ships, Faction Powerups, LAN Independent Cameras**
 

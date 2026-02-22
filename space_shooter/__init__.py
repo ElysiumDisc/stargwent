@@ -63,7 +63,8 @@ def _stop_space_music(fade_ms=800):
             pass
 
 
-def run_space_shooter(screen, player_faction=None, ai_faction=None):
+def run_space_shooter(screen, player_faction=None, ai_faction=None,
+                      mission_type=None, mission_target=None, starting_upgrades=None):
     """
     Run the space shooter mini-game.
 
@@ -71,6 +72,9 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
         screen: Pygame display surface
         player_faction: Player's faction name (if None, show selection screen)
         ai_faction: AI's faction name (if None, pick random)
+        mission_type: Optional "eliminate" for kill-count missions (None = infinite survival)
+        mission_target: Kill count to win (e.g. 4 for planet defense)
+        starting_upgrades: Optional dict of upgrade_name → stacks (roguelite carry-over)
 
     Returns:
         True if player won, False if AI won, None if exited early
@@ -117,7 +121,9 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
 
     session_scores = []
     game = SpaceShooterGame(screen_width, screen_height, player_faction, ai_faction,
-                            session_scores=session_scores)
+                            session_scores=session_scores,
+                            mission_type=mission_type, mission_target=mission_target,
+                            starting_upgrades=starting_upgrades)
 
     while game.running:
         for event in pygame.event.get():
@@ -138,6 +144,10 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None):
 
     if game.exit_to_menu:
         return None
+
+    # Mission mode — return based on objective completion
+    if mission_type == "eliminate" and getattr(game, 'mission_complete', False):
+        return True
 
     # Survival mode — always ends in death, but return based on performance
     return game.survival_seconds > 120  # "Won" if survived >2 minutes

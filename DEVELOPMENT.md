@@ -911,6 +911,39 @@ Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player
 
 ---
 
+## 🌌 Galactic Conquest Architecture (v8.3.0)
+
+Roguelite card-battle campaign mode. Conquer a galaxy of planets through card battles with deck progression.
+
+### Package Structure: `galactic_conquest/`
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `__init__.py` | ~110 | Entry point `run_galactic_conquest()`, new campaign + resume + customize run routing |
+| `conquest_menu.py` | ~380 | CRT-themed submenu (New/Resume/Customize Run/Back) + CustomizeRunScreen with per-faction leader picker |
+| `campaign_state.py` | ~85 | CampaignState dataclass — faction, leader, deck, naquadah, planets, cooldowns, upgrades, friendly faction, enemy leaders |
+| `campaign_persistence.py` | ~100 | Save/load campaign JSON + conquest_settings.json via XDG paths |
+| `campaign_controller.py` | ~500 | Main orchestrator — turn loop, attacks, AI counterattacks, faction bonuses, defense bonuses, deck viewer, run info |
+| `galaxy_map.py` | ~440 | Planet dataclass, GalaxyMap — procedural generation, adjacency graph, 9 neutral + 15 faction planets |
+| `map_renderer.py` | ~450 | Galaxy map renderer — planet clicks, two-row HUD, keyboard shortcuts (D/I/ESC) |
+| `faction_setup.py` | ~70 | Faction + leader selection, reuses deck_builder |
+| `card_battle.py` | ~60 | Card battle wrapper — builds Game + AIController, calls `main.main(lan_game_data=...)` |
+| `reward_screen.py` | ~290 | Post-victory card picks with planet control tier scaling + faction bonus display |
+| `neutral_events.py` | ~370 | 7 text events with choices + leader portrait display |
+
+### Key Systems
+
+- **Customize Run**: Friendly faction, neutral event count (3-9), per-faction enemy leader selection; persisted in `conquest_settings.json`
+- **Faction Conquest Bonuses**: Tau'ri=intel card, Goa'uld=upgrade+2, Jaffa=remove weak, Lucian=+50 naquadah, Asgard=upgrade×2
+- **Defense Bonuses**: +1 card from attacker + 30% upgrade chance on successful counterattack defense
+- **Planet Control Scaling**: 3-5 planets=Standard (3 choices), 6-9=Enhanced (4 choices, +25% naq), 10+=Supreme (5 choices, +50% naq)
+- **Card Battle Integration**: Passes pre-built `Game` object to `main.main(lan_game_data={'game': game, 'ai_controller': ai_ctrl})`
+- **CRT Menu**: Pre-cached scanline overlay, pulsing amber title, CRT-green UI, faction-colored displays
+- **Leader Portrait**: Neutral event screens display player's leader card art alongside event text
+- **Post-Battle Refresh**: `_refresh_after_battle()` — `self.screen = display_manager.screen` + rebuild MapScreen + `pygame.event.clear()`
+
+---
+
 ## 🚀 Space Shooter Architecture (v8.0.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
