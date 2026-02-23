@@ -1070,7 +1070,7 @@ class Sun:
         self.active = True
         self.phase = self.PHASE_GROWING
         self.timer = 0
-        self.max_radius = 80
+        self.max_radius = 160
         self.current_radius = 0
         self.pulse = 0
         self.rotation = 0
@@ -1149,10 +1149,10 @@ class Sun:
         self.triggered_shake = False
 
     def _apply_gravity(self, entities_dict):
-        """Pull everything within 300px toward center. 2 DPS at inner 50px."""
-        pull_radius = 300
-        core_radius = 50
-        max_accel = 3.0
+        """Pull everything within 1000px toward center. 2 DPS at inner 160px."""
+        pull_radius = 1000
+        core_radius = 160
+        max_accel = 5.5
 
         all_entities = []
         for ship in entities_dict.get('ships', []):
@@ -1263,3 +1263,452 @@ class Sun:
             surface.blit(p_surf, (int(px) - ps, int(py) - ps))
 
         surface.blit(surf, (int(sx) - c, int(sy) - c))
+
+
+
+class Supergate:
+    """Supergate portal that opens to spawn a boss ship.
+
+    5 phases — full Stargate-style kawoosh sequence:
+    1. APPEARING  (90f / 1.5s): Ring materialises, chevron pulses, energy crackle
+    2. ACTIVATING (150f / 2.5s): Unstable vortex KAWOOSH explodes outward then
+       retracts into a shimmering event horizon
+    3. OPEN       (60f / 1s):   Stable wormhole, boss emerges from center
+    4. CLOSING    (60f / 1s):   Horizon collapses, ring fades
+    """
+
+    PHASE_APPEARING = 0
+    PHASE_ACTIVATING = 1
+    PHASE_OPEN = 2
+    PHASE_HOLDING = 3   # Stays open until boss is killed
+    PHASE_CLOSING = 4
+
+    def __init__(self, x, y, boss_hp=5000):
+        self.x = x
+        self.y = y
+        self.active = True
+        self.phase = self.PHASE_APPEARING
+        self.timer = 0
+        self.ring_scale = 0.0
+        self.ring_radius = 150
+        self.pulse = 0.0
+        self.particles = []
+        self.boss_spawned = False
+
+        # Supergate is destroyable — 5x boss HP
+        self.max_health = boss_hp * 5
+        self.health = self.max_health
+        self.hit_flash = 0
+
+        # Kawoosh state
+        self._kawoosh_burst_done = False
+        self._tendrils = []          # lightning arcs around ring
+        self._horizon_wobble = []    # per-frame wobble offsets (pre-calc)
+        self._chevron_flash = 0.0
+
+        # Try loading supergate image
+        self._ring_image = None
+        try:
+            path = os.path.join("assets", "ships", "supergate.png")
+            if os.path.exists(path):
+                img = pygame.image.load(path).convert_alpha()
+                self._ring_image = pygame.transform.smoothscale(img, (300, 300))
+        except (pygame.error, FileNotFoundError):
+            pass
+
+        self.phase_durations = {
+            self.PHASE_APPEARING: 90,
+            self.PHASE_ACTIVATING: 150,
+            self.PHASE_OPEN: 60,
+            self.PHASE_HOLDING: -1,  # Indefinite — closed externally via close()
+            self.PHASE_CLOSING: 60,
+        }
+        self._linked_boss = None  # Set by game.py after boss spawns
+
+    # ── update ──────────────────────────────────────────────────────
+
+    def update(self):
+        """Update supergate animation. Returns 'spawn_boss' when boss should emerge."""
+        self.timer += 1
+        self.pulse += 0.12
+        if self.hit_flash > 0:
+            self.hit_flash -= 1
+        result = None
+
+        dur = self.phase_durations[self.phase]
+        progress = min(1.0, self.timer / dur) if dur > 0 else 0
+
+        if self.phase == self.PHASE_APPEARING:
+            self.ring_scale = progress ** 0.6          # ease-out: fast then slow
+            self._chevron_flash = math.sin(self.timer * 0.4) * 0.5 + 0.5
+            # Energy crackle sparks along ring edge
+            if random.random() < 0.35:
+                a = random.uniform(0, math.pi * 2)
+                r = self.ring_radius * self.ring_scale
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * r,
+                    self.y + math.sin(a) * r,
+                    speed=random.uniform(0.5, 1.5), life=0.6,
+                    size=random.randint(2, 4), kind='spark'))
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_ACTIVATING:
+            self.ring_scale = 1.0
+            self._chevron_flash = 1.0
+            self._update_kawoosh(progress)
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_OPEN:
+            self.ring_scale = 1.0
+            if not self.boss_spawned:
+                self.boss_spawned = True
+                result = "spawn_boss"
+            # Gentle shimmer particles from horizon
+            if random.random() < 0.3:
+                a = random.uniform(0, math.pi * 2)
+                r = random.uniform(0, self.ring_radius * 0.5)
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * r,
+                    self.y + math.sin(a) * r,
+                    speed=0.3, life=0.8, size=random.randint(2, 5), kind='shimmer'))
+            if self.timer >= dur:
+                self._next_phase()
+
+        elif self.phase == self.PHASE_HOLDING:
+            # Stay open with shimmering event horizon until boss is killed
+            self.ring_scale = 1.0
+            if random.random() < 0.15:
+                a = random.uniform(0, math.pi * 2)
+                r = random.uniform(0, self.ring_radius * 0.5)
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * r,
+                    self.y + math.sin(a) * r,
+                    speed=0.2, life=0.6, size=random.randint(2, 4), kind='shimmer'))
+            # Occasional tendril to show it's still active
+            if random.random() < 0.02:
+                self._add_tendril()
+
+        elif self.phase == self.PHASE_CLOSING:
+            self.ring_scale = max(0, 1.0 - progress)
+            # Implosion: pull particles inward
+            if random.random() < 0.4 and self.ring_scale > 0.1:
+                a = random.uniform(0, math.pi * 2)
+                r = self.ring_radius * self.ring_scale
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * r * 1.2,
+                    self.y + math.sin(a) * r * 1.2,
+                    speed=-1.5, life=0.5, size=random.randint(2, 5), kind='spark',
+                    angle=a))
+            if self.timer >= dur:
+                self.active = False
+
+        # Update tendrils (lightning arcs)
+        for t in self._tendrils:
+            t['life'] -= 0.06
+        self._tendrils = [t for t in self._tendrils if t['life'] > 0]
+
+        # Update particles
+        for p in self.particles:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= p.get('decay', 0.025)
+        self.particles = [p for p in self.particles if p['life'] > 0]
+
+        return result
+
+    def _update_kawoosh(self, progress):
+        """Kawoosh: explosive outward vortex burst → retract → stable horizon."""
+        r = self.ring_radius
+
+        if progress < 0.25:
+            # === BURST PHASE: unstable vortex explodes outward ===
+            burst_p = progress / 0.25
+            # Massive particle explosion outward
+            num = int(8 * (1 - burst_p) + 2)
+            for _ in range(num):
+                a = random.uniform(0, math.pi * 2)
+                dist = r * 0.3 * burst_p
+                spd = random.uniform(4, 10) * (1 - burst_p * 0.6)
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * dist,
+                    self.y + math.sin(a) * dist,
+                    speed=spd, life=0.9, size=random.randint(4, 12),
+                    kind='kawoosh', angle=a))
+            # Bright white flash particles at center
+            if burst_p < 0.5:
+                for _ in range(3):
+                    a = random.uniform(0, math.pi * 2)
+                    self.particles.append(self._spark(
+                        self.x, self.y,
+                        speed=random.uniform(6, 14), life=0.5,
+                        size=random.randint(6, 14), kind='flash', angle=a))
+            # Lightning tendrils from ring
+            if random.random() < 0.6:
+                self._add_tendril()
+
+        elif progress < 0.5:
+            # === RETRACT PHASE: vortex pulls back to center ===
+            retract_p = (progress - 0.25) / 0.25
+            if random.random() < 0.4:
+                a = random.uniform(0, math.pi * 2)
+                dist = r * (1.0 - retract_p) * 0.8
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * dist,
+                    self.y + math.sin(a) * dist,
+                    speed=-2.0 * retract_p, life=0.6,
+                    size=random.randint(3, 8), kind='kawoosh', angle=a))
+            if random.random() < 0.3:
+                self._add_tendril()
+
+        else:
+            # === STABILIZE: event horizon forming, gentle shimmer ===
+            if random.random() < 0.25:
+                a = random.uniform(0, math.pi * 2)
+                dist = random.uniform(0, r * 0.6)
+                self.particles.append(self._spark(
+                    self.x + math.cos(a) * dist,
+                    self.y + math.sin(a) * dist,
+                    speed=random.uniform(0.1, 0.5), life=0.8,
+                    size=random.randint(2, 5), kind='shimmer'))
+            # Occasional edge tendril
+            if random.random() < 0.1:
+                self._add_tendril()
+
+    def _spark(self, x, y, speed=1, life=1.0, size=4, kind='spark', angle=None):
+        """Create a particle dict."""
+        if angle is None:
+            angle = random.uniform(0, math.pi * 2)
+        return {
+            'x': x, 'y': y,
+            'vx': math.cos(angle) * speed,
+            'vy': math.sin(angle) * speed,
+            'life': life,
+            'size': size,
+            'kind': kind,
+            'decay': 0.02 if kind == 'shimmer' else 0.03,
+        }
+
+    def _add_tendril(self):
+        """Add an electric tendril arc on the ring edge."""
+        a = random.uniform(0, math.pi * 2)
+        span = random.uniform(0.3, 0.8)  # radians of arc
+        segs = random.randint(4, 8)
+        points = []
+        for i in range(segs + 1):
+            t = i / segs
+            seg_a = a + t * span
+            jr = self.ring_radius + random.uniform(-15, 15)
+            points.append((
+                self.x + math.cos(seg_a) * jr,
+                self.y + math.sin(seg_a) * jr))
+        self._tendrils.append({'points': points, 'life': 1.0})
+
+    def close(self):
+        """Trigger closing animation (called when the linked boss is killed)."""
+        if self.phase in (self.PHASE_HOLDING, self.PHASE_OPEN):
+            self.phase = self.PHASE_CLOSING
+            self.timer = 0
+
+    def get_rect(self):
+        """Collision rect for the supergate ring."""
+        r = int(self.ring_radius * self.ring_scale)
+        return pygame.Rect(self.x - r, self.y - r, r * 2, r * 2)
+
+    def take_damage(self, amount):
+        """Damage the supergate. Returns True if destroyed."""
+        self.health -= amount
+        self.hit_flash = 6
+        if self.health <= 0:
+            self.health = 0
+            return True
+        return False
+
+    def _next_phase(self):
+        self.phase += 1
+        self.timer = 0
+
+    # ── draw ────────────────────────────────────────────────────────
+
+    def draw(self, surface, camera=None):
+        if not self.active or self.ring_scale < 0.01:
+            return
+
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+
+        scaled_r = int(self.ring_radius * self.ring_scale)
+        if scaled_r < 2:
+            return
+
+        margin = 80  # extra space for glow + particles
+        sz = scaled_r * 2 + margin * 2
+        surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        c = sz // 2
+
+        # ── Outer glow ──
+        glow_alpha = int(60 * self.ring_scale)
+        if self.phase == self.PHASE_ACTIVATING:
+            dur = self.phase_durations[self.phase]
+            prog = min(1.0, self.timer / dur)
+            glow_alpha = int((80 + 60 * math.sin(self.pulse * 3)) * min(1.0, prog * 3))
+        for gr in range(3):
+            r = scaled_r + 10 + gr * 12
+            a = max(0, glow_alpha - gr * 18)
+            if a > 0 and r > 0:
+                pygame.draw.circle(surf, (60, 120, 255, a), (c, c), r, 3)
+
+        # ── Ring image or fallback circles ──
+        if self._ring_image and self.ring_scale > 0.05:
+            img_size = int(300 * self.ring_scale)
+            if img_size > 4:
+                scaled_img = pygame.transform.smoothscale(self._ring_image, (img_size, img_size))
+                alpha = 255 if self.phase != self.PHASE_CLOSING else int(255 * self.ring_scale)
+                scaled_img.set_alpha(alpha)
+                # Chevron pulse: brighten during appear phase
+                if self.phase == self.PHASE_APPEARING and self._chevron_flash > 0.5:
+                    bright = pygame.Surface((img_size, img_size), pygame.SRCALPHA)
+                    bright.fill((255, 200, 80, int(40 * self._chevron_flash)))
+                    scaled_img.blit(bright, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                img_rect = scaled_img.get_rect(center=(c, c))
+                surf.blit(scaled_img, img_rect)
+        else:
+            alpha = int(220 * self.ring_scale)
+            pygame.draw.circle(surf, (80, 140, 255, alpha), (c, c), scaled_r, 5)
+            pygame.draw.circle(surf, (140, 200, 255, alpha // 2), (c, c), scaled_r - 6, 2)
+            # Chevron dots
+            for i in range(9):
+                ca = i * (math.pi * 2 / 9)
+                cx2 = c + int(math.cos(ca) * scaled_r)
+                cy2 = c + int(math.sin(ca) * scaled_r)
+                ch_a = int(200 * self._chevron_flash) if self.phase == self.PHASE_APPEARING else 200
+                pygame.draw.circle(surf, (255, 180, 40, ch_a), (cx2, cy2), 5)
+
+        # ── Event horizon ──
+        if self.phase in (self.PHASE_ACTIVATING, self.PHASE_OPEN, self.PHASE_HOLDING):
+            self._draw_event_horizon(surf, c, scaled_r)
+
+        # ── Kawoosh flash (first 25% of activation) ──
+        if self.phase == self.PHASE_ACTIVATING:
+            dur = self.phase_durations[self.phase]
+            kprog = min(1.0, self.timer / dur)
+            if kprog < 0.25:
+                flash_a = int(180 * (1.0 - kprog / 0.25))
+                flash_r = int(scaled_r * (0.5 + kprog * 3))
+                if flash_r > 0:
+                    pygame.draw.circle(surf, (200, 230, 255, flash_a), (c, c), flash_r)
+
+        # Blit main surface
+        surface.blit(surf, (int(sx) - c, int(sy) - c))
+
+        # ── Tendrils (drawn in world/screen space for accuracy) ──
+        for t in self._tendrils:
+            ta = max(0, int(t['life'] * 220))
+            points_screen = []
+            for px, py in t['points']:
+                if camera:
+                    spx, spy = camera.world_to_screen(px, py)
+                else:
+                    spx, spy = px, py
+                points_screen.append((int(spx), int(spy)))
+            if len(points_screen) >= 2:
+                # Bright core
+                pygame.draw.lines(surface, (180, 220, 255, ta), False, points_screen, 2)
+                # Outer glow
+                ga = max(0, ta // 2)
+                pygame.draw.lines(surface, (80, 140, 255, ga), False, points_screen, 5)
+
+        # ── Particles (drawn in world/screen space) ──
+        for p in self.particles:
+            if camera:
+                px, py = camera.world_to_screen(p['x'], p['y'])
+            else:
+                px, py = p['x'], p['y']
+            pa = max(0, int(p['life'] * 220))
+            ps = max(1, int(p['size'] * p['life']))
+            kind = p.get('kind', 'spark')
+
+            if kind == 'flash':
+                # Bright white-blue flash
+                if ps > 0:
+                    fs = pygame.Surface((ps * 4, ps * 4), pygame.SRCALPHA)
+                    pygame.draw.circle(fs, (220, 240, 255, pa), (ps * 2, ps * 2), ps * 2)
+                    pygame.draw.circle(fs, (255, 255, 255, min(255, pa + 40)), (ps * 2, ps * 2), ps)
+                    surface.blit(fs, (int(px) - ps * 2, int(py) - ps * 2))
+            elif kind == 'kawoosh':
+                # Blue-white energy blobs
+                if ps > 0:
+                    fs = pygame.Surface((ps * 3, ps * 3), pygame.SRCALPHA)
+                    pygame.draw.circle(fs, (60, 140, 255, pa), (ps * 3 // 2, ps * 3 // 2), ps * 3 // 2)
+                    pygame.draw.circle(fs, (180, 220, 255, min(255, pa + 30)),
+                                       (ps * 3 // 2, ps * 3 // 2), max(1, ps))
+                    surface.blit(fs, (int(px) - ps * 3 // 2, int(py) - ps * 3 // 2))
+            elif kind == 'shimmer':
+                # Soft blue-cyan shimmer
+                if ps > 0:
+                    fs = pygame.Surface((ps * 2, ps * 2), pygame.SRCALPHA)
+                    flicker = int(math.sin(self.pulse * 4 + px * 0.1) * 30)
+                    col_b = min(255, 200 + flicker)
+                    pygame.draw.circle(fs, (80, col_b, 255, pa // 2), (ps, ps), ps)
+                    surface.blit(fs, (int(px) - ps, int(py) - ps))
+            else:
+                # Default spark
+                if ps > 0:
+                    fs = pygame.Surface((ps * 2, ps * 2), pygame.SRCALPHA)
+                    pygame.draw.circle(fs, (120, 180, 255, pa), (ps, ps), ps)
+                    surface.blit(fs, (int(px) - ps, int(py) - ps))
+
+    def _draw_event_horizon(self, surf, c, scaled_r):
+        """Draw the shimmering water-like event horizon disc."""
+        dur = self.phase_durations[self.phase]
+        progress = min(1.0, self.timer / dur)
+        horizon_r = int(scaled_r * 0.78)
+
+        if self.phase == self.PHASE_ACTIVATING:
+            if progress < 0.25:
+                # Kawoosh outburst — horizon not yet visible
+                return
+            elif progress < 0.5:
+                # Retracting — horizon forming, grows from 0 to full
+                form_p = (progress - 0.25) / 0.25
+                horizon_r = int(horizon_r * form_p)
+            horizon_alpha = int(200 * min(1.0, (progress - 0.25) * 3))
+        else:
+            horizon_alpha = 200
+
+        if horizon_r < 3:
+            return
+
+        # Base disc: dark blue with radial gradient feel
+        for layer in range(3):
+            lr = horizon_r - layer * int(horizon_r * 0.15)
+            if lr < 2:
+                break
+            la = horizon_alpha - layer * 30
+            b_val = min(255, 160 + layer * 30)
+            if la > 0:
+                pygame.draw.circle(surf, (20 + layer * 15, 60 + layer * 20, b_val, la),
+                                   (c, c), lr)
+
+        # Concentric ripple rings (water-like)
+        num_ripples = 5
+        for i in range(num_ripples):
+            phase_off = self.pulse * 2.5 + i * 1.2
+            wobble = math.sin(phase_off) * 4
+            rr = int(horizon_r * (0.2 + i * 0.16)) + int(wobble)
+            rr = max(2, min(rr, horizon_r - 2))
+            ra = max(0, int((100 - i * 15) * (horizon_alpha / 200)))
+            gb = min(255, 180 + int(math.sin(phase_off * 0.7) * 40))
+            pygame.draw.circle(surf, (80, gb, 255, ra), (c, c), rr, 2)
+
+        # Bright center vortex glow
+        core_r = max(3, int(horizon_r * 0.25))
+        core_pulse = math.sin(self.pulse * 3) * 0.3 + 0.7
+        core_a = int(180 * core_pulse * (horizon_alpha / 200))
+        pygame.draw.circle(surf, (180, 220, 255, core_a), (c, c), core_r)
+        # Inner white hot spot
+        hot_r = max(2, int(core_r * 0.5))
+        pygame.draw.circle(surf, (230, 245, 255, int(core_a * 0.8)), (c, c), hot_r)

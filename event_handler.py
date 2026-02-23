@@ -1207,15 +1207,20 @@ def handle_events(state, game, screen, dt):
                                     ability = state.dragging_card.ability or ""
                                     ability_triggered = False
 
+                                    # Check for card-specific animations (replicator swarm, etc.)
+                                    if add_special_card_effect(state.dragging_card, effect_x, effect_y, state.anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
+                                        ability_triggered = True
+
                                     # Check for special ability animations
-                                    for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones", 
-                                                           "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement",
-                                                           "Look at opponent's hand"]:
-                                        if special_ability in ability:
-                                            ability_anim = create_ability_animation(ability, effect_x, effect_y)
-                                            state.anim_manager.add_effect(ability_anim)
-                                            ability_triggered = True
-                                            break
+                                    if not ability_triggered:
+                                        for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
+                                                               "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement",
+                                                               "Look at opponent's hand"]:
+                                            if special_ability in ability:
+                                                ability_anim = create_ability_animation(ability, effect_x, effect_y)
+                                                state.anim_manager.add_effect(ability_anim)
+                                                ability_triggered = True
+                                                break
 
                                     # Default stargate effect if no special ability
                                     if not ability_triggered:

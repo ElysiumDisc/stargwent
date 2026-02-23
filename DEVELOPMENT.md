@@ -944,7 +944,7 @@ Roguelite card-battle campaign mode. Conquer a galaxy of planets through card ba
 
 ---
 
-## 🚀 Space Shooter Architecture (v8.0.0)
+## 🚀 Space Shooter Architecture (v8.5.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
 
@@ -952,35 +952,40 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `__init__.py` | ~300 | Public API `run_space_shooter()`, `run_coop_space_shooter()`, game loops, disconnect handling |
-| `game.py` | ~2100 | SpaceShooterGame — update, draw, collisions, upgrades, 15+ powerup handlers, sun/ally/bomb management |
-| `ship.py` | ~900 | Ship class — player + AI + 6 behavior AIs (swarm, homing, charge, bomber, mini_boss, strafe) + ally AI |
-| `projectiles.py` | ~600 | Projectile types: Laser, Missile, Beam, EnergyBall, StaffBlast, Railgun, ProximityMine, ChainLightning, AreaBomb |
-| `entities.py` | ~950 | Asteroid, PowerUp (33 types: 8 generic + 25 faction-specific), Drone, XPOrb, Explosion (themed palettes + flash), Sun (5 phases), DamageNumber, GravityWell |
+| `__init__.py` | ~330 | Public API `run_space_shooter()`, `run_coop_space_shooter()`, game loops, variant propagation, disconnect handling |
+| `game.py` | ~3000 | SpaceShooterGame — update, draw, collisions, upgrades, 15+ powerup handlers, supergate boss system, common threat, sun/ally/bomb management |
+| `ship.py` | ~1500 | Ship class — SHIP_VARIANTS config, player + AI + 9 behavior AIs (swarm, homing, charge, bomber, mini_boss, strafe, ori_boss, wraith_boss, ally) + new secondaries/passives |
+| `projectiles.py` | ~800 | Projectile types: Laser, Missile, Beam, EnergyBall, StaffBlast, Railgun, ProximityMine, ChainLightning, AreaBomb, PlasmaLance, DisruptorPulse, OriBossBeam, WraithBossBeam |
+| `entities.py` | ~1670 | Asteroid, PowerUp (33 types), Drone, XPOrb, Explosion (themed palettes), Sun (5 phases), Supergate (5-phase kawoosh animation), DamageNumber, GravityWell |
 | `effects.py` | ~270 | StarField (infinite tiling), ScreenShake, ParticleTrail |
-| `upgrades.py` | ~280 | UPGRADES (27), EVOLUTIONS (5), ENEMY_TYPES (12), ENEMY_EXPLOSION_PALETTES, RARITY_COLORS |
+| `upgrades.py` | ~250 | UPGRADES (27), EVOLUTIONS (5), ENEMY_TYPES (14 incl. ori_mothership, wraith_supergate), ENEMY_EXPLOSION_PALETTES, RARITY_COLORS |
 | `ui.py` | ~500 | HUD, survival timer, mini-radar, level-up cards, game over screen |
 | `camera.py` | ~140 | Camera with smooth follow, world_to_screen, culling, spawn ring, `get_spawn_ring_for_coop()` |
-| `spawner.py` | ~280 | ContinuousSpawner with 10 tiers, paired/swarm spawning for new enemy types |
-| `ship_select.py` | ~120 | Ship selection screen |
-| `coop_game.py` | ~700 | CoopSpaceShooterGame — host-authoritative co-op, independent P1 camera, expanded snapshot, revival |
-| `coop_client.py` | ~400 | Client renderer — independent P2 camera, full entity rendering, partner arrow, disconnect overlay |
-| `coop_protocol.py` | ~80 | Message types: INPUT, STATE, ACTION, LEVEL_UP, GAME_OVER, HEARTBEAT, DISCONNECT |
+| `spawner.py` | ~280 | ContinuousSpawner with 10 tiers, paired/swarm spawning, random alt variant sprites |
+| `ship_select.py` | ~200 | Ship selection screen with Up/Down variant picking, variant dots, description |
+| `coop_game.py` | ~1100 | CoopSpaceShooterGame — host-authoritative co-op, independent P1 camera, supergate/beam snapshot, revival |
+| `coop_client.py` | ~540 | Client renderer — independent P2 camera, full entity + supergate + beam rendering, disconnect overlay |
+| `coop_protocol.py` | ~75 | Message types: INPUT, STATE, ACTION, LEVEL_UP, GAME_OVER, HEARTBEAT, DISCONNECT + variant in READY |
 | `coop_ui.py` | ~130 | Dual health bars, partner arrow, revival pulse, leash warning |
 | `virtual_keys.py` | ~55 | Network input translation for co-op |
 
 ### Key Systems
 
+- **Ship Variants**: Data-driven `SHIP_VARIANTS` dict maps each faction to a list of variant configs (weapon_type, fire_rate, secondary_type, passive, image_file, etc.). Ship.__init__ looks up variant by index, replacing hardcoded if/elif chains
+- **Supergate Boss Events**: At 3 min survival, a Supergate spawns 800-1200px from player. 5-phase animation (APPEARING → ACTIVATING kawoosh → OPEN → CLOSING) with explosive particle burst, lightning tendrils, shimmering event horizon. Randomly spawns Ori Mothership (1000 HP, golden sweeping beam) or Wraith Hive (800 HP, purple life-drain beam + dart spawns)
+- **Common Threat**: When a supergate boss is alive, all enemies within 500px retarget it, enemy projectiles damage it, boss beam damages everything. Boss death = massive rewards + stun shockwave
 - **Camera**: Smooth lerp follow, world-to-screen conversion, `is_visible()` for draw culling. Co-op: independent cameras per player
-- **Spawner**: Time-based difficulty tiers interpolate spawn rate, enemy types, HP/speed multipliers. Paired (death gliders) and swarm (wraith darts) spawning
-- **Enemy Behaviors**: 7 unique AI behaviors dispatched via `_behavior` attribute — swarm_lifesteal, split_on_death, shielded_charge, homing, paired, bomber, mini_boss_spawner
-- **Secondary Fire**: Each faction has a unique E-key ability with its own cooldown. Now works in co-op for P2
+- **Spawner**: Time-based difficulty tiers interpolate spawn rate, enemy types, HP/speed multipliers. Paired (death gliders) and swarm (wraith darts) spawning. Random variant sprites for visual variety
+- **Enemy Behaviors**: 9 unique AI behaviors dispatched via `_behavior` attribute — swarm_lifesteal, split_on_death, shielded_charge, homing, paired, bomber, mini_boss_spawner, ori_boss, wraith_boss
+- **Secondary Fire**: Each faction + variant has a unique E-key ability with its own cooldown (Railgun, Staff Barrage, Ion Pulse, War Cry, Scatter Mines + Transporter Beam, Sensor Sweep, Ribbon Blast, Asgard Beam, Eye of Ra, Jaffa Rally). Works in co-op for P2
+- **Passives**: Per-variant passives — heavy_armor (25% dmg reduction), adaptive_shields, analyzer (double XP on marks), sarcophagus_regen, point_defense, symbiote_resilience (invuln burst), anubis_shield (absorb charges)
 - **Thrusters**: Faction-specific particle configs (color, shape, emit rate, spread), SHIFT to boost
 - **Movement**: Velocity-based with acceleration/friction for smooth feel
 - **Evolutions**: When both prerequisite upgrades are maxed, a legendary evolution is offered
-- **Audio**: Background music loop via `pygame.mixer.music`, per-faction hit SFX + boost SFX + shield hit SFX via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
+- **Audio**: Background music loop, per-faction hit SFX + boost SFX + shield hit SFX, Ori beam sound + Wraith beam sound via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
 - **Faction Power-Ups**: 33 total (8 generic + 15 epic + 10 legendary) with unique effects per faction, rarity glow rendering (purple/gold)
-- **Environmental Hazards**: Sun/wormhole with 5 lifecycle phases, gravity pull, core damage
-- **Ally Ships**: Summoned via upgrades/powerups, follow owner, engage enemies, auto-fire
-- **Co-op Revival**: Ghost mode on death, revive by killing any enemy, 3s invuln on respawn
-- **Co-op Networking**: 20 Hz state snapshots with expanded entity serialization, heartbeat/disconnect handling
+- **Environmental Hazards**: Sun/wormhole with 5 lifecycle phases, gravity pull (550px range), core damage
+- **Ally Ships**: Summoned via upgrades/powerups/Jaffa Rally secondary, follow owner, engage enemies, auto-fire
+- **Co-op Revival**: Ghost mode on death, revive by killing any enemy, 3s per-player invulnerability on respawn (blocks projectiles, beams, contact, bombs — uses dedicated `p1_invuln_timer`/`p2_invuln_timer` instead of shared powerup)
+- **Co-op Networking**: 20 Hz state snapshots with expanded entity serialization (incl. supergates + beams + per-player invuln timers), heartbeat/disconnect handling, variant in READY payload
+- **Audio Cleanup**: `_stop_space_music()` stops both music and all SFX channels (`pygame.mixer.stop()`) — no lingering sounds on exit

@@ -30,11 +30,12 @@ class CoopSpaceShooterGame(SpaceShooterGame):
     """Two-player co-op space shooter. Runs on the host."""
 
     def __init__(self, screen_width, screen_height,
-                 p1_faction, p2_faction, session_scores=None):
+                 p1_faction, p2_faction, session_scores=None,
+                 p1_variant=0, p2_variant=0):
         # Initialize base game with P1 as the main player
         super().__init__(screen_width, screen_height,
                          p1_faction, p2_faction,
-                         session_scores=session_scores)
+                         session_scores=session_scores, variant=p1_variant)
 
         self.is_coop = True
         self.p1_faction = p1_faction
@@ -44,7 +45,8 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         self.partner_ship = Ship(
             150, 0,
             p2_faction, is_player=True,
-            screen_width=screen_width, screen_height=screen_height
+            screen_width=screen_width, screen_height=screen_height,
+            variant=p2_variant
         )
         self.partner_ship.max_health = 150
         self.partner_ship.health = 150
@@ -59,6 +61,8 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         self.p2_alive = True
         self.p1_ghost = False
         self.p2_ghost = False
+        self.p1_invuln_timer = 0  # Per-player invulnerability (frames)
+        self.p2_invuln_timer = 0
         self.revival_pulse_timer = 0
         self.revival_popup_timer = 0
         self.revival_target = None  # "p1" or "p2"
@@ -92,6 +96,12 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             if self.kill_streak_timer >= 180:
                 self.kill_streak = 0
                 self.kill_streak_timer = 0
+
+        # Tick per-player invulnerability timers
+        if self.p1_invuln_timer > 0:
+            self.p1_invuln_timer -= 1
+        if self.p2_invuln_timer > 0:
+            self.p2_invuln_timer -= 1
 
         if self.game_over:
             self.explosions = [e for e in self.explosions if e.update()]
@@ -207,9 +217,11 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 self.explosions.append(Explosion(bomb.x, bomb.y, tier="normal"))
                 self.screen_shake.trigger(4, 8)
                 # Damage both players
-                for ship, alive in [(self.player_ship, self.p1_alive),
-                                    (self.partner_ship, self.p2_alive)]:
+                for ship, alive, tag in [(self.player_ship, self.p1_alive, "p1"),
+                                         (self.partner_ship, self.p2_alive, "p2")]:
                     if not alive:
+                        continue
+                    if self._is_player_invulnerable(tag):
                         continue
                     sx = ship.x + ship.width // 2
                     sy = ship.y
@@ -219,7 +231,6 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                         ship.take_damage(dmg)
                         self.damage_numbers.append(DamageNumber(sx, sy, dmg, (255, 150, 50)))
                         if ship.health <= 0:
-                            tag = "p1" if ship is self.player_ship else "p2"
                             self._kill_player(tag)
                 self.area_bombs.remove(bomb)
 
@@ -346,6 +357,13 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 py = target.y + math.sin(angle) * pdist
                 self.powerups.append(PowerUp.spawn_at(px, py, faction=self.p1_faction))
 
+        # Hit sound cooldown tick (frame-based)
+        if self.hit_sound_cooldown > 0:
+            self.hit_sound_cooldown -= 1
+
+        # Supergate boss system (shared with base game)
+        self._update_supergate_system()
+
         # Update miscellaneous effects
         self.screen_shake.update()
         self.damage_numbers = [d for d in self.damage_numbers if d.update()]
@@ -356,7 +374,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         while self.xp >= self.xp_to_next and not self.showing_level_up:
             self.xp -= self.xp_to_next
             self.level += 1
-            self.xp_to_next = int(self.xp_to_next * 1.15)
+            self.xp_to_next = int(480 * 1.25 ** (self.level - 1))
             self.pending_level_ups += 1
         if self.pending_level_ups > 0 and not self.showing_level_up:
             self._show_level_up()
@@ -380,6 +398,24 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             self.camera.follow(
                 self.partner_ship.x + self.partner_ship.width // 2,
                 self.partner_ship.y)
+
+    def _beam_damage_players(self, beam):
+        """Override: check beam collision against both player ships."""
+        for ship, alive, tag in [(self.player_ship, self.p1_alive, "p1"),
+                                  (self.partner_ship, self.p2_alive, "p2")]:
+            if not alive:
+                continue
+            if self._is_player_invulnerable(tag):
+                continue
+            cx = ship.x + ship.width // 2
+            cy = ship.y
+            r = max(ship.width, ship.height) // 2
+            if beam.line_circle_intersect(cx, cy, r):
+                dmg = beam.damage_per_frame
+                self.player_hit_flash = 3
+                self.damage_numbers.append(DamageNumber(cx, cy, dmg, (255, 200, 50)))
+                if ship.take_damage(dmg):
+                    self._kill_player(tag)
 
     def _nearest_alive_ship(self, ai_ship):
         """Return the nearest alive player ship to an AI ship."""
@@ -501,7 +537,12 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             for ship, alive, tag in [(self.player_ship, self.p1_alive, "p1"),
                                      (self.partner_ship, self.p2_alive, "p2")]:
                 if alive and ai_ship.get_rect().colliderect(ship.get_rect()):
-                    contact_dmg = 25 if getattr(ai_ship, 'is_boss', False) else 10
+                    if self._is_player_invulnerable(tag):
+                        ai_ship.contact_damage_cooldown = 30
+                        self.damage_numbers.append(DamageNumber(
+                            ship.x + ship.width // 2, ship.y, 0, (255, 215, 0)))
+                        break
+                    contact_dmg = 36 if getattr(ai_ship, 'is_boss', False) else 14
                     ship.take_damage(contact_dmg)
                     self.damage_numbers.append(DamageNumber(
                         ship.x + ship.width // 2, ship.y,
@@ -515,8 +556,22 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                         ai_ship.health += heal
                     break
 
+    def _is_player_invulnerable(self, player_tag):
+        """Check if a player has invulnerability active (per-player or shared)."""
+        if player_tag == "p1" and self.p1_invuln_timer > 0:
+            return True
+        if player_tag == "p2" and self.p2_invuln_timer > 0:
+            return True
+        return self.active_powerups.get("goauld_sarcophagus", 0) > 0
+
     def _hit_player(self, ship, proj, player_tag):
         """Apply damage to a player ship, handle death."""
+        # Skip damage if invulnerable
+        if self._is_player_invulnerable(player_tag):
+            self.damage_numbers.append(DamageNumber(
+                ship.x + ship.width // 2, ship.y, 0, (255, 215, 0)))
+            return
+
         damage = getattr(proj, 'damage', 10)
         # Shields absorb first
         if ship.shields > 0:
@@ -563,6 +618,16 @@ class CoopSpaceShooterGame(SpaceShooterGame):
     def _on_enemy_killed(self, enemy):
         """Override: handle enemy kill with revival check and themed explosions."""
         from .upgrades import ENEMY_EXPLOSION_PALETTES
+
+        # Special handling for supergate bosses
+        if enemy in self.ori_bosses:
+            self._ori_boss_killed(enemy)
+            # Revival check after boss kill
+            if self.p1_ghost and self.p2_alive:
+                self._revive_player("p1")
+            elif self.p2_ghost and self.p1_alive:
+                self._revive_player("p2")
+            return
 
         # Score
         score_val = self.SCORE_BOSS if getattr(enemy, 'is_boss', False) else self.SCORE_ENEMY
@@ -672,9 +737,11 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         revived.vx = 0
         revived.vy = 0
 
-        # Brief invulnerability on revival (3 seconds)
-        self.active_powerups["goauld_sarcophagus"] = max(
-            self.active_powerups.get("goauld_sarcophagus", 0), 180)
+        # Per-player invulnerability on revival (3 seconds)
+        if player_tag == "p1":
+            self.p1_invuln_timer = max(self.p1_invuln_timer, 180)
+        else:
+            self.p2_invuln_timer = max(self.p2_invuln_timer, 180)
 
         # Visual feedback
         self.revival_pulse_timer = 30
@@ -1054,11 +1121,27 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             'powerups': [powerup_data(p) for p in self.powerups[:20]],
             'xp_orbs': [xp_data(o) for o in self.xp_orbs[:50]],
             'explosions': [explosion_data(e) for e in self.explosions[:20]],
+            # Total counts so client can detect truncation
+            'total_enemies': len(self.ai_ships),
+            'total_projectiles': len(self.projectiles),
+            'asteroids': [{'x': round(a.x, 1), 'y': round(a.y, 1),
+                          'size': a.size} for a in self.asteroids[:30]],
             'suns': [sun_data(s) for s in self.suns],
             'allies': [ally_data(a) for a in self.ally_ships],
             'area_bombs': [{'x': round(b.x, 1), 'y': round(b.y, 1),
                            'fuse': b.fuse_timer, 'fuse_duration': b.fuse_duration}
                           for b in self.area_bombs],
+            'supergates': [{'x': round(sg.x, 1), 'y': round(sg.y, 1),
+                           'phase': sg.phase, 'timer': sg.timer,
+                           'ring_scale': round(sg.ring_scale, 2),
+                           'health': round(sg.health, 1),
+                           'max_health': sg.max_health}
+                          for sg in self.supergates],
+            'ori_beams': [{'x': round(ob.x, 1), 'y': round(ob.y, 1),
+                          'angle': round(ob.current_angle, 3),
+                          'length': ob.length, 'width': ob.width,
+                          'active': ob.active}
+                         for ob in self.ori_beams if ob.active],
             'score': self.score,
             'level': self.level,
             'xp': self.xp,
@@ -1071,6 +1154,8 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             'active_powerups': {k: v for k, v in self.active_powerups.items() if v > 0},
             'revival_pulse': self.revival_pulse_timer,
             'revival_target': self.revival_target,
+            'p1_invuln': self.p1_invuln_timer,
+            'p2_invuln': self.p2_invuln_timer,
         }
 
     def apply_partner_input(self, input_dict):

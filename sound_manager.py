@@ -481,6 +481,28 @@ class SoundEffectManager:
             print(f"[audio] Failed to play symbiote sound: {exc}")
             return False
 
+    def play_replicator_sound(self, volume=0.8):
+        """
+        Play Replicator swarm skittering sound effect.
+        Looks for assets/audio/replicator.ogg
+
+        Args:
+            volume: Volume level from 0.0 to 1.0
+
+        Returns:
+            True if sound was played, False otherwise
+        """
+        sound = self._load_generic_sound("replicator", "replicator.ogg")
+        if not sound:
+            return False
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play replicator sound: {exc}")
+            return False
+
     def play_asgard_beam_sound(self, volume=0.7):
         """
         Play Asgard transporter beam sound effect.

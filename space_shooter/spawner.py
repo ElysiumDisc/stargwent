@@ -8,7 +8,7 @@ become powerful through upgrades before things get intense.
 import random
 import math
 
-from .ship import Ship
+from .ship import Ship, SHIP_VARIANTS, _ALL_ALT_SHIP_IMAGES
 from .upgrades import ENEMY_TYPES
 
 
@@ -183,8 +183,14 @@ class ContinuousSpawner:
 
         mods = ENEMY_TYPES[enemy_type]
 
+        # Pick a random variant for visual variety
+        faction_lower = enemy_faction.lower()
+        variants = SHIP_VARIANTS.get(faction_lower, [])
+        variant = random.randint(0, max(0, len(variants) - 1)) if variants else 0
+
         ship = Ship(wx, wy, enemy_faction, is_player=False,
-                    screen_width=screen_width, screen_height=screen_height)
+                    screen_width=screen_width, screen_height=screen_height,
+                    variant=variant)
 
         # Apply tier scaling
         ship.max_health = int(ship.max_health * tier["hp_mult"] * mods["hp"])

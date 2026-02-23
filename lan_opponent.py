@@ -160,6 +160,8 @@ class NetworkController:
         self.turn_token_counter = 0
         self.pending_verification = None  # Stores (p1_score, p2_score) from last action to verify
         self.desync_detected = False
+        self.desync_message = None  # (text, expire_tick) for HUD flash
+        self.card_not_found_count = 0  # Track consecutive card-not-found errors
 
     def _find_card_in_discard(self, player, card_id):
         if not card_id:
@@ -199,7 +201,19 @@ class NetworkController:
             if current_p1 != expected_p1 or current_p2 != expected_p2:
                 print(f"[Network] DESYNC DETECTED! Expected ({expected_p1}-{expected_p2}), Got ({current_p1}-{current_p2})")
                 self.desync_detected = True
-                # In a full implementation, we might request a state resync here
+                # Store flash message for HUD display (expires after 5 seconds)
+                import pygame
+                self.desync_message = (
+                    f"Score desync: expected {expected_p1}-{expected_p2}, got {current_p1}-{current_p2}",
+                    pygame.time.get_ticks() + 5000
+                )
+                # Also push to game history so it's logged
+                self.game.add_history_event(
+                    "system",
+                    f"Score desync detected ({expected_p1}-{expected_p2} vs {current_p1}-{current_p2})",
+                    "ai",
+                    icon="!"
+                )
             
             self.pending_verification = None
 
@@ -236,10 +250,17 @@ class NetworkController:
                 # Find card object in hand
                 for card in self.network_player.hand:
                     if card.id == card_id:
+                        self.card_not_found_count = 0  # Reset on success
                         return (card, row)
 
-                # Card not found in hand
-                print(f"[Network] Error: Card {card_id} not found in hand!")
+                # Card not found in hand — log details and track failures
+                hand_ids = [c.id for c in self.network_player.hand]
+                print(f"[Network] Error: Card {card_id} not found in hand! Hand: {hand_ids}")
+                self.card_not_found_count += 1
+                if self.card_not_found_count >= 3:
+                    print(f"[Network] Card not found {self.card_not_found_count} times — forcing pass to prevent hang")
+                    self.card_not_found_count = 0
+                    self.game.pass_turn()
                 return (None, None)
 
             elif action_type == "pass":

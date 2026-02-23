@@ -50,7 +50,7 @@ def _start_space_music():
 
 
 def _stop_space_music(fade_ms=800):
-    """Fade out and stop space shooter music."""
+    """Fade out and stop ALL space shooter audio (music + sound effects)."""
     if not pygame.mixer.get_init():
         return
     try:
@@ -61,6 +61,11 @@ def _stop_space_music(fade_ms=800):
             pygame.mixer.music.stop()
         except pygame.error:
             pass
+    # Stop all playing sound channels immediately
+    try:
+        pygame.mixer.stop()
+    except pygame.error:
+        pass
 
 
 def run_space_shooter(screen, player_faction=None, ai_faction=None,
@@ -99,11 +104,18 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None,
                 if result == "exit":
                     return None
                 elif result:
-                    player_faction = result
+                    # result is (faction, variant_index) tuple
+                    if isinstance(result, tuple):
+                        player_faction, variant = result
+                    else:
+                        player_faction = result
+                        variant = 0
                     selecting = False
 
             select_screen.draw(screen)
             display_manager.gpu_flip()
+    else:
+        variant = 0
 
     # Pick random AI faction (different from player)
     if ai_faction is None:
@@ -123,7 +135,7 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None,
     game = SpaceShooterGame(screen_width, screen_height, player_faction, ai_faction,
                             session_scores=session_scores,
                             mission_type=mission_type, mission_target=mission_target,
-                            starting_upgrades=starting_upgrades)
+                            starting_upgrades=starting_upgrades, variant=variant)
 
     while game.running:
         for event in pygame.event.get():
@@ -153,7 +165,8 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None,
     return game.survival_seconds > 120  # "Won" if survived >2 minutes
 
 
-def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=None):
+def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=None,
+                           p1_variant=0, p2_variant=0):
     """
     Run co-op space shooter over LAN.
 
@@ -187,7 +200,8 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
     if role == "host":
         # Host runs full simulation
         game = CoopSpaceShooterGame(screen_width, screen_height,
-                                     p1_faction, p2_faction)
+                                     p1_faction, p2_faction,
+                                     p1_variant=p1_variant, p2_variant=p2_variant)
         snapshot_counter = 0
 
         while game.running:
@@ -234,12 +248,15 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
             display_manager.gpu_flip()
             clock.tick(60)
 
-        # Send game over to client
-        session.send(CoopMsg.GAME_OVER, {
-            'score': game.score,
-            'survival_frames': game.survival_frames,
-            'enemies_defeated': game.enemies_defeated,
-        })
+        # Notify client before exiting
+        if game.exit_to_menu:
+            session.send(CoopMsg.DISCONNECT, {"reason": "host_exit"})
+        else:
+            session.send(CoopMsg.GAME_OVER, {
+                'score': game.score,
+                'survival_frames': game.survival_frames,
+                'enemies_defeated': game.enemies_defeated,
+            })
 
         _stop_space_music()
         return None if game.exit_to_menu else game.survival_seconds > 120
@@ -247,7 +264,9 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
     else:
         # Client — render only
         client = CoopSpaceShooterClient(screen_width, screen_height,
-                                         session, p2_faction, p1_faction)
+                                         session, p2_faction, p1_faction,
+                                         local_variant=p2_variant,
+                                         remote_variant=p1_variant)
 
         while client.running:
             for event in pygame.event.get():

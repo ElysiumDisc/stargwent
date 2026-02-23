@@ -20,9 +20,9 @@ class CoopMsg:
     DISCONNECT = "ss_disconnect"  # Graceful disconnect notification
 
 
-def build_ready(faction):
-    """Build a ready message with chosen faction."""
-    return {"type": CoopMsg.READY, "payload": {"faction": faction}}
+def build_ready(faction, variant=0):
+    """Build a ready message with chosen faction and variant."""
+    return {"type": CoopMsg.READY, "payload": {"faction": faction, "variant": variant}}
 
 
 def build_input(keys_state):

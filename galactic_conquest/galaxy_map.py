@@ -50,13 +50,13 @@ FACTION_PLANETS = {
 }
 
 NEUTRAL_PLANETS = [
-    {"name": "Abydos", "weather": None},
+    {"name": "Abydos", "weather": {"row": "close", "type": "ice_planet_hazard"}},
     {"name": "Vis Uban", "weather": None},
-    {"name": "Atlantis", "weather": None},
+    {"name": "Atlantis", "weather": {"row": "siege", "type": "emp"}},
     {"name": "Heliopolis", "weather": None},
-    {"name": "Cimmeria", "weather": None},
+    {"name": "Cimmeria", "weather": {"row": "ranged", "type": "nebula_interference"}},
     {"name": "Kheb", "weather": None},
-    {"name": "Proclarush", "weather": None},
+    {"name": "Proclarush", "weather": {"row": "siege", "type": "asteroid_storm"}},
     {"name": "Vagonbrei", "weather": None},
     {"name": "P3X-888", "weather": None},
 ]
@@ -391,8 +391,12 @@ class GalaxyMap:
             leader.setdefault("faction", faction)
             planet.defender_leader = leader
 
-    def get_attackable_planets(self) -> list[str]:
-        """Get planet IDs the player can attack (adjacent to player territory)."""
+    def get_attackable_planets(self, ring_platform=False) -> list[str]:
+        """Get planet IDs the player can attack (adjacent to player territory).
+
+        Args:
+            ring_platform: If True, include 2-hop neighbors (Ring Platform relic).
+        """
         attackable = set()
         for pid, planet in self.planets.items():
             if planet.owner != "player":
@@ -401,6 +405,12 @@ class GalaxyMap:
                 neighbor = self.planets[neighbor_id]
                 if neighbor.owner != "player":
                     attackable.add(neighbor_id)
+                # Ring Platform: also check 2-hop neighbors
+                if ring_platform and neighbor.owner == "player":
+                    for hop2_id in neighbor.connections:
+                        hop2 = self.planets[hop2_id]
+                        if hop2.owner != "player":
+                            attackable.add(hop2_id)
         return list(attackable)
 
     def get_ai_attack_targets(self, ai_faction: str) -> list[str]:
@@ -414,6 +424,27 @@ class GalaxyMap:
                 if neighbor.owner == "player":
                     targets.add(neighbor_id)
         return list(targets)
+
+    def get_ai_vs_ai_targets(self, attacking_faction):
+        """Get planets attackable by one AI faction against another AI faction."""
+        targets = []
+        for pid, planet in self.planets.items():
+            if planet.owner != attacking_faction:
+                continue
+            for neighbor_id in planet.connections:
+                neighbor = self.planets[neighbor_id]
+                if (neighbor.owner not in ("player", "neutral", attacking_faction)
+                        and neighbor_id not in targets):
+                    targets.append(neighbor_id)
+        return targets
+
+    def get_active_factions(self):
+        """Get factions that still own at least 1 planet."""
+        factions = set()
+        for planet in self.planets.values():
+            if planet.owner not in ("player", "neutral"):
+                factions.add(planet.owner)
+        return factions
 
     def transfer_ownership(self, planet_id: str, new_owner: str):
         """Transfer a planet to a new owner."""

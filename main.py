@@ -326,6 +326,8 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         return True
     if "replicator swarm" in name_lower:
         anim_manager.add_effect(ReplicatorCrawlEffect(screen_width, screen_height))
+        from sound_manager import get_sound_manager
+        get_sound_manager().play_replicator_sound()
         return True
     # Goa'uld Symbiote - larva seeking host animation
     if card_id == "goauld_symbiote" or "symbiote" in name_lower:
@@ -975,41 +977,37 @@ def main(lan_game_data=None):
                 state.running = False
                 continue
 
-        # Handle remote mulligan selections in LAN mode
+        # Handle remote mulligan selections in LAN mode (non-blocking per-frame poll)
         if LAN_MODE and LAN_CONTEXT and game.game_state == "mulligan" and not state.mulligan_remote_done:
-            mulligan_timeout = cfg.MULLIGAN_TIMEOUT
             if not hasattr(state, '_mulligan_start_time'):
                 state._mulligan_start_time = pygame.time.get_ticks()
-            mulligan_start_time = state._mulligan_start_time
-            while True:
-                if pygame.time.get_ticks() - mulligan_start_time > mulligan_timeout:
-                    print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
-                    state.mulligan_remote_done = True
-                    break
 
+            # Check timeout
+            if pygame.time.get_ticks() - state._mulligan_start_time > cfg.MULLIGAN_TIMEOUT:
+                print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
+                state.mulligan_remote_done = True
+            else:
+                # Non-blocking: check one message per frame
                 msg = LAN_CONTEXT.session.receive()
-                if not msg:
-                    break
-                try:
-                    parsed = parse_message(msg)
-                except ValueError:
-                    continue
-
-                msg_type = parsed.get("type")
-                if msg_type == LanMessageType.MULLIGAN.value:
-                    payload = parsed.get("payload", {})
-                    indices = payload.get("indices", [])
-                    remote_cards = []
-                    for idx in indices:
-                        if isinstance(idx, int) and 0 <= idx < len(game.player2.hand):
-                            remote_cards.append(game.player2.hand[idx])
-                    if remote_cards:
-                        game.mulligan(game.player2, remote_cards)
-                    state.mulligan_remote_done = True
-                    continue
-
-                LAN_CONTEXT.session.inbox.put(parsed)
-                break
+                if msg:
+                    try:
+                        parsed = parse_message(msg)
+                        msg_type = parsed.get("type")
+                        if msg_type == LanMessageType.MULLIGAN.value:
+                            payload = parsed.get("payload", {})
+                            indices = payload.get("indices", [])
+                            remote_cards = []
+                            for idx in indices:
+                                if isinstance(idx, int) and 0 <= idx < len(game.player2.hand):
+                                    remote_cards.append(game.player2.hand[idx])
+                            if remote_cards:
+                                game.mulligan(game.player2, remote_cards)
+                            state.mulligan_remote_done = True
+                        else:
+                            # Not a mulligan message — put back for game logic
+                            LAN_CONTEXT.session.inbox.put(parsed)
+                    except ValueError:
+                        pass  # Skip malformed messages
 
 
         if getattr(game, "history_dirty", False):
@@ -1383,13 +1381,19 @@ def main(lan_game_data=None):
                             state.anim_manager.add_effect(LegendaryLightningEffect(state.ai_card_to_play))
                         elif not weather_visual_applied:
                             ability_triggered = False
-                            for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
-                                                   "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
-                                if special_ability in ability:
-                                    ability_anim = create_ability_animation(ability, effect_x, effect_y)
-                                    state.anim_manager.add_effect(ability_anim)
-                                    ability_triggered = True
-                                    break
+
+                            # Check for card-specific animations (replicator swarm, etc.)
+                            if add_special_card_effect(state.ai_card_to_play, effect_x, effect_y, state.anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
+                                ability_triggered = True
+
+                            if not ability_triggered:
+                                for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
+                                                       "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
+                                    if special_ability in ability:
+                                        ability_anim = create_ability_animation(ability, effect_x, effect_y)
+                                        state.anim_manager.add_effect(ability_anim)
+                                        ability_triggered = True
+                                        break
 
                             if not ability_triggered:
                                 stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP, faction=game.player2_faction)
@@ -1537,14 +1541,20 @@ def main(lan_game_data=None):
                 elif not weather_visual_applied:
                     # Check for special ability animations (same as player)
                     ability_triggered = False
-                    for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
-                                           "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
-                        if special_ability in ability:
-                            ability_anim = create_ability_animation(ability, effect_x, effect_y)
-                            state.anim_manager.add_effect(ability_anim)
-                            ability_triggered = True
-                            break
-    
+
+                    # Check for card-specific animations (replicator swarm, etc.)
+                    if add_special_card_effect(card_to_play, effect_x, effect_y, state.anim_manager, SCREEN_WIDTH, SCREEN_HEIGHT, game=game):
+                        ability_triggered = True
+
+                    if not ability_triggered:
+                        for special_ability in ["Inspiring Leadership", "Vampire", "Crone", "Deploy Clones",
+                                               "Activate Combat Protocol", "Survival Instinct", "Genetic Enhancement"]:
+                            if special_ability in ability:
+                                ability_anim = create_ability_animation(ability, effect_x, effect_y)
+                                state.anim_manager.add_effect(ability_anim)
+                                ability_triggered = True
+                                break
+
                     # Default stargate effect if no special ability
                     if not ability_triggered:
                         stargate_effect = StargateActivationEffect(effect_x, effect_y, duration=cfg.ANIM_CARD_FLIP, faction=game.player2_faction)

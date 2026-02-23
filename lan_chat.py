@@ -167,6 +167,16 @@ class LanChatPanel:
         # Remove from pending
         self.pending_acks.pop(msg_id, None)
 
+    def _mark_failed(self, msg_id: str):
+        """Mark a message as failed (ACK timeout)."""
+        for entry in self.full_history:
+            if entry.get("msg_id") == msg_id:
+                entry["failed"] = True
+                entry["confirmed"] = False
+                break
+        # Remove from pending
+        self.pending_acks.pop(msg_id, None)
+
     def set_visible(self, visible: bool):
         """Set chat visibility state."""
         self.is_visible = visible
@@ -250,24 +260,21 @@ class LanChatPanel:
                 self.local_is_typing = False
                 self.session.send(LanMessageType.TYPING.value, {"typing": False})
 
-        # Check for timed out pending ACKs (mark as confirmed anyway after timeout)
+        # Check for timed out pending ACKs — mark as failed (not confirmed)
         current_time = pygame.time.get_ticks() / 1000.0
         timed_out = [mid for mid, send_time in self.pending_acks.items()
                      if current_time - send_time > self.ack_timeout]
         for msg_id in timed_out:
-            self._mark_confirmed(msg_id)
+            self._mark_failed(msg_id)
 
-        msg = self.session.receive()
-        if not msg:
-            return
-
+        # Read from dedicated chat_inbox — no competition with game messages
         try:
-            parsed = parse_message(msg)
-        except ValueError:
+            msg = self.session.chat_inbox.get_nowait()
+        except Exception:
             return
 
-        msg_type = parsed.get("type")
-        payload = parsed.get("payload", {})
+        msg_type = msg.get("type")
+        payload = msg.get("payload", {})
 
         if msg_type == LanMessageType.CHAT.value:
             text = payload.get("text", "")[:MAX_MESSAGE_LENGTH]
@@ -289,9 +296,6 @@ class LanChatPanel:
             self.add_message("System", f"{self.peer_name} disconnected.")
             self.active = False
             self.peer_is_typing = False
-        else:
-            # Put non-chat messages back so game logic can consume them
-            self.session.inbox.put(parsed)
 
     def _draw_typing_indicator(self, surface, input_rect):
         """Draw 'Incoming Wormhole...' text and animated chevrons."""
@@ -404,8 +408,12 @@ class LanChatPanel:
                 confirmed = entry.get("confirmed", True)
                 prefix = entry.get("prefix", "System")
 
-            # Dim unconfirmed messages
-            if not confirmed:
+            failed = entry.get("failed", False) if isinstance(entry, dict) else False
+
+            # Dim unconfirmed messages, tint failed red
+            if failed:
+                color = (255, 100, 100)
+            elif not confirmed:
                 color = tuple(max(0, c - 80) for c in color[:3])
 
             # Strip "Prefix: " from display text to show in bubble
@@ -454,11 +462,14 @@ class LanChatPanel:
             if timestamp:
                 ts_text = f"[{timestamp}]"
                 if prefix == "You":
-                    if confirmed:
+                    if failed:
+                        ts_text += " !"
+                    elif confirmed:
                         ts_text += " v"
                     else:
                         ts_text += " ..."
-                ts_surf = self.timestamp_font.render(ts_text, True, cfg.TEXT_TIMESTAMP)
+                ts_color = (255, 80, 80) if failed else cfg.TEXT_TIMESTAMP
+                ts_surf = self.timestamp_font.render(ts_text, True, ts_color)
                 if prefix == "You":
                     surface.blit(ts_surf, (bubble_rect.x - ts_surf.get_width() - 4, y + bubble_padding_y + 2))
                 else:

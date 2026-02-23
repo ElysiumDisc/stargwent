@@ -33,15 +33,23 @@ def run_lan_coop_arcade(screen, session, role):
     screen_height = screen.get_height()
 
     # --- Phase 1: Ship Selection ---
-    local_faction = _select_faction(screen, clock, screen_width, screen_height)
-    if local_faction is None:
+    selection = _select_faction(screen, clock, screen_width, screen_height)
+    if selection is None:
         return None  # User pressed ESC
 
+    # Unpack (faction, variant) tuple from ship select
+    if isinstance(selection, tuple):
+        local_faction, local_variant = selection
+    else:
+        local_faction = selection
+        local_variant = 0
+
     # --- Phase 2: Exchange faction choices ---
-    session.send(CoopMsg.READY, {"faction": local_faction})
+    session.send(CoopMsg.READY, {"faction": local_faction, "variant": local_variant})
 
     # Wait for partner's faction choice
     remote_faction = None
+    remote_variant = 0
     font = pygame.font.SysFont("Arial", 36, bold=True)
     small_font = pygame.font.SysFont("Arial", 24)
     waiting = True
@@ -60,6 +68,7 @@ def run_lan_coop_arcade(screen, session, role):
         while msg:
             if msg.get("type") == CoopMsg.READY:
                 remote_faction = msg["payload"]["faction"]
+                remote_variant = msg["payload"].get("variant", 0)
                 waiting = False
                 break
             msg = session.receive()
@@ -98,12 +107,16 @@ def run_lan_coop_arcade(screen, session, role):
         # Host is P1, client is P2
         return run_coop_space_shooter(screen, session, role,
                                        p1_faction=local_faction,
-                                       p2_faction=remote_faction)
+                                       p2_faction=remote_faction,
+                                       p1_variant=local_variant,
+                                       p2_variant=remote_variant)
     else:
         # Client is P2, host is P1
         return run_coop_space_shooter(screen, session, role,
                                        p1_faction=remote_faction,
-                                       p2_faction=local_faction)
+                                       p2_faction=local_faction,
+                                       p1_variant=remote_variant,
+                                       p2_variant=local_variant)
 
 
 def _select_faction(screen, clock, screen_width, screen_height):

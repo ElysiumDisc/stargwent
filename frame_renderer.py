@@ -782,6 +782,26 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             latency_text = latency_font.render(f"{rtt}ms ({latency_label})", True, latency_color)
             screen.blit(latency_text, (hud_text_x + dot_radius * 3, latency_y))
 
+        # LAN Mode: Draw desync warning flash
+        if LAN_MODE and hasattr(state, 'ai_controller') and hasattr(state.ai_controller, 'desync_message'):
+            desync_msg = state.ai_controller.desync_message
+            if desync_msg:
+                text, expire_tick = desync_msg
+                now = pygame.time.get_ticks()
+                if now < expire_tick:
+                    # Pulsing red warning
+                    alpha = int(180 + 75 * math.sin(now * 0.008))
+                    warn_font = cfg.get_font("Arial", max(18, int(20 * SCALE_FACTOR)), bold=True)
+                    warn_surf = warn_font.render(f"! {text}", True, (255, 80, 80))
+                    warn_bg = pygame.Surface((warn_surf.get_width() + 16, warn_surf.get_height() + 8), pygame.SRCALPHA)
+                    warn_bg.fill((40, 0, 0, min(255, alpha)))
+                    wx = HUD_LEFT + (HUD_WIDTH - warn_bg.get_width()) // 2
+                    wy = pct_y(0.12)
+                    screen.blit(warn_bg, (wx, wy))
+                    screen.blit(warn_surf, (wx + 8, wy + 4))
+                else:
+                    state.ai_controller.desync_message = None
+
         if not hasattr(render_frame, '_cmd_bar_surf') or render_frame._cmd_bar_surf.get_size() != (SCREEN_WIDTH, COMMAND_BAR_HEIGHT):
             render_frame._cmd_bar_surf = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
             render_frame._cmd_bar_surf.fill((10, 20, 35, 200))

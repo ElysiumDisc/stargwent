@@ -23,7 +23,8 @@ class CoopSpaceShooterClient:
     and renders the game. Sends local input each frame.
     """
 
-    def __init__(self, screen_width, screen_height, session, local_faction, remote_faction):
+    def __init__(self, screen_width, screen_height, session, local_faction, remote_faction,
+                 local_variant=0, remote_variant=0):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.session = session
@@ -51,11 +52,13 @@ class CoopSpaceShooterClient:
         self.prev_state = None
         self.interp_t = 0.0
 
-        # Create ship sprites for rendering (faction-specific visuals)
+        # Create ship sprites for rendering (faction + variant specific visuals)
         self._p1_ship = Ship(0, 0, remote_faction, is_player=True,
-                             screen_width=screen_width, screen_height=screen_height)
+                             screen_width=screen_width, screen_height=screen_height,
+                             variant=remote_variant)
         self._p2_ship = Ship(0, 0, local_faction, is_player=True,
-                             screen_width=screen_width, screen_height=screen_height)
+                             screen_width=screen_width, screen_height=screen_height,
+                             variant=local_variant)
 
         # Enemy ship cache (faction → Ship template for sprite)
         self._enemy_cache = {}
@@ -168,6 +171,50 @@ class CoopSpaceShooterClient:
                 elif rarity == 'legendary':
                     pygame.draw.circle(surface, (255, 200, 50), (int(sx), int(sy)), size + 2, 2)
 
+        # --- Draw supergates ---
+        for sg in state.get('supergates', []):
+            sx, sy = self.camera.world_to_screen(sg['x'], sg['y'])
+            if -200 < sx < self.screen_width + 200 and -200 < sy < self.screen_height + 200:
+                ring_scale = sg.get('ring_scale', 0)
+                if ring_scale > 0.01:
+                    r = int(150 * ring_scale)
+                    alpha = int(200 * ring_scale)
+                    pygame.draw.circle(surface, (100, 150, 255), (int(sx), int(sy)), r, 4)
+                    if sg.get('phase', 0) >= 1:  # ACTIVATING or later
+                        horizon_r = int(r * 0.75)
+                        if horizon_r > 2:
+                            horizon_surf = pygame.Surface((horizon_r * 2 + 4, horizon_r * 2 + 4), pygame.SRCALPHA)
+                            hc = horizon_r + 2
+                            pygame.draw.circle(horizon_surf, (30, 80, 200, 140), (hc, hc), horizon_r)
+                            surface.blit(horizon_surf, (int(sx) - hc, int(sy) - hc))
+                    # Health bar if damaged
+                    sg_hp = sg.get('health', 0)
+                    sg_max = sg.get('max_health', 1)
+                    if sg_hp < sg_max and sg_max > 0:
+                        bar_w = int(r * 1.5)
+                        pct = max(0, sg_hp / sg_max)
+                        bx = int(sx - bar_w // 2)
+                        by = int(sy + r + 8)
+                        pygame.draw.rect(surface, (40, 40, 40), (bx, by, bar_w, 6))
+                        pygame.draw.rect(surface, (100, 180, 255), (bx, by, int(bar_w * pct), 6))
+                        pygame.draw.rect(surface, (80, 80, 80), (bx, by, bar_w, 6), 1)
+
+        # --- Draw Ori beams ---
+        for ob in state.get('ori_beams', []):
+            if ob.get('active', True):
+                bx, by = self.camera.world_to_screen(ob['x'], ob['y'])
+                angle = ob.get('angle', 0)
+                length = ob.get('length', 1500)
+                ex = bx + math.cos(angle) * length
+                ey = by + math.sin(angle) * length
+                width = ob.get('width', 30)
+                pygame.draw.line(surface, (255, 200, 50),
+                                (int(bx), int(by)), (int(ex), int(ey)), width + 12)
+                pygame.draw.line(surface, (255, 220, 80),
+                                (int(bx), int(by)), (int(ex), int(ey)), width)
+                pygame.draw.line(surface, (255, 255, 200),
+                                (int(bx), int(by)), (int(ex), int(ey)), max(2, width // 3))
+
         # --- Draw area bombs ---
         for bomb in state.get('area_bombs', []):
             sx, sy = self.camera.world_to_screen(bomb['x'], bomb['y'])
@@ -179,6 +226,15 @@ class CoopSpaceShooterClient:
                 warn_r = int(120 * fuse_pct)
                 if warn_r > 10:
                     pygame.draw.circle(surface, (255, 100, 50, 100), (int(sx), int(sy)), warn_r, 1)
+
+        # --- Draw asteroids ---
+        for ast in state.get('asteroids', []):
+            sx, sy = self.camera.world_to_screen(ast['x'], ast['y'])
+            if -60 < sx < self.screen_width + 60 and -60 < sy < self.screen_height + 60:
+                size = ast.get('size', 30)
+                r = size // 2
+                pygame.draw.circle(surface, (120, 100, 80), (int(sx), int(sy)), r)
+                pygame.draw.circle(surface, (80, 70, 55), (int(sx), int(sy)), r, 2)
 
         # --- Draw enemies ---
         for enemy in state.get('enemies', []):

@@ -13,6 +13,7 @@ class LanSession:
         self.thread = None
         self.keepalive_thread = None
         self.inbox = queue.Queue()
+        self.chat_inbox = queue.Queue()  # Separate queue for chat/typing/chat_ack messages
         self.stop_event = threading.Event()
         self.last_received = 0
         self.connection_timeout = 30  # seconds without message = disconnect
@@ -144,7 +145,11 @@ class LanSession:
                             self.current_rtt = int((time.time() - timestamp) * 1000)
                         continue
 
-                    self.inbox.put(payload)
+                    # Route chat-related messages to dedicated queue
+                    if msg_type in ("chat", "chat_ack", "typing"):
+                        self.chat_inbox.put(payload)
+                    else:
+                        self.inbox.put(payload)
                 except json.JSONDecodeError as e:
                     self.parse_error_count += 1
                     # Log corrupted data for debugging (truncated to avoid spam)
@@ -160,6 +165,7 @@ class LanSession:
 
         self.stop_event.set()
         self.inbox.put({"type": "disconnect"})
+        self.chat_inbox.put({"type": "disconnect"})
 
     def _keepalive_sender(self):
         """Send periodic keepalive and ping messages to detect dead connections and measure latency."""
@@ -182,6 +188,7 @@ class LanSession:
                     # Connection lost
                     self.stop_event.set()
                     self.inbox.put({"type": "disconnect"})
+                    self.chat_inbox.put({"type": "disconnect"})
                     break
 
     def is_connected(self):

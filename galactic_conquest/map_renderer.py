@@ -83,9 +83,11 @@ class MapScreen:
         btn_h = int(self.sh * 0.045)
         btn_gap = int(self.sw * 0.015)
 
-        # Right-side buttons: ATTACK, END TURN, VIEW DECK, RUN INFO
+        # Right-side buttons: ATTACK, FORTIFY, END TURN, VIEW DECK, RUN INFO
         right_x = self.sw - margin_x - btn_w
         self.attack_button_rect = pygame.Rect(right_x, self.btn_row_y, btn_w, btn_h)
+        right_x -= btn_w + btn_gap
+        self.fortify_button_rect = pygame.Rect(right_x, self.btn_row_y, btn_w, btn_h)
         right_x -= btn_w + btn_gap
         self.end_turn_button_rect = pygame.Rect(right_x, self.btn_row_y, btn_w, btn_h)
         right_x -= btn_w + btn_gap
@@ -173,6 +175,22 @@ class MapScreen:
                     f"{campaign_state.cooldowns[pid]}T", True, (255, 100, 100))
                 screen.blit(cd_text, (sx - cd_text.get_width() // 2, sy - radius - 16))
 
+            # Fortification shields
+            fort_level = getattr(campaign_state, 'fortification_levels', {}).get(pid, 0)
+            if fort_level > 0 and planet.owner == "player":
+                shield_text = self.font_info.render(
+                    "\u2666" * fort_level, True, (100, 200, 255))
+                screen.blit(shield_text, (sx - shield_text.get_width() // 2, sy - radius - 14))
+
+            # Enemy homeworld glow ring
+            if planet.planet_type == "homeworld" and planet.owner not in ("player", "neutral"):
+                hw_color = FACTION_COLORS.get(planet.owner, (200, 50, 50))
+                glow_alpha = int(120 + 60 * math.sin(pygame.time.get_ticks() * 0.003))
+                glow_surf = pygame.Surface((radius * 8, radius * 8), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (*hw_color, min(255, glow_alpha)),
+                                   (radius * 4, radius * 4), radius * 4, 3)
+                screen.blit(glow_surf, (sx - radius * 4, sy - radius * 4))
+
             self.planet_rects[pid] = pygame.Rect(sx - radius, sy - radius,
                                                   radius * 2, radius * 2)
 
@@ -195,6 +213,12 @@ class MapScreen:
         ]
         if upgraded_count:
             stats.append((f"Upgrades: {upgraded_count}", (100, 255, 150)))
+        relic_count = len(getattr(campaign_state, 'relics', []))
+        if relic_count:
+            stats.append((f"Relics: {relic_count}", (255, 176, 0)))
+        fort_count = sum(1 for v in getattr(campaign_state, 'fortification_levels', {}).values() if v > 0)
+        if fort_count:
+            stats.append((f"Forts: {fort_count}", (100, 200, 255)))
         for text, color in stats:
             surf = self.font_hud.render(text, True, color)
             screen.blit(surf, (x_offset, y_center))
@@ -238,11 +262,17 @@ class MapScreen:
                 dl_text = self.font_info.render(f"Defender: {leader_name}", True, (220, 180, 140))
                 screen.blit(dl_text, (info_x + int(self.sw * 0.15), info_y + int(self.sh * 0.028)))
 
+            # Fortification level
+            fort_level = getattr(campaign_state, 'fortification_levels', {}).get(self.selected_planet, 0)
+            if fort_level > 0 and sp.owner == "player":
+                fort_text = self.font_info.render(f"Fort: Lv{fort_level}/3", True, (100, 200, 255))
+                screen.blit(fort_text, (info_x + int(self.sw * 0.30), info_y + int(self.sh * 0.028)))
+
             # Cooldown
             if self.selected_planet in campaign_state.cooldowns:
                 cd_turns = campaign_state.cooldowns[self.selected_planet]
                 cd_text = self.font_hud.render(f"Cooldown: {cd_turns} turns", True, (255, 100, 100))
-                screen.blit(cd_text, (info_x + int(self.sw * 0.35), info_y + int(self.sh * 0.028)))
+                screen.blit(cd_text, (info_x + int(self.sw * 0.40), info_y + int(self.sh * 0.028)))
         else:
             # No planet selected — show hint
             hint = self.font_info.render(
@@ -254,6 +284,15 @@ class MapScreen:
         can_attack = (self.selected_planet in attackable_ids
                       and self.selected_planet not in campaign_state.cooldowns)
 
+        # Fortify: selected planet must be player-owned, level < 3, enough naquadah
+        fort_levels = getattr(campaign_state, 'fortification_levels', {})
+        can_fortify = False
+        if self.selected_planet and self.selected_planet in galaxy_map.planets:
+            sp = galaxy_map.planets[self.selected_planet]
+            cur_fort = fort_levels.get(self.selected_planet, 0)
+            can_fortify = (sp.owner == "player" and cur_fort < 3
+                           and campaign_state.naquadah >= 60)
+
         self._draw_button(screen, self.save_quit_button_rect, "SAVE & QUIT",
                           (140, 80, 80), enabled=True)
         self._draw_button(screen, self.run_info_button_rect, "RUN INFO",
@@ -262,6 +301,10 @@ class MapScreen:
                           (120, 100, 60), enabled=True)
         self._draw_button(screen, self.end_turn_button_rect, "END TURN",
                           (80, 120, 180), enabled=True)
+        fort_label = f"FORTIFY (60)" if can_fortify else "FORTIFY"
+        self._draw_button(screen, self.fortify_button_rect, fort_label,
+                          (60, 120, 180) if can_fortify else (60, 60, 60),
+                          enabled=can_fortify)
         self._draw_button(screen, self.attack_button_rect, "ATTACK",
                           (60, 180, 80) if can_attack else (60, 60, 60),
                           enabled=can_attack)
@@ -307,6 +350,9 @@ class MapScreen:
                 if (self.selected_planet in attackable_ids
                         and self.selected_planet not in campaign_state.cooldowns):
                     return "attack"
+
+            if self.fortify_button_rect.collidepoint(mx, my):
+                return "fortify"
 
             if self.end_turn_button_rect.collidepoint(mx, my):
                 return "end_turn"

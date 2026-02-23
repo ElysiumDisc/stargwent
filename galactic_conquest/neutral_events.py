@@ -92,6 +92,95 @@ NEUTRAL_EVENTS = [
              "effect": "naquadah", "value": 50},
         ],
     },
+    # === New events (v8.5) ===
+    {
+        "title": "Replicator Infestation",
+        "text": "Replicators swarm across this planet's surface.\n"
+                "You can fight them or salvage their technology.",
+        "choices": [
+            {"label": "Fight them (lose 2 random cards)",
+             "effect": "lose_cards", "value": 2},
+            {"label": "Salvage tech (gain 1 powerful card)",
+             "effect": "powerful_card", "value": 1},
+        ],
+    },
+    {
+        "title": "Prior Conversion",
+        "text": "An Ori Prior offers forbidden power.\n"
+                "The price may be steeper than it seems.",
+        "choices": [
+            {"label": "Accept the Ori's gift (gain powerful Ori card, lose 2 cards)",
+             "effect": "prior_conversion", "value": 1},
+            {"label": "Reject and loot the shrine (+50 naquadah)",
+             "effect": "naquadah", "value": 50},
+        ],
+    },
+    {
+        "title": "Time Dilation Field",
+        "text": "An Asgard time dilation device is still active.\n"
+                "Time moves differently here — use it wisely.",
+        "choices": [
+            {"label": "Exploit the field (double next naquadah reward: +100)",
+             "effect": "naquadah", "value": 100},
+            {"label": "Study the tech (upgrade 3 random cards +1)",
+             "effect": "upgrade_cards_multi", "value": 3},
+        ],
+    },
+    {
+        "title": "Tok'ra Alliance",
+        "text": "Tok'ra operatives offer their services.\n"
+                "Their intelligence network or their soldiers could aid your cause.",
+        "choices": [
+            {"label": "Accept operatives (+2 faction cards)",
+             "effect": "cards", "value": 2},
+            {"label": "Take intelligence (+80 naquadah)",
+             "effect": "naquadah", "value": 80},
+        ],
+    },
+    {
+        "title": "Furling Ruins",
+        "text": "The legendary Furlings left behind a treasure vault.\n"
+                "Ancient artifacts shimmer inside.",
+        "choices": [
+            {"label": "Claim an artifact (gain a random relic)",
+             "effect": "gain_relic", "value": 1},
+            {"label": "Sell everything (+100 naquadah)",
+             "effect": "naquadah", "value": 100},
+        ],
+    },
+    {
+        "title": "Ba'al's Clone Lab",
+        "text": "You've found one of Ba'al's cloning facilities.\n"
+                "The technology could duplicate your strongest assets.",
+        "choices": [
+            {"label": "Clone your best card (duplicate strongest)",
+             "effect": "duplicate_card", "value": 1},
+            {"label": "Destroy the lab (+80 naquadah)",
+             "effect": "naquadah", "value": 80},
+        ],
+    },
+    {
+        "title": "Wraith Culling Beam",
+        "text": "A Wraith cruiser culls the planet's population.\n"
+                "You must act fast — fight or hide.",
+        "choices": [
+            {"label": "Fight the Wraith (lose 1, gain 2 faction cards)",
+             "effect": "wraith_fight", "value": 1},
+            {"label": "Hide underground (-40 naquadah)",
+             "effect": "naquadah", "value": -40},
+        ],
+    },
+    {
+        "title": "Ascension Trial",
+        "text": "An ascended being offers to test your worthiness.\n"
+                "The trial will transform your deck — for better or worse.",
+        "choices": [
+            {"label": "Accept the trial (remove 3 weakest, upgrade 2 strongest +2)",
+             "effect": "ascension_trial", "value": 1},
+            {"label": "Decline respectfully (+50 naquadah)",
+             "effect": "naquadah", "value": 50},
+        ],
+    },
 ]
 
 # Leader portrait dimensions
@@ -418,5 +507,116 @@ def _apply_choice(campaign_state, choice, rng):
             names = [getattr(ALL_CARDS.get(cid), 'name', cid) for cid in removed]
             return f"Lost: {', '.join(names)}"
         return "Deck too small to lose cards."
+
+    elif effect == "powerful_card":
+        from cards import ALL_CARDS
+        # Add a high-power card from any faction
+        powerful = [(cid, getattr(c, 'power', 0) or 0) for cid, c in ALL_CARDS.items()
+                    if getattr(c, 'card_type', '') != "Legendary Commander"
+                    and getattr(c, 'row', '') != "weather"
+                    and (getattr(c, 'power', 0) or 0) >= 6]
+        if powerful:
+            cid, _ = rng.choice(powerful)
+            campaign_state.add_card(cid)
+            name = getattr(ALL_CARDS[cid], 'name', cid)
+            return f"Salvaged: {name}"
+        return "No powerful cards available."
+
+    elif effect == "prior_conversion":
+        from cards import ALL_CARDS
+        # Gain a powerful card, lose 2 random
+        powerful = [(cid, getattr(c, 'power', 0) or 0) for cid, c in ALL_CARDS.items()
+                    if getattr(c, 'card_type', '') != "Legendary Commander"
+                    and getattr(c, 'row', '') != "weather"
+                    and (getattr(c, 'power', 0) or 0) >= 7]
+        gained_name = "nothing"
+        if powerful:
+            cid, _ = rng.choice(powerful)
+            campaign_state.add_card(cid)
+            gained_name = getattr(ALL_CARDS[cid], 'name', cid)
+        # Lose 2 cards
+        lost_names = []
+        if len(campaign_state.current_deck) > 2:
+            removed = rng.sample(campaign_state.current_deck, 2)
+            for rid in removed:
+                campaign_state.remove_card(rid)
+                lost_names.append(getattr(ALL_CARDS.get(rid), 'name', rid))
+        return f"Gained: {gained_name} | Lost: {', '.join(lost_names) if lost_names else 'none'}"
+
+    elif effect == "gain_relic":
+        # Award a random relic not yet owned
+        try:
+            from .relics import RELICS
+            owned = getattr(campaign_state, 'relics', [])
+            available = [rid for rid in RELICS if rid not in owned]
+            if available:
+                relic_id = rng.choice(available)
+                campaign_state.add_relic(relic_id)
+                relic = RELICS[relic_id]
+                return f"Found relic: {relic.name} — {relic.description}"
+            return "No relics available (you have them all!)"
+        except (ImportError, AttributeError):
+            return "Relic system not available."
+
+    elif effect == "duplicate_card":
+        from cards import ALL_CARDS
+        # Duplicate the strongest card in deck
+        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                      for cid in campaign_state.current_deck]
+        deck_power.sort(key=lambda x: -x[1])
+        if deck_power:
+            best_cid = deck_power[0][0]
+            campaign_state.add_card(best_cid)
+            name = getattr(ALL_CARDS.get(best_cid), 'name', best_cid)
+            return f"Cloned: {name}"
+        return "No cards to clone."
+
+    elif effect == "wraith_fight":
+        from cards import ALL_CARDS
+        # Lose 1 card, gain 2 from player's faction
+        lost_name = "none"
+        if campaign_state.current_deck:
+            lost_cid = rng.choice(campaign_state.current_deck)
+            campaign_state.remove_card(lost_cid)
+            lost_name = getattr(ALL_CARDS.get(lost_cid), 'name', lost_cid)
+        # Gain 2 faction cards
+        faction = campaign_state.player_faction
+        faction_pool = [cid for cid, c in ALL_CARDS.items()
+                        if getattr(c, 'faction', None) == faction
+                        and getattr(c, 'card_type', '') != "Legendary Commander"
+                        and getattr(c, 'row', '') != "weather"]
+        gained = []
+        if faction_pool:
+            picks = rng.sample(faction_pool, min(2, len(faction_pool)))
+            for cid in picks:
+                campaign_state.add_card(cid)
+                gained.append(getattr(ALL_CARDS[cid], 'name', cid))
+        return f"Lost: {lost_name} | Gained: {', '.join(gained) if gained else 'none'}"
+
+    elif effect == "ascension_trial":
+        from cards import ALL_CARDS
+        # Remove 3 weakest, upgrade 2 strongest +2
+        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                      for cid in campaign_state.current_deck]
+        deck_power.sort(key=lambda x: x[1])
+        # Remove 3 weakest (if deck large enough)
+        removed = []
+        if len(deck_power) > 10:
+            for cid, _ in deck_power[:3]:
+                campaign_state.remove_card(cid)
+                removed.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+        # Upgrade 2 strongest
+        upgraded = []
+        deck_power_desc = sorted(deck_power, key=lambda x: -x[1])
+        for cid, pw in deck_power_desc[:2]:
+            if pw > 0:
+                campaign_state.upgrade_card(cid, 2)
+                upgraded.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+        parts = []
+        if removed:
+            parts.append(f"Removed: {', '.join(removed)}")
+        if upgraded:
+            parts.append(f"Upgraded +2: {', '.join(upgraded)}")
+        return " | ".join(parts) if parts else "Trial complete."
 
     return "Nothing happened."

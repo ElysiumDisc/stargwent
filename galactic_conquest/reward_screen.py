@@ -53,7 +53,7 @@ def _get_reward_tier(player_planet_count, total_planets):
 
 
 def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="territory",
-                      galaxy_map=None, bonus_message=""):
+                      galaxy_map=None, bonus_message="", extra_card_choices=0):
     """
     Show post-victory rewards: naquadah + pick 1 of N cards (scales with territory).
 
@@ -84,8 +84,8 @@ def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="ter
     naquadah_multiplier = {1: 1.0, 2: 1.25, 3: 1.5}
     naquadah_reward = int(base_naq * naquadah_multiplier[tier])
 
-    # Number of card choices scales with tier
-    num_choices = {1: 3, 2: 4, 3: 5}[tier]
+    # Number of card choices scales with tier + passives/relics
+    num_choices = {1: 3, 2: 4, 3: 5}[tier] + extra_card_choices
 
     # Generate card choices from defeated faction
     pool = get_faction_card_pool(defeated_faction, include_powerful=(tier >= 2))
@@ -192,6 +192,11 @@ def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="ter
                             picked = True
                             # Add card to deck
                             campaign_state.add_card(choices[i])
+                            # Replicator Nanites relic: 20% chance to duplicate
+                            if (hasattr(campaign_state, 'has_relic')
+                                    and campaign_state.has_relic("replicator_nanites")):
+                                if rng.random() < 0.20:
+                                    campaign_state.add_card(choices[i])
                             break
 
                     if not card_surfaces and skip_rect.collidepoint(mx, my):

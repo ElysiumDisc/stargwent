@@ -591,3 +591,244 @@ class AreaBomb:
         else:
             pygame.draw.circle(bomb_surf, (255, 200, 50), (c, c), pulse_r // 2)
         surface.blit(bomb_surf, (int(sx) - c, int(sy) - c))
+
+
+
+class PlasmaLance(Projectile):
+    """Asgard plasma lance — slow thick cyan bolt, high damage, pierces 1 enemy."""
+    def __init__(self, x, y, direction, color=(0, 255, 255), speed=8):
+        super().__init__(x, y, direction, color, speed, damage=35)
+        self.width = 50
+        self.height = 14
+        self.piercing = True
+        self._pierce_count = 0
+        self._max_pierce = 1
+        self.trail = []
+        self.pulse = 0
+
+    def update(self):
+        self.pulse += 0.2
+        self.trail.append({"x": self.x, "y": self.y, "alpha": 180})
+        if len(self.trail) > 12:
+            self.trail.pop(0)
+        for t in self.trail:
+            t["alpha"] -= 18
+        self.trail = [t for t in self.trail if t["alpha"] > 0]
+        super().update()
+
+    def on_hit(self):
+        """Called by game.py on hit. Returns True if projectile should deactivate."""
+        self._pierce_count += 1
+        return self._pierce_count > self._max_pierce
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) - self.width // 2, int(self.y) - self.height // 2,
+                          self.width, self.height)
+
+    def draw(self, surface, camera=None):
+        for t in self.trail:
+            if camera:
+                tx, ty = camera.world_to_screen(t["x"], t["y"])
+            else:
+                tx, ty = t["x"], t["y"]
+            alpha = max(0, t["alpha"])
+            trail_surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surf, (0, 200, 255, alpha), (8, 8), 6)
+            surface.blit(trail_surf, (int(tx) - 8, int(ty) - 8))
+
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+
+        pulse_w = self.width + int(math.sin(self.pulse) * 4)
+        bolt_surf = pygame.Surface((pulse_w + 16, self.height + 16), pygame.SRCALPHA)
+        cx = pulse_w // 2 + 8
+        cy = self.height // 2 + 8
+        # Outer glow
+        pygame.draw.ellipse(bolt_surf, (0, 200, 255, 80),
+                           (0, 0, pulse_w + 16, self.height + 16))
+        # Core
+        pygame.draw.ellipse(bolt_surf, self.color,
+                           (4, 4, pulse_w + 8, self.height + 8))
+        # White center
+        pygame.draw.ellipse(bolt_surf, (255, 255, 255),
+                           (8, 6, pulse_w, self.height + 4))
+        surface.blit(bolt_surf, (int(sx) - cx, int(sy) - cy))
+
+
+class DisruptorPulse(Projectile):
+    """Asgard disruptor pulse — rapid small blue-white flickering shot."""
+    def __init__(self, x, y, direction, color=(100, 180, 255), speed=20):
+        super().__init__(x, y, direction, color, speed, damage=8)
+        self.radius = 8
+        self.flicker = 0
+
+    def update(self):
+        super().update()
+        self.flicker += 0.4
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) - self.radius, int(self.y) - self.radius,
+                          self.radius * 2, self.radius * 2)
+
+    def draw(self, surface, camera=None):
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+        flicker_r = self.radius + int(math.sin(self.flicker) * 3)
+        surf = pygame.Surface((flicker_r * 4, flicker_r * 4), pygame.SRCALPHA)
+        c = flicker_r * 2
+        # Outer glow
+        pygame.draw.circle(surf, (100, 180, 255, 60), (c, c), flicker_r + 4)
+        # Main body
+        pygame.draw.circle(surf, self.color, (c, c), flicker_r)
+        # White-hot core
+        pygame.draw.circle(surf, (220, 240, 255), (c, c), max(2, flicker_r // 2))
+        surface.blit(surf, (int(sx) - c, int(sy) - c))
+
+
+class OriBossBeam:
+    """Ori mothership sweeping beam — long golden-yellow beam that rotates.
+
+    1500px length, 30px width, sweeps 90 degrees over 120 frames.
+    Deals 1.5 damage/frame to anything it touches.
+    """
+    def __init__(self, x, y, start_angle):
+        self.x = x
+        self.y = y
+        self.start_angle = start_angle
+        self.current_angle = start_angle
+        self.sweep_range = math.pi / 2  # 90 degrees
+        self.length = 1500
+        self.width = 20
+        self.timer = 0
+        self.charge_duration = 60   # 1s charge-up telegraph before beam fires
+        self.duration = 180  # 3 seconds sweep (slower = more dodgeable)
+        self.damage_per_frame = 1.5
+        self.active = True
+        self.charging = True  # True during charge-up phase (no damage)
+        self.pulse = 0
+
+    def update(self):
+        self.timer += 1
+        self.pulse += 0.3
+        if self.charging:
+            if self.timer >= self.charge_duration:
+                self.charging = False
+                self.timer = 0  # Reset timer for sweep phase
+        else:
+            progress = self.timer / self.duration
+            self.current_angle = self.start_angle + self.sweep_range * progress
+            if self.timer >= self.duration:
+                self.active = False
+
+    def get_end_pos(self):
+        ex = self.x + math.cos(self.current_angle) * self.length
+        ey = self.y + math.sin(self.current_angle) * self.length
+        return ex, ey
+
+    def line_circle_intersect(self, cx, cy, radius):
+        """Check if a circle at (cx, cy) with given radius intersects this beam line."""
+        ex, ey = self.get_end_pos()
+        # Vector from start to end
+        dx = ex - self.x
+        dy = ey - self.y
+        # Vector from start to circle center
+        fx = self.x - cx
+        fy = self.y - cy
+        a = dx * dx + dy * dy
+        b = 2 * (fx * dx + fy * dy)
+        c = fx * fx + fy * fy - (radius + self.width / 2) ** 2
+        discriminant = b * b - 4 * a * c
+        if discriminant < 0:
+            return False
+        discriminant = math.sqrt(discriminant)
+        t1 = (-b - discriminant) / (2 * a)
+        t2 = (-b + discriminant) / (2 * a)
+        return (0 <= t1 <= 1) or (0 <= t2 <= 1) or (t1 < 0 and t2 > 1)
+
+    def draw(self, surface, camera=None):
+        if not self.active:
+            return
+        ex, ey = self.get_end_pos()
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+            draw_ex, draw_ey = camera.world_to_screen(ex, ey)
+        else:
+            sx, sy = self.x, self.y
+            draw_ex, draw_ey = ex, ey
+
+        if self.charging:
+            # Charge-up telegraph: pulsing warning line + growing origin glow
+            charge_progress = self.timer / self.charge_duration
+            flicker = int(128 + 127 * math.sin(self.timer * 0.5))
+            # Thin flickering warning line showing where beam will fire
+            pygame.draw.line(surface, (255, 200, 50, flicker),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), 2)
+            # Growing glow at origin
+            glow_r = int(10 + 30 * charge_progress)
+            glow_surf = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+            alpha = int(100 + 155 * charge_progress)
+            pygame.draw.circle(glow_surf, (255, 220, 80, alpha), (glow_r, glow_r), glow_r)
+            surface.blit(glow_surf, (int(sx) - glow_r, int(sy) - glow_r))
+        else:
+            pulse_w = int(self.width + math.sin(self.pulse) * 6)
+            # Outer glow
+            pygame.draw.line(surface, (255, 200, 50, 100),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), pulse_w + 12)
+            # Main beam
+            pygame.draw.line(surface, (255, 220, 80),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), pulse_w)
+            # Core
+            pygame.draw.line(surface, (255, 255, 200),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), max(2, pulse_w // 3))
+
+
+class WraithBossBeam(OriBossBeam):
+    """Wraith Hive sweeping beam — purple life-draining beam that rotates.
+
+    1200px length, 25px width, sweeps 90 degrees over 120 frames.
+    Deals 1.2 damage/frame + heals the Wraith boss for 50% of damage dealt.
+    """
+    def __init__(self, x, y, start_angle):
+        super().__init__(x, y, start_angle)
+        self.length = 1200
+        self.width = 18
+        self.damage_per_frame = 1.2
+        self.life_steal_pct = 0.5  # Heal boss for 50% of damage dealt
+
+    def draw(self, surface, camera=None):
+        if not self.active:
+            return
+        ex, ey = self.get_end_pos()
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+            draw_ex, draw_ey = camera.world_to_screen(ex, ey)
+        else:
+            sx, sy = self.x, self.y
+            draw_ex, draw_ey = ex, ey
+
+        if self.charging:
+            # Charge-up telegraph: pulsing purple warning line + growing glow
+            charge_progress = self.timer / self.charge_duration
+            flicker = int(128 + 127 * math.sin(self.timer * 0.5))
+            pygame.draw.line(surface, (160, 40, 255, flicker),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), 2)
+            glow_r = int(10 + 30 * charge_progress)
+            glow_surf = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+            alpha = int(100 + 155 * charge_progress)
+            pygame.draw.circle(glow_surf, (160, 40, 255, alpha), (glow_r, glow_r), glow_r)
+            surface.blit(glow_surf, (int(sx) - glow_r, int(sy) - glow_r))
+        else:
+            pulse_w = int(self.width + math.sin(self.pulse) * 5)
+            # Outer glow — deep purple
+            pygame.draw.line(surface, (120, 0, 200),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), pulse_w + 14)
+            # Main beam — bright purple
+            pygame.draw.line(surface, (160, 40, 255),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), pulse_w)
+            # Core — pale violet
+            pygame.draw.line(surface, (220, 180, 255),
+                            (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), max(2, pulse_w // 3))

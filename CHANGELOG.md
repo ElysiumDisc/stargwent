@@ -1,3 +1,175 @@
+### Version 8.5.0 (February 2026)
+**Galactic Conquest Expansion + Space Shooter Overhaul — Alt Ships, Supergate Bosses, Relics, AI Wars**
+
+#### Galactic Conquest — 8 New Systems
+
+##### Planet Weather (Phase 1A)
+- Planet `weather_preset` fields now wired into card battles — battles on Tartarus have ice, Othala has EMP, etc.
+- 4 neutral planets gain weather: Abydos (ice), Atlantis (EMP), Cimmeria (nebula), Proclarush (asteroid)
+- Weather type map for display names in battle UI
+
+##### Planet Passives (Phase 1B — New)
+- **18 planet passives** grant bonuses when owned: naquadah/turn, card choice bonus, counterattack reduction, upgrade chance, cooldown reduction, weaken enemy
+- Key passives: Earth +15 naq/turn, Dakara +10 naq/turn, Atlantis +1 card choice, Tartarus enemies -1 card, Hasara -1 cooldown
+- Passives listed in Run Info screen
+
+##### Fortification System (Phase 2A — New)
+- **FORTIFY button** on galaxy map: spend 60 naquadah to fortify a player-owned planet (max level 3)
+- Shield diamond icons on fortified planets, fortification level shown in planet info HUD
+- Fort count displayed in top HUD bar
+
+##### Elite Homeworld Defenders (Phase 2B — New)
+- Homeworld attacks trigger dramatic **"ELITE DEFENDER"** screen with leader name and faction color
+- All AI cards get **+2 power** and **+2 extra faction cards** in homeworld battles
+- Pulsing faction-colored glow ring on enemy homeworlds on galaxy map
+
+##### Relic/Artifact System (Phase 3 — New)
+- **14 Stargate-themed relics** in 3 categories: Combat (Staff of Ra, Thor's Hammer, Kull Armor, Iris Shield, Ancient ZPM, Ori Prior Staff, Sarcophagus), Economy (Asgard Core, Naquadah Reactor), Exploration (Ring Platform, Replicator Nanites, Alteran Database, Quantum Mirror)
+- **Homeworld relics**: each conquered homeworld awards a guaranteed faction relic (e.g. Goa'uld → Sarcophagus, Asgard → Asgard Core)
+- **CRT-styled relic acquisition screen** with icon, name, category, and description
+- **Multi-choice relic screen** for events (Furling Ruins)
+- Combat relics modify decks pre-battle: Staff of Ra +1 Goa'uld, Thor's Hammer +2 Heroes, Kull Armor -1 enemy
+- Economy relics: Asgard Core +20 naq/victory, Naquadah Reactor +10 naq/turn
+- Ring Platform enables attacking 2-hop planets, Alteran Database +1 card choice, Replicator Nanites 20% duplicate
+- Relic count in map HUD, full relic list in Run Info
+
+##### AI Faction Wars (Phase 4 — New)
+- AI factions attack each other's adjacent territory each turn
+- Attack chance: 15% + 5% per planet owned (max 40%), success weighted by relative strength (25-55%)
+- Flash messages: "Goa'uld captured Dakara from Jaffa!" / "Jaffa Rebellion has been ELIMINATED!"
+- Creates dynamic galaxy where territory shifts without player intervention
+
+##### 8 New Neutral Events (Phase 5 — 7→15 total)
+- **Replicator Infestation**: Lose 2 cards OR gain 1 powerful card
+- **Prior Conversion**: Gain powerful card + lose 2 OR +50 naquadah
+- **Time Dilation Field**: +100 naquadah OR upgrade 3 cards
+- **Tok'ra Alliance**: +2 faction cards OR +80 naquadah
+- **Furling Ruins**: Gain random relic OR +100 naquadah
+- **Ba'al's Clone Lab**: Duplicate strongest card OR +80 naquadah
+- **Wraith Culling Beam**: Lose 1 + gain 2 faction cards OR -40 naquadah
+- **Ascension Trial**: Remove 3 weakest + upgrade 2 strongest +2 OR +50 naquadah
+
+##### Narrative Arcs / Story Chains (Phase 6 — New)
+- **3 story chains** tracking planet conquest sequences with relic/naquadah rewards:
+  - **Path of the Ancients**: Heliopolis → Kheb → Atlantis = Ancient ZPM relic
+  - **Fall of the System Lords**: Tartarus → Netu → Hasara = 150 naq + remove 3 weak cards
+  - **Jaffa Liberation**: Dakara → Hak'tyl → Chulak = Staff of Ra relic + 100 naq
+- Progress flash messages ("Path of the Ancients: 2/3"), dramatic completion flash
+- Arc progress displayed in Run Info screen
+
+##### Run Info & HUD Polish (Phase 7)
+- Run Info screen: new sections for Relics, Planet Passives, Fortifications, Story Arcs
+- Map HUD: relic count, fort count in top bar; fortification level in planet info panel
+- Homeworld glow ring pulsing with faction color on galaxy map
+
+#### Campaign State Expansion
+- 3 new fields: `fortification_levels`, `relics`, `narrative_progress`
+- Backwards-compatible serialization via `.get()` defaults
+- `add_relic()` / `has_relic()` helper methods
+
+#### Space Shooter — Alt Ships, Supergate Bosses, New Weapons
+
+##### Alternate Ship Variants (6 New Playable Ships)
+- **Data-driven variant system**: `SHIP_VARIANTS` dict in ship.py replaces hardcoded faction if/elif chains
+- **Ship select UI**: Up/Down (W/S) cycles variants within a faction, variant dots + name + description shown below ship
+- **Asgard Valhalla-class** (heavy warship): Plasma Lance primary (piercing cyan bolt), Ion Pulse secondary, Heavy Armor passive (25% dmg reduction, 20% slower)
+- **Asgard Beliskner-class** (cruiser): Fast beam primary, Transporter Beam secondary (teleport nearest enemy 300px away), Adaptive Shields passive (5 shield hits = +10% dmg for 5s)
+- **Asgard Research Vessel**: Disruptor Pulse primary (rapid small shots), Sensor Sweep secondary (mark enemies for +30% dmg taken), Analyzer passive (marked kills = double XP + better drops)
+- **Goa'uld Apophis Flagship**: Dual Staff primary (two parallel blasts), Ribbon Blast secondary (cone shockwave + knockback), Sarcophagus Regen passive (heal when <50% HP)
+- **Tau'ri Aurora-class**: Ancient battleship with elongated hull — Drone Pulse primary (rapid golden homing shots), Drone Salvo secondary (6-drone burst), Ancient Shields passive (steady shield regen)
+- **Jaffa Ha'tak Refit**: Dual Staff primary, Jaffa Rally secondary (spawn 2 temp ally ships), Symbiote Resilience passive (3s invuln when below 30% HP, 60s cooldown)
+- **Goa'uld Anubis Mothership**: Dual Staff primary, Eye of Ra secondary (devastating line-damage beam, 600px range, 60 dmg), Anubis Shield passive (absorbs 3 hits completely)
+- AI enemies now spawn with random ship variant sprites for visual variety
+
+##### New Projectile Types
+- **PlasmaLance**: Slow thick cyan-white bolt, 35 dmg, pierces 1 enemy, glow trail
+- **DisruptorPulse**: Rapid small blue-white flickering shots, 8 dmg, fast fire rate
+- **OriBossBeam**: 1500px golden sweeping beam, rotates 90 degrees over 2s, line-circle collision
+- **WraithBossBeam**: 1200px purple beam, 1.2 dmg/frame, 50% life-steal heals the Wraith Hive
+
+##### Supergate Boss Event System
+- **Supergate animation**: Full Stargate-style 5-phase sequence — ring materializes with chevron pulses, explosive kawoosh vortex burst outward, retraction into shimmering event horizon with ripple rings and lightning tendrils, boss emerges, gate stays open
+- **Destroyable supergates**: Supergates have 5x boss HP (Ori: 50000, Wraith: 40000) — destroy the gate to stop it, or kill the boss. Health bar shown when damaged
+- **Supergate persists**: Gate stays open with shimmering horizon until boss is killed or gate is destroyed
+- **Ori Mothership boss**: 10000 HP / 5000 shields, 2.5x scale, subtle blue center glow (matching PNG orb), fires golden sweeping beam + regular lasers, `ori_space_shooter.ogg` beam sound
+- **Wraith Hive boss**: 8000 HP / 3000 shields, 2.0x scale, fires purple culling beam with life-steal, spawns wraith darts, `wraith_space_shooter.ogg` beam sound
+- **Beam telegraph**: 1-second charge-up warning (flickering line + growing glow) before beam fires, slower 3s sweep — avoidable with good movement
+- **Random boss type**: Each supergate randomly spawns Ori or Wraith boss
+- **Player-only targets**: Supergate bosses must be killed by the player — regular enemies ignore them, boss beam still damages everything
+- **Wave escalation**: Wave 1 = 1 boss, wave 2 = 2 bosses, wave 3+ = 3 bosses (capped), spread at equal angles around player
+- **Boss death rewards**: Massive explosion + screen shake, 3-5 powerup drops, 500 XP, 5000 score, all enemies stunned 60 frames
+- First supergate at 3 minutes survival, subsequent every 180-300s after previous boss defeated
+
+##### Bigger Wormhole Gravity
+- Pull radius 300→1000, core radius 50→160, max acceleration 3.0→5.5, visual radius 80→160 — massive wormhole gravity well
+
+##### Audio & Balance Fixes
+- **All space shooter SFX now respect volume sliders**: Hit sounds, boost sounds, wormhole, supergate activation, Ori beam, and Wraith beam all route through Master × Effects volume (were hardcoded, ignored settings)
+- **Supergate activation sound**: `supergate.ogg` plays when the supergate enters its kawoosh activation phase
+- **Variant-specific hit sounds**: Each ship variant can have its own hit sound (e.g. Aurora-class uses `tauri_space_shooter_alt_1.ogg`), falls back to faction default
+- **Faction-specific boost sounds**: Goa'uld uses `goa'uld_boost_space_shooter.ogg`, others use generic boost sound
+- **Fixed**: Goa'uld hit sound filename corrected (was missing apostrophe, never loaded)
+- **Fixed**: Hit sound cooldown now frame-based (0.2s) instead of per-hit (was skipping ~30 hits on rapid-fire ships)
+- **Fixed**: Ship rotation uses nearest cardinal cached image — fixes left-facing ships appearing vertically flipped
+- **Base Tau'ri ship renamed**: F-302 → BC-304 (Daedalus-class battlecruiser)
+- **Regen balance**: Ancient Shields 0.8→0.3/frame, Sarcophagus Regen 0.2→0.1/frame
+- **Contact damage +44%**: Boss touch 25→36, regular touch 10→14
+- **XP scaling adjusted**: Base 80 × 1.12^n → 480 × 1.25^n (upgrades come significantly less frequently)
+
+##### LAN Co-op Parity Fixes
+- **Fixed**: Ship variant selection now properly transmitted in co-op — both players see correct alt ship sprites, weapons, and abilities (was always defaulting to variant 0)
+- **Fixed**: Supergate boss events now run in co-op — Ori Mothership and Wraith Hive boss fights appear for both players with beam damage hitting P1 and P2
+- **Fixed**: Hit sound cooldown now ticks in co-op (was never decremented — sound played once then broke)
+- **Fixed**: Asteroids now visible to co-op client (were simulated on host but missing from network snapshot)
+- **Fixed**: Supergate health bar synced to co-op client (shows damage state on both screens)
+- **Fixed**: XP scaling formula aligned between solo (120 × 1.18^n) and co-op (was using 1.15 multiplier)
+- **Fixed**: Boss kill rewards trigger correctly in co-op (massive explosion, powerup drops, enemy stun, revival check)
+- **Fixed**: Co-op revival invulnerability now uses **per-player timers** — revived player gets 3s invuln without affecting partner (was shared powerup — both players got invuln or neither did)
+- **Fixed**: Invulnerability checks added to ALL co-op damage paths: projectile hits, beam damage, contact damage, and area bomb splash (revived players were taking damage immediately)
+- **Fixed**: All space shooter audio (music + SFX channels) now cut off immediately on exit — no lingering sounds when returning to draft mode
+
+#### Replicator Swarm Animation + Sound Fix
+- **Fixed**: Replicator Swarm cards (close row) now trigger `ReplicatorCrawlEffect` animation (120 spider-bots + GPU metallic shimmer shader)
+- **Fixed**: `add_special_card_effect()` now called for ALL unit cards (not just special row), so any card with a named animation fires correctly
+- **New sound**: `replicator.ogg` now plays when any Replicator Swarm card is played (player or AI)
+- Added `play_replicator_sound()` to `SoundEffectManager`
+- Wired into all 3 card-play paths: player regular units, AI turn 1 animation, AI LAN/remote play
+
+#### New Files (4)
+| File | Purpose |
+|------|---------|
+| `galactic_conquest/planet_passives.py` | 18 planet passive bonuses + helper functions |
+| `galactic_conquest/relics.py` | 14 relics, Relic dataclass, homeworld relic mapping |
+| `galactic_conquest/relic_screen.py` | CRT acquisition screen + multi-choice mode |
+| `galactic_conquest/narrative_arcs.py` | 3 story chains with progress tracking |
+
+#### Key Modified Files
+| File | Changes |
+|------|---------|
+| `space_shooter/game.py` | Supergate boss system, common threat, beam collisions, new secondary handlers, passive abilities, variant propagation |
+| `space_shooter/ship.py` | SHIP_VARIANTS data, 7 alt ship configs, new AI behaviors (ori_boss, wraith_boss), new secondaries, new passives |
+| `space_shooter/projectiles.py` | PlasmaLance, DisruptorPulse, OriBossBeam, WraithBossBeam |
+| `space_shooter/entities.py` | Supergate class with 5-phase kawoosh animation |
+| `space_shooter/upgrades.py` | ori_mothership + wraith_supergate enemy types, explosion palettes |
+| `space_shooter/ship_select.py` | Up/Down variant selection, variant dots, description display |
+| `space_shooter/spawner.py` | Random alt variant sprites for AI enemies |
+| `space_shooter/__init__.py` | Variant tuple return, variant propagation to game |
+| `space_shooter/coop_game.py` | p1/p2 variant params, supergate/beam snapshot serialization |
+| `space_shooter/coop_client.py` | Supergate + beam rendering |
+| `space_shooter/coop_protocol.py` | Variant field in READY message |
+| `campaign_controller.py` | Passives, fortify, AI wars, elite screen, relic hooks, arc checks, Run Info |
+| `neutral_events.py` | 8 new events + 7 new effect handlers |
+| `card_battle.py` | Weather injection, elite params, relic combat modifiers |
+| `galaxy_map.py` | Neutral weather, AI-vs-AI methods, Ring Platform 2-hop |
+| `map_renderer.py` | FORTIFY button, shield icons, homeworld glow, relic/fort HUD |
+| `campaign_state.py` | 3 new fields + relic helpers |
+| `reward_screen.py` | Card choice bonuses from passives + relics, Replicator Nanites |
+| `main.py` | `add_special_card_effect` called for regular unit cards (AI paths) |
+| `event_handler.py` | `add_special_card_effect` called for regular unit cards (player path) |
+| `sound_manager.py` | `play_replicator_sound()` method |
+
+---
+
 ### Version 8.4.0 (February 2026)
 **Stargate Menu Border, Button Scaling, Performance Optimizations**
 

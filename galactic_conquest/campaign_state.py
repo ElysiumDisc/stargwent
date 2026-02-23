@@ -23,6 +23,9 @@ class CampaignState:
     friendly_faction: str = None                            # allied faction (their territory = yours)
     neutral_count: int = 5                                  # number of neutral planets
     enemy_leaders: dict = field(default_factory=dict)       # faction → leader name (homeworld defenders)
+    fortification_levels: dict = field(default_factory=dict)  # planet_id → 0-3
+    relics: list = field(default_factory=list)               # relic ID strings
+    narrative_progress: dict = field(default_factory=dict)   # arc_id → [planet_names conquered]
 
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
@@ -40,6 +43,9 @@ class CampaignState:
             "friendly_faction": self.friendly_faction,
             "neutral_count": self.neutral_count,
             "enemy_leaders": dict(self.enemy_leaders),
+            "fortification_levels": dict(self.fortification_levels),
+            "relics": list(self.relics),
+            "narrative_progress": {k: list(v) for k, v in self.narrative_progress.items()},
         }
 
     @classmethod
@@ -59,6 +65,9 @@ class CampaignState:
             friendly_faction=data.get("friendly_faction"),
             neutral_count=data.get("neutral_count", 5),
             enemy_leaders=data.get("enemy_leaders", {}),
+            fortification_levels=data.get("fortification_levels", {}),
+            relics=data.get("relics", []),
+            narrative_progress=data.get("narrative_progress", {}),
         )
 
     def tick_cooldowns(self):
@@ -87,3 +96,12 @@ class CampaignState:
         """Remove one copy of a card from the deck."""
         if card_id in self.current_deck:
             self.current_deck.remove(card_id)
+
+    def add_relic(self, relic_id: str):
+        """Add a relic if not already owned."""
+        if relic_id not in self.relics:
+            self.relics.append(relic_id)
+
+    def has_relic(self, relic_id: str) -> bool:
+        """Check if player owns a relic."""
+        return relic_id in self.relics

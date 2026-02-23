@@ -9,17 +9,199 @@ from .projectiles import (ContinuousBeam, Laser, Missile, EnergyBall,
                           JaffaStaffBlast, RailgunShot, ProximityMine)
 
 
+# --- Ship variant definitions ---
+# Each faction maps to a list of variant dicts. Index 0 = default ship.
+# Fields: name, image_file, image_orientation ("left"=faces left, "up"=faces up, "down"=faces down, "right"),
+#         weapon_type, fire_rate, secondary_type, secondary_fire_rate,
+#         passive, passive_state, description
+SHIP_VARIANTS = {
+    "asgard": [
+        {
+            "name": "O'Neill-class",
+            "image_file": "asgard_ship.png",
+            "image_orientation": "left",
+            "weapon_type": "beam",
+            "fire_rate": 150,
+            "secondary_type": "ion_pulse",
+            "secondary_fire_rate": 300,
+            "passive": "beam_pierce",
+            "passive_state": {},
+            "description": "Beam weapon pierces enemies",
+        },
+        {
+            "name": "Valhalla-class",
+            "image_file": "asgard_ship_alt_1.png",
+            "image_orientation": "down",
+            "weapon_type": "plasma_lance",
+            "fire_rate": 40,
+            "secondary_type": "ion_pulse",
+            "secondary_fire_rate": 240,
+            "passive": "heavy_armor",
+            "passive_state": {},
+            "description": "Slow heavy warship, 25% dmg reduction",
+        },
+        {
+            "name": "Beliskner-class",
+            "image_file": "asgard_ship_alt_2.png",
+            "image_orientation": "down",
+            "weapon_type": "beam",
+            "fire_rate": 120,
+            "secondary_type": "transporter_beam",
+            "secondary_fire_rate": 360,
+            "passive": "adaptive_shields",
+            "passive_state": {"shield_hits": 0, "dmg_buff_timer": 0},
+            "description": "Shield hits grant damage buff",
+        },
+        {
+            "name": "Research Vessel",
+            "image_file": "asgard_ship_alt_3.png",
+            "image_orientation": "down",
+            "weapon_type": "disruptor_pulse",
+            "fire_rate": 15,
+            "secondary_type": "sensor_sweep",
+            "secondary_fire_rate": 480,
+            "passive": "analyzer",
+            "passive_state": {},
+            "description": "Rapid fire, marked kills = double XP",
+        },
+    ],
+    "goa'uld": [
+        {
+            "name": "Ha'tak",
+            "image_file": "goa'uld_ship.png",
+            "image_orientation": "right",
+            "weapon_type": "laser",
+            "fire_rate": 14,
+            "secondary_type": "staff_barrage",
+            "secondary_fire_rate": 240,
+            "passive": "shield_regen",
+            "passive_state": {"no_hit_timer": 0},
+            "description": "Shield regen after 2s without damage",
+        },
+        {
+            "name": "Apophis Flagship",
+            "image_file": "goa'uld_ship_alt_1.png",
+            "image_orientation": "down",
+            "weapon_type": "dual_staff",
+            "fire_rate": 10,
+            "secondary_type": "ribbon_blast",
+            "secondary_fire_rate": 180,
+            "passive": "sarcophagus_regen",
+            "passive_state": {},
+            "description": "Twin staffs, heals below 50% HP",
+        },
+        {
+            "name": "Anubis Mothership",
+            "image_file": "goa'uld_ship_alt_2.png",
+            "image_orientation": "down",
+            "weapon_type": "laser",
+            "fire_rate": 18,
+            "secondary_type": "eye_of_ra",
+            "secondary_fire_rate": 300,
+            "passive": "anubis_shield",
+            "passive_state": {"absorb_charges": 3},
+            "description": "Eye of Ra beam, absorbs 3 hits",
+        },
+    ],
+    "tau'ri": [
+        {
+            "name": "BC-304",
+            "image_file": "tau'ri_ship.png",
+            "image_orientation": "up",
+            "weapon_type": "missile",
+            "fire_rate": 28,
+            "secondary_type": "railgun",
+            "secondary_fire_rate": 180,
+            "passive": "armor_plating",
+            "passive_state": {},
+            "description": "Armored fighter, -15% incoming damage",
+        },
+        {
+            "name": "Aurora-class",
+            "image_file": "tau'ri_ship_alt_1.png",
+            "image_orientation": "up",
+            "natural_size": True,
+            "weapon_type": "drone_pulse",
+            "fire_rate": 12,
+            "secondary_type": "drone_salvo",
+            "secondary_fire_rate": 360,
+            "passive": "ancient_shields",
+            "passive_state": {"regen_rate": 0.3},
+            "description": "Ancient battleship, rapid drones, powerful shield regen",
+        },
+    ],
+    "jaffa rebellion": [
+        {
+            "name": "Death Glider",
+            "image_file": "jaffa_rebellion_ship.png",
+            "image_orientation": "left",
+            "weapon_type": "staff",
+            "fire_rate": 16,
+            "secondary_type": "war_cry",
+            "secondary_fire_rate": 360,
+            "passive": "warriors_fury",
+            "passive_state": {"kills": 0},
+            "description": "+2% damage per kill, max 40%",
+        },
+        {
+            "name": "Ha'tak Refit",
+            "image_file": "jaffa_rebellion_alt_1.png",
+            "image_orientation": "down",
+            "weapon_type": "dual_staff",
+            "fire_rate": 12,
+            "secondary_type": "jaffa_rally",
+            "secondary_fire_rate": 420,
+            "passive": "symbiote_resilience",
+            "passive_state": {"invuln_cooldown": 0},
+            "description": "Twin staffs, invuln burst when low HP",
+        },
+    ],
+    "lucian alliance": [
+        {
+            "name": "Smuggler Ship",
+            "image_file": "lucian_alliance_ship.png",
+            "image_orientation": "up",
+            "weapon_type": "energy_ball",
+            "fire_rate": 20,
+            "secondary_type": "scatter_mines",
+            "secondary_fire_rate": 210,
+            "passive": "splash_damage",
+            "passive_state": {},
+            "description": "Energy balls deal 40% AoE splash",
+        },
+    ],
+}
+
+# Build alias mappings for alternate faction name spellings
+for _alias, _canon in [("tauri", "tau'ri"), ("goauld", "goa'uld"),
+                        ("jaffa_rebellion", "jaffa rebellion"),
+                        ("lucian_alliance", "lucian alliance")]:
+    SHIP_VARIANTS[_alias] = SHIP_VARIANTS[_canon]
+
+# Collect all alt ship image files for AI visual variety
+_ALL_ALT_SHIP_IMAGES = []
+_seen = set()
+for _variants in SHIP_VARIANTS.values():
+    for _v in _variants:
+        f = _v["image_file"]
+        if f not in _seen:
+            _seen.add(f)
+            _ALL_ALT_SHIP_IMAGES.append(f)
+
+
 class Ship:
     """A spaceship (player or AI). All positions are in world-space."""
 
     _shield_hit_sound = None
     _shield_hit_sound_loaded = False
 
-    def __init__(self, x, y, faction, is_player=True, screen_width=1920, screen_height=1080):
+    def __init__(self, x, y, faction, is_player=True, screen_width=1920, screen_height=1080,
+                 variant=0):
         self.x = x
         self.y = y
         self.faction = faction
         self.is_player = is_player
+        self.variant = variant
         # Store screen dims for spawner compatibility (not used for clamping)
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -34,61 +216,46 @@ class Ship:
         self.fire_cooldown = 0
         self.fire_rate = 30  # frames between shots
 
-        # Faction-specific weapon types and fire rates
+        # Look up variant config (data-driven)
         faction_lower = faction.lower()
-        self.weapon_type = "laser"  # default
-        if faction_lower in ["asgard"]:
-            self.weapon_type = "beam"
-            self.fire_rate = 150  # 2.5 second cooldown at 60 FPS
-        elif faction_lower in ["tau'ri", "tauri"]:
-            self.weapon_type = "missile"
-            self.fire_rate = 28  # Fast missiles
-        elif faction_lower in ["goa'uld", "goauld"]:
+        variants = SHIP_VARIANTS.get(faction_lower, [])
+        if variants and 0 <= variant < len(variants):
+            vdata = variants[variant]
+        elif variants:
+            vdata = variants[0]
+        else:
+            vdata = None
+
+        if vdata:
+            self.weapon_type = vdata["weapon_type"]
+            self.fire_rate = vdata["fire_rate"]
+            self.passive = vdata["passive"]
+            self.passive_state = dict(vdata.get("passive_state", {}))
+            self.secondary_type = vdata["secondary_type"]
+            self.secondary_fire_rate = vdata["secondary_fire_rate"]
+            self._variant_image_file = vdata["image_file"]
+            self._variant_image_orientation = vdata["image_orientation"]
+            self._variant_natural_size = vdata.get("natural_size", False)
+            self.variant_name = vdata["name"]
+        else:
+            # Fallback for unknown factions
             self.weapon_type = "laser"
-            self.fire_rate = 14
-        elif faction_lower in ["lucian alliance", "lucian_alliance"]:
-            self.weapon_type = "energy_ball"
-            self.fire_rate = 20
-        elif faction_lower in ["jaffa rebellion", "jaffa_rebellion"]:
-            self.weapon_type = "staff"
-            self.fire_rate = 16
+            self.passive = None
+            self.passive_state = {}
+            self.secondary_type = None
+            self.secondary_fire_rate = 300
+            self._variant_image_file = None
+            self._variant_image_orientation = None
+            self._variant_natural_size = False
+            self.variant_name = faction
 
-        # Faction passive abilities
-        self.passive = None
-        self.passive_state = {}
-        if faction_lower in ["tau'ri", "tauri"]:
-            self.passive = "armor_plating"  # -15% incoming damage
-        elif faction_lower in ["goa'uld", "goauld"]:
-            self.passive = "shield_regen"  # Regen 0.3/frame after 120 frames no hit
-            self.passive_state = {"no_hit_timer": 0}
-        elif faction_lower in ["asgard"]:
-            self.passive = "beam_pierce"  # Beam hits pierce through enemies
-        elif faction_lower in ["jaffa rebellion", "jaffa_rebellion"]:
-            self.passive = "warriors_fury"  # +2% damage per kill, cap 40%
-            self.passive_state = {"kills": 0}
-        elif faction_lower in ["lucian alliance", "lucian_alliance"]:
-            self.passive = "splash_damage"  # Energy balls deal 40% AoE
-
-        # Secondary fire system — faction-specific special ability
+        # Secondary fire system
         self.secondary_cooldown = 0
-        self.secondary_fire_rate = 300  # Default 5s cooldown
-        self.secondary_type = None
         self.secondary_buff_timer = 0  # For buff-type secondaries
-        if faction_lower in ["tau'ri", "tauri"]:
-            self.secondary_type = "railgun"
-            self.secondary_fire_rate = 180  # 3s cooldown
-        elif faction_lower in ["goa'uld", "goauld"]:
-            self.secondary_type = "staff_barrage"
-            self.secondary_fire_rate = 240  # 4s cooldown
-        elif faction_lower in ["asgard"]:
-            self.secondary_type = "ion_pulse"
-            self.secondary_fire_rate = 300  # 5s cooldown
-        elif faction_lower in ["jaffa rebellion", "jaffa_rebellion"]:
-            self.secondary_type = "war_cry"
-            self.secondary_fire_rate = 360  # 6s cooldown (strong buff)
-        elif faction_lower in ["lucian alliance", "lucian_alliance"]:
-            self.secondary_type = "scatter_mines"
-            self.secondary_fire_rate = 210  # 3.5s cooldown
+
+        # Heavy armor passive: 20% slower
+        if self.passive == "heavy_armor" and is_player:
+            self.speed = int(self.speed * 0.8)
 
         # For beam weapon
         self.beam_active = False
@@ -182,47 +349,55 @@ class Ship:
         self._engine_emit_timer = 0
 
     def load_image(self):
-        """Load faction ship image."""
-        faction_to_file = {
-            "tau'ri": "tau'ri_ship.png",
-            "tauri": "tau'ri_ship.png",
-            "goa'uld": "goa'uld_ship.png",
-            "goauld": "goa'uld_ship.png",
-            "asgard": "asgard_ship.png",
-            "jaffa rebellion": "jaffa_rebellion_ship.png",
-            "jaffa_rebellion": "jaffa_rebellion_ship.png",
-            "lucian alliance": "lucian_alliance_ship.png",
-            "lucian_alliance": "lucian_alliance_ship.png",
-        }
-
-        faction_lower = self.faction.lower()
-        ship_filename = faction_to_file.get(faction_lower)
-
-        if not ship_filename:
-            ship_filename = faction_lower.replace(" ", "_") + "_ship.png"
+        """Load ship image using variant data or fallback to faction defaults."""
+        # Use variant image file if available, else fallback to faction default
+        if self._variant_image_file:
+            ship_filename = self._variant_image_file
+            orientation = self._variant_image_orientation or "left"
+        else:
+            faction_to_file = {
+                "tau'ri": ("tau'ri_ship.png", "up"),
+                "tauri": ("tau'ri_ship.png", "up"),
+                "goa'uld": ("goa'uld_ship.png", "right"),
+                "goauld": ("goa'uld_ship.png", "right"),
+                "asgard": ("asgard_ship.png", "left"),
+                "jaffa rebellion": ("jaffa_rebellion_ship.png", "left"),
+                "jaffa_rebellion": ("jaffa_rebellion_ship.png", "left"),
+                "lucian alliance": ("lucian_alliance_ship.png", "up"),
+                "lucian_alliance": ("lucian_alliance_ship.png", "up"),
+            }
+            faction_lower = self.faction.lower()
+            entry = faction_to_file.get(faction_lower, (faction_lower.replace(" ", "_") + "_ship.png", "left"))
+            ship_filename = entry[0]
+            orientation = entry[1]
 
         ship_path = os.path.join("assets", "ships", ship_filename)
 
         try:
             self.image = pygame.image.load(ship_path).convert_alpha()
 
-            if faction_lower in ["tau'ri", "tauri", "lucian alliance", "lucian_alliance"]:
-                if self.is_player:
-                    self.image = pygame.transform.rotate(self.image, -90)
-                else:
-                    self.image = pygame.transform.rotate(self.image, 90)
+            # Normalize to right-facing base image based on source orientation
+            if orientation == "up":
+                # PNG faces up → rotate -90 to face right
+                self.image = pygame.transform.rotate(self.image, -90)
+            elif orientation == "down":
+                # PNG faces down → rotate +90 to face right
+                self.image = pygame.transform.rotate(self.image, 90)
+            elif orientation == "left":
+                # PNG faces left → flip horizontally to face right
+                self.image = pygame.transform.flip(self.image, True, False)
+            # orientation == "right" → already right-facing, no transform needed
 
-            elif faction_lower in ["asgard", "jaffa rebellion", "jaffa_rebellion"]:
-                if self.is_player:
-                    self.image = pygame.transform.flip(self.image, True, False)
-
-            elif faction_lower in ["goa'uld", "goauld"]:
-                if not self.is_player:
-                    self.image = pygame.transform.flip(self.image, True, False)
-
-            # Scale image
-            self.image = pygame.transform.smoothscale(self.image, (self.width, self.height))
-            # Cache all 4 facing directions
+            # Scale image proportionally based on PNG's actual dimensions
+            # PNG size determines in-game size — larger PNGs = larger ships
+            raw_w = self.image.get_width()
+            raw_h = self.image.get_height()
+            scaled_w = int(raw_w * self.scale_factor)
+            scaled_h = int(raw_h * self.scale_factor)
+            self.image = pygame.transform.smoothscale(self.image, (scaled_w, scaled_h))
+            self.width = scaled_w
+            self.height = scaled_h
+            # Cache all 4 facing directions from right-facing base
             self.image_right = self.image.copy()
             self.image_left = pygame.transform.flip(self.image, True, False)
             self.image_up = pygame.transform.rotate(self.image_right, 90)
@@ -251,6 +426,31 @@ class Ship:
             self.passive_state["no_hit_timer"] = self.passive_state.get("no_hit_timer", 0) + 1
             if self.passive_state["no_hit_timer"] >= 120 and self.shields < self.max_shields:
                 self.shields = min(self.max_shields, self.shields + 0.3)
+
+        # Sarcophagus regen passive: heal 0.1/frame when below 50% HP
+        if self.passive == "sarcophagus_regen":
+            if self.health < self.max_health * 0.5:
+                self.health = min(self.max_health, self.health + 0.1)
+
+        # Adaptive shields: tick down buff timer
+        if self.passive == "adaptive_shields":
+            if self.passive_state.get("dmg_buff_timer", 0) > 0:
+                self.passive_state["dmg_buff_timer"] -= 1
+
+        # Ancient shields passive: steady shield regen always
+        if self.passive == "ancient_shields":
+            regen = self.passive_state.get("regen_rate", 0.3)
+            if self.shields < self.max_shields:
+                self.shields = min(self.max_shields, self.shields + regen)
+
+        # Point defense passive: timer
+        if self.passive == "point_defense":
+            self.passive_state["pd_timer"] = self.passive_state.get("pd_timer", 0) + 1
+
+        # Symbiote resilience: cooldown tick
+        if self.passive == "symbiote_resilience":
+            if self.passive_state.get("invuln_cooldown", 0) > 0:
+                self.passive_state["invuln_cooldown"] -= 1
 
         if self.is_player and keys:
             # Thruster boost (SHIFT key)
@@ -311,8 +511,11 @@ class Ship:
         if self.current_beam:
             self.current_beam.update()
             self.beam_duration_timer += 1
-            if self.beam_duration_timer >= 90:
+            beam_max = getattr(self, '_asgard_beam_override', 90)
+            if self.beam_duration_timer >= beam_max:
                 self.stop_beam()
+                if hasattr(self, '_asgard_beam_override'):
+                    del self._asgard_beam_override
 
         # Smooth visual rotation
         self._update_rotation()
@@ -446,7 +649,12 @@ class Ship:
         self._target_angle = angle_map.get(direction, self._target_angle)
 
     def _update_rotation(self):
-        """Smoothly interpolate visual rotation toward target angle."""
+        """Smoothly interpolate visual rotation toward target angle.
+
+        Uses pre-cached cardinal images as rotation bases to avoid the 180°
+        artifact (vertical flip) that occurs when rotating image_right by 180°.
+        pygame.transform.rotate positive angle = CCW on screen.
+        """
         if self.image_right is None:
             return
         diff = self._target_angle - self._current_angle
@@ -464,9 +672,28 @@ class Ship:
             self._current_angle -= 360
         while self._current_angle < -180:
             self._current_angle += 360
-        # Only re-rotate when angle actually changed (avoids Surface alloc every frame)
+        # Only re-render when angle actually changed (avoids Surface alloc every frame)
         if not hasattr(self, '_cached_draw_angle') or abs(self._current_angle - self._cached_draw_angle) > 1:
-            self.image = pygame.transform.rotate(self.image_right, self._current_angle)
+            angle = self._current_angle
+            # Pick nearest cardinal image as rotation base (max ±45° rotation).
+            # This avoids the 180° rotation artifact where left-facing ships
+            # appear vertically flipped (image_left uses correct horizontal flip).
+            if -45 <= angle <= 45:
+                base_img = self.image_right
+                rot = angle
+            elif 45 < angle < 135:
+                base_img = self.image_up
+                rot = angle - 90
+            elif -135 < angle < -45:
+                base_img = self.image_down
+                rot = angle + 90
+            else:  # abs(angle) >= 135 — left-facing
+                base_img = self.image_left
+                rot = angle - 180 if angle > 0 else angle + 180
+            if abs(rot) < 1:
+                self.image = base_img
+            else:
+                self.image = pygame.transform.rotate(base_img, rot)
             self._cached_draw_angle = self._current_angle
 
     def update_ally_ai(self, owner, enemies):
@@ -581,6 +808,12 @@ class Ship:
             return
         elif self._behavior == "mini_boss_spawner":
             self._ai_mini_boss(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
+            return
+        elif self._behavior == "ori_boss":
+            self._ai_ori_boss(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
+            return
+        elif self._behavior == "wraith_boss":
+            self._ai_wraith_boss(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
             return
         # "paired" and "split_on_death" use standard strafe AI (handled by spawner/game.py)
 
@@ -739,6 +972,32 @@ class Ship:
                 proj = EnergyBall(fire_x, fire_y, direction, self.laser_color)
             elif self.weapon_type == "staff":
                 proj = JaffaStaffBlast(fire_x, fire_y, direction, self.laser_color)
+            elif self.weapon_type == "plasma_lance":
+                from .projectiles import PlasmaLance
+                proj = PlasmaLance(fire_x, fire_y, direction, self.laser_color)
+            elif self.weapon_type == "disruptor_pulse":
+                from .projectiles import DisruptorPulse
+                proj = DisruptorPulse(fire_x, fire_y, direction, self.laser_color)
+            elif self.weapon_type == "drone_pulse":
+                # Ancient drone: rapid golden homing shots
+                proj = Laser(fire_x, fire_y, direction, (255, 200, 50), speed=16)
+                proj.damage = 12
+                proj.homing_strength = 0.03  # slight tracking
+            elif self.weapon_type == "dual_staff":
+                # Two parallel staff blasts
+                perp_x = -direction[1] * 12
+                perp_y = direction[0] * 12
+                proj1 = JaffaStaffBlast(fire_x + perp_x, fire_y + perp_y, direction, self.laser_color)
+                proj2 = JaffaStaffBlast(fire_x - perp_x, fire_y - perp_y, direction, self.laser_color)
+                proj1.damage = 10
+                proj2.damage = 10
+                proj1.is_player_proj = self.is_player
+                proj2.is_player_proj = self.is_player
+                fury = self.get_fury_multiplier()
+                if fury > 1.0:
+                    proj1.damage = int(proj1.damage * fury)
+                    proj2.damage = int(proj2.damage * fury)
+                return [proj1, proj2]
             else:
                 proj = Laser(fire_x, fire_y, direction, self.laser_color)
 
@@ -801,6 +1060,56 @@ class Ship:
                 mine.is_player_proj = self.is_player
                 results.append(("mine", mine))
 
+        elif self.secondary_type == "transporter_beam":
+            # Asgard Beliskner: teleport nearest enemy 300px away
+            results.append(("transporter_beam", {"x": cx, "y": cy, "range": 400, "teleport_dist": 300}))
+
+        elif self.secondary_type == "sensor_sweep":
+            # Asgard Research: mark enemies in 400px for 8s, +30% dmg taken
+            results.append(("sensor_sweep", {"x": cx, "y": cy, "radius": 400, "duration": 480}))
+
+        elif self.secondary_type == "ribbon_blast":
+            # Goa'uld Apophis: 150px cone, 40 dmg + knockback
+            results.append(("ribbon_blast", {"x": cx, "y": cy, "damage": 40,
+                                              "radius": 150, "direction": self.facing}))
+
+        elif self.secondary_type == "asgard_beam":
+            # Tau'ri Daedalus: short ContinuousBeam burst (45 frames)
+            if not self.current_beam:
+                beam = ContinuousBeam(self, self.facing, (0, 255, 255),
+                                       self.screen_width, self.screen_height)
+                beam.damage_per_frame = 0.8
+                self.current_beam = beam
+                self.beam_duration_timer = 0
+                # Override beam stop time to 45 frames
+                self._asgard_beam_override = 45
+                results.append(("beam", beam))
+
+        elif self.secondary_type == "jaffa_rally":
+            # Jaffa Ha'tak Refit: spawn 2 temp ally ships for 10s
+            results.append(("jaffa_rally", {"x": cx, "y": cy, "count": 2, "duration": 600}))
+
+        elif self.secondary_type == "drone_salvo":
+            # Aurora-class: burst of 6 homing Ancient drones in a spread
+            base_angle = math.atan2(dy, dx)
+            for i in range(6):
+                spread = (i - 2.5) * 0.2  # fan of ~1 radian total
+                angle = base_angle + spread
+                sdx = math.cos(angle)
+                sdy = math.sin(angle)
+                proj = Laser(cx + dx * 30, cy + dy * 30, (sdx, sdy),
+                           (255, 200, 50), speed=14)
+                proj.damage = 15
+                proj.homing_strength = 0.05
+                proj.is_player_proj = self.is_player
+                results.append(("projectile", proj))
+
+        elif self.secondary_type == "eye_of_ra":
+            # Anubis Eye of Ra: devastating focused golden beam (5s cooldown)
+            # Fires a concentrated beam that deals massive damage to everything in a line
+            results.append(("eye_of_ra", {"x": cx, "y": cy, "direction": self.facing,
+                                          "damage": 60, "range": 600}))
+
         return results
 
     def stop_beam(self):
@@ -810,7 +1119,18 @@ class Ship:
         self.current_beam = None
 
     def get_rect(self):
+        # Use actual image dimensions for collision (handles non-square rotated ships)
+        if self.image:
+            iw = self.image.get_width()
+            ih = self.image.get_height()
+            cx = self.x + self.width // 2
+            cy = self.y
+            return pygame.Rect(int(cx - iw // 2), int(cy - ih // 2), iw, ih)
         return pygame.Rect(int(self.x), int(self.y - self.height // 2), self.width, self.height)
+
+    def get_image(self):
+        """Return the current facing image."""
+        return self.image
 
     def _play_shield_hit_sound(self):
         """Play shield hit sound effect (lazy-loaded, class-level cache)."""
@@ -837,6 +1157,17 @@ class Ship:
         if self.passive == "armor_plating":
             amount *= 0.85
 
+        # Heavy armor passive: 25% damage reduction
+        if self.passive == "heavy_armor":
+            amount *= 0.75
+
+        # Anubis Shield passive: absorb hits completely (limited charges)
+        if self.passive == "anubis_shield":
+            charges = self.passive_state.get("absorb_charges", 0)
+            if charges > 0 and amount > 0:
+                self.passive_state["absorb_charges"] = charges - 1
+                return False  # Hit fully absorbed
+
         # Shields absorb damage first (both asteroid and weapon damage)
         if self.shields > 0:
             absorbed = min(self.shields, amount)
@@ -846,6 +1177,12 @@ class Ship:
             # Play shield hit sound for player
             if self.is_player:
                 self._play_shield_hit_sound()
+            # Adaptive shields passive: count shield hits
+            if self.passive == "adaptive_shields":
+                self.passive_state["shield_hits"] = self.passive_state.get("shield_hits", 0) + 1
+                if self.passive_state["shield_hits"] >= 5:
+                    self.passive_state["shield_hits"] = 0
+                    self.passive_state["dmg_buff_timer"] = 300  # 5s of +10% dmg
 
         if amount > 0:
             self.health -= amount
@@ -869,7 +1206,8 @@ class Ship:
 
         shield_pct = self.shields / max(self.max_shields, 1)
         bubble_center = (int(draw_x + self.width // 2), int(draw_y))
-        base_radius = int(self.width * 0.55)
+        ship_extent = max(self.width, self.height)
+        base_radius = int(ship_extent * 0.55)
 
         # --- Draw engine trail particles (faction-styled) ---
         for p in self.engine_particles:
@@ -945,9 +1283,13 @@ class Ship:
 
             surface.blit(flare, (bubble_center[0] - c, bubble_center[1] - c))
 
-        # Draw ship
+        # Draw ship — center image on ship position (handles non-square rotated images)
         if self.image:
-            surface.blit(self.image, (int(draw_x), int(draw_y - self.height // 2)))
+            iw = self.image.get_width()
+            ih = self.image.get_height()
+            cx = draw_x + self.width // 2
+            cy = draw_y
+            surface.blit(self.image, (int(cx - iw // 2), int(cy - ih // 2)))
         else:
             fdx, fdy = self.facing
             cx = draw_x + self.width // 2
@@ -1080,6 +1422,89 @@ class Ship:
         """Wraith hive: orbits at 500px, spawns darts."""
         self._spawner_timer += 1
         self._ai_standard_strafe(dx, dy, dist, target, asteroids, other_ships, preferred_range=500)
+
+    def _ai_ori_boss(self, dx, dy, dist, target, asteroids, other_ships):
+        """Ori mothership: slowly drifts toward action, fires sweeping beam + regular lasers."""
+        # Slow drift toward target
+        if dist > 1:
+            ux = dx / dist
+            uy = dy / dist
+            self.x += ux * self.speed
+            self.y += uy * self.speed
+
+        # Face target
+        if dx > 0:
+            self.set_facing((1, 0))
+        else:
+            self.set_facing((-1, 0))
+
+        # Ori boss beam timer (tracked by game.py via _ori_beam_timer)
+        self._ori_beam_timer = getattr(self, '_ori_beam_timer', 0) + 1
+
+        # Fire regular golden lasers between beam charges (every 60 frames)
+        self.ai_fire_timer = getattr(self, 'ai_fire_timer', 0)
+        if self.ai_fire_timer <= 0 and dist < 800:
+            self.ai_fire_timer = 60
+            if dist > 1:
+                direction = (dx / dist, dy / dist)
+                proj = Laser(self.x + self.width // 2, self.y, direction,
+                            (255, 220, 80), speed=12)
+                proj.damage = 15
+                proj.is_player_proj = False
+                # Store for game.py to collect (game.py checks this in AI loop)
+                if not hasattr(self, '_pending_projectiles'):
+                    self._pending_projectiles = []
+                self._pending_projectiles.append(proj)
+
+        self._update_rotation()
+        self._update_engine_trail()
+
+    def _ai_wraith_boss(self, dx, dy, dist, target, asteroids, other_ships):
+        """Wraith Hive boss: drifts toward action, fires purple beam + spawns darts via _pending."""
+        # Slow drift toward target
+        if dist > 1:
+            ux = dx / dist
+            uy = dy / dist
+            self.x += ux * self.speed
+            self.y += uy * self.speed
+
+        # Face target
+        if dx > 0:
+            self.set_facing((1, 0))
+        else:
+            self.set_facing((-1, 0))
+
+        # Wraith beam timer (tracked by game.py)
+        self._ori_beam_timer = getattr(self, '_ori_beam_timer', 0) + 1
+
+        # Fire purple life-drain bolts between beam charges (every 45 frames, faster than Ori)
+        self.ai_fire_timer = getattr(self, 'ai_fire_timer', 0)
+        if self.ai_fire_timer <= 0 and dist < 700:
+            self.ai_fire_timer = 45
+            if dist > 1:
+                direction = (dx / dist, dy / dist)
+                proj = Laser(self.x + self.width // 2, self.y, direction,
+                            (160, 40, 255), speed=10)
+                proj.damage = 12
+                proj.is_player_proj = False
+                proj._wraith_lifesteal = True  # game.py uses this for heal-on-hit
+                if not hasattr(self, '_pending_projectiles'):
+                    self._pending_projectiles = []
+                self._pending_projectiles.append(proj)
+
+        # Spawn wraith darts periodically (every 240 frames = 4s, max 3 alive)
+        self._wraith_spawn_timer = getattr(self, '_wraith_spawn_timer', 0) + 1
+        if not hasattr(self, '_spawned_darts'):
+            self._spawned_darts = []
+        if self._wraith_spawn_timer >= 240 and len(self._spawned_darts) < 3:
+            self._wraith_spawn_timer = 0
+            # game.py handles actual spawn via _pending_spawns
+            if not hasattr(self, '_pending_spawns'):
+                self._pending_spawns = []
+            self._pending_spawns.append("wraith_dart")
+
+        self._update_rotation()
+        self._update_engine_trail()
 
     def _ai_standard_strafe(self, dx, dy, dist, target, asteroids, other_ships, preferred_range=275):
         """Common strafe AI reused by multiple behaviors."""

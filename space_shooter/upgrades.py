@@ -229,6 +229,8 @@ ENEMY_TYPES = {
     "death_glider":   {"speed": 0.8, "hp": 1.0, "scale": 1.0, "xp": 45, "tint": (200, 170, 0), "behavior": "paired"},
     "alkesh_bomber":  {"speed": 0.4, "hp": 3.0, "scale": 1.4, "xp": 70, "tint": (200, 100, 0), "behavior": "bomber"},
     "wraith_hive":    {"speed": 0.3, "hp": 5.0, "scale": 1.6, "xp": 150, "tint": (100, 0, 180), "behavior": "mini_boss_spawner"},
+    "ori_mothership": {"speed": 0.3, "hp": 10.0, "scale": 2.5, "xp": 500, "tint": (255, 255, 180), "behavior": "ori_boss"},
+    "wraith_supergate": {"speed": 0.25, "hp": 8.0, "scale": 2.0, "xp": 500, "tint": (80, 0, 160), "behavior": "wraith_boss"},
 }
 
 # Explosion color palettes per enemy behavior/type
@@ -238,4 +240,6 @@ ENEMY_EXPLOSION_PALETTES = {
     "replicator": [(200, 200, 220), (150, 150, 180), (255, 255, 255)],
     "ori_fighter": [(255, 255, 200), (255, 220, 100), (255, 255, 255)],
     "ancient_drone": [(255, 200, 50), (255, 180, 0), (255, 255, 150)],
+    "ori_mothership": [(255, 255, 200), (255, 220, 100), (255, 200, 50), (255, 255, 255)],
+    "wraith_supergate": [(160, 0, 255), (100, 0, 180), (200, 100, 255), (80, 0, 120)],
 }

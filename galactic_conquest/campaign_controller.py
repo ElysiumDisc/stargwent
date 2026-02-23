@@ -17,6 +17,12 @@ from .map_renderer import MapScreen
 from .card_battle import run_card_battle
 from .reward_screen import run_reward_screen
 from .neutral_events import run_neutral_event
+from .planet_passives import (get_naquadah_per_turn, get_counterattack_reduction,
+                               get_card_choice_bonus, get_cooldown_reduction,
+                               get_total_passive)
+from .relics import get_relic, get_homeworld_relic
+from .relic_screen import show_relic_acquired
+from .narrative_arcs import check_arc_progress, apply_arc_rewards
 
 
 # AI counterattack chance per faction with adjacent border
@@ -79,7 +85,8 @@ class CampaignController:
                 self._show_end_screen("DEFEAT", "Your homeworld has fallen!")
                 return "defeat"
 
-            attackable = self.galaxy.get_attackable_planets()
+            has_ring = self.state.has_relic("ring_platform")
+            attackable = self.galaxy.get_attackable_planets(ring_platform=has_ring)
             # Remove cooldown planets
             attackable = [p for p in attackable if p not in self.state.cooldowns]
 
@@ -97,6 +104,15 @@ class CampaignController:
                 self._show_deck_viewer()
             elif action == "run_info":
                 self._show_run_info()
+            elif action == "fortify":
+                planet_id = self.map_screen.selected_planet
+                if planet_id and planet_id in self.galaxy.planets:
+                    planet = self.galaxy.planets[planet_id]
+                    cur_level = self.state.fortification_levels.get(planet_id, 0)
+                    if planet.owner == "player" and cur_level < 3 and self.state.naquadah >= 60:
+                        self.state.add_naquadah(-60)
+                        self.state.fortification_levels[planet_id] = cur_level + 1
+                        self.message = f"Fortified {planet.name}! (Level {cur_level + 1}/3)"
             elif action == "attack":
                 planet_id = self.map_screen.selected_planet
                 if planet_id:
@@ -114,11 +130,32 @@ class CampaignController:
                     self._show_end_screen("DEFEAT", "Your homeworld has fallen!")
                     return "defeat"
 
+                # AI faction wars phase
+                self._ai_faction_wars_phase()
+
                 # Advance turn
                 self.state.turn_number += 1
                 self.state.tick_cooldowns()
+                # Apply cooldown reduction passive
+                cd_reduce = get_cooldown_reduction(self.galaxy)
+                if cd_reduce > 0:
+                    for pid in list(self.state.cooldowns):
+                        self.state.cooldowns[pid] = max(0, self.state.cooldowns[pid] - cd_reduce)
+                    # Clean up expired
+                    self.state.cooldowns = {k: v for k, v in self.state.cooldowns.items() if v > 0}
                 self.rng = random.Random(self.state.seed + self.state.turn_number)
-                self.message = f"Turn {self.state.turn_number}"
+
+                # Planet passive income + relic income
+                naq_income = get_naquadah_per_turn(self.galaxy)
+                if self.state.has_relic("naquadah_reactor"):
+                    naq_income += 10
+                if naq_income > 0:
+                    self.state.add_naquadah(naq_income)
+
+                turn_msg = f"Turn {self.state.turn_number}"
+                if naq_income > 0:
+                    turn_msg += f" | +{naq_income} Naquadah (passives)"
+                self.message = turn_msg
 
                 # Auto-save
                 self._save()
@@ -156,11 +193,22 @@ class CampaignController:
             self.galaxy.transfer_ownership(planet_id, "player")
             self.state.planet_ownership[planet_id] = "player"
             self.message = f"Claimed {planet.name}!"
+            # Check narrative arc progress (neutral planets like Atlantis are in arcs)
+            self._check_narrative_arcs(planet.name)
             return "done"
 
         # Enemy faction planet — card battle
         self._music_stop()
-        card_result = self._run_card_battle(planet)
+        # Homeworld attacks: elite defenders with bonus power + extra cards
+        ai_elite_bonus = 0
+        ai_extra_cards = 0
+        if planet.planet_type == "homeworld":
+            ai_elite_bonus = 2
+            ai_extra_cards = 2
+            leader_name = planet.defender_leader.get("name", "Unknown") if planet.defender_leader else "Unknown"
+            self._show_elite_defender_screen(leader_name, planet.faction)
+        card_result = self._run_card_battle(planet, ai_elite_bonus=ai_elite_bonus,
+                                             ai_extra_cards=ai_extra_cards)
         self._refresh_after_battle()
         if card_result == "quit":
             return "quit"
@@ -174,15 +222,50 @@ class CampaignController:
             # Apply faction-specific conquest bonus
             bonus_msg = self._apply_faction_bonus(planet.faction)
 
+            # Apply upgrade_on_victory passive
+            upgrade_chance = get_total_passive(self.galaxy, "upgrade_on_victory")
+            if upgrade_chance > 0 and self.rng.random() < upgrade_chance:
+                from cards import ALL_CARDS
+                upgradeable = [cid for cid in self.state.current_deck
+                               if ALL_CARDS.get(cid) and getattr(ALL_CARDS[cid], 'power', 0)]
+                if upgradeable:
+                    target = self.rng.choice(upgradeable)
+                    self.state.upgrade_card(target, 1)
+                    name = getattr(ALL_CARDS[target], 'name', target)
+                    bonus_msg += f" | Passive: {name} +1"
+
             # Reward screen — quality scales with planets controlled
+            extra_choices = get_card_choice_bonus(self.galaxy)
+            # Relic: Alteran Database gives +1 card choice
+            if hasattr(self.state, 'relics') and "alteran_database" in self.state.relics:
+                extra_choices += 1
             reward_result = run_reward_screen(
                 self.screen, self.state, planet.faction,
                 planet_type=planet.planet_type,
                 galaxy_map=self.galaxy,
-                bonus_message=bonus_msg)
+                bonus_message=bonus_msg,
+                extra_card_choices=extra_choices)
             self._refresh_after_battle()
             if reward_result == "quit":
                 return "quit"
+
+            # Relic: Asgard Core bonus naquadah on victory
+            if self.state.has_relic("asgard_core"):
+                self.state.add_naquadah(20)
+
+            # Homeworld conquest: award faction-specific relic
+            if planet.planet_type == "homeworld":
+                relic_id = get_homeworld_relic(planet.faction)
+                if relic_id and not self.state.has_relic(relic_id):
+                    relic = get_relic(relic_id)
+                    if relic:
+                        self.state.add_relic(relic_id)
+                        show_relic_acquired(self.screen, relic,
+                                            source_text=f"Conquered {planet.faction} Homeworld")
+                        self._refresh_after_battle()
+
+            # Check narrative arc progress
+            self._check_narrative_arcs(planet.name)
         else:
             # Lost card battle — cooldown
             self.state.cooldowns[planet_id] = ATTACK_COOLDOWN
@@ -191,7 +274,7 @@ class CampaignController:
 
         return "done"
 
-    def _run_card_battle(self, planet):
+    def _run_card_battle(self, planet, ai_elite_bonus=0, ai_extra_cards=0):
         """Run a card battle against a planet's defender. Returns battle outcome."""
         ai_faction = planet.faction
         ai_leader = planet.defender_leader
@@ -204,7 +287,11 @@ class CampaignController:
             ai_faction=ai_faction,
             ai_leader=ai_leader,
             exempt_penalties=True,
+            starting_weather=planet.weather_preset,
             upgraded_cards=self.state.upgraded_cards,
+            ai_elite_bonus=ai_elite_bonus,
+            ai_extra_cards=ai_extra_cards,
+            relics=getattr(self.state, 'relics', []),
         )
         return result
 
@@ -230,7 +317,8 @@ class CampaignController:
             if not targets:
                 continue
 
-            if self.rng.random() > AI_COUNTERATTACK_CHANCE:
+            effective_chance = AI_COUNTERATTACK_CHANCE - get_counterattack_reduction(self.galaxy)
+            if self.rng.random() > max(0.05, effective_chance):
                 continue
 
             # AI attacks a random player planet
@@ -250,6 +338,8 @@ class CampaignController:
                 ai_leader.setdefault("faction", faction)
 
             self._music_stop()
+            # Defense battles use the target planet's weather
+            fort_level = getattr(self.state, 'fortification_levels', {}).get(target_id, 0)
             result = run_card_battle(
                 self.screen,
                 player_faction=self.state.player_faction,
@@ -258,7 +348,9 @@ class CampaignController:
                 ai_faction=faction,
                 ai_leader=ai_leader,
                 exempt_penalties=True,
+                starting_weather=target.weather_preset,
                 upgraded_cards=self.state.upgraded_cards,
+                relics=getattr(self.state, 'relics', []),
             )
             self._refresh_after_battle()
 
@@ -282,6 +374,70 @@ class CampaignController:
                     return "defeat"
 
         return "done"
+
+    def _ai_faction_wars_phase(self):
+        """Process AI-vs-AI faction attacks. Factions fight each other for territory."""
+        active_factions = self.galaxy.get_active_factions()
+        # Remove friendly faction and player
+        war_factions = [f for f in active_factions
+                        if f != self.state.friendly_faction]
+
+        for faction in war_factions:
+            targets = self.galaxy.get_ai_vs_ai_targets(faction)
+            if not targets:
+                continue
+
+            # Attack chance scales with planet count
+            planet_count = self.galaxy.get_faction_planet_count(faction)
+            attack_chance = min(0.40, 0.15 + 0.05 * planet_count)
+            if self.rng.random() > attack_chance:
+                continue
+
+            target_id = self.rng.choice(targets)
+            target = self.galaxy.planets[target_id]
+            defender_faction = target.owner
+
+            # Success weighted by relative strength
+            attacker_strength = self.galaxy.get_faction_planet_count(faction)
+            defender_strength = self.galaxy.get_faction_planet_count(defender_faction)
+            total = attacker_strength + defender_strength
+            if total == 0:
+                continue
+            success_chance = 0.25 + 0.30 * (attacker_strength / total)
+            success_chance = max(0.25, min(0.55, success_chance))
+
+            if self.rng.random() < success_chance:
+                # Capture!
+                self.galaxy.transfer_ownership(target_id, faction)
+                self.state.planet_ownership[target_id] = faction
+                self._flash_message(f"{faction} captured {target.name} from {defender_faction}!", 1500)
+
+                # Check if a faction was eliminated
+                if self.galaxy.get_faction_planet_count(defender_faction) == 0:
+                    self._flash_message(f"{defender_faction} has been ELIMINATED!", 2000)
+
+    def _check_narrative_arcs(self, planet_name):
+        """Check narrative arc progress after conquering a planet."""
+        results = check_arc_progress(self.state, planet_name)
+        for arc, step, total, is_complete in results:
+            if is_complete:
+                apply_arc_rewards(self.state, arc)
+                self._flash_message(f"ARC COMPLETE: {arc.name}!", 2500)
+                # Show relic if arc awards one
+                if arc.rewards["type"] == "relic":
+                    relic = get_relic(arc.rewards["value"])
+                    if relic and self.state.has_relic(relic.id):
+                        show_relic_acquired(self.screen, relic,
+                                            source_text=f"Story Arc: {arc.name}")
+                        self._refresh_after_battle()
+                elif arc.rewards["type"] == "relic_and_naquadah":
+                    relic = get_relic(arc.rewards["value"]["relic"])
+                    if relic and self.state.has_relic(relic.id):
+                        show_relic_acquired(self.screen, relic,
+                                            source_text=f"Story Arc: {arc.name}")
+                        self._refresh_after_battle()
+            else:
+                self._flash_message(f"{arc.name}: {step}/{total}", 1500)
 
     def _show_deck_viewer(self):
         """Show the player's current conquest deck using the full deck builder UI."""
@@ -459,6 +615,46 @@ class CampaignController:
                 if planet.planet_type == "homeworld" and planet.owner == "player" and planet.faction != self.state.player_faction:
                     content_lines.append(("info", f"  {planet.name} (CAPTURED)", CRT_GREEN))
 
+            # Relics
+            if self.state.relics:
+                content_lines.append(("spacer", ""))
+                content_lines.append(("section", "Relics"))
+                from .relics import RELICS as ALL_RELICS
+                for rid in self.state.relics:
+                    relic = ALL_RELICS.get(rid)
+                    if relic:
+                        content_lines.append(("info", f"  {relic.icon_char} {relic.name}: {relic.description}",
+                                              (255, 176, 0)))
+
+            # Planet Passives
+            from .planet_passives import get_active_passives
+            active_passives = get_active_passives(self.galaxy)
+            if active_passives:
+                content_lines.append(("spacer", ""))
+                content_lines.append(("section", "Planet Passives"))
+                for pname, passive in active_passives:
+                    content_lines.append(("info", f"  {pname}: {passive['desc']}", CRT_CYAN))
+
+            # Fortifications
+            forts = {pid: lvl for pid, lvl in self.state.fortification_levels.items() if lvl > 0}
+            if forts:
+                content_lines.append(("spacer", ""))
+                content_lines.append(("section", "Fortifications"))
+                for pid, level in forts.items():
+                    pname = self.galaxy.planets[pid].name if pid in self.galaxy.planets else pid
+                    content_lines.append(("info", f"  {pname}: Level {level}/3", (100, 200, 255)))
+
+            # Story Arcs
+            from .narrative_arcs import get_arc_progress_display
+            arc_display = get_arc_progress_display(self.state)
+            if arc_display:
+                content_lines.append(("spacer", ""))
+                content_lines.append(("section", "Story Arcs"))
+                for arc_name, progress_str, is_complete in arc_display:
+                    color = CRT_GREEN if is_complete else CRT_TEXT
+                    prefix = "[COMPLETE] " if is_complete else ""
+                    content_lines.append(("info", f"  {prefix}{arc_name}: {progress_str}", color))
+
             content_lines.append(("spacer", ""))
             content_lines.append(("info", "Press ESC / I / Click to close", CRT_TEXT_DIM))
 
@@ -603,6 +799,37 @@ class CampaignController:
                                      sh // 2 - msg_surf.get_height() // 2))
         display_manager.gpu_flip()
         pygame.time.wait(duration_ms)
+
+    def _show_elite_defender_screen(self, leader_name, faction):
+        """Show a dramatic overlay before homeworld battles."""
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        from .map_renderer import FACTION_COLORS
+        faction_color = FACTION_COLORS.get(faction, (255, 200, 100))
+
+        title_font = pygame.font.SysFont("Impact, Arial", max(48, sh // 18), bold=True)
+        sub_font = pygame.font.SysFont("Impact, Arial", max(28, sh // 30), bold=True)
+        info_font = pygame.font.SysFont("Arial", max(18, sh // 50))
+
+        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        self.screen.blit(overlay, (0, 0))
+
+        # Pulsing faction-colored title
+        title_surf = title_font.render("ELITE DEFENDER", True, faction_color)
+        self.screen.blit(title_surf, (sw // 2 - title_surf.get_width() // 2, int(sh * 0.30)))
+
+        name_surf = sub_font.render(leader_name, True, (255, 255, 255))
+        self.screen.blit(name_surf, (sw // 2 - name_surf.get_width() // 2, int(sh * 0.42)))
+
+        warn_surf = info_font.render("All enemy cards have +2 power  |  +2 extra cards in enemy deck",
+                                     True, (255, 180, 100))
+        self.screen.blit(warn_surf, (sw // 2 - warn_surf.get_width() // 2, int(sh * 0.55)))
+
+        hint_surf = info_font.render("Prepare for battle...", True, (150, 150, 150))
+        self.screen.blit(hint_surf, (sw // 2 - hint_surf.get_width() // 2, int(sh * 0.65)))
+
+        display_manager.gpu_flip()
+        pygame.time.wait(2500)
 
     def _show_end_screen(self, title, subtitle):
         """Show a victory/defeat screen."""

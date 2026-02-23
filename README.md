@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-8.4.0-blue)
+![Version](https://img.shields.io/badge/version-8.5.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -59,7 +59,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
 - **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
-- **Granular Audio Control** - Separate volume sliders for Master, Music, Voice, and Effects
+- **Granular Audio Control** - 4 volume sliders (Master, Music, Voice, Effects) — master applies as multiplier, all game sounds respect settings including space shooter SFX
 
 ### 🎨 Stargate-Authentic UI
 - **MALP Feed History Panel** - Military monitor aesthetic with scan-lines, score delta badges, turn numbers, round separators, and latest-entry pulse
@@ -84,17 +84,21 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🚀 Space Shooter Easter Egg (Vampire Survivors-Style Infinite Survival)
 - **Unlocked at 8 Draft Wins** - Beat the gauntlet to unlock a full arcade mini-game
 - **Infinite Survival Mode** - No wave limit! Camera follows your ship through an endless procedurally-spawning world with time-based difficulty scaling (10 tiers from "Calm" to "Beyond")
-- **5 Playable Factions** - Each with unique ship, weapon type, passive ability, and faction-specific secondary fire (E key)
-- **Secondary Fire per Faction** - Tau'ri Railgun (piercing), Goa'uld Staff Barrage (fan spread), Asgard Ion Pulse (AoE knockback), Jaffa War Cry (damage buff), Lucian Scatter Mines (proximity mines)
+- **5 Factions, 12 Playable Ships** - Each faction has a base ship + 1-3 alternate variants with unique weapons, secondaries, and passives. Up/Down to pick variant in ship select
+- **Alt Ships**: Asgard Valhalla-class (plasma lance + heavy armor), Beliskner-class (beam + transporter), Research Vessel (disruptor + sensor sweep), Goa'uld Apophis Flagship (dual staff + ribbon blast), Anubis Mothership (Eye of Ra beam), Tau'ri Aurora-class (Ancient drone pulse + fast shields), Jaffa Ha'tak Refit (rally allies + symbiote resilience)
+- **Secondary Fire per Faction** - Tau'ri Railgun, Goa'uld Staff Barrage, Asgard Ion Pulse, Jaffa War Cry, Lucian Scatter Mines + variant-specific abilities (Transporter Beam, Sensor Sweep, Ribbon Blast, Asgard Beam, Eye of Ra, Jaffa Rally)
+- **Supergate Boss Events** - At 3 minutes, a destroyable Supergate materializes with full kawoosh vortex animation + activation sound. Spawns Ori Mothership (10000 HP, blue-glow center orb, golden sweeping beam with charge-up telegraph) or Wraith Hive (8000 HP, purple life-drain beam + dart spawns). Gate stays open until boss or gate is destroyed (gate HP = 5x boss HP). Waves escalate with more bosses!
 - **Faction-Styled Thrusters** - Unique engine particle effects per faction (Tau'ri blue-white, Goa'uld fiery gold, Asgard cyan diamonds, Jaffa hot orange, Lucian purple/pink) with SHIFT boost
 - **Buttery Smooth Movement** - Velocity-based acceleration with friction, diagonal normalization, and thruster speed boost
-- **Wormhole Escape** - Press Q to vanish through a wormhole with siege.ogg sound effect
+- **Wormhole Escape** - Press Q to vanish through a wormhole with siege.ogg sound effect, bigger gravity pull radius
 - **26 Upgrades (4 Rarities)** - Common, Rare, Epic, and Legendary upgrades including 5 Evolution combos (Thor's Hammer, Bullet Hell, Black Hole, Ancient Outpost, Cluster Bomb)
 - **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
 - **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
-- **5 Enemy Types** - Regular, Fast, Tank, Elite, and Kamikaze with continuous spawning
-- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, and thruster boost activation sound
-- **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications
+- **14 Enemy Types** - Regular, Fast, Tank, Elite, Kamikaze + Stargate-themed (Wraith Dart, Replicator, Ori Fighter, Ancient Drone, Death Glider, Al'kesh Bomber, Wraith Hive mini-boss, Ori Mothership boss, Wraith Supergate boss)
+- **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, and per-player revival invulnerability all synced perfectly across both players
+- **Co-op Revival** - When a player dies, their partner's next kill revives them at the partner's position with 50% HP/shields and 3 seconds of per-player invulnerability (blocks all damage: projectiles, beams, contact, bombs)
+- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, thruster boost, supergate activation sound, Ori beam + Wraith beam boss sounds — all controlled by Master/Effects volume sliders. Audio cuts off immediately on game exit
+- **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications, Supergate kawoosh particle effects
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 
 ### 🌌 Galactic Conquest (Roguelite Campaign)
@@ -102,7 +106,13 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Roguelite Deck Progression**: Draft cards from defeated factions, upgrade card power, trim weak cards
 - **Customize Your Run**: Choose friendly factions, neutral event count, and enemy leaders before starting
 - **Faction Conquest Bonuses**: Each faction grants unique rewards — Tau'ri intel, Goa'uld domination, Jaffa training, Lucian trade, Asgard tech
-- **Neutral Planet Events**: 7 text events with choices — trader caravans, ancient outposts, Ori plagues, naquadah mines
+- **15 Neutral Events**: Trader caravans, Replicator infestations, Prior conversions, Time Dilation, Tok'ra alliances, Furling ruins, Ba'al clones, Wraith cullings, Ascension trials, and more
+- **14 Stargate Relics**: Combat relics (Staff of Ra, Thor's Hammer, Kull Armor), Economy relics (Asgard Core, Naquadah Reactor), Exploration relics (Ring Platform 2-hop, Alteran Database) — homeworlds award guaranteed faction relics
+- **18 Planet Passives**: Owned planets grant bonuses — Earth +15 naq/turn, Atlantis +1 card choice, Tartarus enemies -1 card, and more
+- **Fortification System**: Spend naquadah to fortify planets (max level 3) with shield icons on the galaxy map
+- **Elite Homeworld Defenders**: Homeworld attacks trigger dramatic elite screen; AI gets +2 power and +2 extra cards
+- **AI Faction Wars**: AI factions attack each other's territory, creating a dynamic shifting galaxy
+- **3 Narrative Arcs**: Story chains (Path of the Ancients, Fall of the System Lords, Jaffa Liberation) tracking conquest sequences for relic and naquadah rewards
 - **AI Counterattacks**: Enemy factions attack your borders; successful defense earns cards and upgrades
 - **Planet Control Scaling**: More planets = better rewards (Standard / Enhanced / Supreme tiers)
 - **Campaign Persistence**: Auto-saves every turn; resume from exact state
