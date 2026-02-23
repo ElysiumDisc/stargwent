@@ -14,6 +14,20 @@ from .projectiles import (ContinuousBeam, Laser, Missile, EnergyBall,
 # Fields: name, image_file, image_orientation ("left"=faces left, "up"=faces up, "down"=faces down, "right"),
 #         weapon_type, fire_rate, secondary_type, secondary_fire_rate,
 #         passive, passive_state, description
+# Faction → shield bubble RGB colors (bubble, rim, inner glow)
+SHIELD_COLORS = {
+    "tau'ri":          ((80, 190, 255), (120, 210, 255), (90, 200, 255)),
+    "tauri":           ((80, 190, 255), (120, 210, 255), (90, 200, 255)),
+    "asgard":          ((80, 190, 255), (120, 210, 255), (90, 200, 255)),
+    "goa'uld":         ((255, 160, 50), (255, 190, 80), (255, 140, 40)),
+    "goauld":          ((255, 160, 50), (255, 190, 80), (255, 140, 40)),
+    "jaffa rebellion": ((255, 140, 50), (255, 170, 70), (255, 120, 40)),
+    "jaffa_rebellion": ((255, 140, 50), (255, 170, 70), (255, 120, 40)),
+    "lucian alliance": ((255, 140, 70), (255, 170, 90), (255, 120, 50)),
+    "lucian_alliance": ((255, 140, 70), (255, 170, 90), (255, 120, 50)),
+}
+_DEFAULT_SHIELD_COLOR = ((80, 190, 255), (120, 210, 255), (90, 200, 255))
+
 SHIP_VARIANTS = {
     "asgard": [
         {
@@ -1243,6 +1257,8 @@ class Ship:
 
         # --- Dynamic bubbling shield aura when shields > 0 ---
         if self.shields > 0:
+            sc_bubble, sc_rim, sc_inner = SHIELD_COLORS.get(
+                self.faction.lower(), _DEFAULT_SHIELD_COLOR)
             pulse = math.sin(time_tick * 0.04) * 0.08 + 1.0
             r = int(base_radius * pulse)
             sz = r * 2 + 30
@@ -1260,20 +1276,28 @@ class Ship:
                 wobble_r = int(r * 0.18 + r * 0.06 * math.sin(time_tick * 0.07 + i * 2.1))
                 b_alpha = int((20 * shield_pct + 8) * (0.6 + 0.4 * math.sin(time_tick * 0.06 + i)))
                 b_alpha = max(0, min(255, b_alpha))
-                pygame.draw.circle(aura, (80, 190, 255, b_alpha), (bx, by), wobble_r, 1)
+                pygame.draw.circle(aura, (*sc_bubble, b_alpha), (bx, by), wobble_r, 1)
 
             # Bright outer rim (bloom shader will enhance this)
             rim_alpha = int(50 * shield_pct + 20)
-            pygame.draw.circle(aura, (120, 210, 255, rim_alpha), (c, c), r, 3)
+            pygame.draw.circle(aura, (*sc_rim, rim_alpha), (c, c), r, 3)
             # Inner glow ring
             inner_alpha = int(25 * shield_pct + 10)
             inner_r = int(r * 0.75 + r * 0.05 * math.sin(time_tick * 0.03))
-            pygame.draw.circle(aura, (90, 200, 255, inner_alpha), (c, c), inner_r, 1)
+            pygame.draw.circle(aura, (*sc_inner, inner_alpha), (c, c), inner_r, 1)
 
             surface.blit(aura, (bubble_center[0] - c, bubble_center[1] - c))
 
         # --- Bright flare on shield hit ---
         if self.shield_hit_timer > 0 and self.shields >= 0:
+            sc_bubble, sc_rim, sc_inner = SHIELD_COLORS.get(
+                self.faction.lower(), _DEFAULT_SHIELD_COLOR)
+            # Brighten toward white for flash effect
+            flash_col = tuple(min(255, c + 70) for c in sc_rim)
+            mid_col = tuple(min(255, c + 20) for c in sc_inner)
+            spark_col = tuple(min(255, c + 100) for c in sc_rim)
+            crack_col = tuple(min(255, c + 60) for c in sc_rim)
+
             visibility = self.shield_hit_timer / 60.0
             flare_r = int(base_radius * (1.0 + visibility * 0.3))
             sz = flare_r * 2 + 30
@@ -1281,11 +1305,11 @@ class Ship:
             c = sz // 2
 
             flash_alpha = int(180 * visibility)
-            pygame.draw.circle(flare, (150, 220, 255, flash_alpha), (c, c), flare_r, 4)
+            pygame.draw.circle(flare, (*flash_col, flash_alpha), (c, c), flare_r, 4)
             inner_alpha = int(100 * visibility)
-            pygame.draw.circle(flare, (100, 200, 255, inner_alpha), (c, c), int(flare_r * 0.7))
+            pygame.draw.circle(flare, (*mid_col, inner_alpha), (c, c), int(flare_r * 0.7))
             spark_alpha = int(220 * visibility)
-            pygame.draw.circle(flare, (220, 240, 255, spark_alpha), (c, c - int(flare_r * 0.5)), int(flare_r * 0.15))
+            pygame.draw.circle(flare, (*spark_col, spark_alpha), (c, c - int(flare_r * 0.5)), int(flare_r * 0.15))
 
             num_cracks = 8
             for i in range(num_cracks):
@@ -1295,7 +1319,7 @@ class Ship:
                 outer_pt = (c + int(math.cos(angle) * flare_r * 0.95),
                             c + int(math.sin(angle) * flare_r * 0.95))
                 crack_alpha = int(120 * visibility)
-                pygame.draw.line(flare, (180, 230, 255, crack_alpha), inner_pt, outer_pt, 2)
+                pygame.draw.line(flare, (*crack_col, crack_alpha), inner_pt, outer_pt, 2)
 
             surface.blit(flare, (bubble_center[0] - c, bubble_center[1] - c))
 
@@ -1335,13 +1359,17 @@ class Ship:
         pygame.draw.rect(surface, health_color, (bar_x, health_bar_y, int(bar_width * health_pct), bar_height))
         pygame.draw.rect(surface, (200, 200, 200), (bar_x, health_bar_y, bar_width, bar_height), 1)
 
-        # Shield bar
+        # Shield bar (faction-tinted)
         if self.max_shields > 0:
+            sc_bubble, sc_rim, _ = SHIELD_COLORS.get(
+                self.faction.lower(), _DEFAULT_SHIELD_COLOR)
+            # Dim background from faction color
+            bar_bg = tuple(max(0, c // 4) for c in sc_bubble)
             shield_bar_y = health_bar_y + bar_height + 2
             shield_bar_h = 4
-            pygame.draw.rect(surface, (20, 30, 50), (bar_x, shield_bar_y, bar_width, shield_bar_h))
-            pygame.draw.rect(surface, (80, 170, 255), (bar_x, shield_bar_y, int(bar_width * shield_pct), shield_bar_h))
-            pygame.draw.rect(surface, (100, 180, 255), (bar_x, shield_bar_y, bar_width, shield_bar_h), 1)
+            pygame.draw.rect(surface, bar_bg, (bar_x, shield_bar_y, bar_width, shield_bar_h))
+            pygame.draw.rect(surface, sc_bubble, (bar_x, shield_bar_y, int(bar_width * shield_pct), shield_bar_h))
+            pygame.draw.rect(surface, sc_rim, (bar_x, shield_bar_y, bar_width, shield_bar_h), 1)
 
         # Ori fighter extra shield bar (golden)
         if self._shield_max > 0:

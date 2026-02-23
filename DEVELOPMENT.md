@@ -449,7 +449,7 @@ The game uses a **hybrid rendering approach**: all drawing is done via Pygame to
 | `shaders/shockwave.py` | Expanding ring distortion with flash (round winner, game start) |
 | `shaders/asgard_beam.py` | Volumetric light column |
 | `shaders/zpm_surge.py` | Procedural electric arcs |
-| `shaders/shield_bubble.py` | Localized shield energy bubble (hex grid + refraction + rim glow) |
+| `shaders/shield_bubble.py` | Localized shield energy bubble (hex grid + refraction + rim glow + faction tint) |
 
 **Rendering flow:**
 1. Game draws to offscreen `display_manager.screen` (a `pygame.Surface`)
@@ -945,7 +945,7 @@ Roguelite card-battle campaign mode. Conquer a galaxy of planets through card ba
 
 ---
 
-## 🚀 Space Shooter Architecture (v8.6.0)
+## 🚀 Space Shooter Architecture (v8.7.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
 
@@ -985,6 +985,8 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 - **Evolutions**: When both prerequisite upgrades are maxed, a legendary evolution is offered
 - **Audio**: Background music loop, per-faction hit SFX + per-variant boost SFX + shield hit SFX + cloak activation SFX, Ori beam sound + Wraith beam sound via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
 - **Faction Power-Ups**: 33 total (8 generic + 15 epic + 10 legendary) with unique effects per faction, rarity glow rendering (purple/gold)
+- **Faction-Tinted Shields**: GPU shader + software renderer use per-faction colors — Tau'ri/Asgard blue, Goa'uld/Jaffa/Lucian orange. Shield bar, aura bubbles, rim, hit flare all match faction
+- **Asteroid Field Events**: Periodic dense asteroid waves (first at 60s, every 45-75s after) with 3s "INCOMING!" warning, escalating density (1-3 per burst) and duration (6-12s), directional approach
 - **Environmental Hazards**: Sun/wormhole with 5 lifecycle phases, gravity pull (550px range), core damage
 - **Ally Ships**: Summoned via upgrades/powerups/Jaffa Rally secondary, follow owner, engage enemies, auto-fire
 - **Co-op Revival**: Ghost mode on death, revive by killing any enemy, 3s per-player invulnerability on respawn (blocks projectiles, beams, contact, bombs — uses dedicated `p1_invuln_timer`/`p2_invuln_timer` instead of shared powerup)

@@ -239,6 +239,14 @@ class SpaceShooterGame:
         self.asteroid_spawn_timer = 0
         self.asteroid_spawn_rate = 300
 
+        # Asteroid field events — dense asteroid waves
+        self._asteroid_field_active = False
+        self._asteroid_field_timer = 0       # Frames remaining in current field
+        self._asteroid_field_cooldown = 0    # Frames until next field can spawn
+        self._asteroid_field_count = 0       # Number of fields spawned (escalation)
+        self._asteroid_field_angle = 0.0     # Direction the field approaches from
+        self._asteroid_field_warned = False   # Warning popup sent
+
         # Player beam state
         self.player_firing = False
 
@@ -588,6 +596,82 @@ class SpaceShooterGame:
         sx = self.player_ship.x + math.cos(angle) * dist
         sy = self.player_ship.y + math.sin(angle) * dist
         self.suns.append(Sun(sx, sy))
+
+    # --- Asteroid Field Events ---
+
+    def _start_asteroid_field(self):
+        """Begin an asteroid field event — dense stream from a random direction."""
+        self._asteroid_field_count += 1
+        self._asteroid_field_active = True
+        # Duration scales: 6s base + 1s per wave, capped at 12s
+        duration = min(360 + self._asteroid_field_count * 60, 720)
+        self._asteroid_field_timer = duration
+        self._asteroid_field_angle = random.uniform(0, math.pi * 2)
+        self._asteroid_field_warned = False
+        # Cooldown: 45-75s between fields
+        self._asteroid_field_cooldown = random.randint(2700, 4500)
+
+        # Announce
+        px = self.player_ship.x + self.player_ship.width // 2
+        py = self.player_ship.y - 100
+        wave_label = f"ASTEROID FIELD #{self._asteroid_field_count}!"
+        self.popup_notifications.append(
+            PopupNotification(px, py, wave_label, (200, 160, 100)))
+        self.screen_shake.trigger(5, 10)
+
+    def _update_asteroid_field(self):
+        """Tick asteroid field — spawn dense clusters each frame while active."""
+        # Cooldown tick
+        if self._asteroid_field_cooldown > 0:
+            self._asteroid_field_cooldown -= 1
+
+        # Start a new field: first at 60s, then after cooldown
+        if (not self._asteroid_field_active
+                and self.survival_seconds >= 60
+                and self._asteroid_field_cooldown <= 0):
+            # 3s warning before the field hits
+            if not self._asteroid_field_warned:
+                self._asteroid_field_warned = True
+                self._asteroid_field_cooldown = 180  # 3s warning window
+                px = self.player_ship.x + self.player_ship.width // 2
+                py = self.player_ship.y - 60
+                self.popup_notifications.append(
+                    PopupNotification(px, py, "ASTEROID FIELD INCOMING!", (255, 200, 80)))
+                return
+            self._start_asteroid_field()
+
+        if not self._asteroid_field_active:
+            return
+
+        self._asteroid_field_timer -= 1
+        if self._asteroid_field_timer <= 0:
+            self._asteroid_field_active = False
+            return
+
+        # Spawn rate: 1-3 asteroids per frame depending on escalation
+        spawn_count = min(1 + self._asteroid_field_count // 3, 3)
+        # Only spawn every few frames to avoid overwhelming
+        if self._asteroid_field_timer % 4 == 0:
+            for _ in range(spawn_count):
+                # Spawn from the field direction, 600-900px out
+                spread = random.uniform(-0.5, 0.5)  # Angular spread
+                angle = self._asteroid_field_angle + spread
+                dist = random.uniform(600, 900)
+                ax = self.player_ship.x + math.cos(angle) * dist
+                ay = self.player_ship.y + math.sin(angle) * dist
+
+                # Velocity toward player with some scatter
+                to_player = math.atan2(
+                    self.player_ship.y - ay, self.player_ship.x - ax)
+                scatter = random.uniform(-0.3, 0.3)
+                speed = random.uniform(3.5, 7.0)
+                size = random.randint(40, 130)
+                self.asteroids.append(Asteroid(
+                    ax, ay,
+                    vx=math.cos(to_player + scatter) * speed,
+                    vy=math.sin(to_player + scatter) * speed,
+                    size=size,
+                ))
 
     def _spawn_ally_ship(self, duration=600):
         """Spawn a friendly ally ship near the player."""
@@ -2525,6 +2609,9 @@ class SpaceShooterGame:
                 vy=math.sin(angle_to_center) * speed + random.uniform(-0.5, 0.5)
             ))
 
+        # Asteroid field events (dense waves)
+        self._update_asteroid_field()
+
         # Update asteroids
         for asteroid in self.asteroids:
             asteroid.update()
@@ -3239,8 +3326,13 @@ class SpaceShooterGame:
                 pct = self.player_ship.shields / max(self.player_ship.max_shields, 1)
                 t = gpu.time
 
+                # Faction-specific shield tint
+                from shaders.shield_bubble import SHIELD_TINTS, DEFAULT_SHIELD_TINT
+                faction = getattr(self.player_ship, 'faction', '')
+                tint = SHIELD_TINTS.get(faction.lower(), DEFAULT_SHIELD_TINT)
+
                 shield_pass.update_shield(center_uv, radius_uv, pct, t,
-                                          screen_size=(w, h))
+                                          screen_size=(w, h), tint=tint)
                 gpu.set_effect_enabled('shield_bubble', True)
             else:
                 gpu.set_effect_enabled('shield_bubble', False)

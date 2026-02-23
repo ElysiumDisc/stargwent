@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-8.6.0-blue)
+![Version](https://img.shields.io/badge/version-8.7.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -98,6 +98,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, and per-player revival invulnerability all synced perfectly across both players
 - **Co-op Revival** - When a player dies, their partner's next kill revives them at the partner's position with 50% HP/shields and 3 seconds of per-player invulnerability (blocks all damage: projectiles, beams, contact, bombs)
 - **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, per-faction + per-variant thruster boost sounds, cloak activation sound, supergate activation sound, Ori beam + Wraith beam boss sounds — all controlled by Master/Effects volume sliders. Audio cuts off immediately on game exit
+- **Asteroid Field Events** - Periodic dense asteroid waves from a random direction with 3-second warning, escalating density and duration, navigate or destroy to survive
 - **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications, Supergate kawoosh particle effects
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 
@@ -186,7 +187,7 @@ All abilities renamed and themed around Stargate lore:
 - **Shockwave Impact** - Expanding ring distortion with screen flash and chromatic aberration at the wavefront — triggers on round winner and game start
 - **Asgard Beam** - Volumetric light column with scan line and shimmer
 - **ZPM Surge** - Procedural electric arcs, particle burst, lightning, and screen flash radiating from ZPM
-- **Shield Bubble** - Localized energy bubble around player ship with hexagonal grid pattern, UV refraction, pulsing rim glow — intensity scales with shield health
+- **Shield Bubble** - Localized energy bubble around player ship with hexagonal grid pattern, UV refraction, pulsing rim glow — faction-tinted (blue for Tau'ri/Asgard, orange for Goa'uld/Jaffa/Lucian), intensity scales with shield health
 - **Graceful Fallback** - All effects auto-disable if GPU unavailable; game runs unchanged on pure Pygame
 - **Configurable** - Toggle bloom, vignette, shader quality in settings
 

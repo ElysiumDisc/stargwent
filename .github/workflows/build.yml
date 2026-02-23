@@ -58,12 +58,14 @@ jobs:
         with:
           name: Stargwent-${{ needs.version.outputs.version }}-linux-deb
           path: builds/releases/*linux*.deb
+          retention-days: 1
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
         with:
           name: Stargwent-${{ needs.version.outputs.version }}-linux-appimage
           path: builds/releases/*linux*.AppImage
+          retention-days: 1
 
   # ── Windows: .exe ─────────────────────────────────────────────
   windows:
@@ -118,6 +120,7 @@ jobs:
         with:
           name: Stargwent-${{ needs.version.outputs.version }}-windows-x64
           path: builds/releases/*windows*.zip
+          retention-days: 1
 
   # ── macOS: .dmg ──────────────────────────────────────────────
   macos:
@@ -180,6 +183,7 @@ jobs:
         with:
           name: Stargwent-${{ needs.version.outputs.version }}-macos
           path: builds/releases/*macos*.dmg
+          retention-days: 1
 
   # ── Create GitHub Release (only on tag push) ──────────────────
   release:

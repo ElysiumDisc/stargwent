@@ -1,3 +1,41 @@
+### Version 8.7.0 (February 2026)
+**Faction Shield Tints, Asteroid Field Events, CI Fix**
+
+#### Faction-Tinted Shields (GPU + Software)
+- **GPU shader** (`shaders/shield_bubble.py`): New `shield_tint` vec3 uniform — hex grid, rim glow, and inner glow now derive colors from faction instead of hardcoded cyan-blue
+- **`SHIELD_TINTS` dict** maps all 5 factions to normalised RGB tint values
+- **Software renderer** (`space_shooter/ship.py`): New `SHIELD_COLORS` dict with per-faction (bubble, rim, inner) RGB tuples
+- Shield aura bubbles, outer rim, inner glow ring, hit flare, crack lines, and shield bar all use faction-specific colors
+- **Tau'ri / Asgard**: Blue shields (existing look preserved)
+- **Goa'uld / Jaffa / Lucian Alliance**: Orange shields matching faction identity
+- Game loop (`game.py`) passes player faction tint to GPU shader each frame via `update_shield()`
+
+#### Asteroid Field Events (New)
+- **Periodic dense asteroid waves** starting at 60 seconds of survival
+- **3-second warning**: "ASTEROID FIELD INCOMING!" popup notification before each field arrives
+- **Directional approach**: Asteroids stream from a random direction toward the player
+- **Escalating difficulty**: Duration grows from 6s to 12s cap; spawn density increases every 3 waves (1→3 asteroids per burst)
+- **Mixed sizes** (40-130px) with varied speeds (3.5-7.0) for visual variety
+- **45-75 second cooldown** between fields
+- Screen shake on field start, numbered wave announcements ("ASTEROID FIELD #1!")
+
+#### GitHub Actions CI Fix
+- **Deleted all 44 old build artifacts** (~7GB) that were filling the GitHub Actions storage quota
+- **Added `retention-days: 1`** to all 4 `upload-artifact` steps — artifacts only need to survive until the release job downloads them
+- Builds will no longer fail with "Artifact storage quota has been hit"
+
+#### Key Modified Files
+| File | Changes |
+|------|---------|
+| `shaders/shield_bubble.py` | `shield_tint` uniform, `SHIELD_TINTS` dict, faction-derived hex/rim/glow colors |
+| `space_shooter/ship.py` | `SHIELD_COLORS` dict, faction-tinted aura/hit flare/shield bar |
+| `space_shooter/game.py` | Faction tint passed to GPU shader, `_update_asteroid_field()`, `_start_asteroid_field()` |
+| `.github/workflows/build.yml` | `retention-days: 1` on all artifact uploads |
+| `README.md` | Version badge 8.6.0 → 8.7.0, asteroid field events, faction-tinted shields |
+| `DEVELOPMENT.md` | Updated space shooter architecture to v8.7.0 |
+
+---
+
 ### Version 8.6.0 (February 2026)
 **Space Shooter Polish — Shield Bubble Shader, Boss Beam Fix, Audio Variants**
 
