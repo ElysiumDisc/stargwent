@@ -110,3 +110,12 @@ def register_all_effects(gpu_renderer):
         print("[GPU] Replicator swarm effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register replicator swarm: {e}")
+
+    try:
+        from shaders.shield_bubble import create_shield_bubble_pass
+        sb_pass = create_shield_bubble_pass(ctx)
+        gpu_renderer.add_effect("shield_bubble", sb_pass)
+        gpu_renderer.set_effect_enabled("shield_bubble", False)  # Driven by space shooter
+        print("[GPU] Shield bubble effect registered")
+    except Exception as e:
+        print(f"[GPU] Failed to register shield bubble: {e}")

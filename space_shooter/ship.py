@@ -72,11 +72,11 @@ SHIP_VARIANTS = {
             "image_orientation": "right",
             "weapon_type": "laser",
             "fire_rate": 14,
-            "secondary_type": "staff_barrage",
-            "secondary_fire_rate": 240,
+            "secondary_type": "alkesh_deploy",
+            "secondary_fire_rate": 300,
             "passive": "shield_regen",
             "passive_state": {"no_hit_timer": 0},
-            "description": "Shield regen after 2s without damage",
+            "description": "Deploy Al'kesh bombers, shield regen",
         },
         {
             "name": "Apophis Flagship",
@@ -402,9 +402,10 @@ class Ship:
             self.image_left = pygame.transform.flip(self.image, True, False)
             self.image_up = pygame.transform.rotate(self.image_right, 90)
             self.image_down = pygame.transform.rotate(self.image_right, -90)
-            # Set initial facing
-            if self.facing == (-1, 0):
-                self.image = self.image_left
+            # NOTE: self.image stays as the right-facing base so that
+            # spawner/game re-cache code (which copies from self.image)
+            # always derives correct directional images.
+            # _update_rotation() sets the display image on the first tick.
 
         except (pygame.error, FileNotFoundError) as e:
             print(f"[space_shooter] Could not load ship: {ship_path} - {e}")
@@ -1104,6 +1105,11 @@ class Ship:
                 proj.is_player_proj = self.is_player
                 results.append(("projectile", proj))
 
+        elif self.secondary_type == "alkesh_deploy":
+            # Goa'uld Ha'tak: deploy 3 Al'kesh bombers targeting nearest enemies
+            results.append(("alkesh_deploy", {"x": cx, "y": cy, "count": 3,
+                                              "damage": 35, "blast_radius": 130}))
+
         elif self.secondary_type == "eye_of_ra":
             # Anubis Eye of Ra: devastating focused golden beam (5s cooldown)
             # Fires a concentrated beam that deals massive damage to everything in a line
@@ -1235,25 +1241,35 @@ class Ship:
                 pygame.draw.circle(p_surf, (r, g, b, alpha), (c, c), size)
             surface.blit(p_surf, (int(px) - c, int(py) - c))
 
-        # --- Always-visible subtle shield aura when shields > 0 ---
+        # --- Dynamic bubbling shield aura when shields > 0 ---
         if self.shields > 0:
             pulse = math.sin(time_tick * 0.04) * 0.08 + 1.0
             r = int(base_radius * pulse)
-            sz = r * 2 + 20
+            sz = r * 2 + 30
             aura = pygame.Surface((sz, sz), pygame.SRCALPHA)
             c = sz // 2
 
-            num_segments = 6
-            seg_angle_offset = time_tick * 0.02
-            for i in range(num_segments):
-                angle = seg_angle_offset + i * (math.pi * 2 / num_segments)
-                arc_alpha = int(25 * shield_pct + 10)
-                ax = c + int(math.cos(angle) * r * 0.9)
-                ay = c + int(math.sin(angle) * r * 0.9)
-                pygame.draw.circle(aura, (80, 180, 255, arc_alpha), (ax, ay), int(r * 0.35), 1)
+            # Wobbling bubble circles at pseudo-random positions on the sphere
+            num_bubbles = 10
+            for i in range(num_bubbles):
+                # Deterministic seed per bubble for stable positions that drift
+                seed_angle = i * 2.3998 + time_tick * 0.012  # golden angle drift
+                br = r * (0.7 + 0.25 * math.sin(time_tick * 0.05 + i * 1.7))
+                bx = c + int(math.cos(seed_angle) * br)
+                by = c + int(math.sin(seed_angle) * br)
+                wobble_r = int(r * 0.18 + r * 0.06 * math.sin(time_tick * 0.07 + i * 2.1))
+                b_alpha = int((20 * shield_pct + 8) * (0.6 + 0.4 * math.sin(time_tick * 0.06 + i)))
+                b_alpha = max(0, min(255, b_alpha))
+                pygame.draw.circle(aura, (80, 190, 255, b_alpha), (bx, by), wobble_r, 1)
 
-            ring_alpha = int(40 * shield_pct + 15)
-            pygame.draw.circle(aura, (100, 200, 255, ring_alpha), (c, c), r, 2)
+            # Bright outer rim (bloom shader will enhance this)
+            rim_alpha = int(50 * shield_pct + 20)
+            pygame.draw.circle(aura, (120, 210, 255, rim_alpha), (c, c), r, 3)
+            # Inner glow ring
+            inner_alpha = int(25 * shield_pct + 10)
+            inner_r = int(r * 0.75 + r * 0.05 * math.sin(time_tick * 0.03))
+            pygame.draw.circle(aura, (90, 200, 255, inner_alpha), (c, c), inner_r, 1)
+
             surface.blit(aura, (bubble_center[0] - c, bubble_center[1] - c))
 
         # --- Bright flare on shield hit ---

@@ -330,11 +330,11 @@ class PowerUp:
         "asgard_time_dilation": {
             "name": "Time Dilation",
             "color": (100, 180, 255),
-            "duration": 300,  # 5 seconds
+            "duration": 1800,  # 30 seconds
             "spawn_weight": 0,
             "icon": "T",
             "icon_file": "all.png",
-            "rarity": "epic",
+            "rarity": "legendary",
             "faction": "asgard",
         },
         "asgard_matter_converter": {

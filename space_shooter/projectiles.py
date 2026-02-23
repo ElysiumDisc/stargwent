@@ -165,7 +165,7 @@ class ContinuousBeam:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.active = True
-        self.damage_per_frame = 0.4
+        self.damage_per_frame = 0.55
         self.pulse = 0
         # Max beam range (infinite world — don't go to screen edge)
         self.max_range = 2000
@@ -706,7 +706,7 @@ class OriBossBeam:
         self.timer = 0
         self.charge_duration = 60   # 1s charge-up telegraph before beam fires
         self.duration = 180  # 3 seconds sweep (slower = more dodgeable)
-        self.damage_per_frame = 1.5
+        self.damage_per_frame = 1.875  # 1.5 * 1.25
         self.active = True
         self.charging = True  # True during charge-up phase (no damage)
         self.pulse = 0
@@ -796,7 +796,7 @@ class WraithBossBeam(OriBossBeam):
         super().__init__(x, y, start_angle)
         self.length = 1200
         self.width = 18
-        self.damage_per_frame = 1.2
+        self.damage_per_frame = 1.5  # 1.2 * 1.25
         self.life_steal_pct = 0.5  # Heal boss for 50% of damage dealt
 
     def draw(self, surface, camera=None):

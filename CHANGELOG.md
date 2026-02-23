@@ -1,3 +1,53 @@
+### Version 8.6.0 (February 2026)
+**Space Shooter Polish — Shield Bubble Shader, Boss Beam Fix, Audio Variants**
+
+#### Shield Bubble GPU Shader (New)
+- **New post-processing shader** `shaders/shield_bubble.py` — localized energy bubble around the player ship when shields are active
+- Hexagonal energy grid pattern visible on the bubble shell, slowly rotating
+- Subtle UV refraction/distortion inside the bubble area
+- Pulsing energy rim at the bubble edge, faint inner glow
+- Intensity scales with shield health percentage — fades as shields deplete
+- Registered in shader chain (disabled by default, driven by space shooter game loop)
+- Graceful fallback: effect is fully optional, never crashes the game if GPU unavailable
+
+#### Enhanced Pygame Shield Aura
+- Replaced static 6-segment arc circles with **10 dynamic drifting bubble circles** using golden angle spacing
+- Each bubble wobbles independently in size and alpha over time
+- Brighter 3px outer rim ring (bloom shader enhances this)
+- Inner glow ring with subtle pulsing for depth
+
+#### Boss Beam Origin Fix
+- **Ori Mothership** and **Wraith Hive** beams now fire from the ship's **nose** (facing direction) instead of center
+- Beam angle-to-player calculation also originates from the nose for accurate targeting
+- Popup notifications ("ORI BEAM!" / "CULLING BEAM!") positioned at the nose
+
+#### Enemy Visual Tuning
+- Enemy tint overlay alpha reduced from 60 to 30 — subtler faction coloring, less overwhelming
+- Hit flash (red overlay) alpha reduced from 80 to 50 on both player and enemy ships
+
+#### Audio — New Sounds & Variant Support
+- **Cloak activation sound**: `cloak_space_shooter.ogg` plays immediately when any ship picks up the cloak powerup
+- **Variant-specific boost sounds**: Boost sound loader now supports per-variant audio (e.g. `tauri_boost_space_shooter_alt_1.ogg` for Aurora-class)
+- Boost fallback chain: variant-specific → faction default → generic
+- New audio files: `cloak_space_shooter.ogg`, `tauri_boost_space_shooter_alt_1.ogg`, `jaffa_boost_space_shooter.ogg`, `jaffa_space_shooter.ogg` (hit), `lucian_space_shooter.ogg` (hit)
+- All 5 factions now have dedicated hit sounds; Jaffa and Goa'uld have dedicated boost sounds
+
+#### New Files (1)
+| File | Purpose |
+|------|---------|
+| `shaders/shield_bubble.py` | Hexagonal energy bubble post-processing shader |
+
+#### Key Modified Files
+| File | Changes |
+|------|---------|
+| `space_shooter/game.py` | Boss beam nose origin, hit flash alpha reduction, `_update_shield_shader()`, cloak sound, variant boost sound loader |
+| `space_shooter/ship.py` | Dynamic bubbling shield aura (replaces static segments) |
+| `space_shooter/spawner.py` | Enemy tint alpha 60 → 30 |
+| `shaders/__init__.py` | Shield bubble effect registration |
+| `README.md` | Version badge 8.5.0 → 8.6.0 |
+
+---
+
 ### Version 8.5.0 (February 2026)
 **Galactic Conquest Expansion + Space Shooter Overhaul — Alt Ships, Supergate Bosses, Relics, AI Wars**
 

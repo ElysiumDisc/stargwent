@@ -209,7 +209,7 @@ class ContinuousSpawner:
         # Apply tint
         if mods["tint"] and ship.image:
             tint_surf = pygame.Surface(ship.image.get_size(), pygame.SRCALPHA)
-            tint_surf.fill((*mods["tint"], 60))
+            tint_surf.fill((*mods["tint"], 30))
             ship.image.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
         # Re-cache directional images

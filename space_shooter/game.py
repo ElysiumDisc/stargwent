@@ -122,6 +122,15 @@ class SpaceShooterGame:
         self._was_boosting = False
         self._load_boost_sound()
 
+        # Cloak sound effect — plays once when cloak activates
+        self.cloak_sound = None
+        try:
+            cloak_path = os.path.join("assets", "audio", "space_shooter", "cloak_space_shooter.ogg")
+            if os.path.exists(cloak_path):
+                self.cloak_sound = pygame.mixer.Sound(cloak_path)
+        except Exception:
+            pass
+
         # Shield bash (dash) state
         self.dash_active = False
         self.dash_timer = 0
@@ -362,7 +371,7 @@ class SpaceShooterGame:
             pass
 
     def _load_boost_sound(self):
-        """Load the thruster boost activation sound (faction-specific if available)."""
+        """Load the thruster boost activation sound (faction/variant-specific if available)."""
         faction_prefixes = {
             "Asgard": "asgard",
             "Tau'ri": "tauri",
@@ -371,9 +380,19 @@ class SpaceShooterGame:
             "Lucian Alliance": "lucian",
         }
         base_dir = os.path.join("assets", "audio", "space_shooter")
-        # Try faction-specific boost sound first
         prefix = faction_prefixes.get(self.player_faction)
         if prefix:
+            # Try variant-specific boost sound first (e.g. tauri_boost_space_shooter_alt_1.ogg)
+            if self.variant > 0:
+                variant_file = f"{prefix}_boost_space_shooter_alt_{self.variant}.ogg"
+                variant_path = os.path.join(base_dir, variant_file)
+                try:
+                    if os.path.exists(variant_path):
+                        self.boost_sound = pygame.mixer.Sound(variant_path)
+                        return
+                except Exception:
+                    pass
+            # Try faction default boost sound
             faction_path = os.path.join(base_dir, f"{prefix}_boost_space_shooter.ogg")
             try:
                 if os.path.exists(faction_path):
@@ -503,6 +522,32 @@ class SpaceShooterGame:
                 # Spawn 2 temporary ally ships for 10s
                 for _ in range(2):
                     self._spawn_ally_ship(duration=600)
+            elif result_type == "alkesh_deploy":
+                # Deploy Al'kesh bombs targeting nearest enemies
+                px = self.player_ship.x + self.player_ship.width // 2
+                py = self.player_ship.y
+                count = data.get("count", 3)
+                damage = data.get("damage", 35)
+                blast_r = data.get("blast_radius", 130)
+                sorted_enemies = sorted(self.ai_ships,
+                                        key=lambda e: math.hypot(
+                                            e.x + e.width // 2 - px, e.y - py))
+                for i in range(count):
+                    if i < len(sorted_enemies):
+                        tx = sorted_enemies[i].x + sorted_enemies[i].width // 2
+                        ty = sorted_enemies[i].y
+                    else:
+                        a = random.uniform(0, math.pi * 2)
+                        tx = px + math.cos(a) * 300
+                        ty = py + math.sin(a) * 300
+                    bomb = AreaBomb(px, py, tx, ty, damage=damage,
+                                   blast_radius=blast_r)
+                    bomb.is_player_proj = True
+                    bomb.fuse_duration = 90  # 1.5s fuse (faster than enemy bombs)
+                    self.area_bombs.append(bomb)
+                self.screen_shake.trigger(4, 8)
+                self.popup_notifications.append(PopupNotification(
+                    px, py - 60, "AL'KESH STRIKE!", (255, 180, 0)))
             elif result_type == "eye_of_ra":
                 # Anubis Eye of Ra: devastating focused beam in a line
                 px = self.player_ship.x + self.player_ship.width // 2
@@ -625,6 +670,12 @@ class SpaceShooterGame:
             self.active_powerups["damage"] = duration
         elif ptype == "cloak":
             self.active_powerups["cloak"] = duration
+            if self.cloak_sound:
+                try:
+                    self.cloak_sound.set_volume(_get_sfx_vol() * 0.8)
+                    self.cloak_sound.play()
+                except Exception:
+                    pass
         elif ptype == "overcharge":
             # Massive fire rate boost + extra projectiles
             if not hasattr(self, '_saved_fire_rate'):
@@ -764,9 +815,11 @@ class SpaceShooterGame:
                     self.damage_numbers.append(DamageNumber(
                         enemy.x + enemy.width // 2, enemy.y, 0, (255, 255, 100)))
         elif ptype == "asgard_time_dilation":
-            # All enemies slowed to 25% speed for 5s
+            # Freeze all enemies for 30s
             self.active_powerups["asgard_time_dilation"] = duration
-            self.screen_shake.trigger(4, 8)
+            self.screen_shake.trigger(6, 12)
+            for enemy in self.ai_ships:
+                enemy._stunned = max(getattr(enemy, '_stunned', 0), duration)
         elif ptype == "asgard_matter_converter":
             # Convert nearest 5 enemies to large XP orbs
             px = self.player_ship.x + self.player_ship.width // 2
@@ -1303,10 +1356,26 @@ class SpaceShooterGame:
             if prev_phase == sg.PHASE_APPEARING and sg.phase == sg.PHASE_ACTIVATING:
                 if self._supergate_sound:
                     try:
+                        # Supersede all other sounds so player can hear it
+                        pygame.mixer.stop()  # Stop all current sfx
                         self._supergate_sound.set_volume(_get_sfx_vol())
                         self._supergate_sound.play()
+                        # Briefly duck music volume for dramatic effect
+                        try:
+                            self._pre_supergate_music_vol = pygame.mixer.music.get_volume()
+                            pygame.mixer.music.set_volume(
+                                self._pre_supergate_music_vol * 0.15)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
+            # Restore music volume after supergate sound plays
+            if sg.phase == sg.PHASE_OPEN and hasattr(self, '_pre_supergate_music_vol'):
+                try:
+                    pygame.mixer.music.set_volume(self._pre_supergate_music_vol)
+                except Exception:
+                    pass
+                del self._pre_supergate_music_vol
             if result == "spawn_boss":
                 boss_type = getattr(sg, '_boss_type', 'ori')
                 if boss_type == "wraith":
@@ -1405,12 +1474,16 @@ class SpaceShooterGame:
             beam_interval = 240 if is_wraith else 300
             if beam_timer >= beam_interval:
                 boss._ori_beam_timer = 0
+                # Beam origin at the nose of the ship (facing direction)
+                fdx, fdy = getattr(boss, 'facing', (-1, 0))
+                nose_x = boss.x + boss.width // 2 + fdx * (boss.width // 2)
+                nose_y = boss.y + fdy * (boss.height // 2)
                 px = self.player_ship.x + self.player_ship.width // 2
                 py = self.player_ship.y
-                angle_to_player = math.atan2(py - boss.y, px - (boss.x + boss.width // 2))
+                angle_to_player = math.atan2(py - nose_y, px - nose_x)
                 start_angle = angle_to_player - math.pi / 4
                 if is_wraith:
-                    beam = WraithBossBeam(boss.x + boss.width // 2, boss.y, start_angle)
+                    beam = WraithBossBeam(nose_x, nose_y, start_angle)
                     beam._source_boss = boss
                     self.ori_beams.append(beam)
                     if self._wraith_beam_sound:
@@ -1420,10 +1493,10 @@ class SpaceShooterGame:
                         except Exception:
                             pass
                     self.popup_notifications.append(PopupNotification(
-                        boss.x + boss.width // 2, boss.y - 80,
+                        nose_x, nose_y - 80,
                         "CULLING BEAM!", (160, 40, 255)))
                 else:
-                    beam = OriBossBeam(boss.x + boss.width // 2, boss.y, start_angle)
+                    beam = OriBossBeam(nose_x, nose_y, start_angle)
                     beam._source_boss = boss
                     self.ori_beams.append(beam)
                     if self._ori_beam_sound:
@@ -1433,7 +1506,7 @@ class SpaceShooterGame:
                         except Exception:
                             pass
                     self.popup_notifications.append(PopupNotification(
-                        boss.x + boss.width // 2, boss.y - 80,
+                        nose_x, nose_y - 80,
                         "ORI BEAM!", (255, 220, 80)))
                 self.screen_shake.trigger(8, 15)
 
@@ -2011,10 +2084,10 @@ class SpaceShooterGame:
 
         # Jaffa Freedom (KREE): 3x damage handled in auto-fire, invuln via sarcophagus
 
-        # Asgard Time Dilation: slow all enemies to 25%
+        # Asgard Time Dilation: freeze all enemies (including newly spawned)
         if self.active_powerups.get("asgard_time_dilation", 0) > 0:
             for enemy in self.ai_ships:
-                enemy.speed = max(1, int(enemy.speed * 0.25))
+                enemy._stunned = max(getattr(enemy, '_stunned', 0), 2)
 
         # Jaffa Tretonin: double HP regen
         if self.active_powerups.get("jaffa_tretonin", 0) > 0:
@@ -2211,21 +2284,35 @@ class SpaceShooterGame:
         for bomb in self.area_bombs[:]:
             bomb.update()
             if not bomb.active:
-                # Detonated — deal AoE damage to player (and enemies near blast)
-                px = self.player_ship.x + self.player_ship.width // 2
-                py = self.player_ship.y
-                dist = math.hypot(px - bomb.x, py - bomb.y)
-                if dist < bomb.blast_radius:
-                    dmg = int(bomb.damage * (1.0 - dist / bomb.blast_radius * 0.5))
-                    if not self._check_evasion() and not self.is_invulnerable():
-                        self.player_hit_flash = 8
-                        self.screen_shake.trigger(5, 10)
-                        self.damage_numbers.append(DamageNumber(px, py, dmg, (255, 100, 0)))
-                        if self.player_ship.take_damage(dmg):
-                            self.game_over = True
-                            self.winner = "ai"
-                            self._save_score()
-                            self.explosions.append(Explosion(px, py, tier="large"))
+                if getattr(bomb, 'is_player_proj', False):
+                    # Player-owned bomb: damage enemies in blast radius
+                    for enemy in self.ai_ships[:]:
+                        ex = enemy.x + enemy.width // 2
+                        ey = enemy.y
+                        dist = math.hypot(ex - bomb.x, ey - bomb.y)
+                        if dist < bomb.blast_radius:
+                            dmg = int(bomb.damage * (1.0 - dist / bomb.blast_radius * 0.5))
+                            enemy.hit_flash = 5
+                            self.damage_numbers.append(DamageNumber(
+                                ex, ey, dmg, (255, 180, 0)))
+                            if self._damage_enemy(enemy, dmg):
+                                self._on_enemy_killed(enemy)
+                else:
+                    # Enemy bomb: damage player
+                    px = self.player_ship.x + self.player_ship.width // 2
+                    py = self.player_ship.y
+                    dist = math.hypot(px - bomb.x, py - bomb.y)
+                    if dist < bomb.blast_radius:
+                        dmg = int(bomb.damage * (1.0 - dist / bomb.blast_radius * 0.5))
+                        if not self._check_evasion() and not self.is_invulnerable():
+                            self.player_hit_flash = 8
+                            self.screen_shake.trigger(5, 10)
+                            self.damage_numbers.append(DamageNumber(px, py, dmg, (255, 100, 0)))
+                            if self.player_ship.take_damage(dmg):
+                                self.game_over = True
+                                self.winner = "ai"
+                                self._save_score()
+                                self.explosions.append(Explosion(px, py, tier="large"))
                 self.explosions.append(Explosion(bomb.x, bomb.y, tier="normal",
                                                 color_palette=[(255, 150, 0), (200, 100, 0), (255, 200, 50)]))
                 self.screen_shake.trigger(4, 8)
@@ -3044,7 +3131,7 @@ class SpaceShooterGame:
                 ship_rect = pygame.Rect(int(sx), int(sy - self.player_ship.height // 2),
                                         self.player_ship.width, self.player_ship.height)
                 flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
-                flash_surf.fill((255, 0, 0, 80))
+                flash_surf.fill((255, 0, 0, 50))
                 draw_surface.blit(flash_surf, ship_rect.topleft)
             else:
                 if self.is_cloaked():
@@ -3089,7 +3176,7 @@ class SpaceShooterGame:
                     ship_rect = pygame.Rect(int(sx), int(sy - ai_ship.height // 2),
                                             ai_ship.width, ai_ship.height)
                     flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
-                    flash_surf.fill((255, 0, 0, 80))
+                    flash_surf.fill((255, 0, 0, 50))
                     draw_surface.blit(flash_surf, ship_rect.topleft)
                     ai_ship.hit_flash = hit_flash - 1
 
@@ -3112,6 +3199,50 @@ class SpaceShooterGame:
         if self.showing_level_up and self.level_up_choices:
             _ui.draw_level_up_screen(self, draw_surface)
 
+        # Drive shield bubble GPU shader
+        self._update_shield_shader(cam)
+
         # Blit with shake offset
         if shake_x != 0 or shake_y != 0:
             surface.blit(draw_surface, (shake_x, shake_y))
+
+    # ------------------------------------------------------------------
+    def _update_shield_shader(self, cam):
+        """Drive the shield_bubble GPU shader based on player shield state."""
+        try:
+            import display_manager
+            gpu = display_manager.gpu_renderer
+            if not gpu or not gpu.enabled:
+                return
+
+            shield_pass = gpu.get_effect('shield_bubble')
+            if shield_pass is None:
+                return
+
+            has_shields = (self.player_ship.shields > 0
+                          and not self.game_over
+                          and not self.wormhole_active)
+
+            if has_shields:
+                # Convert player screen position to UV space
+                sx, sy = cam.world_to_screen(
+                    self.player_ship.x + self.player_ship.width // 2,
+                    self.player_ship.y)
+                w, h = self.screen_width, self.screen_height
+                center_uv = (sx / w, 1.0 - sy / h)  # flip Y for GL UV
+
+                # Shield radius in UV space from ship extent
+                ship_extent = max(self.player_ship.width, self.player_ship.height)
+                radius_px = ship_extent * 0.55
+                radius_uv = radius_px / h  # use height for aspect-neutral
+
+                pct = self.player_ship.shields / max(self.player_ship.max_shields, 1)
+                t = gpu.time
+
+                shield_pass.update_shield(center_uv, radius_uv, pct, t,
+                                          screen_size=(w, h))
+                gpu.set_effect_enabled('shield_bubble', True)
+            else:
+                gpu.set_effect_enabled('shield_bubble', False)
+        except Exception:
+            pass  # GPU shader is optional — never crash the game

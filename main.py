@@ -3,6 +3,14 @@ import sys
 import math
 import random
 import os
+
+# Ensure working directory matches the application directory.
+# PyInstaller (exe/dmg) doesn't cd to the app dir like our deb/AppImage launchers do.
+# _MEIPASS works for both --onefile (temp dir) and --onedir (app dir).
+if getattr(sys, 'frozen', False):
+    _app_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    os.chdir(_app_dir)
+
 from pygame.math import Vector2
 from game import Game
 from lan_protocol import LanMessageType, parse_message

@@ -184,7 +184,7 @@ def initialize_display():
         icon = pygame.image.load("assets/tauri_oneill.png")
         pygame.display.set_icon(icon)
         print("✓ Custom window icon set.")
-    except pygame.error as e:
+    except (pygame.error, FileNotFoundError, OSError) as e:
         print(f"⚠ Warning: Could not load window icon. {e}")
 
     # 7. Reload cards (happens in main usually, but good to do here if we own display)
