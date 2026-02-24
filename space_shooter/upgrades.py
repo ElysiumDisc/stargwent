@@ -213,6 +213,55 @@ EVOLUTIONS = {
     },
 }
 
+# Level 20 Primary Fire Masteries — one unique upgrade per weapon type
+PRIMARY_MASTERIES = {
+    "beam": {
+        "name": "Overcharged Beam",
+        "desc": "Beam 50% wider + burn DoT",
+        "color": (0, 255, 255),
+    },
+    "plasma_lance": {
+        "name": "Plasma Detonation",
+        "desc": "120px AoE explosion on impact",
+        "color": (180, 60, 255),
+    },
+    "disruptor_pulse": {
+        "name": "Cascade Disruption",
+        "desc": "Fragments into 3 mini-pulses on hit",
+        "color": (100, 200, 255),
+    },
+    "laser": {
+        "name": "Focused Optics",
+        "desc": "Shots pierce through all enemies",
+        "color": (255, 180, 0),
+    },
+    "dual_staff": {
+        "name": "Staff Barrage",
+        "desc": "Fires 4 staffs instead of 2",
+        "color": (255, 100, 50),
+    },
+    "missile": {
+        "name": "MIRV Warhead",
+        "desc": "Splits into 3 homing sub-missiles",
+        "color": (0, 150, 255),
+    },
+    "drone_pulse": {
+        "name": "Drone Swarm",
+        "desc": "Each shot spawns 2 extra drones",
+        "color": (255, 200, 50),
+    },
+    "staff": {
+        "name": "Kree's Judgement",
+        "desc": "Every 5th shot is supercharged (3x)",
+        "color": (255, 120, 30),
+    },
+    "energy_ball": {
+        "name": "Unstable Naquadah",
+        "desc": "Energy balls deal trail damage",
+        "color": (255, 100, 200),
+    },
+}
+
 # Enemy type modifiers: (speed_mult, hp_mult, scale, xp_value, tint, behavior)
 ENEMY_TYPES = {
     # --- Original types ---

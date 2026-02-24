@@ -170,6 +170,7 @@ class ContinuousBeam:
         # Max beam range (infinite world — don't go to screen edge)
         self.max_range = 2000
         self.current_length = self.max_range
+        self.width_mult = 1.0  # Mastery: Overcharged Beam sets to 1.5
 
     def update(self):
         self.pulse += 0.2
@@ -216,7 +217,8 @@ class ContinuousBeam:
             sx, sy = camera.world_to_screen(sx, sy)
             ex, ey = camera.world_to_screen(ex, ey)
 
-        pulse_width = 8 + int(math.sin(self.pulse) * 4)
+        base_pw = 8 + int(math.sin(self.pulse) * 4)
+        pulse_width = int(base_pw * self.width_mult)
 
         # Draw wide faint line (simulated glow)
         glow_color = (max(0, self.color[0]-50), max(0, self.color[1]-50), max(0, self.color[2]-50))

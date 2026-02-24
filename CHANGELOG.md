@@ -1,3 +1,60 @@
+### Version 8.8.0 (February 2026)
+**Performance Caching, Shield-on-Hit, Level 20 Masteries, Boss Overhaul**
+
+#### Performance Improvements
+- **Cached `struct.pack` VBO data** (`gpu_renderer.py`): Pre-computed module-level `_QUAD_VBO_DATA` constant replaces 3 per-init `struct.pack()` calls
+- **Cached panel surfaces** (`frame_renderer.py`): `_get_cached_panel()` and `_get_cached_overlay()` eliminate 4 per-frame `pygame.Surface()` allocations for UI panels and 3 full-screen dim overlays
+- **Cached effect surfaces** (`space_shooter/game.py`): `_get_flash_surf()` cache for hit-flash surfaces, grow-only reusable `_ion_pulse_surf` and `_orbital_surf` for effect rendering
+- **Cached mouse scale factors** (`display_manager.py`): `_cached_mouse_sx/sy` globals with `_recalc_mouse_scale()` called only on display mode changes instead of every frame
+- **Cached streak font** (`space_shooter/ui.py`): `_get_cached_font()` helper avoids per-frame `pygame.font.SysFont()` allocations
+
+#### Shield Visual — Hit-Only Flash
+- **Removed always-on bubble aura** (`space_shooter/ship.py`): Deleted the 30-line block drawing 10 wobbling circles + rim + inner glow every frame when shields > 0
+- **GPU shader hit-only** (`space_shooter/game.py`): Shield bubble shader now activates only when `shield_hit_timer > 0`, with intensity fading over ~1 second (`hit_fade = shield_hit_timer / 60.0`)
+- Ship looks clean normally; on shield hit → faction-colored Pygame flash + GPU hex grid + refraction + rim glow that fades out
+
+#### Level 20 Primary Fire Mastery (New)
+- **9 unique weapon masteries** auto-applied at exactly level 20 — one per weapon type
+- **Overcharged Beam**: 50% wider beam + burn DoT (5 dmg/sec, 3 seconds)
+- **Plasma Detonation**: 120px AoE explosion on impact
+- **Cascade Disruption**: Disruptor pulse fragments into 3 mini-pulses on hit
+- **Focused Optics**: Laser shots pierce through all enemies
+- **Staff Barrage**: Fires 4 staffs instead of 2
+- **MIRV Warhead**: Missiles split into 3 homing sub-missiles on impact
+- **Drone Swarm**: Each drone pulse shot spawns 2 extra tracking drones
+- **Kree's Judgement**: Every 5th staff shot is supercharged (3x damage, 2x size)
+- **Unstable Naquadah**: Energy balls deal trail damage to nearby enemies
+- Mastery popup notification + screen shake on acquisition
+- `PRIMARY_MASTERIES` dict added to `space_shooter/upgrades.py`
+
+#### Boss Overhaul
+- **Doubled boss HP**: Ori Mothership 10,000 → 20,000 HP + 5,000 → 10,000 shields; Wraith Hive 8,000 → 16,000 HP + 3,000 → 6,000 shields
+- **Wraith boss full size**: Wraith ship image scaled 2x after loading (was using tiny natural PNG size)
+- **Boss event lifecycle fix**: All supergates now stay open until EVERY boss from the wave is destroyed, then all gates show closing animation simultaneously
+- **Destroyed gate behavior**: Destroying a supergate stops boss emergence but already-spawned bosses remain until killed
+- **Flat supergate HP**: Supergates now have constant 40,000 HP (was 5x boss HP)
+
+#### Audio
+- **Secondary fire sounds**: New `_load_secondary_sound()` + `_play_secondary_sound()` system — supports per-faction + per-variant secondary fire audio (e.g. Beliskner transporter beam)
+- **Asgard boost sound**: `asgard_boost_space_shooter.ogg` loaded via existing variant boost sound system
+- **Galactic Conquest defense alert**: `conquest_defend.ogg` plays when an AI faction attacks the player's planet
+
+#### Key Modified Files
+| File | Changes |
+|------|---------|
+| `gpu_renderer.py` | Cached `_QUAD_VBO_DATA` module constant |
+| `frame_renderer.py` | `_get_cached_panel()`, `_get_cached_overlay()` |
+| `display_manager.py` | `_cached_mouse_sx/sy`, `_recalc_mouse_scale()` |
+| `space_shooter/game.py` | Effect surface caches, shield hit-only shader, level 20 mastery system, secondary sound, doubled boss HP, wraith 2x scale, boss lifecycle fix |
+| `space_shooter/ship.py` | Removed always-on shield aura, dual_staff mastery (4 staffs) |
+| `space_shooter/projectiles.py` | `ContinuousBeam.width_mult` for beam mastery |
+| `space_shooter/upgrades.py` | `PRIMARY_MASTERIES` dict (9 weapon masteries) |
+| `space_shooter/ui.py` | `_get_cached_font()` cache |
+| `space_shooter/entities.py` | Supergate flat 40k HP (removed `boss_hp` param) |
+| `galactic_conquest/campaign_controller.py` | `conquest_defend.ogg` defense alert sound |
+
+---
+
 ### Version 8.7.0 (February 2026)
 **Faction Shield Tints, Asteroid Field Events, CI Fix**
 

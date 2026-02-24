@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-8.7.0-blue)
+![Version](https://img.shields.io/badge/version-8.8.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -87,17 +87,18 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **5 Factions, 12 Playable Ships** - Each faction has a base ship + 1-3 alternate variants with unique weapons, secondaries, and passives. Up/Down to pick variant in ship select
 - **Alt Ships**: Asgard Valhalla-class (plasma lance + heavy armor), Beliskner-class (beam + transporter), Research Vessel (disruptor + sensor sweep), Goa'uld Apophis Flagship (dual staff + ribbon blast), Anubis Mothership (Eye of Ra beam), Tau'ri Aurora-class (Ancient drone pulse + fast shields), Jaffa Ha'tak Refit (rally allies + symbiote resilience)
 - **Secondary Fire per Faction** - Tau'ri Railgun, Goa'uld Staff Barrage, Asgard Ion Pulse, Jaffa War Cry, Lucian Scatter Mines + variant-specific abilities (Transporter Beam, Sensor Sweep, Ribbon Blast, Asgard Beam, Eye of Ra, Jaffa Rally)
-- **Supergate Boss Events** - At 3 minutes, a destroyable Supergate materializes with full kawoosh vortex animation + activation sound. Spawns Ori Mothership (10000 HP, blue-glow center orb, golden sweeping beam with charge-up telegraph) or Wraith Hive (8000 HP, purple life-drain beam + dart spawns). Gate stays open until boss or gate is destroyed (gate HP = 5x boss HP). Waves escalate with more bosses!
+- **Supergate Boss Events** - At 3 minutes, a destroyable Supergate materializes with full kawoosh vortex animation + activation sound. Spawns Ori Mothership (20000 HP + 10000 shields, blue-glow center orb, golden sweeping beam with charge-up telegraph) or Wraith Hive (16000 HP + 6000 shields, full-size purple life-drain beam + dart spawns). All gates stay open until every boss from the wave is destroyed, then show closing animation and disappear. Destroying a gate stops new bosses from emerging but already-spawned bosses remain. Supergate HP: 40,000. Waves escalate with more bosses!
 - **Faction-Styled Thrusters** - Unique engine particle effects per faction (Tau'ri blue-white, Goa'uld fiery gold, Asgard cyan diamonds, Jaffa hot orange, Lucian purple/pink) with SHIFT boost
 - **Buttery Smooth Movement** - Velocity-based acceleration with friction, diagonal normalization, and thruster speed boost
 - **Wormhole Escape** - Press Q to vanish through a wormhole with siege.ogg sound effect, bigger gravity pull radius
+- **Level 20 Primary Fire Mastery** - At level 20, your weapon auto-evolves with a unique mastery: Overcharged Beam (wider + burn DoT), Plasma Detonation (120px AoE), Cascade Disruption (3 fragments), Focused Optics (full pierce), Staff Barrage (4 staffs), MIRV Warhead (3 homing sub-missiles), Drone Swarm (extra drones), Kree's Judgement (every 5th shot 3x), Unstable Naquadah (trail damage)
 - **26 Upgrades (4 Rarities)** - Common, Rare, Epic, and Legendary upgrades including 5 Evolution combos (Thor's Hammer, Bullet Hell, Black Hole, Ancient Outpost, Cluster Bomb)
 - **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
 - **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
 - **14 Enemy Types** - Regular, Fast, Tank, Elite, Kamikaze + Stargate-themed (Wraith Dart, Replicator, Ori Fighter, Ancient Drone, Death Glider, Al'kesh Bomber, Wraith Hive mini-boss, Ori Mothership boss, Wraith Supergate boss)
 - **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, and per-player revival invulnerability all synced perfectly across both players
 - **Co-op Revival** - When a player dies, their partner's next kill revives them at the partner's position with 50% HP/shields and 3 seconds of per-player invulnerability (blocks all damage: projectiles, beams, contact, bombs)
-- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, per-faction + per-variant thruster boost sounds, cloak activation sound, supergate activation sound, Ori beam + Wraith beam boss sounds — all controlled by Master/Effects volume sliders. Audio cuts off immediately on game exit
+- **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, per-faction + per-variant thruster boost sounds, per-variant secondary fire sounds, cloak activation sound, supergate activation sound, Ori beam + Wraith beam boss sounds — all controlled by Master/Effects volume sliders. Audio cuts off immediately on game exit
 - **Asteroid Field Events** - Periodic dense asteroid waves from a random direction with 3-second warning, escalating density and duration, navigate or destroy to survive
 - **Visual Juice** - Infinite parallax starfield, faction-colored engine trails, damage numbers, screen shake, kill streak counter, mini-radar, popup notifications, Supergate kawoosh particle effects
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
@@ -114,7 +115,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Elite Homeworld Defenders**: Homeworld attacks trigger dramatic elite screen; AI gets +2 power and +2 extra cards
 - **AI Faction Wars**: AI factions attack each other's territory, creating a dynamic shifting galaxy
 - **3 Narrative Arcs**: Story chains (Path of the Ancients, Fall of the System Lords, Jaffa Liberation) tracking conquest sequences for relic and naquadah rewards
-- **AI Counterattacks**: Enemy factions attack your borders; successful defense earns cards and upgrades
+- **AI Counterattacks**: Enemy factions attack your borders with audio alert; successful defense earns cards and upgrades
 - **Planet Control Scaling**: More planets = better rewards (Standard / Enhanced / Supreme tiers)
 - **Campaign Persistence**: Auto-saves every turn; resume from exact state
 - **CRT Terminal Menu**: Retro scanline aesthetic with pulsing amber title
@@ -187,7 +188,7 @@ All abilities renamed and themed around Stargate lore:
 - **Shockwave Impact** - Expanding ring distortion with screen flash and chromatic aberration at the wavefront — triggers on round winner and game start
 - **Asgard Beam** - Volumetric light column with scan line and shimmer
 - **ZPM Surge** - Procedural electric arcs, particle burst, lightning, and screen flash radiating from ZPM
-- **Shield Bubble** - Localized energy bubble around player ship with hexagonal grid pattern, UV refraction, pulsing rim glow — faction-tinted (blue for Tau'ri/Asgard, orange for Goa'uld/Jaffa/Lucian), intensity scales with shield health
+- **Shield Bubble** - On-hit shield flash around player ship with hexagonal grid pattern, UV refraction, pulsing rim glow — faction-tinted (blue for Tau'ri/Asgard, orange for Goa'uld/Jaffa/Lucian), fades over ~1 second after taking shield damage. Ship looks clean when not being hit
 - **Graceful Fallback** - All effects auto-disable if GPU unavailable; game runs unchanged on pure Pygame
 - **Configurable** - Toggle bloom, vignette, shader quality in settings
 
@@ -687,14 +688,3 @@ Card portrait art generated with the following AI models:
 ## 🤝 Contributing
 
 Suggestions and feedback welcome!
-
-### Want to Help?
-- **Card Designs** - Create new cards for factions
-- **Visual Effects** - Design custom animations
-- **AI Improvements** - Enhance decision-making
-- **Documentation** - Improve guides
-- **Bug Reports** - Report issues
-
-
-
-> Stargwent is intentionally modular: every card, leader, soundtrack, and UI element lives in plain Python and editable assets so anyone can reskin the experience into their own fantasy Gwent variant—Lord of the Rings, Dragon Ball, or whatever universe you want to explore. Dive into the codebase, swap art/audio JSON entries, and the engine adapts.

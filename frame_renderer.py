@@ -28,6 +28,43 @@ from unlocks import UNLOCKABLE_CARDS, show_card_reward_screen, show_leader_rewar
 from deck_persistence import record_victory, record_defeat, get_persistence
 import battle_music
 
+# --- Panel surface cache (avoids per-frame Surface alloc for static panels) ---
+_panel_cache = {}
+
+
+def _get_cached_panel(w, h, fill, border):
+    """Return a cached SRCALPHA surface with fill + border rect.
+
+    Args:
+        w, h: dimensions
+        fill: (r, g, b, a) fill color
+        border: (r, g, b, a) border color or None
+    """
+    key = (w, h, fill, border)
+    surf = _panel_cache.get(key)
+    if surf is None:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill(fill)
+        if border:
+            pygame.draw.rect(surf, border, surf.get_rect(), 2, border_radius=8)
+        _panel_cache[key] = surf
+    return surf
+
+
+# --- Full-screen dim overlay cache ---
+_overlay_cache = {}
+
+
+def _get_cached_overlay(w, h, alpha):
+    """Return a cached full-screen dim overlay."""
+    key = (w, h, alpha)
+    surf = _overlay_cache.get(key)
+    if surf is None:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill((0, 0, 0, alpha))
+        _overlay_cache[key] = surf
+    return surf
+
 
 def _apply_gpu_params(state, screen):
     """Collect GPU shader parameters from active effects and apply to renderer."""
@@ -518,10 +555,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                         button_width + panel_padding * 2,
                         quit_draft_button.bottom - continue_button.top + panel_padding * 2
                     )
-                    panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-                    panel_surface.fill((0, 0, 0, 140))
-                    pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
-                    screen.blit(panel_surface, panel_rect.topleft)
+                    screen.blit(_get_cached_panel(panel_rect.width, panel_rect.height, (0, 0, 0, 140), (60, 60, 80, 200)), panel_rect.topleft)
 
                     # Draw Stargwent-styled buttons
                     draw_stargwent_button(screen, continue_button, "CONTINUE DRAFT", mouse_pos,
@@ -562,10 +596,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                         button_width + panel_padding * 2,
                         quit_button.bottom - new_draft_button.top + panel_padding * 2
                     )
-                    panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-                    panel_surface.fill((0, 0, 0, 140))
-                    pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
-                    screen.blit(panel_surface, panel_rect.topleft)
+                    screen.blit(_get_cached_panel(panel_rect.width, panel_rect.height, (0, 0, 0, 140), (60, 60, 80, 200)), panel_rect.topleft)
 
                     # Draw Stargwent-styled buttons
                     draw_stargwent_button(screen, new_draft_button, "NEW DRAFT", mouse_pos,
@@ -645,10 +676,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 button_width + panel_padding * 2,
                 quit_button.bottom - rematch_button.top + panel_padding * 2
             )
-            panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-            panel_surface.fill((0, 0, 0, 140))
-            pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
-            screen.blit(panel_surface, panel_rect.topleft)
+            screen.blit(_get_cached_panel(panel_rect.width, panel_rect.height, (0, 0, 0, 140), (60, 60, 80, 200)), panel_rect.topleft)
 
             # Draw Stargwent-styled buttons
             draw_stargwent_button(screen, rematch_button, "REMATCH", mouse_pos)
@@ -918,9 +946,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     # Draw visual feedback for ring transport selection mode (not during game_over)
     if state.ui_state == UIState.RING_TRANSPORT_SELECT and game.game_state != "game_over":
         # Dim the screen slightly
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 100))
-        screen.blit(overlay, (0, 0))
+        screen.blit(_get_cached_overlay(SCREEN_WIDTH, SCREEN_HEIGHT, 100), (0, 0))
 
         # Draw instruction text
         hint_font = cfg.get_font(None, 48)
@@ -1054,9 +1080,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     # Pause menu overlay
     if state.ui_state == UIState.PAUSED:
         # Semi-transparent overlay
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
-        screen.blit(overlay, (0, 0))
+        screen.blit(_get_cached_overlay(SCREEN_WIDTH, SCREEN_HEIGHT, 180), (0, 0))
 
         # Pause menu
         menu_width = 500
@@ -1150,9 +1174,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     # LAN: Waiting for Opponent Overlay
     if LAN_MODE and game.current_player != game.player1 and game.game_state != "game_over" and state.ui_state == UIState.PLAYING:
         # Draw transparent overlay
-        wait_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        wait_overlay.fill((0, 0, 0, 100)) # Darken slightly
-        screen.blit(wait_overlay, (0, 0))
+        screen.blit(_get_cached_overlay(SCREEN_WIDTH, SCREEN_HEIGHT, 100), (0, 0))
 
         # Draw Text
         wait_font = cfg.get_font("Arial", 48, bold=True)

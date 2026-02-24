@@ -6,6 +6,19 @@ import math
 from .entities import PowerUp
 from .upgrades import UPGRADES, EVOLUTIONS, RARITY_COLORS
 
+# Font cache to avoid per-frame SysFont allocation
+_font_cache = {}
+
+
+def _get_cached_font(size, bold=False):
+    """Return a cached pygame SysFont."""
+    key = (size, bold)
+    font = _font_cache.get(key)
+    if font is None:
+        font = pygame.font.SysFont("Arial", size, bold=bold)
+        _font_cache[key] = font
+    return font
+
 
 def draw_ui(game, surface):
     """Draw game UI overlay (all screen-space, no camera)."""
@@ -45,7 +58,7 @@ def draw_ui(game, surface):
     if game.kill_streak >= 3:
         pulse = 1.0 + math.sin(pygame.time.get_ticks() * 0.01) * 0.15
         streak_size = int(32 * pulse)
-        streak_font = pygame.font.SysFont("Arial", streak_size, bold=True)
+        streak_font = _get_cached_font(streak_size, bold=True)
         streak_surf = streak_font.render(f"STREAK x{game.kill_streak}!", True, (255, 100, 50))
         surface.blit(streak_surf, (game.screen_width - streak_surf.get_width() - 20, 110))
 

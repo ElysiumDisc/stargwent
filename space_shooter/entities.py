@@ -1283,7 +1283,7 @@ class Supergate:
     PHASE_HOLDING = 3   # Stays open until boss is killed
     PHASE_CLOSING = 4
 
-    def __init__(self, x, y, boss_hp=5000):
+    def __init__(self, x, y):
         self.x = x
         self.y = y
         self.active = True
@@ -1295,8 +1295,8 @@ class Supergate:
         self.particles = []
         self.boss_spawned = False
 
-        # Supergate is destroyable — 5x boss HP
-        self.max_health = boss_hp * 5
+        # Supergate is destroyable — flat 40k HP
+        self.max_health = 40000
         self.health = self.max_health
         self.hit_flash = 0
 

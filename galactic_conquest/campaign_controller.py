@@ -50,6 +50,14 @@ class CampaignController:
         self.map_screen = MapScreen(screen.get_width(), screen.get_height())
         self.message = None
         self.rng = random.Random(campaign_state.seed + campaign_state.turn_number)
+        # Defense alert sound
+        self._defend_sound = None
+        try:
+            path = os.path.join("assets", "audio", "conquest_defend.ogg")
+            if os.path.exists(path):
+                self._defend_sound = pygame.mixer.Sound(path)
+        except Exception:
+            pass
 
     @staticmethod
     def _music_start():
@@ -326,6 +334,12 @@ class CampaignController:
             target = self.galaxy.planets[target_id]
 
             self.message = f"{faction} attacks {target.name}!"
+            # Play defense alert sound
+            if self._defend_sound:
+                try:
+                    self._defend_sound.play()
+                except Exception:
+                    pass
             # Brief message display
             self._flash_message(f"{faction} is attacking {target.name}!", 2000)
 

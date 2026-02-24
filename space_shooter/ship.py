@@ -999,20 +999,24 @@ class Ship:
                 proj.damage = 12
                 proj.homing_strength = 0.03  # slight tracking
             elif self.weapon_type == "dual_staff":
-                # Two parallel staff blasts
-                perp_x = -direction[1] * 12
-                perp_y = direction[0] * 12
-                proj1 = JaffaStaffBlast(fire_x + perp_x, fire_y + perp_y, direction, self.laser_color)
-                proj2 = JaffaStaffBlast(fire_x - perp_x, fire_y - perp_y, direction, self.laser_color)
-                proj1.damage = 10
-                proj2.damage = 10
-                proj1.is_player_proj = self.is_player
-                proj2.is_player_proj = self.is_player
-                fury = self.get_fury_multiplier()
-                if fury > 1.0:
-                    proj1.damage = int(proj1.damage * fury)
-                    proj2.damage = int(proj2.damage * fury)
-                return [proj1, proj2]
+                # Two or four parallel staff blasts (mastery: Staff Barrage)
+                mastery_active = getattr(self, '_mastery_active', False)
+                if mastery_active:
+                    offsets = [1.5, 0.5, -0.5, -1.5]
+                else:
+                    offsets = [1, -1]
+                projs = []
+                for off in offsets:
+                    px = -direction[1] * 12 * off
+                    py = direction[0] * 12 * off
+                    p = JaffaStaffBlast(fire_x + px, fire_y + py, direction, self.laser_color)
+                    p.damage = 10
+                    p.is_player_proj = self.is_player
+                    fury = self.get_fury_multiplier()
+                    if fury > 1.0:
+                        p.damage = int(p.damage * fury)
+                    projs.append(p)
+                return projs
             else:
                 proj = Laser(fire_x, fire_y, direction, self.laser_color)
 
@@ -1255,40 +1259,7 @@ class Ship:
                 pygame.draw.circle(p_surf, (r, g, b, alpha), (c, c), size)
             surface.blit(p_surf, (int(px) - c, int(py) - c))
 
-        # --- Dynamic bubbling shield aura when shields > 0 ---
-        if self.shields > 0:
-            sc_bubble, sc_rim, sc_inner = SHIELD_COLORS.get(
-                self.faction.lower(), _DEFAULT_SHIELD_COLOR)
-            pulse = math.sin(time_tick * 0.04) * 0.08 + 1.0
-            r = int(base_radius * pulse)
-            sz = r * 2 + 30
-            aura = pygame.Surface((sz, sz), pygame.SRCALPHA)
-            c = sz // 2
-
-            # Wobbling bubble circles at pseudo-random positions on the sphere
-            num_bubbles = 10
-            for i in range(num_bubbles):
-                # Deterministic seed per bubble for stable positions that drift
-                seed_angle = i * 2.3998 + time_tick * 0.012  # golden angle drift
-                br = r * (0.7 + 0.25 * math.sin(time_tick * 0.05 + i * 1.7))
-                bx = c + int(math.cos(seed_angle) * br)
-                by = c + int(math.sin(seed_angle) * br)
-                wobble_r = int(r * 0.18 + r * 0.06 * math.sin(time_tick * 0.07 + i * 2.1))
-                b_alpha = int((20 * shield_pct + 8) * (0.6 + 0.4 * math.sin(time_tick * 0.06 + i)))
-                b_alpha = max(0, min(255, b_alpha))
-                pygame.draw.circle(aura, (*sc_bubble, b_alpha), (bx, by), wobble_r, 1)
-
-            # Bright outer rim (bloom shader will enhance this)
-            rim_alpha = int(50 * shield_pct + 20)
-            pygame.draw.circle(aura, (*sc_rim, rim_alpha), (c, c), r, 3)
-            # Inner glow ring
-            inner_alpha = int(25 * shield_pct + 10)
-            inner_r = int(r * 0.75 + r * 0.05 * math.sin(time_tick * 0.03))
-            pygame.draw.circle(aura, (*sc_inner, inner_alpha), (c, c), inner_r, 1)
-
-            surface.blit(aura, (bubble_center[0] - c, bubble_center[1] - c))
-
-        # --- Bright flare on shield hit ---
+        # --- Bright flare on shield hit (no always-on bubble — clean ship look) ---
         if self.shield_hit_timer > 0 and self.shields >= 0:
             sc_bubble, sc_rim, sc_inner = SHIELD_COLORS.get(
                 self.faction.lower(), _DEFAULT_SHIELD_COLOR)

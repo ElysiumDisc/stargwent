@@ -924,7 +924,7 @@ Roguelite card-battle campaign mode. Conquer a galaxy of planets through card ba
 | `conquest_menu.py` | ~380 | CRT-themed submenu (New/Resume/Customize Run/Back) + CustomizeRunScreen with per-faction leader picker |
 | `campaign_state.py` | ~85 | CampaignState dataclass — faction, leader, deck, naquadah, planets, cooldowns, upgrades, friendly faction, enemy leaders |
 | `campaign_persistence.py` | ~100 | Save/load campaign JSON + conquest_settings.json via XDG paths |
-| `campaign_controller.py` | ~500 | Main orchestrator — turn loop, attacks, AI counterattacks, faction bonuses, defense bonuses, deck viewer, run info |
+| `campaign_controller.py` | ~510 | Main orchestrator — turn loop, attacks, AI counterattacks, faction bonuses, defense bonuses, deck viewer, run info, defense alert sound |
 | `galaxy_map.py` | ~440 | Planet dataclass, GalaxyMap — procedural generation, adjacency graph, 9 neutral + 15 faction planets |
 | `map_renderer.py` | ~450 | Galaxy map renderer — planet clicks, two-row HUD, keyboard shortcuts (D/I/ESC) |
 | `faction_setup.py` | ~70 | Faction + leader selection, reuses deck_builder |
@@ -945,7 +945,7 @@ Roguelite card-battle campaign mode. Conquer a galaxy of planets through card ba
 
 ---
 
-## 🚀 Space Shooter Architecture (v8.7.0)
+## 🚀 Space Shooter Architecture (v8.8.0)
 
 The space shooter easter egg is a Vampire Survivors-style infinite survival mini-game unlocked after 8 Draft Mode wins. It lives in the `space_shooter/` package.
 
@@ -954,12 +954,12 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 | File | Lines | Description |
 |------|-------|-------------|
 | `__init__.py` | ~330 | Public API `run_space_shooter()`, `run_coop_space_shooter()`, game loops, variant propagation, disconnect handling |
-| `game.py` | ~3000 | SpaceShooterGame — update, draw, collisions, upgrades, 15+ powerup handlers, supergate boss system, common threat, sun/ally/bomb management |
+| `game.py` | ~3100 | SpaceShooterGame — update, draw, collisions, upgrades, 15+ powerup handlers, supergate boss system, common threat, sun/ally/bomb management, level 20 mastery system, secondary fire sound |
 | `ship.py` | ~1500 | Ship class — SHIP_VARIANTS config, player + AI + 9 behavior AIs (swarm, homing, charge, bomber, mini_boss, strafe, ori_boss, wraith_boss, ally) + new secondaries/passives |
 | `projectiles.py` | ~800 | Projectile types: Laser, Missile, Beam, EnergyBall, StaffBlast, Railgun, ProximityMine, ChainLightning, AreaBomb, PlasmaLance, DisruptorPulse, OriBossBeam, WraithBossBeam |
 | `entities.py` | ~1670 | Asteroid, PowerUp (33 types), Drone, XPOrb, Explosion (themed palettes), Sun (5 phases), Supergate (5-phase kawoosh animation), DamageNumber, GravityWell |
 | `effects.py` | ~270 | StarField (infinite tiling), ScreenShake, ParticleTrail |
-| `upgrades.py` | ~250 | UPGRADES (27), EVOLUTIONS (5), ENEMY_TYPES (14 incl. ori_mothership, wraith_supergate), ENEMY_EXPLOSION_PALETTES, RARITY_COLORS |
+| `upgrades.py` | ~300 | UPGRADES (27), EVOLUTIONS (5), PRIMARY_MASTERIES (9), ENEMY_TYPES (14 incl. ori_mothership, wraith_supergate), ENEMY_EXPLOSION_PALETTES, RARITY_COLORS |
 | `ui.py` | ~500 | HUD, survival timer, mini-radar, level-up cards, game over screen |
 | `camera.py` | ~140 | Camera with smooth follow, world_to_screen, culling, spawn ring, `get_spawn_ring_for_coop()` |
 | `spawner.py` | ~280 | ContinuousSpawner with 10 tiers, paired/swarm spawning, random alt variant sprites |
@@ -973,7 +973,7 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 ### Key Systems
 
 - **Ship Variants**: Data-driven `SHIP_VARIANTS` dict maps each faction to a list of variant configs (weapon_type, fire_rate, secondary_type, passive, image_file, etc.). Ship.__init__ looks up variant by index, replacing hardcoded if/elif chains
-- **Supergate Boss Events**: At 3 min survival, a Supergate spawns 800-1200px from player. 5-phase animation (APPEARING → ACTIVATING kawoosh → OPEN → CLOSING) with explosive particle burst, lightning tendrils, shimmering event horizon. Randomly spawns Ori Mothership (1000 HP, golden sweeping beam) or Wraith Hive (800 HP, purple life-drain beam + dart spawns)
+- **Supergate Boss Events**: At 3 min survival, a Supergate (40k HP) spawns 800-1200px from player. 5-phase animation (APPEARING → ACTIVATING kawoosh → OPEN → HOLDING → CLOSING) with explosive particle burst, lightning tendrils, shimmering event horizon. Randomly spawns Ori Mothership (20k HP + 10k shields, golden sweeping beam) or Wraith Hive (16k HP + 6k shields, full-size purple life-drain beam + dart spawns). All gates stay open until every boss is killed, then close simultaneously
 - **Common Threat**: When a supergate boss is alive, all enemies within 500px retarget it, enemy projectiles damage it, boss beam damages everything. Boss death = massive rewards + stun shockwave
 - **Camera**: Smooth lerp follow, world-to-screen conversion, `is_visible()` for draw culling. Co-op: independent cameras per player
 - **Spawner**: Time-based difficulty tiers interpolate spawn rate, enemy types, HP/speed multipliers. Paired (death gliders) and swarm (wraith darts) spawning. Random variant sprites for visual variety
@@ -983,9 +983,10 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 - **Thrusters**: Faction-specific particle configs (color, shape, emit rate, spread), SHIFT to boost
 - **Movement**: Velocity-based with acceleration/friction for smooth feel
 - **Evolutions**: When both prerequisite upgrades are maxed, a legendary evolution is offered
-- **Audio**: Background music loop, per-faction hit SFX + per-variant boost SFX + shield hit SFX + cloak activation SFX, Ori beam sound + Wraith beam sound via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
+- **Audio**: Background music loop, per-faction hit SFX + per-variant boost SFX + per-variant secondary fire SFX + shield hit SFX + cloak activation SFX, Ori beam sound + Wraith beam sound via `pygame.mixer.Sound` channels (`assets/audio/space_shooter/`)
 - **Faction Power-Ups**: 33 total (8 generic + 15 epic + 10 legendary) with unique effects per faction, rarity glow rendering (purple/gold)
-- **Faction-Tinted Shields**: GPU shader + software renderer use per-faction colors — Tau'ri/Asgard blue, Goa'uld/Jaffa/Lucian orange. Shield bar, aura bubbles, rim, hit flare all match faction
+- **Faction-Tinted Shields**: GPU shader + software renderer use per-faction colors — Tau'ri/Asgard blue, Goa'uld/Jaffa/Lucian orange. Shield bar, hit flare all match faction. Ship looks clean normally; shield visual only appears on hit and fades over ~1 second
+- **Level 20 Masteries**: At level 20, `_apply_primary_mastery()` grants a unique weapon evolution (9 types in `PRIMARY_MASTERIES` dict). Effects hook into collision, fire, and projectile update loops
 - **Asteroid Field Events**: Periodic dense asteroid waves (first at 60s, every 45-75s after) with 3s "INCOMING!" warning, escalating density (1-3 per burst) and duration (6-12s), directional approach
 - **Environmental Hazards**: Sun/wormhole with 5 lifecycle phases, gravity pull (550px range), core damage
 - **Ally Ships**: Summoned via upgrades/powerups/Jaffa Rally secondary, follow owner, engage enemies, auto-fire

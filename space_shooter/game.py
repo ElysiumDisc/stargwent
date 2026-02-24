@@ -7,14 +7,15 @@ import os
 
 from .projectiles import (Projectile, Laser, ContinuousBeam, EnergyBall,
                           ChainLightning, RailgunShot, ProximityMine, AreaBomb,
-                          PlasmaLance, OriBossBeam, WraithBossBeam)
+                          PlasmaLance, OriBossBeam, WraithBossBeam,
+                          Missile, DisruptorPulse)
 from .entities import (
     Asteroid, PowerUp, Drone, XPOrb, WormholeEffect, Explosion,
     DamageNumber, PopupNotification, GravityWell, Sun, Supergate,
 )
 from .effects import StarField, ScreenShake
 from .ship import Ship
-from .upgrades import UPGRADES, EVOLUTIONS, ENEMY_TYPES, ENEMY_EXPLOSION_PALETTES
+from .upgrades import UPGRADES, EVOLUTIONS, ENEMY_TYPES, ENEMY_EXPLOSION_PALETTES, PRIMARY_MASTERIES
 from .camera import Camera
 from .spawner import ContinuousSpawner
 from . import ui as _ui
@@ -26,6 +27,26 @@ def _get_sfx_vol():
         return get_settings().get_effective_sfx_volume()
     except Exception:
         return 0.4
+
+
+# --- Surface caches for per-frame draw effects ---
+_flash_surf_cache = {}  # (w, h) -> SRCALPHA surface filled red
+
+
+def _get_flash_surf(w, h):
+    """Return a cached red hit-flash overlay surface."""
+    key = (w, h)
+    surf = _flash_surf_cache.get(key)
+    if surf is None:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill((255, 0, 0, 50))
+        _flash_surf_cache[key] = surf
+    return surf
+
+
+# Grow-only reusable surfaces for ion pulse and orbital laser
+_ion_pulse_surf = None
+_orbital_surf = None
 
 
 class SpaceShooterGame:
@@ -116,6 +137,11 @@ class SpaceShooterGame:
         self.hit_sound = None
         self.hit_sound_cooldown = 0
         self._load_hit_sound()
+
+        # Secondary fire sound effect
+        self.secondary_sound = None
+        self.secondary_sound_cooldown = 0
+        self._load_secondary_sound()
 
         # Boost sound effect — plays once when SHIFT boost activates
         self.boost_sound = None
@@ -261,6 +287,10 @@ class SpaceShooterGame:
         self.card_desc_font = pygame.font.SysFont("Arial", 16)
         self.card_stack_font = pygame.font.SysFont("Arial", 18)
         self.count_font = pygame.font.SysFont("Arial", 11, bold=True)
+
+        # Level 20 primary mastery
+        self.primary_mastery = None
+        self._staff_fire_count = 0
 
         # Hit flash effect
         self.player_hit_flash = 0
@@ -416,9 +446,57 @@ class SpaceShooterGame:
         except Exception:
             pass
 
+    def _load_secondary_sound(self):
+        """Load the secondary fire sound effect (faction/variant-specific if available)."""
+        faction_prefixes = {
+            "Asgard": "asgard",
+            "Tau'ri": "tauri",
+            "Goa'uld": "goa'uld",
+            "Jaffa Rebellion": "jaffa",
+            "Lucian Alliance": "lucian",
+        }
+        prefix = faction_prefixes.get(self.player_faction)
+        if not prefix:
+            return
+        base_dir = os.path.join("assets", "audio", "space_shooter")
+        # Try variant-specific secondary sound first
+        if self.variant > 0:
+            variant_file = f"{prefix}_space_shooter_secondary_alt_{self.variant}.ogg"
+            variant_path = os.path.join(base_dir, variant_file)
+            try:
+                if os.path.exists(variant_path):
+                    self.secondary_sound = pygame.mixer.Sound(variant_path)
+                    return
+            except Exception:
+                pass
+        # Fall back to faction default secondary sound
+        default_path = os.path.join(base_dir, f"{prefix}_space_shooter_secondary.ogg")
+        try:
+            if os.path.exists(default_path):
+                self.secondary_sound = pygame.mixer.Sound(default_path)
+        except Exception:
+            pass
+
+    def _play_secondary_sound(self):
+        """Play secondary fire SFX with cooldown."""
+        if self.secondary_sound is None:
+            return
+        if self.secondary_sound_cooldown > 0:
+            return
+        try:
+            vol = _get_sfx_vol() * 0.7
+            ch = self.secondary_sound.play()
+            if ch:
+                ch.set_volume(vol)
+            self.secondary_sound_cooldown = 20
+        except Exception:
+            pass
+
     def _fire_secondary(self):
         """Fire the player's faction-specific secondary weapon."""
         results = self.player_ship.secondary_fire()
+        if results:
+            self._play_secondary_sound()
         for result_type, data in results:
             if result_type == "projectile":
                 self.projectiles.append(data)
@@ -1183,6 +1261,8 @@ class SpaceShooterGame:
             self.level += 1
             self.xp_to_next = int(480 * 1.25 ** (self.level - 1))
             self.pending_level_ups += 1
+            if self.level == 20:
+                self._apply_primary_mastery()
 
     def _prepare_level_up_choices(self):
         """Prepare 3 random upgrade choices for level-up selection."""
@@ -1275,6 +1355,24 @@ class SpaceShooterGame:
         else:
             self.showing_level_up = False
             self.level_up_choices = []
+
+    def _apply_primary_mastery(self):
+        """Auto-applied at level 20 — unique mastery per weapon type."""
+        wtype = self.player_ship.weapon_type
+        mastery = PRIMARY_MASTERIES.get(wtype)
+        if not mastery or self.primary_mastery:
+            return
+        self.primary_mastery = wtype
+        self.screen_shake.trigger(10, 20)
+        self.popup_notifications.append(PopupNotification(
+            self.player_ship.x + self.player_ship.width // 2,
+            self.player_ship.y - 80,
+            f"MASTERY: {mastery['name']}!",
+            mastery['color']
+        ))
+        # Dual staff mastery: tell ship to fire 4 staffs
+        if wtype == "dual_staff":
+            self.player_ship._mastery_active = True
 
     def _damage_enemy(self, enemy, amount):
         """Damage an enemy, handling behavior-specific shields (Ori). Returns True if killed."""
@@ -1420,8 +1518,7 @@ class SpaceShooterGame:
                         sx = self.player_ship.x + math.cos(angle) * dist
                         sy = self.player_ship.y + math.sin(angle) * dist
                         boss_type = random.choice(["ori", "wraith"])
-                        boss_hp = 10000 if boss_type == "ori" else 8000
-                        sg = Supergate(sx, sy, boss_hp=boss_hp)
+                        sg = Supergate(sx, sy)
                         sg._boss_type = boss_type
                         self.supergates.append(sg)
                     color = (255, 100, 50) if num_bosses > 1 else (255, 200, 50)
@@ -1496,11 +1593,11 @@ class SpaceShooterGame:
                         self.projectiles.remove(proj)
                     break  # One proj per supergate per frame
 
-        # Close supergates whose linked boss has been killed
-        for sg in self.supergates:
-            boss = getattr(sg, '_linked_boss', None)
-            if boss and boss not in self.ai_ships:
-                sg.close()
+        # Close ALL supergates only when every boss from the wave is dead
+        if not self.ori_bosses:
+            for sg in self.supergates:
+                if sg.phase in (sg.PHASE_HOLDING, sg.PHASE_OPEN):
+                    sg.close()
 
         # Update Ori boss beams
         for beam in self.ori_beams[:]:
@@ -1607,10 +1704,10 @@ class SpaceShooterGame:
         boss.is_boss = True
         boss.is_common_threat = True
         # Ori mothership stats — true raid boss
-        boss.max_health = 10000
-        boss.health = 10000
-        boss.max_shields = 5000
-        boss.shields = 5000
+        boss.max_health = 20000
+        boss.health = 20000
+        boss.max_shields = 10000
+        boss.shields = 10000
         boss.speed = max(1, int(boss.speed * 0.3))
         boss.xp_value = 500
         boss._ori_beam_timer = 0
@@ -1664,10 +1761,10 @@ class SpaceShooterGame:
         boss.is_boss = True
         boss.is_common_threat = True
         # Wraith Hive stats — less HP than Ori but faster, with life-steal
-        boss.max_health = 8000
-        boss.health = 8000
-        boss.max_shields = 3000
-        boss.shields = 3000
+        boss.max_health = 16000
+        boss.health = 16000
+        boss.max_shields = 6000
+        boss.shields = 6000
         boss.speed = max(1, int(boss.speed * 0.35))
         boss.xp_value = 500
         boss._ori_beam_timer = 0
@@ -1683,7 +1780,10 @@ class SpaceShooterGame:
                     wraith_img = pygame.image.load(wraith_path).convert_alpha()
                     # Wraith ship faces down — rotate 90 to get right-facing
                     wraith_img = pygame.transform.rotate(wraith_img, 90)
-                    # Use natural size of the PNG
+                    # Scale 2x for full boss presence
+                    new_w = wraith_img.get_width() * 2
+                    new_h = wraith_img.get_height() * 2
+                    wraith_img = pygame.transform.smoothscale(wraith_img, (new_w, new_h))
                     boss.image = wraith_img
                 else:
                     new_w = int(boss.width * 2.0)
@@ -1947,6 +2047,8 @@ class SpaceShooterGame:
         # Hit sound cooldown tick (frame-based, not per-hit)
         if self.hit_sound_cooldown > 0:
             self.hit_sound_cooldown -= 1
+        if self.secondary_sound_cooldown > 0:
+            self.secondary_sound_cooldown -= 1
 
         # Wormhole cooldown tick
         if self.wormhole_cooldown > 0:
@@ -2031,11 +2133,18 @@ class SpaceShooterGame:
                 ai['alpha'] -= 10
             self.dash_afterimages = [a for a in self.dash_afterimages if a['alpha'] > 0]
 
-        # Sensor sweep mark decay
-        for enemy in self.ai_ships:
+        # Sensor sweep mark decay + burn DoT tick
+        for enemy in self.ai_ships[:]:
             mark = getattr(enemy, '_sensor_marked', 0)
             if mark > 0:
                 enemy._sensor_marked = mark - 1
+            # Mastery: Overcharged Beam burn DoT
+            burn = getattr(enemy, '_burn_timer', 0)
+            if burn > 0:
+                enemy._burn_timer = burn - 1
+                burn_dmg = getattr(enemy, '_burn_dps', 5.0) / 60.0
+                if self._damage_enemy(enemy, burn_dmg):
+                    self._on_enemy_killed(enemy)
 
         # Point defense passive: auto-destroy 1 nearby enemy projectile every 30f
         if self.player_ship.passive == "point_defense":
@@ -2463,6 +2572,9 @@ class SpaceShooterGame:
                         if wp_stacks > 0:
                             beam.damage_per_frame *= (1.0 + wp_stacks * 0.15)
                         beam.damage_per_frame *= berserker_mult
+                        # Mastery: Overcharged Beam — 50% wider visual
+                        if self.primary_mastery == "beam":
+                            beam.width_mult = 1.5
             else:
                 fire_result = self.player_ship.fire()
                 # Normalize: dual_staff returns list, others return single or None
@@ -2473,6 +2585,14 @@ class SpaceShooterGame:
                 else:
                     projectiles_fired = []
                 projectile = projectiles_fired[0] if projectiles_fired else None
+                # Mastery: Kree's Judgement — every 5th staff shot is supercharged
+                if self.primary_mastery == "staff" and projectiles_fired:
+                    self._staff_fire_count += 1
+                    if self._staff_fire_count % 5 == 0:
+                        for p in projectiles_fired:
+                            p.damage = int(p.damage * 3)
+                            p.radius = getattr(p, 'radius', 8) * 2
+
                 for p in projectiles_fired:
                     wp_mult = 1.0 + self.upgrades.get("weapons_power", 0) * 0.15
                     war_cry_mult = 1.5 if self.player_ship.secondary_buff_timer > 0 else 1.0
@@ -2486,7 +2606,25 @@ class SpaceShooterGame:
                     base_dmg, is_crit = self._apply_critical(base_dmg)
                     p.damage = int(base_dmg)
                     p._is_crit = is_crit
+                    # Mastery: Unstable Naquadah — mark energy balls for trail damage
+                    if self.primary_mastery == "energy_ball" and isinstance(p, EnergyBall):
+                        p._trail_damage = True
                     self.projectiles.append(p)
+
+                # Mastery: Drone Swarm — each drone_pulse shot spawns 2 extra homing drones
+                if self.primary_mastery == "drone_pulse" and projectiles_fired:
+                    ship = self.player_ship
+                    cx = ship.x + ship.width // 2
+                    cy = ship.y
+                    for _ in range(2):
+                        angle = random.uniform(0, math.pi * 2)
+                        drone_proj = Laser(cx, cy,
+                                           (math.cos(angle), math.sin(angle)),
+                                           (255, 200, 50), speed=14)
+                        drone_proj.damage = 8
+                        drone_proj.homing_strength = 0.06
+                        drone_proj.is_player_proj = True
+                        self.projectiles.append(drone_proj)
 
                     # Multi-Targeting extra projectiles
                     mt_stacks = self.upgrades.get("multi_targeting", 0)
@@ -2697,8 +2835,19 @@ class SpaceShooterGame:
         # Update projectiles
         tc_stacks = self.upgrades.get("targeting_computer", 0)
         to_remove_projs = []
+        _trail_frame = self.survival_frames  # for energy ball trail damage rate limiting
         for proj_idx, proj in enumerate(self.projectiles):
             proj.update()
+
+            # Mastery: Unstable Naquadah — energy ball trail damage every 6 frames
+            if getattr(proj, '_trail_damage', False) and _trail_frame % 6 == 0:
+                for enemy in self.ai_ships:
+                    dist = math.hypot(enemy.x + enemy.width // 2 - proj.x, enemy.y - proj.y)
+                    if dist < 80:
+                        trail_dmg = 3
+                        enemy.hit_flash = 2
+                        if self._damage_enemy(enemy, trail_dmg):
+                            self._on_enemy_killed(enemy)
 
             # Targeting Computer homing (also from Ancient Tech powerup)
             ancient_tech_homing = self.active_powerups.get("tauri_ancient_tech", 0) > 0
@@ -2777,10 +2926,49 @@ class SpaceShooterGame:
                         if isinstance(proj, PlasmaLance):
                             if not proj.on_hit():
                                 hit = False  # Still alive, don't remove
+                            # Mastery: Plasma Detonation — 120px AoE on impact
+                            if self.primary_mastery == "plasma_lance":
+                                self._apply_splash_damage(hit_x, hit_y, proj.damage * 0.6,
+                                                          self.player_ship, already_killed=_killed_this_hit)
+                                self.explosions.append(Explosion(hit_x, hit_y, tier="medium"))
+                                self.screen_shake.trigger(4, 8)
+
+                        # Mastery: Cascade Disruption — DisruptorPulse fragments
+                        if (self.primary_mastery == "disruptor_pulse"
+                                and isinstance(proj, DisruptorPulse)
+                                and not getattr(proj, '_is_fragment', False)):
+                            for frag_i in range(3):
+                                angle = math.atan2(proj.dy, proj.dx) + (frag_i - 1) * 0.5
+                                frag = DisruptorPulse(
+                                    hit_x, hit_y,
+                                    (math.cos(angle), math.sin(angle)),
+                                    proj.color)
+                                frag.damage = proj.damage // 2
+                                frag.is_player_proj = True
+                                frag._is_fragment = True
+                                self.projectiles.append(frag)
+
+                        # Mastery: MIRV Warhead — Missile splits into 3 homing sub-missiles
+                        if (self.primary_mastery == "missile"
+                                and isinstance(proj, Missile)
+                                and not getattr(proj, '_is_mirv', False)):
+                            for mirv_i in range(3):
+                                angle = random.uniform(0, math.pi * 2)
+                                sub = Missile(hit_x, hit_y,
+                                              (math.cos(angle), math.sin(angle)),
+                                              proj.color)
+                                sub.damage = proj.damage // 2
+                                sub.is_player_proj = True
+                                sub._is_mirv = True
+                                sub.homing_strength = 0.04
+                                self.projectiles.append(sub)
                         break
                 # Ancient Tech: all player projectiles pierce
                 has_piercing = getattr(proj, 'piercing', False)
                 if self.active_powerups.get("tauri_ancient_tech", 0) > 0:
+                    has_piercing = True
+                # Mastery: Focused Optics — Laser pierces all enemies
+                if self.primary_mastery == "laser" and isinstance(proj, Laser):
                     has_piercing = True
                 if hit and not has_piercing:
                     to_remove_projs.append(proj_idx)
@@ -2882,18 +3070,20 @@ class SpaceShooterGame:
             bdx, bdy = beam.direction
             piercing = self.player_ship.passive == "beam_pierce"
             is_horizontal = abs(bdx) > abs(bdy)
+            # Mastery: Overcharged Beam — 50% wider hit detection
+            beam_width_bonus = 1.5 if self.primary_mastery == "beam" else 1.0
 
             targets = []
             for ai_ship in self.ai_ships:
                 ship_cx = ai_ship.x + ai_ship.width // 2
                 ship_cy = ai_ship.y
                 if is_horizontal:
-                    if abs(ship_cy - beam_sy) < (ai_ship.height // 2 + 10):
+                    if abs(ship_cy - beam_sy) < (ai_ship.height // 2 + 10) * beam_width_bonus:
                         dist = (ship_cx - beam_sx) * bdx
                         if dist > 0:
                             targets.append((dist, ai_ship, False))
                 else:
-                    if abs(ship_cx - beam_sx) < (ai_ship.width // 2 + 10):
+                    if abs(ship_cx - beam_sx) < (ai_ship.width // 2 + 10) * beam_width_bonus:
                         dist = (ship_cy - beam_sy) * bdy
                         if dist > 0:
                             targets.append((dist, ai_ship, False))
@@ -2933,6 +3123,11 @@ class SpaceShooterGame:
                     target.hit_flash = 3
                     if self._damage_enemy(target, dmg):
                         self._on_enemy_killed(target)
+                    else:
+                        # Mastery: Overcharged Beam — apply burn DoT
+                        if self.primary_mastery == "beam":
+                            target._burn_timer = 180  # 3 seconds
+                            target._burn_dps = 5.0
                     if not piercing:
                         beam_end_dist = dist
 
@@ -3160,12 +3355,17 @@ class SpaceShooterGame:
                 r = pulse['radius']
                 alpha = int(180 * (1 - progress))
                 if r > 0:
-                    pulse_surf = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+                    global _ion_pulse_surf
+                    needed = r * 2 + 4
+                    if _ion_pulse_surf is None or _ion_pulse_surf.get_width() < needed:
+                        _ion_pulse_surf = pygame.Surface((needed, needed), pygame.SRCALPHA)
+                    pulse_surf = _ion_pulse_surf
+                    pulse_surf.fill((0, 0, 0, 0), (0, 0, needed, needed))
                     c = r + 2
                     pygame.draw.circle(pulse_surf, (*pulse['color'][:3], alpha // 3), (c, c), r)
                     pygame.draw.circle(pulse_surf, (*pulse['color'][:3], alpha), (c, c), r, 3)
                     pygame.draw.circle(pulse_surf, (255, 255, 255, alpha // 2), (c, c), max(1, r - 5), 2)
-                    draw_surface.blit(pulse_surf, (int(sx) - c, int(sy) - c))
+                    draw_surface.blit(pulse_surf, (int(sx) - c, int(sy) - c), (0, 0, needed, needed))
 
         # Draw projectiles (culled)
         for proj in self.projectiles:
@@ -3193,12 +3393,17 @@ class SpaceShooterGame:
                 beam_w = int(20 * (1 - progress))
                 beam_h = max(1, int(sy) + 10)
                 if beam_w > 0 and beam_h > 0:
-                    beam_surf = pygame.Surface((beam_w * 2, beam_h), pygame.SRCALPHA)
+                    global _orbital_surf
+                    bw2 = beam_w * 2
+                    if _orbital_surf is None or _orbital_surf.get_width() < bw2 or _orbital_surf.get_height() < beam_h:
+                        _orbital_surf = pygame.Surface((bw2, beam_h), pygame.SRCALPHA)
+                    beam_surf = _orbital_surf
+                    beam_surf.fill((0, 0, 0, 0), (0, 0, bw2, beam_h))
                     pygame.draw.rect(beam_surf, (0, 200, 255, alpha),
-                                     (0, 0, beam_w * 2, beam_h))
+                                     (0, 0, bw2, beam_h))
                     pygame.draw.rect(beam_surf, (200, 240, 255, alpha // 2),
                                      (beam_w // 2, 0, beam_w, beam_h))
-                    draw_surface.blit(beam_surf, (int(sx) - beam_w, 0))
+                    draw_surface.blit(beam_surf, (int(sx) - beam_w, 0), (0, 0, bw2, beam_h))
 
         # Draw dash afterimages
         for ai_data in self.dash_afterimages:
@@ -3217,9 +3422,7 @@ class SpaceShooterGame:
                 sx, sy = cam.world_to_screen(self.player_ship.x, self.player_ship.y)
                 ship_rect = pygame.Rect(int(sx), int(sy - self.player_ship.height // 2),
                                         self.player_ship.width, self.player_ship.height)
-                flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
-                flash_surf.fill((255, 0, 0, 50))
-                draw_surface.blit(flash_surf, ship_rect.topleft)
+                draw_surface.blit(_get_flash_surf(ship_rect.width, ship_rect.height), ship_rect.topleft)
             else:
                 if self.is_cloaked():
                     if self.player_ship.image:
@@ -3262,9 +3465,7 @@ class SpaceShooterGame:
                     sx, sy = cam.world_to_screen(ai_ship.x, ai_ship.y)
                     ship_rect = pygame.Rect(int(sx), int(sy - ai_ship.height // 2),
                                             ai_ship.width, ai_ship.height)
-                    flash_surf = pygame.Surface((ship_rect.width, ship_rect.height), pygame.SRCALPHA)
-                    flash_surf.fill((255, 0, 0, 50))
-                    draw_surface.blit(flash_surf, ship_rect.topleft)
+                    draw_surface.blit(_get_flash_surf(ship_rect.width, ship_rect.height), ship_rect.topleft)
                     ai_ship.hit_flash = hit_flash - 1
 
         # Draw explosions
@@ -3306,11 +3507,13 @@ class SpaceShooterGame:
             if shield_pass is None:
                 return
 
-            has_shields = (self.player_ship.shields > 0
+            # Only show GPU shield effect during hit flash (clean ship otherwise)
+            hit_active = (self.player_ship.shield_hit_timer > 0
+                          and self.player_ship.shields >= 0
                           and not self.game_over
                           and not self.wormhole_active)
 
-            if has_shields:
+            if hit_active:
                 # Convert player screen position to UV space
                 sx, sy = cam.world_to_screen(
                     self.player_ship.x + self.player_ship.width // 2,
@@ -3323,7 +3526,9 @@ class SpaceShooterGame:
                 radius_px = ship_extent * 0.55
                 radius_uv = radius_px / h  # use height for aspect-neutral
 
-                pct = self.player_ship.shields / max(self.player_ship.max_shields, 1)
+                # Fade shader intensity with hit timer (60 frames → 0)
+                hit_fade = self.player_ship.shield_hit_timer / 60.0
+                pct = (self.player_ship.shields / max(self.player_ship.max_shields, 1)) * hit_fade
                 t = gpu.time
 
                 # Faction-specific shield tint

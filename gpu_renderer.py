@@ -10,6 +10,8 @@ Graceful fallback: if moderngl is unavailable or GPU init fails,
 the game runs with pure Pygame rendering unchanged.
 """
 
+import struct
+
 import pygame
 
 try:
@@ -27,6 +29,9 @@ QUAD_VERTICES = [
     -1.0,  1.0, 0.0, 1.0,
      1.0,  1.0, 1.0, 1.0,
 ]
+
+# Pre-packed VBO data — avoids struct.pack() on every ShaderPass / VAO creation
+_QUAD_VBO_DATA = struct.pack(f'{len(QUAD_VERTICES)}f', *QUAD_VERTICES)
 
 PASSTHROUGH_VERT = """
 #version 330
@@ -92,9 +97,7 @@ class ShaderPass:
         )
         self._uniforms = {}
         # Each pass gets its own VAO (program-specific attribute binding)
-        import struct
-        vbo_data = struct.pack(f'{len(QUAD_VERTICES)}f', *QUAD_VERTICES)
-        vbo = ctx.buffer(vbo_data)
+        vbo = ctx.buffer(_QUAD_VBO_DATA)
         self._vao = ctx.vertex_array(
             self.program,
             [(vbo, '2f 2f', 'in_position', 'in_texcoord')],
@@ -153,9 +156,7 @@ class GPURenderer:
             self.ctx = moderngl.create_context()
 
             # Fullscreen quad
-            import struct
-            vbo_data = struct.pack(f'{len(QUAD_VERTICES)}f', *QUAD_VERTICES)
-            vbo = self.ctx.buffer(vbo_data)
+            vbo = self.ctx.buffer(_QUAD_VBO_DATA)
 
             # Passthrough shader (used when no effects active, and for final output)
             self._passthrough = ShaderPass(self.ctx, PASSTHROUGH_FRAG)
@@ -184,9 +185,7 @@ class GPURenderer:
 
     def _make_vao_for(self, program):
         """Create a VAO for a given shader program using the quad VBO."""
-        import struct
-        vbo_data = struct.pack(f'{len(QUAD_VERTICES)}f', *QUAD_VERTICES)
-        vbo = self.ctx.buffer(vbo_data)
+        vbo = self.ctx.buffer(_QUAD_VBO_DATA)
         return self.ctx.vertex_array(
             program,
             [(vbo, '2f 2f', 'in_position', 'in_texcoord')],

@@ -45,17 +45,30 @@ _initialized = False  # Guard to prevent re-initialization
 _original_mouse_get_pos = pygame.mouse.get_pos
 _original_event_get = pygame.event.get
 
+# Cached scale factors — recalculated only on display mode changes
+_cached_mouse_sx = 1.0
+_cached_mouse_sy = 1.0
 
-def _get_mouse_scale():
-    """Scale factors from window coordinates to game coordinates."""
+
+def _recalc_mouse_scale():
+    """Recompute cached mouse scale factors. Call after display mode changes."""
+    global _cached_mouse_sx, _cached_mouse_sy
     if gpu_renderer and gpu_renderer.enabled and FULLSCREEN:
         try:
             ww, wh = pygame.display.get_window_size()
             if ww != SCREEN_WIDTH or wh != SCREEN_HEIGHT:
-                return SCREEN_WIDTH / ww, SCREEN_HEIGHT / wh
+                _cached_mouse_sx = SCREEN_WIDTH / ww
+                _cached_mouse_sy = SCREEN_HEIGHT / wh
+                return
         except Exception:
             pass
-    return 1.0, 1.0
+    _cached_mouse_sx = 1.0
+    _cached_mouse_sy = 1.0
+
+
+def _get_mouse_scale():
+    """Scale factors from window coordinates to game coordinates."""
+    return _cached_mouse_sx, _cached_mouse_sy
 
 
 def _scaled_mouse_get_pos():
@@ -233,7 +246,10 @@ def set_display_mode(fullscreen_enabled, *, reload_cards=False, vsync=None):
     
     # Adjust SCALE_FACTOR for our 1440p base
     SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
-    
+
+    # Recalculate mouse scale for GPU fullscreen
+    _recalc_mouse_scale()
+
     # Update layout dimensions for new resolution
     import game_config
     game_config.recalculate_dimensions()
@@ -365,6 +381,7 @@ def _recreate_gpu_display(fullscreen_enabled, vsync_value):
         except Exception as e:
             print(f"[GPU] Effect re-registration failed: {e}")
         _apply_gpu_settings()
+        _recalc_mouse_scale()
 
         use_vsync = vsync_value == 1
         vsync_status = "VSync ON" if use_vsync else "VSync OFF"
@@ -500,6 +517,7 @@ def initialize_gpu():
 
     # Apply settings to effects
     _apply_gpu_settings()
+    _recalc_mouse_scale()
     print("[GPU] Ready")
 
 
