@@ -4,6 +4,7 @@ NetworkOpponent - Replaces AI opponent for LAN multiplayer.
 Instead of AI logic, this class waits for network messages from the remote player
 and relays local player actions to the remote player.
 """
+import time
 import pygame
 from typing import Optional, Dict, Any
 from lan_session import LanSession
@@ -242,6 +243,11 @@ class NetworkController:
             data = payload.get("data", {})
             target_id = payload.get("target_id")
 
+            # Send ACK for this action so sender knows it arrived
+            msg_id = payload.get("msg_id")
+            if msg_id:
+                self.session.send("action_ack", {"msg_id": msg_id})
+
             if action_type == "play_card":
                 # Find the card in hand
                 card_id = data.get("card_id")
@@ -257,8 +263,25 @@ class NetworkController:
                 hand_ids = [c.id for c in self.network_player.hand]
                 print(f"[Network] Error: Card {card_id} not found in hand! Hand: {hand_ids}")
                 self.card_not_found_count += 1
+                # Flash desync warning so the player knows something went wrong
+                self.desync_message = (
+                    f"Card desync: opponent's card not found (#{self.card_not_found_count})",
+                    pygame.time.get_ticks() + 4000
+                )
+                self.game.add_history_event(
+                    "system",
+                    f"Card sync error — opponent card {card_id[:8]} not in hand ({self.card_not_found_count}/3)",
+                    "ai",
+                    icon="!"
+                )
                 if self.card_not_found_count >= 3:
                     print(f"[Network] Card not found {self.card_not_found_count} times — forcing pass to prevent hang")
+                    self.game.add_history_event(
+                        "system",
+                        "Too many card sync errors — auto-passing opponent turn",
+                        "ai",
+                        icon="!"
+                    )
                     self.card_not_found_count = 0
                     self.game.pass_turn()
                 return (None, None)
@@ -301,6 +324,10 @@ class NetworkController:
                     self.game.switch_turn()
                 return (None, None)
 
+        elif msg_type == "action_ack":
+            # ACK for an action we sent — no game logic needed, just informational
+            return (None, None)
+
         elif msg_type == "disconnect":
             print("[NetworkController] Remote player disconnected!")
             return (None, None)
@@ -330,6 +357,8 @@ class NetworkPlayerProxy:
         self.role = role
         self.game = game
         self.turn_token_counter = 0
+        self._msg_id_counter = 0
+        self._pending_acks = {}  # msg_id -> send_time
 
     def next_turn_token(self) -> str:
         """Generate next turn token."""
@@ -338,7 +367,11 @@ class NetworkPlayerProxy:
 
     def _send_action(self, action_type: str, data: Dict[str, Any], target_id: Optional[str] = None):
         turn_token = self.next_turn_token()
-        
+
+        # Attach msg_id for ACK tracking
+        self._msg_id_counter += 1
+        msg_id = f"{self.role}-{self._msg_id_counter}"
+
         # Capture scores for validation
         p1_score = None
         p2_score = None
@@ -347,14 +380,23 @@ class NetworkPlayerProxy:
             p2_score = self.game.player2.score
 
         msg = build_action_message(
-            action_type, 
-            data, 
-            turn_token=turn_token, 
+            action_type,
+            data,
+            turn_token=turn_token,
             target_id=target_id,
             p1_score=p1_score,
             p2_score=p2_score
         )
+        # Inject msg_id into payload for ACK tracking
+        msg["payload"]["msg_id"] = msg_id
+        self._pending_acks[msg_id] = time.time()
         self.session.send(msg["type"], msg["payload"])
+
+        # Check for stale unacked messages (>3s) — log warning but don't disconnect
+        stale = [mid for mid, t in self._pending_acks.items() if time.time() - t > 3.0]
+        for mid in stale:
+            print(f"[NetworkProxy] Warning: action {mid} unacked after 3s")
+            del self._pending_acks[mid]
 
     def send_play_card(self, card_id: str, row: str):
         """
@@ -404,3 +446,7 @@ class NetworkPlayerProxy:
     def send_decoy_choice(self, target_card_id: str):
         """Send decoy target selection."""
         self._send_action("decoy_choice", {}, target_id=target_card_id)
+
+    def process_ack(self, msg_id: str):
+        """Remove an acknowledged action from pending tracking."""
+        self._pending_acks.pop(msg_id, None)

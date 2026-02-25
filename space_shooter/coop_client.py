@@ -67,8 +67,10 @@ class CoopSpaceShooterClient:
         self.game_over = False
 
         # Host disconnect detection
-        self._frames_since_last_state = 0
+        self._frames_since_last_state = 0  # For interpolation/rendering
+        self._frames_since_last_msg = 0    # For disconnect detection (any message)
         self.host_disconnected = False
+        self._disconnect_timer = 0  # Frames since host_disconnected became True
 
     def apply_state(self, snapshot):
         """Apply a new state snapshot from the host."""
@@ -77,6 +79,7 @@ class CoopSpaceShooterClient:
         self.interp_t = 0.0
         self.game_over = snapshot.get('game_over', False)
         self._frames_since_last_state = 0
+        self._frames_since_last_msg = 0
 
     def get_input_state(self):
         """Capture local keyboard input as a dict for transmission."""
@@ -91,14 +94,23 @@ class CoopSpaceShooterClient:
             'q': keys[pygame.K_q],
         }
 
+    def on_any_message(self):
+        """Call when any message (state, keepalive, etc.) is received from host."""
+        self._frames_since_last_msg = 0
+
     def update(self):
         """Advance interpolation between snapshots."""
         self.interp_t = min(1.0, self.interp_t + 1.0 / 3.0)
         self._frames_since_last_state += 1
+        self._frames_since_last_msg += 1
 
-        # Detect host disconnect (no state for 5 seconds)
-        if self._frames_since_last_state > 300 and not self.game_over:
+        # Detect host disconnect (no message of any kind for 5 seconds)
+        if self._frames_since_last_msg > 300 and not self.game_over:
             self.host_disconnected = True
+
+        # Track how long we've been in disconnected state
+        if self.host_disconnected:
+            self._disconnect_timer += 1
 
         # Camera follows P2 (local player) independently
         if self.state:
@@ -118,12 +130,25 @@ class CoopSpaceShooterClient:
         """Render the game state."""
         if self.host_disconnected:
             surface.fill((5, 5, 20))
-            text = self.title_font.render("Host Disconnected", True, (255, 80, 80))
+            text = self.title_font.render("Connection Lost", True, (255, 80, 80))
             surface.blit(text, text.get_rect(center=(self.screen_width // 2,
-                                                      self.screen_height // 2 - 30)))
+                                                      self.screen_height // 2 - 60)))
+            # Show last known score if we've been disconnected long enough (30s)
+            # or if we have state data
+            if self.state:
+                score = self.state.get('score', 0)
+                score_text = self.ui_font.render(f"Last Score: {score}", True, (255, 215, 0))
+                surface.blit(score_text, score_text.get_rect(
+                    center=(self.screen_width // 2, self.screen_height // 2 - 10)))
+                secs = self.state.get('survival_frames', 0) / 60.0
+                mins = int(secs // 60)
+                sec = int(secs % 60)
+                time_text = self.small_font.render(f"Survived: {mins:02d}:{sec:02d}", True, (200, 200, 200))
+                surface.blit(time_text, time_text.get_rect(
+                    center=(self.screen_width // 2, self.screen_height // 2 + 25)))
             hint = self.small_font.render("Press ESC to return to menu", True, (150, 150, 150))
             surface.blit(hint, hint.get_rect(center=(self.screen_width // 2,
-                                                      self.screen_height // 2 + 30)))
+                                                      self.screen_height // 2 + 70)))
             return
 
         if not self.state:
@@ -226,6 +251,39 @@ class CoopSpaceShooterClient:
                 warn_r = int(120 * fuse_pct)
                 if warn_r > 10:
                     pygame.draw.circle(surface, (255, 100, 50, 100), (int(sx), int(sy)), warn_r, 1)
+
+        # --- Draw proximity mines ---
+        for mine in state.get('mines', []):
+            sx, sy = self.camera.world_to_screen(mine['x'], mine['y'])
+            if -50 < sx < self.screen_width + 50 and -50 < sy < self.screen_height + 50:
+                r = mine.get('radius', 12)
+                armed = mine.get('armed', True)
+                color = tuple(mine.get('color', (255, 100, 200)))
+                # Mine body
+                body_color = color if armed else (100, 100, 100)
+                pygame.draw.circle(surface, body_color, (int(sx), int(sy)), r)
+                # Blinking core for armed mines
+                if armed:
+                    pulse = (pygame.time.get_ticks() // 200) % 2
+                    core_color = (255, 50, 50) if pulse else (200, 200, 200)
+                    pygame.draw.circle(surface, core_color, (int(sx), int(sy)), max(2, r // 3))
+
+        # --- Draw ion pulse effects ---
+        for pulse in state.get('ion_pulses', []):
+            sx, sy = self.camera.world_to_screen(pulse['x'], pulse['y'])
+            r = int(pulse.get('radius', 0))
+            if r > 0 and -r < sx < self.screen_width + r and -r < sy < self.screen_height + r:
+                timer = pulse.get('timer', 0)
+                duration = max(1, pulse.get('duration', 30))
+                progress = timer / duration
+                alpha = int(180 * (1 - progress))
+                color = tuple(pulse.get('color', (100, 180, 255)))
+                if alpha > 0:
+                    pulse_surf = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+                    c = r + 2
+                    pygame.draw.circle(pulse_surf, (*color[:3], alpha // 3), (c, c), r)
+                    pygame.draw.circle(pulse_surf, (*color[:3], alpha), (c, c), r, 3)
+                    surface.blit(pulse_surf, (int(sx) - c, int(sy) - c))
 
         # --- Draw asteroids ---
         for ast in state.get('asteroids', []):

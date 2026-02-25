@@ -1131,6 +1131,16 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             'area_bombs': [{'x': round(b.x, 1), 'y': round(b.y, 1),
                            'fuse': b.fuse_timer, 'fuse_duration': b.fuse_duration}
                           for b in self.area_bombs],
+            'mines': [{'x': round(m.x, 1), 'y': round(m.y, 1),
+                       'radius': m.radius, 'armed': m.is_armed(),
+                       'color': m.color[:3]} for m in self.mines[:20]],
+            'ion_pulses': [{'x': round(e['x'], 1), 'y': round(e['y'], 1),
+                           'radius': e.get('radius', 200),
+                           'max_radius': e.get('max_radius', 200),
+                           'timer': e.get('timer', 0),
+                           'duration': e.get('duration', 30),
+                           'color': e.get('color', (100, 180, 255))[:3]}
+                          for e in self.ion_pulse_effects[:10]],
             'supergates': [{'x': round(sg.x, 1), 'y': round(sg.y, 1),
                            'phase': sg.phase, 'timer': sg.timer,
                            'ring_scale': round(sg.ring_scale, 2),

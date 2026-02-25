@@ -1,3 +1,4 @@
+import queue
 import pygame
 import uuid
 from datetime import datetime
@@ -55,6 +56,7 @@ class LanChatPanel:
         self.local_is_typing = False
         self.last_local_input_time = 0
         self.typing_timeout = cfg.TYPING_TIMEOUT  # Send "stopped typing" after 2s of inactivity
+        self._last_typing_sent = 0  # Throttle: ms timestamp of last typing=True send
 
         # Message delivery confirmation
         self.pending_acks: Dict[str, float] = {}  # msg_id -> send_time
@@ -240,10 +242,13 @@ class LanChatPanel:
             elif event.unicode and event.unicode.isprintable():
                 if len(self.input_text) < MAX_MESSAGE_LENGTH:
                     self.input_text += event.unicode
-                    # Started typing
-                    if not self.local_is_typing and self.input_text:
-                        self.local_is_typing = True
-                        self.session.send(LanMessageType.TYPING.value, {"typing": True})
+                    # Started typing — throttle to max 1 send per 500ms
+                    if self.input_text:
+                        now = pygame.time.get_ticks()
+                        if not self.local_is_typing or now - self._last_typing_sent >= 500:
+                            self.local_is_typing = True
+                            self._last_typing_sent = now
+                            self.session.send(LanMessageType.TYPING.value, {"typing": True})
 
         elif event.type == pygame.MOUSEWHEEL and self.active:
             # Mouse wheel scrolling
@@ -267,35 +272,37 @@ class LanChatPanel:
         for msg_id in timed_out:
             self._mark_failed(msg_id)
 
-        # Read from dedicated chat_inbox — no competition with game messages
-        try:
-            msg = self.session.chat_inbox.get_nowait()
-        except Exception:
-            return
+        # Read from dedicated chat_inbox — drain all queued messages per frame
+        while True:
+            try:
+                msg = self.session.chat_inbox.get_nowait()
+            except queue.Empty:
+                break
 
-        msg_type = msg.get("type")
-        payload = msg.get("payload", {})
+            msg_type = msg.get("type")
+            payload = msg.get("payload", {})
 
-        if msg_type == LanMessageType.CHAT.value:
-            text = payload.get("text", "")[:MAX_MESSAGE_LENGTH]
-            msg_id = payload.get("msg_id")
-            self.add_message(self.peer_name, text, msg_id=msg_id)
-            # Send ACK if message has ID
-            if msg_id:
-                self._send_ack(msg_id)
-            # If we receive a message, they clearly stopped typing (or sent it)
-            self.peer_is_typing = False
-        elif msg_type == "chat_ack":
-            # Message delivery confirmed
-            msg_id = payload.get("msg_id")
-            if msg_id:
-                self._mark_confirmed(msg_id)
-        elif msg_type == LanMessageType.TYPING.value:
-            self.peer_is_typing = payload.get("typing", False)
-        elif msg_type == "disconnect":
-            self.add_message("System", f"{self.peer_name} disconnected.")
-            self.active = False
-            self.peer_is_typing = False
+            if msg_type == LanMessageType.CHAT.value:
+                text = payload.get("text", "")[:MAX_MESSAGE_LENGTH]
+                msg_id = payload.get("msg_id")
+                self.add_message(self.peer_name, text, msg_id=msg_id)
+                # Send ACK if message has ID
+                if msg_id:
+                    self._send_ack(msg_id)
+                # If we receive a message, they clearly stopped typing (or sent it)
+                self.peer_is_typing = False
+            elif msg_type == "chat_ack":
+                # Message delivery confirmed
+                msg_id = payload.get("msg_id")
+                if msg_id:
+                    self._mark_confirmed(msg_id)
+            elif msg_type == LanMessageType.TYPING.value:
+                self.peer_is_typing = payload.get("typing", False)
+            elif msg_type == "disconnect":
+                self.add_message("System", f"{self.peer_name} disconnected.")
+                self.active = False
+                self.peer_is_typing = False
+                break
 
     def _draw_typing_indicator(self, surface, input_rect):
         """Draw 'Incoming Wormhole...' text and animated chevrons."""

@@ -12,7 +12,7 @@ import os
 import pygame
 import display_manager
 
-from .conquest_menu import run_conquest_menu, run_customize_screen
+from .conquest_menu import run_conquest_menu, run_customize_screen, run_unlocks_screen
 from .campaign_state import CampaignState
 from .campaign_persistence import (load_campaign, save_campaign, clear_campaign,
                                     load_conquest_settings)
@@ -118,6 +118,12 @@ def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback=None
             run_customize_screen(screen, toggle_fullscreen_callback)
             screen = display_manager.screen
             continue
+        elif action == "unlocks":
+            stop_conquest_music()
+            run_unlocks_screen(screen, toggle_fullscreen_callback)
+            screen = display_manager.screen
+            start_conquest_music()
+            continue
 
         if result == "quit":
             stop_conquest_music()
@@ -143,6 +149,7 @@ def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
     friendly_faction = settings.get("friendly_faction")
     neutral_count = settings.get("neutral_count", 5)
     enemy_leaders = settings.get("enemy_leaders", {})
+    difficulty = settings.get("difficulty", "normal")
 
     # If friendly faction == player faction, treat as None
     if friendly_faction == player_faction:
@@ -161,12 +168,15 @@ def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
     for pid, planet in galaxy.planets.items():
         planet_ownership[pid] = planet.owner
 
-    # Create campaign state
+    # Create campaign state with difficulty-scaled starting naquadah
+    from .difficulty import get_start_naquadah
+    start_naq = get_start_naquadah(difficulty)
+
     state = CampaignState(
         player_faction=player_faction,
         player_leader=player_leader,
         current_deck=player_deck_ids,
-        naquadah=100,
+        naquadah=start_naq,
         turn_number=1,
         planet_ownership=planet_ownership,
         galaxy=galaxy.to_dict(),
@@ -174,7 +184,12 @@ def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
         friendly_faction=friendly_faction,
         neutral_count=neutral_count,
         enemy_leaders=enemy_leaders,
+        difficulty=difficulty,
     )
+
+    # Apply meta-progression perks to the new campaign
+    from .meta_progression import apply_meta_perks_to_campaign
+    apply_meta_perks_to_campaign(state)
 
     # Clear any old save and save new campaign
     clear_campaign()

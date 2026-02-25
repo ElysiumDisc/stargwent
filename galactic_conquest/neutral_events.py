@@ -181,6 +181,62 @@ NEUTRAL_EVENTS = [
              "effect": "naquadah", "value": 50},
         ],
     },
+    # === New events (v8.9) ===
+    {
+        "title": "Nox Sanctuary",
+        "text": "The peaceful Nox reveal themselves in a hidden grove.\n"
+                "They offer healing wisdom or a gift of concealment.",
+        "choices": [
+            {"label": "Learn healing arts (upgrade 3 weakest cards +2)",
+             "effect": "nox_healing", "value": 3},
+            {"label": "Accept Nox cloak (remove 2 strongest enemy-faction cards, gain stealth card)",
+             "effect": "nox_cloak", "value": 1},
+        ],
+    },
+    {
+        "title": "Tollan Ion Cannon",
+        "text": "A derelict Tollan ion cannon sits atop this mountain.\n"
+                "Its technology is incredibly advanced — and valuable.",
+        "choices": [
+            {"label": "Salvage the cannon (+150 naquadah)",
+             "effect": "naquadah", "value": 150},
+            {"label": "Reverse-engineer it (upgrade all cards with power >= 5 by +1)",
+             "effect": "tollan_upgrade", "value": 5},
+        ],
+    },
+    {
+        "title": "Goa'uld Sarcophagus Chamber",
+        "text": "A golden sarcophagus hums with regenerative energy.\n"
+                "Its power is seductive, but the cost may be your humanity.",
+        "choices": [
+            {"label": "Use the sarcophagus (duplicate 2 strongest cards, lose 3 weakest)",
+             "effect": "sarcophagus_gamble", "value": 2},
+            {"label": "Destroy it (+80 naquadah, remove 1 weak card)",
+             "effect": "destroy_and_purge", "value": 80},
+        ],
+    },
+    {
+        "title": "Ori Supergate",
+        "text": "A dormant Ori Supergate looms in orbit.\n"
+                "Activating it is a massive gamble — glory or ruin.",
+        "choices": [
+            {"label": "Activate the Supergate (50% chance: +200 naq OR lose 4 random cards)",
+             "effect": "ori_supergate_gamble", "value": 200},
+            {"label": "Scavenge components (+70 naquadah)",
+             "effect": "naquadah", "value": 70},
+        ],
+    },
+    {
+        "title": "Pegasus Expedition",
+        "text": "A wormhole to the Pegasus galaxy opens briefly.\n"
+                "Wraith technology and Ancient relics await beyond.",
+        "choices": [
+            {"label": "Send an expedition (gain 3 powerful cards, -60 naquadah)",
+             "effect": "pegasus_expedition", "value": 3},
+            {"label": "Study the wormhole data (upgrade 2 random cards +2)",
+             "effect": "upgrade_cards_big", "value": 2},
+        ],
+    },
 ]
 
 # Leader portrait dimensions
@@ -618,5 +674,154 @@ def _apply_choice(campaign_state, choice, rng):
         if upgraded:
             parts.append(f"Upgraded +2: {', '.join(upgraded)}")
         return " | ".join(parts) if parts else "Trial complete."
+
+    elif effect == "destroy_and_purge":
+        campaign_state.add_naquadah(value)
+        from cards import ALL_CARDS
+        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                      for cid in campaign_state.current_deck]
+        deck_power.sort(key=lambda x: x[1])
+        if deck_power and len(campaign_state.current_deck) > 10:
+            removed_cid = deck_power[0][0]
+            campaign_state.remove_card(removed_cid)
+            name = getattr(ALL_CARDS.get(removed_cid), 'name', removed_cid)
+            return f"+{value} Naquadah, removed weak card: {name}"
+        return f"+{value} Naquadah (Total: {campaign_state.naquadah})"
+
+    elif effect == "nox_healing":
+        from cards import ALL_CARDS
+        # Upgrade the N weakest cards by +2
+        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                      for cid in campaign_state.current_deck]
+        deck_power.sort(key=lambda x: x[1])
+        upgradeable = [(cid, pw) for cid, pw in deck_power if pw > 0]
+        targets = upgradeable[:value]
+        names = []
+        for cid, _ in targets:
+            campaign_state.upgrade_card(cid, 2)
+            names.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+        if names:
+            return f"Nox healing: {', '.join(names)} (+2 each)"
+        return "No cards to heal."
+
+    elif effect == "nox_cloak":
+        from cards import ALL_CARDS
+        # Remove 2 enemy-faction cards from deck, add a powerful neutral card
+        player_faction = campaign_state.player_faction
+        enemy_in_deck = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                         for cid in campaign_state.current_deck
+                         if ALL_CARDS.get(cid)
+                         and getattr(ALL_CARDS[cid], 'faction', None) != player_faction
+                         and getattr(ALL_CARDS[cid], 'faction', None) is not None]
+        enemy_in_deck.sort(key=lambda x: -x[1])
+        removed = []
+        for cid, _ in enemy_in_deck[:2]:
+            campaign_state.remove_card(cid)
+            removed.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+        # Add a powerful card
+        powerful = [(cid, getattr(c, 'power', 0) or 0) for cid, c in ALL_CARDS.items()
+                    if getattr(c, 'card_type', '') != "Legendary Commander"
+                    and getattr(c, 'row', '') != "weather"
+                    and (getattr(c, 'power', 0) or 0) >= 6]
+        gained_name = "none"
+        if powerful:
+            cid, _ = rng.choice(powerful)
+            campaign_state.add_card(cid)
+            gained_name = getattr(ALL_CARDS[cid], 'name', cid)
+        parts = []
+        if removed:
+            parts.append(f"Removed: {', '.join(removed)}")
+        parts.append(f"Gained: {gained_name}")
+        return " | ".join(parts)
+
+    elif effect == "tollan_upgrade":
+        from cards import ALL_CARDS
+        # Upgrade all cards with power >= threshold by +1
+        threshold = value
+        upgraded = []
+        seen = set()
+        for cid in campaign_state.current_deck:
+            if cid in seen:
+                continue
+            card = ALL_CARDS.get(cid)
+            if card and (getattr(card, 'power', 0) or 0) >= threshold:
+                campaign_state.upgrade_card(cid, 1)
+                upgraded.append(getattr(card, 'name', cid))
+                seen.add(cid)
+        if upgraded:
+            return f"Tollan tech: {', '.join(upgraded)} (+1 each)"
+        return "No cards powerful enough to upgrade."
+
+    elif effect == "sarcophagus_gamble":
+        from cards import ALL_CARDS
+        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                      for cid in campaign_state.current_deck]
+        deck_power.sort(key=lambda x: -x[1])
+        # Duplicate N strongest
+        duped = []
+        for cid, pw in deck_power[:value]:
+            if pw > 0:
+                campaign_state.add_card(cid)
+                duped.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+        # Remove 3 weakest
+        deck_power.sort(key=lambda x: x[1])
+        removed = []
+        for cid, pw in deck_power[:3]:
+            if len(campaign_state.current_deck) > 10:
+                campaign_state.remove_card(cid)
+                removed.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+        parts = []
+        if duped:
+            parts.append(f"Duplicated: {', '.join(duped)}")
+        if removed:
+            parts.append(f"Lost: {', '.join(removed)}")
+        return " | ".join(parts) if parts else "The sarcophagus had no effect."
+
+    elif effect == "ori_supergate_gamble":
+        # 50% chance: big reward or big loss
+        if rng.random() < 0.5:
+            campaign_state.add_naquadah(value)
+            return f"The Supergate surges with power! +{value} Naquadah!"
+        else:
+            from cards import ALL_CARDS
+            if len(campaign_state.current_deck) > 6:
+                lost = rng.sample(campaign_state.current_deck, min(4, len(campaign_state.current_deck) - 5))
+                for cid in lost:
+                    campaign_state.remove_card(cid)
+                names = [getattr(ALL_CARDS.get(cid), 'name', cid) for cid in lost]
+                return f"Ori forces attack! Lost: {', '.join(names)}"
+            return "The Supergate collapses harmlessly."
+
+    elif effect == "pegasus_expedition":
+        from cards import ALL_CARDS
+        cost = 60
+        if campaign_state.naquadah >= cost:
+            campaign_state.add_naquadah(-cost)
+            powerful = [(cid, getattr(c, 'power', 0) or 0) for cid, c in ALL_CARDS.items()
+                        if getattr(c, 'card_type', '') != "Legendary Commander"
+                        and getattr(c, 'row', '') != "weather"
+                        and (getattr(c, 'power', 0) or 0) >= 5]
+            if powerful:
+                picks = rng.sample(powerful, min(value, len(powerful)))
+                names = []
+                for cid, _ in picks:
+                    campaign_state.add_card(cid)
+                    names.append(getattr(ALL_CARDS[cid], 'name', cid))
+                return f"Expedition returns! Gained: {', '.join(names)} (-{cost} naq)"
+            return f"Expedition found nothing. (-{cost} naq)"
+        return "Not enough Naquadah for the expedition!"
+
+    elif effect == "upgrade_cards_big":
+        from cards import ALL_CARDS
+        upgradeable = list(set(cid for cid in campaign_state.current_deck
+                               if ALL_CARDS.get(cid) and getattr(ALL_CARDS[cid], 'power', 0)))
+        if upgradeable:
+            targets = rng.sample(upgradeable, min(value, len(upgradeable)))
+            names = []
+            for cid in targets:
+                campaign_state.upgrade_card(cid, 2)
+                names.append(getattr(ALL_CARDS[cid], 'name', cid))
+            return f"Upgraded: {', '.join(names)} (+2 each)"
+        return "No cards to upgrade."
 
     return "Nothing happened."

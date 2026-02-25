@@ -95,8 +95,9 @@ class MapScreen:
         right_x -= btn_w + btn_gap
         self.run_info_button_rect = pygame.Rect(right_x, self.btn_row_y, btn_w, btn_h)
 
-        # Left-side button: SAVE & QUIT
+        # Left-side buttons: SAVE & QUIT, DIPLOMACY
         self.save_quit_button_rect = pygame.Rect(margin_x, self.btn_row_y, btn_w, btn_h)
+        self.diplomacy_button_rect = pygame.Rect(margin_x + btn_w + btn_gap, self.btn_row_y, btn_w, btn_h)
 
     def _world_to_screen(self, pos):
         """Convert normalized (0-1) position to screen pixel coordinates."""
@@ -127,7 +128,9 @@ class MapScreen:
 
         self.planet_rects.clear()
 
-        # Draw hyperspace lanes
+        # Draw hyperspace lanes with pulsing effect for player-owned connections
+        tick = pygame.time.get_ticks()
+        lane_pulse = 0.6 + 0.4 * math.sin(tick * 0.002)
         for pid, planet in galaxy_map.planets.items():
             sx, sy = self._world_to_screen(planet.position)
             for conn_id in planet.connections:
@@ -135,9 +138,23 @@ class MapScreen:
                     conn = galaxy_map.planets[conn_id]
                     cx, cy = self._world_to_screen(conn.position)
                     is_attackable = (pid in attackable_ids or conn_id in attackable_ids)
-                    color = COLOR_LANE_ATTACKABLE if is_attackable else COLOR_LANE
-                    width = 2 if is_attackable else 1
+                    both_player = (planet.owner == "player" and conn.owner == "player")
+                    if is_attackable:
+                        color = COLOR_LANE_ATTACKABLE
+                        width = 2
+                    elif both_player:
+                        # Pulsing bright lane for connected player territory
+                        pulse_val = int(80 + 60 * lane_pulse)
+                        color = (pulse_val, int(pulse_val * 1.5), pulse_val)
+                        width = 2
+                    else:
+                        color = COLOR_LANE
+                        width = 1
                     pygame.draw.line(screen, color, (sx, sy), (cx, cy), width)
+
+        # Compute supply lines — unsupplied player planets
+        from .stargate_network import get_disconnected_planets
+        unsupplied = get_disconnected_planets(galaxy_map, campaign_state.player_faction)
 
         # Draw planets
         for pid, planet in galaxy_map.planets.items():
@@ -175,6 +192,26 @@ class MapScreen:
                     f"{campaign_state.cooldowns[pid]}T", True, (255, 100, 100))
                 screen.blit(cd_text, (sx - cd_text.get_width() // 2, sy - radius - 16))
 
+            # Unsupplied indicator (dashed red outline)
+            if pid in unsupplied and planet.owner == "player":
+                for angle_deg in range(0, 360, 30):
+                    rad = math.radians(angle_deg)
+                    end_rad = math.radians(angle_deg + 15)
+                    x1 = sx + int(math.cos(rad) * (radius + 6))
+                    y1 = sy + int(math.sin(rad) * (radius + 6))
+                    x2 = sx + int(math.cos(end_rad) * (radius + 6))
+                    y2 = sy + int(math.sin(end_rad) * (radius + 6))
+                    pygame.draw.line(screen, (255, 100, 60), (x1, y1), (x2, y2), 2)
+
+            # Building indicator
+            building_info = None
+            from .buildings import get_planet_building_display
+            building_info = get_planet_building_display(campaign_state, pid)
+            if building_info and planet.owner == "player":
+                bname, bicon, bdesc = building_info
+                bld_text = self.font_info.render(bicon, True, (200, 180, 100))
+                screen.blit(bld_text, (sx + radius + 3, sy - 8))
+
             # Fortification shields
             fort_level = getattr(campaign_state, 'fortification_levels', {}).get(pid, 0)
             if fort_level > 0 and planet.owner == "player":
@@ -194,6 +231,50 @@ class MapScreen:
             self.planet_rects[pid] = pygame.Rect(sx - radius, sy - radius,
                                                   radius * 2, radius * 2)
 
+        # ===== PLANET TOOLTIP (hover) =====
+        if self.hovered_planet and self.hovered_planet in galaxy_map.planets:
+            hp = galaxy_map.planets[self.hovered_planet]
+            hp_rect = self.planet_rects.get(self.hovered_planet)
+            if hp_rect:
+                tooltip_lines = [hp.name]
+                tooltip_lines.append(f"Owner: {hp.owner}")
+                tooltip_lines.append(f"Type: {hp.planet_type.title()}")
+                if hp.weather_preset:
+                    wname = hp.weather_preset.get('type', 'none').replace('_', ' ').title()
+                    tooltip_lines.append(f"Weather: {wname}")
+                if hp.defender_leader and hp.owner not in ("player", "neutral"):
+                    tooltip_lines.append(f"Defender: {hp.defender_leader.get('name', '?')}")
+                fort_lv = getattr(campaign_state, 'fortification_levels', {}).get(self.hovered_planet, 0)
+                if fort_lv > 0 and hp.owner == "player":
+                    tooltip_lines.append(f"Fortification: Lv{fort_lv}/3")
+                from .buildings import get_planet_building_display
+                binfo = get_planet_building_display(campaign_state, self.hovered_planet)
+                if binfo and hp.owner == "player":
+                    tooltip_lines.append(f"Building: {binfo[0]}")
+                if self.hovered_planet in campaign_state.cooldowns:
+                    tooltip_lines.append(f"Cooldown: {campaign_state.cooldowns[self.hovered_planet]}T")
+                from .planet_passives import get_planet_passive
+                passive = get_planet_passive(self.hovered_planet, galaxy_map)
+                if passive and hp.owner == "player":
+                    tooltip_lines.append(f"Passive: {passive['desc']}")
+
+                # Render tooltip
+                tt_font = self.font_info
+                tt_w = max(tt_font.size(line)[0] for line in tooltip_lines) + 16
+                tt_h = len(tooltip_lines) * (tt_font.get_height() + 2) + 10
+                tt_x = min(hp_rect.right + 10, self.sw - tt_w - 5)
+                tt_y = max(5, hp_rect.centery - tt_h // 2)
+                tt_surf = pygame.Surface((tt_w, tt_h), pygame.SRCALPHA)
+                tt_surf.fill((10, 15, 25, 220))
+                pygame.draw.rect(tt_surf, (80, 140, 160), tt_surf.get_rect(), 1)
+                y_off = 5
+                for j, line in enumerate(tooltip_lines):
+                    color = (255, 220, 150) if j == 0 else (200, 200, 210)
+                    ls = tt_font.render(line, True, color)
+                    tt_surf.blit(ls, (8, y_off))
+                    y_off += tt_font.get_height() + 2
+                screen.blit(tt_surf, (tt_x, tt_y))
+
         # ===== TOP HUD =====
         hud_surf = pygame.Surface((self.sw, int(self.sh * 0.07)), pygame.SRCALPHA)
         hud_surf.fill(COLOR_HUD_BG)
@@ -205,11 +286,19 @@ class MapScreen:
         x_offset = int(self.sw * 0.35)
         y_center = int(self.sh * 0.03)
         upgraded_count = sum(1 for v in campaign_state.upgraded_cards.values() if v > 0)
+        # Network tier display
+        from .stargate_network import get_network_bonuses
+        network = get_network_bonuses(galaxy_map, campaign_state.player_faction)
+        tier_colors = {1: (150, 150, 150), 2: (100, 200, 255), 3: (255, 200, 80),
+                       4: (255, 140, 60), 5: (200, 100, 255)}
+        tier_color = tier_colors.get(network["tier"], (200, 200, 200))
+
         stats = [
             (f"Turn {campaign_state.turn_number}", COLOR_TURN),
             (f"Naquadah: {campaign_state.naquadah}", COLOR_NAQUADAH),
             (f"Deck: {len(campaign_state.current_deck)}", COLOR_DECK),
             (f"Planets: {galaxy_map.get_player_planet_count()}/{len(galaxy_map.planets)}", (200, 200, 200)),
+            (f"Net: T{network['tier']} {network['name']}", tier_color),
         ]
         if upgraded_count:
             stats.append((f"Upgrades: {upgraded_count}", (100, 255, 150)))
@@ -286,22 +375,25 @@ class MapScreen:
 
         # Fortify: selected planet must be player-owned, level < 3, enough naquadah
         fort_levels = getattr(campaign_state, 'fortification_levels', {})
+        fort_cost = network["fortify_cost"]
         can_fortify = False
         if self.selected_planet and self.selected_planet in galaxy_map.planets:
             sp = galaxy_map.planets[self.selected_planet]
             cur_fort = fort_levels.get(self.selected_planet, 0)
             can_fortify = (sp.owner == "player" and cur_fort < 3
-                           and campaign_state.naquadah >= 60)
+                           and campaign_state.naquadah >= fort_cost)
 
         self._draw_button(screen, self.save_quit_button_rect, "SAVE & QUIT",
                           (140, 80, 80), enabled=True)
+        self._draw_button(screen, self.diplomacy_button_rect, "DIPLOMACY",
+                          (120, 80, 160), enabled=True)
         self._draw_button(screen, self.run_info_button_rect, "RUN INFO",
                           (80, 100, 130), enabled=True)
         self._draw_button(screen, self.view_deck_button_rect, "VIEW DECK",
                           (120, 100, 60), enabled=True)
         self._draw_button(screen, self.end_turn_button_rect, "END TURN",
                           (80, 120, 180), enabled=True)
-        fort_label = f"FORTIFY (60)" if can_fortify else "FORTIFY"
+        fort_label = f"FORTIFY ({fort_cost})" if can_fortify else "FORTIFY"
         self._draw_button(screen, self.fortify_button_rect, fort_label,
                           (60, 120, 180) if can_fortify else (60, 60, 60),
                           enabled=can_fortify)
@@ -365,6 +457,9 @@ class MapScreen:
 
             if self.save_quit_button_rect.collidepoint(mx, my):
                 return "save_quit"
+
+            if self.diplomacy_button_rect.collidepoint(mx, my):
+                return "diplomacy"
 
             # Click empty space — deselect
             self.selected_planet = None

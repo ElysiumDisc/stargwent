@@ -174,6 +174,7 @@ The Content Manager includes robust safety features to prevent breaking the game
 6. **Colored Output** - Headers, errors, warnings, and success messages are color-coded
 7. **Session Logging** - All changes logged to `scripts/content_manager.log`
 
+
 ### Example: Adding a Card
 
 ```
@@ -361,8 +362,6 @@ Located in `assets/audio/leader_voices/`. Leader quotes for draft mode and selec
 #### New Audio Asset
 - `assets/audio/chat_notification.ogg` – Chat message notification sound (optional, silent if missing)
 
-See [Audio Assets](#audio-assets) section for full list of supported audio files.
-
 ### Art Assembler
 
 Automated pipeline for assembling finished card images, leader portraits, leader backgrounds, and faction/lobby backgrounds from raw art. Uses Pillow (PIL).
@@ -536,148 +535,66 @@ All output goes to `builds/releases/`. Staging area is `builds/staging/` (auto-c
 
 ---
 
-#### Linux: .deb Package (Debian/Ubuntu)
+#### Linux: .deb Package (`build_deb.sh`)
 
-**Script:** `build_deb.sh`
+**Prerequisites:** `dpkg-deb`, `python3`, `python3-venv`
 
-**Prerequisites:** `dpkg-deb` (pre-installed on Debian/Ubuntu), `python3`, `python3-venv`
-
-**Step by step — what the script does:**
-
-1. Reads version from README.md badge (or accepts `./build_deb.sh 6.9.0`)
-2. Creates staging directory `builds/staging/stargwent_VERSION/`
-3. Copies all game files (Python sources, assets, shaders, docs) — skips dev artifacts (`.git`, `venv`, `builds`, `raw_art`, all `build_*.sh`)
-4. Creates a bundled Python virtual environment at `/usr/share/stargwent/.venv/`
-5. Installs all pip dependencies into the venv: `pygame-ce`, `moderngl`, `Pillow`
-6. Creates a launcher script at `/usr/bin/stargwent` that `cd`s to the game dir and runs `main.py` via the bundled venv's Python
-7. Writes `DEBIAN/control` with system library dependencies (`python3`, `libgl1`, `libsdl2-*`)
-8. Installs icon to `/usr/share/pixmaps/` and `.desktop` file to `/usr/share/applications/`
-9. Builds the `.deb` with `dpkg-deb --build --root-owner-group`
-
-**Build and install:**
+Bundles game files + Python venv (`pygame-ce`, `moderngl`, `Pillow`) into a `.deb`. Installs to `/usr/share/stargwent/` with launcher at `/usr/bin/stargwent` and `.desktop` file.
 
 ```bash
 ./build_deb.sh
-sudo dpkg -i builds/releases/Stargwent-6.9.0-linux-amd64.deb
+sudo dpkg -i builds/releases/Stargwent-X.Y.Z-linux-amd64.deb
 stargwent                          # run from anywhere
 sudo dpkg -r stargwent             # uninstall
 ```
 
-**File layout inside the .deb:**
-
-```
-/usr/bin/stargwent                     # launcher script
-/usr/share/stargwent/                  # game files
-/usr/share/stargwent/.venv/            # bundled Python venv (pygame-ce, moderngl, Pillow)
-/usr/share/stargwent/main.py           # entry point
-/usr/share/stargwent/assets/           # game assets
-/usr/share/stargwent/shaders/          # GLSL shaders
-/usr/share/applications/stargwent.desktop
-/usr/share/pixmaps/stargwent.png
-```
-
 ---
 
-#### Linux: AppImage (Universal)
+#### Linux: AppImage (`build_appimage.sh`)
 
-**Script:** `build_appimage.sh`
+**Prerequisites:** `wget`, `python3`, `fuse` or `libfuse2`
 
-**Prerequisites:** `wget`, `python3` (for the file copy step), `fuse` or `libfuse2` (to run the AppImage)
-
-**Step by step — what the script does:**
-
-1. Reads version from README.md badge (or accepts `./build_appimage.sh 6.9.0`)
-2. Downloads `appimagetool` if not already cached in `builds/`
-3. Creates AppDir at `builds/staging/stargwent.AppDir/`
-4. Copies all game files — skips dev artifacts (`.git`, `venv`, `builds`, `raw_art`, all `build_*.sh`)
-5. Downloads Python 3.13 AppImage from the `python-appimage` project (cached in `builds/`)
-6. Extracts the Python runtime and copies it into the AppDir at `opt/python3.13/`
-7. Installs all pip dependencies into `usr/lib/python3/site-packages/`: `pygame-ce`, `moderngl`, `Pillow`
-8. Creates `AppRun` launcher that sets `PYTHONPATH`, `PYTHONHOME`, `LD_LIBRARY_PATH`, then runs `main.py`
-9. Copies icon and creates `.desktop` file in the AppDir root
-10. Builds the final `.AppImage` with `appimagetool`
-
-**Build and run:**
+Downloads Python 3.13 runtime + `appimagetool`, bundles everything into a self-contained AppImage. No installation needed.
 
 ```bash
 ./build_appimage.sh
-chmod +x builds/releases/Stargwent-6.9.0-linux-x86_64.AppImage
-./builds/releases/Stargwent-6.9.0-linux-x86_64.AppImage
+./builds/releases/Stargwent-X.Y.Z-linux-x86_64.AppImage
 ```
-
-No installation needed — the AppImage is fully self-contained with its own Python runtime and all dependencies.
 
 ---
 
-#### Windows: .exe (PyInstaller)
-
-**Script:** `build_exe.sh` (run in Git Bash / MSYS2 on Windows, or via GitHub Actions CI)
+#### Windows: .exe (`build_exe.sh`)
 
 **Prerequisites:** Python 3.8+, `pip install pyinstaller pygame-ce moderngl Pillow`
 
-**Step by step — what the script does:**
-
-1. Reads version from README.md badge (or accepts `./build_exe.sh 6.9.0`)
-2. Generates a `.ico` icon from `assets/tauri_oneill.png` using Pillow (multi-size: 256 down to 16px)
-3. Ensures all pip dependencies are installed (`pygame-ce`, `moderngl`, `Pillow`)
-4. Runs PyInstaller in `--onedir --windowed` mode with:
-   - `--add-data "assets;assets"` (note: `;` separator on Windows)
-   - `--add-data "shaders;shaders"`, `"docs;docs"`, `"user_content;user_content"`
-   - `--hidden-import moderngl --hidden-import glcontext --hidden-import PIL`
-5. Packages the `dist/Stargwent/` folder into a `.zip` file
-
-**Build and run (Git Bash on Windows):**
+Uses PyInstaller `--onedir --windowed` mode. Run in Git Bash/MSYS2 on Windows, or via GitHub Actions CI.
 
 ```bash
 ./build_exe.sh
-# Output: builds/releases/Stargwent-6.9.0-windows-x64.zip
+# Output: builds/releases/Stargwent-X.Y.Z-windows-x64.zip
 # Extract and run Stargwent/Stargwent.exe
 ```
 
-**Manual build (PowerShell/CMD):**
-
+**Manual build (PowerShell):**
 ```powershell
-pip install -r requirements.txt
-pip install pyinstaller
-python -c "from PIL import Image; Image.open('assets/tauri_oneill.png').save('stargwent.ico', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
+pip install -r requirements.txt pyinstaller
 pyinstaller --onedir --name Stargwent --windowed --icon=stargwent.ico ^
   --add-data "assets;assets" --add-data "shaders;shaders" ^
-  --add-data "docs;docs" --add-data "user_content;user_content" ^
   --hidden-import moderngl --hidden-import glcontext main.py
-dist\Stargwent\Stargwent.exe
 ```
-
-**CI build:** See `.github/workflows/build.yml` for automated Windows builds via GitHub Actions.
 
 ---
 
-#### macOS: .dmg (PyInstaller + hdiutil)
+#### macOS: .dmg (`build_dmg.sh`)
 
-**Script:** `build_dmg.sh` (run on macOS, or via GitHub Actions CI with `macos-latest`)
+**Prerequisites:** Python 3.8+, `pip install pyinstaller pygame-ce moderngl Pillow`, Xcode CLI tools
 
-**Prerequisites:** Python 3.8+, `pip install pyinstaller pygame-ce moderngl Pillow`, Xcode command-line tools
-
-**Step by step — what the script does:**
-
-1. Reads version from README.md badge (or accepts `./build_dmg.sh 6.9.0`)
-2. Generates a `.icns` icon from `assets/tauri_oneill.png` using `sips` + `iconutil` (macOS built-in) or Pillow fallback
-3. Ensures all pip dependencies are installed (`pygame-ce`, `moderngl`, `Pillow`)
-4. Runs PyInstaller in `--onedir --windowed` mode with:
-   - `--add-data "assets:assets"` (note: `:` separator on macOS/Linux)
-   - `--add-data "shaders:shaders"`, `"docs:docs"`, `"user_content:user_content"`
-   - `--hidden-import moderngl --hidden-import glcontext --hidden-import PIL`
-5. Verifies the `.app` bundle was created
-6. Creates a `.dmg` disk image with `hdiutil create -format UDZO` (compressed)
-
-**Build and install:**
+Uses PyInstaller + `hdiutil` to create a compressed `.dmg`. Run on macOS or via GitHub Actions CI.
 
 ```bash
 ./build_dmg.sh
-# Output: builds/releases/Stargwent-6.9.0-macos.dmg
-# Open the .dmg → drag Stargwent to Applications
+# Output: builds/releases/Stargwent-X.Y.Z-macos.dmg
 ```
-
-**CI build:** See `.github/workflows/build.yml` for automated macOS builds via GitHub Actions.
 
 ---
 
@@ -720,227 +637,97 @@ Platform detection:
 
 ---
 
-#### GitHub Actions CI/CD — Step-by-Step Setup
+#### GitHub Actions CI/CD
 
-GitHub Actions automatically builds your .deb, AppImage, Windows .exe, and macOS .dmg every time you push a version tag. No need to own a Windows or Mac machine.
+Workflow at `.github/workflows/build.yml` automatically builds all platform targets on version tag push. Can also be triggered manually from the Actions tab.
 
-**Is it free?**
-
-| Repo type | Free minutes/month | Notes |
-|-----------|-------------------|-------|
-| **Public** repo | Unlimited | Completely free, no limits |
-| **Private** repo | 2,000 minutes/month | Linux = 1x, Windows = 2x, macOS = 10x multiplier |
-
-Your repo is currently **private**. A full build (Linux + Windows + macOS) takes ~10-15 min and costs roughly 25 minutes of quota (because macOS has a 10x multiplier). That gives you ~80 full builds/month for free. If you make the repo public, it's unlimited.
-
-**Step 1: Commit and push the workflow file**
-
-The workflow file is already created at `.github/workflows/build.yml`. Push it to GitHub:
-
+**Release workflow:**
 ```bash
-git add .github/workflows/build.yml
-git commit -m "Add GitHub Actions CI/CD for all platform builds"
-git push origin main
+# Update version badge in README.md, then:
+git add README.md && git commit -m "Bump version to X.Y.Z"
+git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z
 ```
 
-**Step 2: Verify the workflow appears on GitHub**
+This triggers 4 parallel jobs (linux .deb+AppImage, windows .exe, macos .dmg), creates a draft GitHub Release with all artifacts attached. Review and publish at `github.com/ElysiumDisc/stargwent/releases`.
 
-1. Open your repo in a browser: https://github.com/ElysiumDisc/stargwent
-2. Click the **"Actions"** tab at the top (between "Pull requests" and "Projects")
-3. You should see **"Build Releases"** listed as a workflow on the left sidebar
-4. If you see a yellow banner saying "Workflows aren't being run on this repository" → click **"I understand my workflows, go ahead and enable them"**
+**Free tier:** Public repos = unlimited. Private repos = 2,000 min/month (macOS uses 10x multiplier).
 
-**Step 3: Run your first build (manual trigger)**
-
-You don't need to create a tag for your first test — you can trigger it manually:
-
-1. Go to **Actions** tab → click **"Build Releases"** on the left
-2. Click the **"Run workflow"** dropdown button (top right, blue)
-3. Leave the version field empty (it reads from your README.md badge automatically)
-4. Click the green **"Run workflow"** button
-5. A new run appears — click on it to watch the progress
-
-You'll see 4 jobs:
-- **version** — reads the version number (fast, ~10 seconds)
-- **linux** — builds .deb + AppImage (~3-5 min)
-- **windows** — builds .exe zip (~3-5 min)
-- **macos** — builds .dmg (~5-8 min)
-
-**Step 4: Download the built artifacts**
-
-1. Once all jobs show green checkmarks, click on any completed job
-2. Scroll to the bottom — you'll see an **"Artifacts"** section
-3. Download each one:
-   - `Stargwent-X.Y.Z-linux-deb` — the .deb file
-   - `Stargwent-X.Y.Z-linux-appimage` — the AppImage
-   - `Stargwent-X.Y.Z-windows-x64` — the .exe zip
-   - `Stargwent-X.Y.Z-macos` — the .dmg
-
-**Step 5: Automated releases with version tags (recommended workflow)**
-
-Once you've verified the manual build works, use tags for proper releases:
-
-```bash
-# 1. Update version in README.md badge (single source of truth)
-#    Edit the badge line: ![Version](https://img.shields.io/badge/version-6.9.0-blue)
-
-# 2. Commit the version bump
-git add README.md
-git commit -m "Bump version to 6.9.0"
-
-# 3. Create a version tag
-git tag v6.9.0
-
-# 4. Push both the commit and the tag
-git push origin main
-git push origin v6.9.0
-```
-
-This automatically:
-- Triggers all 4 builds (Linux, Windows, macOS)
-- Creates a **draft GitHub Release** at https://github.com/ElysiumDisc/stargwent/releases
-- Attaches all 4 artifacts (.deb, .AppImage, .zip, .dmg) to the release
-- You review the draft → click **"Publish release"** to make it public
-
-**Step 6: Share your game**
-
-After publishing a release, anyone can download the right build for their platform from:
-`https://github.com/ElysiumDisc/stargwent/releases/latest`
-
-**Troubleshooting GitHub Actions:**
+**Troubleshooting:**
 
 | Issue | Fix |
 |-------|-----|
-| "Actions" tab not visible | Go to repo Settings → Actions → General → enable "Allow all actions" |
-| Workflow not triggering on tag push | Make sure you pushed the tag: `git push origin v6.9.0` |
-| Build fails on Windows/macOS | Click the failed job → read the red error log → usually a missing dependency |
-| "Resource not accessible by integration" | Go to Settings → Actions → General → set "Workflow permissions" to "Read and write" |
-| Artifacts expire after 90 days | Published releases are permanent; only workflow artifacts expire |
+| "Actions" tab not visible | Settings → Actions → General → enable "Allow all actions" |
+| Tag push doesn't trigger | Make sure you pushed the tag: `git push origin vX.Y.Z` |
+| "Resource not accessible by integration" | Settings → Actions → General → "Read and write" permissions |
 
 ---
 
-### Roadmap: Future Targets
+### Roadmap: Web Browser (WebGL / WASM)
 
-#### Web Browser (WebGL / WASM)
+**Approach:** [Pygbag](https://github.com/nicegui-community/pygbag) — compiles Pygame to WASM via Emscripten. `pip install pygbag && pygbag main.py` → deploy `build/web/` to GitHub Pages, Netlify, or itch.io.
 
-Play Stargwent in any modern web browser — no install needed.
-
-**Approach: Pygbag (most realistic path)**
-
-[Pygbag](https://github.com/nicegui-community/pygbag) compiles Pygame games to WebAssembly (WASM) via Emscripten. Since Stargwent is already Pygame-based, this is the lowest-friction route to a browser build.
-
-**How it would work:**
-1. `pip install pygbag`
-2. `pygbag main.py` — builds a WASM bundle and serves it locally
-3. Deploy the `build/web/` folder to any static host (GitHub Pages, Netlify, itch.io)
-
-**What works out of the box:**
-- Core game loop and rendering (Pygame surface drawing)
-- All card art, animations, particle effects
-- Menu navigation, deck builder, rules compendium
-- Single-player vs AI gameplay
+**What works out of the box:** Core game loop, rendering, card art, animations, menus, AI gameplay.
 
 **What needs adaptation:**
+
 | Feature | Issue | Solution |
 |---------|-------|----------|
-| GPU shaders (ModernGL) | ModernGL uses desktop OpenGL 3.3 — browsers only support WebGL (GLSL ES) | Detect WASM environment → disable GPU effects or port shaders to WebGL-compatible GLSL ES 3.0 |
-| LAN multiplayer | Raw TCP sockets don't exist in browsers | Replace with WebSocket transport layer; host a lightweight relay server (or use WebRTC for peer-to-peer) |
-| File I/O (saves, decks) | No filesystem access in browser sandbox | Use browser `localStorage` or `IndexedDB` via Pygbag's async storage API |
-| Threading | No `threading` module in WASM/Emscripten | Refactor any threaded code to use `asyncio` (Pygbag requires `async` main loop) |
-| Audio | Pygame mixer works but browser may require user interaction first | Add a "Click to Start" splash to unlock audio context |
+| GPU shaders | ModernGL = desktop OpenGL 3.3; browsers = WebGL | Port GLSL to ES 3.0 or disable GPU effects in WASM |
+| LAN multiplayer | No raw TCP sockets in browsers | WebSocket relay server or WebRTC peer-to-peer |
+| File I/O | No filesystem in browser sandbox | Browser `localStorage` / `IndexedDB` via Pygbag |
+| Threading | No `threading` in WASM | Refactor to `asyncio` (Pygbag requires async main loop) |
+| Audio | Browser requires user interaction first | "Click to Start" splash to unlock audio context |
 
-**Alternative: Pyodide + Pygbag combo**
-
-Pyodide runs CPython in the browser via Emscripten/WASM. Combined with Pygbag's Pygame-to-canvas bridge, this gives full Python stdlib support. Heavier download (~15MB WASM runtime) but more compatible.
-
-**Shader porting notes:**
-
-The existing GLSL 3.3 core shaders (bloom, vignette, distortion, etc.) would need to be ported to GLSL ES 3.0 for WebGL 2.0:
-- `#version 330 core` → `#version 300 es`
-- Add `precision mediump float;` declarations
-- Replace `texture()` calls if using legacy `texture2D()`
-- FBO handling changes (WebGL framebuffer API differs from ModernGL)
-
-A `shaders/webgl/` directory with ES 3.0 variants + runtime detection (`if PLATFORM == "web": use_webgl_shaders()`) would keep both paths working.
-
-**Web Multiplayer Architecture:**
-
-The current LAN multiplayer uses raw TCP sockets (`socket.AF_INET, SOCK_STREAM`), which browsers cannot access. The web build needs a different transport layer while keeping the same game protocol.
-
-**Option A: WebSocket relay server (recommended)**
-```
-Browser Player A  ←WebSocket→  Relay Server  ←WebSocket→  Browser Player B
-                                    ↕ (also accepts TCP)
-                              Desktop Player C (LAN)
-```
-- A lightweight relay server (Python `websockets` or Node.js `ws`) bridges connections
-- Browser clients connect via `wss://` (secure WebSocket)
-- Desktop clients can also connect via WebSocket OR keep using raw TCP
-- The relay translates between WebSocket frames and the existing JSON+newline protocol
-- Cross-play between browser and desktop players works through the relay
-- Server can be hosted on any VPS, Heroku, Railway, or Fly.io (~$0-5/month)
-
-**Implementation plan:**
-1. Create `network_transport.py` — abstract transport layer with `TCPTransport` and `WebSocketTransport` implementations
-2. Refactor `lan_session.py` to use the transport abstraction instead of raw sockets
-3. Create `relay_server.py` — standalone WebSocket relay that rooms/matchmakes players
-4. Browser build auto-detects WASM environment → uses WebSocket transport
-5. Desktop build defaults to TCP (LAN) but can optionally connect to the relay for internet play
-
-**Option B: WebRTC peer-to-peer (advanced)**
-- No relay server needed — browsers connect directly via WebRTC data channels
-- Requires a signaling server (lightweight, only for initial handshake)
-- Lower latency than relay, but more complex NAT traversal
-- Libraries: `aiortc` (Python), or JavaScript WebRTC API via Pygbag's JS interop
-
-**Option C: Hybrid (best of both)**
-- LAN play: raw TCP sockets (desktop only, existing code)
-- Online play: WebSocket relay server (browser + desktop)
-- Same-network browser play: WebRTC peer-to-peer (no server needed)
-- Transport layer auto-selects based on platform and network conditions
-
-**Matchmaking for web:**
-- Relay server provides a simple lobby: create room → share room code → opponent joins
-- No account system needed — ephemeral room codes (e.g., `STARGATE-7X2K`)
-- Optional: public lobby listing for open matches
-
-**Hosting options:**
-- **GitHub Pages** — free, static hosting for the game client, deploy from CI
-- **itch.io** — game-focused platform, supports HTML5 games natively, built-in audience
-- **Relay server** — Python `websockets` on Fly.io / Railway / any VPS for multiplayer support
-- **All-in-one** — single server hosts both the static game files and the WebSocket relay
+**Multiplayer:** WebSocket relay server (Python `websockets` or Node.js) bridges browser↔browser and browser↔desktop. Room codes for matchmaking, no accounts needed. Host on Fly.io/Railway (~$0-5/month).
 
 ---
 
-## 🌌 Galactic Conquest Architecture (v8.3.0)
+## 🌌 Galactic Conquest Architecture (v9.0.0)
 
-Roguelite card-battle campaign mode. Conquer a galaxy of planets through card battles with deck progression.
+Roguelite card-battle campaign mode. Conquer a galaxy of planets through card battles with deck progression, diplomacy, and meta-progression.
 
 ### Package Structure: `galactic_conquest/`
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `__init__.py` | ~110 | Entry point `run_galactic_conquest()`, new campaign + resume + customize run routing |
-| `conquest_menu.py` | ~380 | CRT-themed submenu (New/Resume/Customize Run/Back) + CustomizeRunScreen with per-faction leader picker |
-| `campaign_state.py` | ~85 | CampaignState dataclass — faction, leader, deck, naquadah, planets, cooldowns, upgrades, friendly faction, enemy leaders |
-| `campaign_persistence.py` | ~100 | Save/load campaign JSON + conquest_settings.json via XDG paths |
-| `campaign_controller.py` | ~510 | Main orchestrator — turn loop, attacks, AI counterattacks, faction bonuses, defense bonuses, deck viewer, run info, defense alert sound |
-| `galaxy_map.py` | ~440 | Planet dataclass, GalaxyMap — procedural generation, adjacency graph, 9 neutral + 15 faction planets |
-| `map_renderer.py` | ~450 | Galaxy map renderer — planet clicks, two-row HUD, keyboard shortcuts (D/I/ESC) |
-| `faction_setup.py` | ~70 | Faction + leader selection, reuses deck_builder |
-| `card_battle.py` | ~60 | Card battle wrapper — builds Game + AIController, calls `main.main(lan_game_data=...)` |
-| `reward_screen.py` | ~290 | Post-victory card picks with planet control tier scaling + faction bonus display |
-| `neutral_events.py` | ~370 | 7 text events with choices + leader portrait display |
+| File | Description |
+|------|-------------|
+| `__init__.py` | Entry point `run_galactic_conquest()`, new campaign + resume + customize + unlocks routing |
+| `conquest_menu.py` | CRT-themed submenu (New/Resume/Customize/Unlocks/Back) + CustomizeRunScreen + unlocks screen |
+| `campaign_state.py` | CampaignState dataclass — ~20 fields (faction, leader, deck, naquadah, planets, cooldowns, upgrades, relics, buildings, network tier, diplomacy, crisis, difficulty, etc.) |
+| `campaign_persistence.py` | Save/load campaign JSON + conquest_settings.json via XDG paths |
+| `campaign_controller.py` | Main orchestrator — turn loop, attacks, AI counterattacks, defense, fortify, buildings, diplomacy, pre-battle preview, turn summary, crisis events, scoring |
+| `galaxy_map.py` | Planet dataclass, GalaxyMap — procedural generation, adjacency graph, supply lines, Ring Platform 2-hop |
+| `map_renderer.py` | Galaxy map renderer — pulsing hyperspace lanes, planet tooltips, shield/building icons, network tier HUD |
+| `faction_setup.py` | Faction + leader selection, reuses deck_builder |
+| `card_battle.py` | Card battle wrapper — weather injection, elite params, relic combat modifiers |
+| `reward_screen.py` | Post-victory card picks with tier scaling + passive/relic card choice bonuses |
+| `neutral_events.py` | 20 text events with choices + leader portrait display |
+| `planet_passives.py` | 18 planet passives (naq/turn, card choices, counterattack reduction, upgrade chance, cooldown reduction) |
+| `relics.py` | 18 relics (combat/economy/exploration) with homeworld relic mapping |
+| `relic_screen.py` | CRT acquisition screen + multi-choice mode |
+| `narrative_arcs.py` | 6 story chains (Ancients, System Lords, Jaffa Liberation, Asgard Exodus, Lucian Underworld, Alliance of Four Races) |
+| `difficulty.py` | 4 difficulty levels (Easy/Normal/Hard/Insane) scaling AI power, counterattack, naquadah |
+| `stargate_network.py` | Network tier system (Outpost→Regional→Sector→Quadrant→Galactic) based on connected territory |
+| `conquest_abilities.py` | 35 conquest-unique leader abilities with L1-L4 scaling tied to network tier |
+| `diplomacy.py` | Faction relations (Hostile→Neutral→Trading→Allied), trade/alliance/betray mechanics |
+| `diplomacy_screen.py` | CRT-styled diplomacy interface |
+| `buildings.py` | 5 planet building types (Refinery, Training Ground, Shipyard, Sensor Array, Shield Generator) |
+| `crisis_events.py` | 5 galaxy-wide crisis events (Replicator Outbreak, Ori Crusade, Plague, Ascension Wave, Wraith Invasion) |
+| `meta_progression.py` | Conquest Points, 5 unlockable perks, scoring system, high scores |
 
 ### Key Systems
 
-- **Customize Run**: Friendly faction, neutral event count (3-9), per-faction enemy leader selection; persisted in `conquest_settings.json`
-- **Faction Conquest Bonuses**: Tau'ri=intel card, Goa'uld=upgrade+2, Jaffa=remove weak, Lucian=+50 naquadah, Asgard=upgrade×2
-- **Defense Bonuses**: +1 card from attacker + 30% upgrade chance on successful counterattack defense
-- **Planet Control Scaling**: 3-5 planets=Standard (3 choices), 6-9=Enhanced (4 choices, +25% naq), 10+=Supreme (5 choices, +50% naq)
-- **Card Battle Integration**: Passes pre-built `Game` object to `main.main(lan_game_data={'game': game, 'ai_controller': ai_ctrl})`
-- **CRT Menu**: Pre-cached scanline overlay, pulsing amber title, CRT-green UI, faction-colored displays
-- **Leader Portrait**: Neutral event screens display player's leader card art alongside event text
+- **Stargate Network**: Connected planet count determines tier (1-3=Outpost, 4-6=Regional, ..., 15+=Galactic). Bonuses: naq/turn, cooldown reduction, attack range, leader ability level
+- **Conquest Abilities**: 35 leader abilities (7 per faction) scale L1-L4 with network tier. Triggered at hook points (on_victory, pre_battle, on_defense, on_turn_end, etc.)
+- **Diplomacy**: Faction relations from HOSTILE to ALLIED. Trade (50 naq), Alliance (100 naq + adjacency), Betray (+80 naq, permanent hostility)
+- **Difficulty System**: Easy/Normal/Hard/Insane scaling counterattack chance, starting naquadah, AI power bonus, loss penalty
+- **Buildings**: 5 types, 1 per planet. Refinery (+10 naq/turn), Training Ground (+1 defense power), Shipyard (+1 attack card), Sensor Array (reveal enemy), Shield Generator (cheaper fortify)
+- **Supply Lines**: Planets disconnected from homeworld are "unsupplied" (-50% income, +20% counterattack, no fortification)
+- **Crisis Events**: 10% chance/turn after turn 5 — galaxy-wide disruptions with dramatic screen display
+- **Meta-Progression**: Earn Conquest Points (CP) per run → unlock persistent perks (extra card, naq boost, veteran recruits, diplomatic immunity, ancient knowledge)
+- **Pre-Battle Preview**: ENGAGE/RETREAT screen showing player forces, enemy forces, weather, modifiers
+- **18 Relics**: Combat (Staff of Ra, Kull Armor), Economy (Asgard Core, Naquadah Reactor), Exploration (Ring Platform, Alteran Database)
+- **18 Planet Passives**: Owned planets grant bonuses (Earth +15 naq/turn, Atlantis +1 card choice, Antarctica -8% counterattack, etc.)
+- **6 Narrative Arcs**: Story chains tracking planet conquest sequences → relic/naquadah rewards
 - **Post-Battle Refresh**: `_refresh_after_battle()` — `self.screen = display_manager.screen` + rebuild MapScreen + `pygame.event.clear()`
 
 ---
@@ -965,7 +752,7 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 | `spawner.py` | ~280 | ContinuousSpawner with 10 tiers, paired/swarm spawning, random alt variant sprites |
 | `ship_select.py` | ~200 | Ship selection screen with Up/Down variant picking, variant dots, description |
 | `coop_game.py` | ~1100 | CoopSpaceShooterGame — host-authoritative co-op, independent P1 camera, supergate/beam snapshot, revival |
-| `coop_client.py` | ~540 | Client renderer — independent P2 camera, full entity + supergate + beam rendering, disconnect overlay |
+| `coop_client.py` | ~610 | Client renderer — independent P2 camera, full entity + supergate + beam + mine + ion pulse rendering, disconnect overlay with last-known score |
 | `coop_protocol.py` | ~75 | Message types: INPUT, STATE, ACTION, LEVEL_UP, GAME_OVER, HEARTBEAT, DISCONNECT + variant in READY |
 | `coop_ui.py` | ~130 | Dual health bars, partner arrow, revival pulse, leash warning |
 | `virtual_keys.py` | ~55 | Network input translation for co-op |
@@ -991,5 +778,72 @@ The space shooter easter egg is a Vampire Survivors-style infinite survival mini
 - **Environmental Hazards**: Sun/wormhole with 5 lifecycle phases, gravity pull (550px range), core damage
 - **Ally Ships**: Summoned via upgrades/powerups/Jaffa Rally secondary, follow owner, engage enemies, auto-fire
 - **Co-op Revival**: Ghost mode on death, revive by killing any enemy, 3s per-player invulnerability on respawn (blocks projectiles, beams, contact, bombs — uses dedicated `p1_invuln_timer`/`p2_invuln_timer` instead of shared powerup)
-- **Co-op Networking**: 20 Hz state snapshots with expanded entity serialization (incl. supergates + beams + per-player invuln timers), heartbeat/disconnect handling, variant in READY payload
+- **Co-op Networking**: 20 Hz state snapshots with expanded entity serialization (incl. supergates + beams + per-player invuln timers + proximity mines + ion pulses), heartbeat/disconnect handling, variant in READY payload, keepalive-aware disconnect detection, game-over retry
 - **Audio Cleanup**: `_stop_space_music()` stops both music and all SFX channels (`pygame.mixer.stop()`) — no lingering sounds on exit
+
+#### Chat System Overhaul
+- ✅ **Sound Notifications** – Audio feedback for incoming messages:
+  - Plays `assets/audio/chat_notification.ogg` on peer messages
+  - Respects game sound settings (silent if file missing)
+- ✅ **Chat Scrolling** – Full history navigation:
+  - PageUp/PageDown, Home/End keys for scrolling
+  - Mouse wheel support
+  - Keeps 100 messages in memory (was 20)
+  - "New messages below" indicator when scrolled up
+- ✅ **Quick Chat** – Pre-defined messages via number keys:
+  - `1`: "Good game!"
+  - `2`: "Nice play!"
+  - `3`: "Good luck!"
+  - `4`: "One moment..."
+  - `5`: "Well played!"
+  - Hints displayed below chat input
+- ✅ **Unread Message Indicator** – Track messages when chat minimized:
+  - Badge shows unread count
+  - Clears when chat is opened
+  - `draw_unread_badge()` method for custom UI placement
+- ✅ **Message Delivery Confirmation** – Know your messages arrived:
+  - Unique message IDs with ACK protocol
+  - Checkmark (v) appears next to confirmed messages
+  - Unconfirmed messages shown dimmed
+  - Auto-confirms after 5-second timeout
+- ✅ **Thread-Safe Session** – All LAN operations protected:
+  - Socket lock for concurrent send/recv/close across threads
+  - Duplicate disconnect prevention (reader + keepalive dedup)
+  - Parse error tolerance raised to 10 consecutive
+  - Game action ACKs with msg_id tracking and stale warnings
+- ✅ **Chat Robustness** – Reliable message handling:
+  - Typing indicator throttled (1 per 500ms instead of per-keystroke)
+  - All queued messages drained per frame (not just one)
+  - Proper `queue.Empty` exception handling
+### Card Unlocks ✅
+- **Trigger**: Win any game
+- **Reward**: Choose 1 of 3 random cards
+- **Filter**: Only shows cards from your faction + Neutral
+- **Total**: 20 unlockable cards (ALL abilities verified v3.9.4!)
+- **Persistence**: Saved to `player_unlocks.json`
+- **Usage**: Access via Deck Builder to customize decks
+
+### Leader Unlocks 🎖️
+- **Trigger**: Win 3 games in a row
+- **Reward**: Choose 1 of 3 faction leaders
+- **Filter**: Only shows leaders from your current faction
+- **Total**: 20 unlockable leaders (4 per faction)
+- **Effect**: Replaces current leader (can switch anytime)
+- **Persistence**: Saved to `player_unlocks.json` per faction
+
+### Deck Customization 🃏
+- **Access**: Main Menu → "DECK BUILDING"
+- **Rules**:
+  - **MINIMUM 20 cards** to start a game
+  - Maximum 40 cards
+  - At least 15 unit cards
+  - Only your faction + Neutral cards
+  - **Naquadah Budget**: 150 Naquadah limit (cost = 4 + power - 1, heroes +3 bonus)
+  - **Mercenary Tax**: If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25%.
+  - **Ori Corruption**: Decks exceeding 150 Naquadah suffer 50% score reduction in-game!
+- **Features**:
+  - Add/remove cards from your unlocked collection
+  - Select leader from unlocked leaders
+  - Save custom decks per faction (auto-saves when done)
+  - Reset to default anytime
+- **Persistence**: Saved to `player_decks.json`

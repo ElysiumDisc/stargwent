@@ -82,14 +82,15 @@ class ConquestMenu:
         btn_w = int(self.sw * 0.28)
         btn_h = int(self.sh * 0.065)
         btn_x = self.sw // 2 - btn_w // 2
-        btn_y_start = int(self.sh * 0.45)
-        btn_spacing = int(self.sh * 0.09)
+        btn_y_start = int(self.sh * 0.40)
+        btn_spacing = int(self.sh * 0.08)
 
         self.buttons = []
         labels = [
             ("NEW CAMPAIGN", "new_run"),
             ("RESUME", "resume"),
             ("CUSTOMIZE RUN", "customize_run"),
+            ("UNLOCKS", "unlocks"),
             ("BACK", "back"),
         ]
         for i, (label, action) in enumerate(labels):
@@ -168,6 +169,17 @@ class ConquestMenu:
         pygame.draw.line(screen, line_color,
                          (self.sw // 2 - line_w // 2, line_y),
                          (self.sw // 2 + line_w // 2, line_y), 2)
+
+        # Meta-progression stats
+        from .meta_progression import load_meta
+        meta = load_meta()
+        cp = meta.get("total_cp", 0)
+        played = meta.get("campaigns_played", 0)
+        won = meta.get("campaigns_won", 0)
+        perks = len(meta.get("unlocked_perks", []))
+        meta_text = f"CP: {cp}  |  Campaigns: {played}  |  Wins: {won}  |  Perks: {perks}/5"
+        meta_surf = self.info_font.render(meta_text, True, CRT_CYAN)
+        screen.blit(meta_surf, (self.sw // 2 - meta_surf.get_width() // 2, line_y + 8))
 
         # Buttons
         for i, btn in enumerate(self.buttons):
@@ -248,6 +260,10 @@ class CustomizeRunScreen:
         self.faction_options = [None] + list(ALL_FACTIONS)
         # Neutral event count options
         self.neutral_options = [3, 5, 7, 9]
+        # Difficulty options
+        from .difficulty import DIFFICULTY_ORDER, DIFFICULTIES
+        self.difficulty_options = DIFFICULTY_ORDER
+        self.difficulty_data = DIFFICULTIES
 
         # Current indices
         self.faction_index = 0
@@ -259,6 +275,11 @@ class CustomizeRunScreen:
         nc = self.settings.get("neutral_count", 5)
         if nc in self.neutral_options:
             self.neutral_index = self.neutral_options.index(nc)
+
+        self.difficulty_index = 1  # default "normal"
+        diff = self.settings.get("difficulty", "normal")
+        if diff in self.difficulty_options:
+            self.difficulty_index = self.difficulty_options.index(diff)
 
         # Enemy leader settings per faction
         self.enemy_leaders = dict(self.settings.get("enemy_leaders", {}))
@@ -318,11 +339,18 @@ class CustomizeRunScreen:
             int(self.sw * 0.70) - arrow_w, row_y, arrow_w, arrow_h)
 
         # Neutral Events row
-        row_y2 = int(self.sh * 0.34)
+        row_y2 = int(self.sh * 0.30)
         self.neutral_left = pygame.Rect(
             int(self.sw * 0.30), row_y2, arrow_w, arrow_h)
         self.neutral_right = pygame.Rect(
             int(self.sw * 0.70) - arrow_w, row_y2, arrow_w, arrow_h)
+
+        # Difficulty row
+        row_y3 = int(self.sh * 0.38)
+        self.difficulty_left = pygame.Rect(
+            int(self.sw * 0.30), row_y3, arrow_w, arrow_h)
+        self.difficulty_right = pygame.Rect(
+            int(self.sw * 0.70) - arrow_w, row_y3, arrow_w, arrow_h)
 
         # Enemy leader rows (up to 5 factions)
         self.leader_rows = {}
@@ -359,6 +387,12 @@ class CustomizeRunScreen:
                 self.neutral_index = (self.neutral_index - 1) % len(self.neutral_options)
             elif self.neutral_right.collidepoint(mx, my):
                 self.neutral_index = (self.neutral_index + 1) % len(self.neutral_options)
+
+            # Difficulty arrows
+            elif self.difficulty_left.collidepoint(mx, my):
+                self.difficulty_index = (self.difficulty_index - 1) % len(self.difficulty_options)
+            elif self.difficulty_right.collidepoint(mx, my):
+                self.difficulty_index = (self.difficulty_index + 1) % len(self.difficulty_options)
 
             # Leader arrows
             else:
@@ -409,6 +443,7 @@ class CustomizeRunScreen:
         self.settings = {
             "friendly_faction": self.faction_options[self.faction_index],
             "neutral_count": self.neutral_options[self.neutral_index],
+            "difficulty": self.difficulty_options[self.difficulty_index],
             "enemy_leaders": leaders,
         }
         save_conquest_settings(self.settings)
@@ -447,7 +482,15 @@ class CustomizeRunScreen:
         self._draw_option_row(screen, "NEUTRAL EVENTS",
                               f"Number of neutral planets with text events (max {self.neutral_options[-1]})",
                               str(nc_val), CRT_CYAN,
-                              int(self.sh * 0.30), self.neutral_left, self.neutral_right)
+                              int(self.sh * 0.26), self.neutral_left, self.neutral_right)
+
+        # --- Difficulty ---
+        diff_key = self.difficulty_options[self.difficulty_index]
+        diff_data = self.difficulty_data[diff_key]
+        self._draw_option_row(screen, "DIFFICULTY",
+                              diff_data["description"],
+                              diff_data["name"], diff_data["color"],
+                              int(self.sh * 0.34), self.difficulty_left, self.difficulty_right)
 
         # --- Enemy Leaders Section ---
         section_y = int(self.sh * 0.44)
@@ -625,4 +668,191 @@ def run_customize_screen(screen, toggle_fullscreen_callback=None):
                 return
 
         customize.draw(screen)
+        display_manager.gpu_flip()
+
+
+def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
+    """Show the meta-progression unlocks screen where players spend CP on perks."""
+    from .meta_progression import load_meta, get_all_perks_display, unlock_perk, load_high_scores
+
+    sw, sh = screen.get_width(), screen.get_height()
+    clock = pygame.time.Clock()
+
+    title_font = pygame.font.SysFont("Impact, Arial", max(48, sh // 18), bold=True)
+    section_font = pygame.font.SysFont("Impact, Arial", max(24, sh // 38), bold=True)
+    perk_font = pygame.font.SysFont("Arial", max(18, sh // 50), bold=True)
+    info_font = pygame.font.SysFont("Arial", max(15, sh // 65))
+    hint_font = pygame.font.SysFont("Arial", max(14, sh // 70))
+
+    # Perk button layout
+    perk_w = int(sw * 0.55)
+    perk_h = int(sh * 0.065)
+    perk_x = sw // 2 - perk_w // 2
+    perk_y_start = int(sh * 0.22)
+    perk_spacing = int(sh * 0.08)
+
+    frame_count = 0
+    message = ""
+    message_timer = 0
+    hovered_perk = -1
+
+    # Load background
+    background = None
+    bg_path = os.path.join("assets", "conquest_menu_bg.png")
+    if not os.path.exists(bg_path):
+        bg_path = os.path.join("assets", "conquest.png")
+    try:
+        raw = pygame.image.load(bg_path).convert()
+        background = pygame.transform.smoothscale(raw, (sw, sh))
+    except (pygame.error, FileNotFoundError):
+        background = pygame.Surface((sw, sh))
+        background.fill((8, 12, 10))
+
+    running = True
+    while running:
+        clock.tick(60)
+        frame_count += 1
+        if message_timer > 0:
+            message_timer -= 1
+
+        perks = get_all_perks_display()
+        meta = load_meta()
+        total_cp = meta.get("total_cp", 0)
+
+        # Build perk rects
+        perk_rects = []
+        for i in range(len(perks)):
+            perk_rects.append(pygame.Rect(perk_x, perk_y_start + i * perk_spacing, perk_w, perk_h))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_F11:
+                    if toggle_fullscreen_callback:
+                        toggle_fullscreen_callback()
+                    else:
+                        display_manager.toggle_fullscreen_mode()
+                    screen = display_manager.screen
+                    sw, sh = screen.get_width(), screen.get_height()
+                    pygame.event.clear()
+                    break
+
+            elif event.type == pygame.MOUSEMOTION:
+                mx, my = event.pos
+                hovered_perk = -1
+                for i, rect in enumerate(perk_rects):
+                    if rect.collidepoint(mx, my):
+                        hovered_perk = i
+                        break
+
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx, my = event.pos
+                for i, rect in enumerate(perk_rects):
+                    if rect.collidepoint(mx, my) and i < len(perks):
+                        pid, name, desc, cost, icon, is_unlocked = perks[i]
+                        if not is_unlocked:
+                            success, msg = unlock_perk(pid)
+                            message = msg
+                            message_timer = 120
+                        else:
+                            message = f"{name} is already unlocked!"
+                            message_timer = 60
+
+        # Draw
+        screen.blit(background, (0, 0))
+        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        # Title
+        pulse = 0.85 + 0.15 * math.sin(frame_count * 0.03)
+        title_color = tuple(int(c * pulse) for c in CRT_AMBER)
+        title = title_font.render("CONQUEST UNLOCKS", True, title_color)
+        screen.blit(title, (sw // 2 - title.get_width() // 2, int(sh * 0.04)))
+
+        # CP display
+        cp_text = section_font.render(f"Conquest Points: {total_cp}", True, CRT_CYAN)
+        screen.blit(cp_text, (sw // 2 - cp_text.get_width() // 2, int(sh * 0.13)))
+
+        # Perks
+        for i, (pid, name, desc, cost, icon, is_unlocked) in enumerate(perks):
+            if i >= len(perk_rects):
+                break
+            rect = perk_rects[i]
+
+            if is_unlocked:
+                bg_color = (20, 50, 30)
+                border_color = CRT_GREEN
+                text_color = CRT_GREEN
+            elif i == hovered_perk:
+                bg_color = CRT_BTN_HOVER
+                border_color = CRT_BTN_BORDER_HOVER
+                text_color = (255, 255, 255)
+            else:
+                bg_color = CRT_BTN_BG
+                border_color = CRT_BTN_BORDER
+                text_color = CRT_TEXT
+
+            btn_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            btn_surf.fill((*bg_color, 220))
+            screen.blit(btn_surf, rect.topleft)
+            pygame.draw.rect(screen, border_color, rect, 2)
+
+            # Icon + name
+            label_text = f"{icon} {name}"
+            if is_unlocked:
+                label_text += " [UNLOCKED]"
+            else:
+                affordable = " " if total_cp >= cost else " (need more CP) "
+                label_text += f" — {cost} CP{affordable}"
+            label = perk_font.render(label_text, True, text_color)
+            screen.blit(label, (rect.x + 12, rect.y + 6))
+
+            # Description below
+            desc_surf = info_font.render(desc, True, CRT_TEXT_DIM if is_unlocked else CRT_TEXT)
+            screen.blit(desc_surf, (rect.x + 12, rect.y + rect.height - desc_surf.get_height() - 4))
+
+        # High scores section
+        scores_y = perk_y_start + len(perks) * perk_spacing + int(sh * 0.03)
+        scores_title = section_font.render("HIGH SCORES", True, CRT_AMBER)
+        screen.blit(scores_title, (sw // 2 - scores_title.get_width() // 2, scores_y))
+        scores_y += scores_title.get_height() + 8
+
+        high_scores = load_high_scores()
+        if high_scores:
+            for j, entry in enumerate(high_scores[:5]):
+                score_text = (f"#{j+1}  {entry.get('score', 0)} pts — "
+                              f"{entry.get('faction', '?')} ({entry.get('leader', '?')}) — "
+                              f"{entry.get('difficulty', '?').title()} — "
+                              f"T{entry.get('turns', '?')} — +{entry.get('cp_earned', 0)} CP")
+                color = CRT_AMBER if j == 0 else CRT_TEXT
+                s = info_font.render(score_text, True, color)
+                screen.blit(s, (sw // 2 - s.get_width() // 2, scores_y))
+                scores_y += s.get_height() + 4
+        else:
+            no_scores = info_font.render("No campaigns completed yet.", True, CRT_TEXT_DIM)
+            screen.blit(no_scores, (sw // 2 - no_scores.get_width() // 2, scores_y))
+
+        # Message
+        if message and message_timer > 0:
+            msg_surf = perk_font.render(message, True, (100, 255, 200))
+            screen.blit(msg_surf, (sw // 2 - msg_surf.get_width() // 2, int(sh * 0.92)))
+
+        # CRT scanlines
+        scanlines = _get_scanline_overlay(sw, sh, alpha=25)
+        screen.blit(scanlines, (0, 0))
+
+        # Bottom bar
+        bar_h = int(sh * 0.035)
+        bar_rect = pygame.Rect(0, sh - bar_h, sw, bar_h)
+        bar_surf = pygame.Surface((bar_rect.width, bar_rect.height), pygame.SRCALPHA)
+        bar_surf.fill((0, 0, 0, 180))
+        screen.blit(bar_surf, bar_rect.topleft)
+        hint = hint_font.render("ESC to return  |  Click a perk to unlock", True, CRT_TEXT_DIM)
+        screen.blit(hint, (int(sw * 0.04), bar_rect.centery - hint.get_height() // 2))
+
         display_manager.gpu_flip()

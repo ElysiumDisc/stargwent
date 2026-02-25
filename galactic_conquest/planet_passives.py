@@ -119,6 +119,22 @@ PLANET_PASSIVES = {
 }
 
 
+def get_planet_passive(planet_id, galaxy_map):
+    """Get the passive for a specific planet, or None.
+
+    Args:
+        planet_id: Planet ID string
+        galaxy_map: GalaxyMap instance
+
+    Returns:
+        Passive dict or None.
+    """
+    planet = galaxy_map.planets.get(planet_id)
+    if planet and planet.name in PLANET_PASSIVES:
+        return PLANET_PASSIVES[planet.name]
+    return None
+
+
 def get_active_passives(galaxy_map):
     """Get list of active passives from player-owned planets.
 

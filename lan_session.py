@@ -19,9 +19,14 @@ class LanSession:
         self.connection_timeout = 30  # seconds without message = disconnect
         self.keepalive_interval = 5   # send keepalive every 5 seconds
 
-        # JSON error recovery (3 strikes = disconnect)
+        # Thread safety: lock for all socket send/recv/close operations
+        self._sock_lock = threading.Lock()
+        # Prevent duplicate disconnect messages from reader + keepalive threads
+        self._disconnect_sent = False
+
+        # JSON error recovery (10 consecutive strikes = disconnect)
         self.parse_error_count = 0
-        self.max_parse_errors = 3
+        self.max_parse_errors = 10
 
         # Ping/latency tracking
         self.current_rtt = 0  # milliseconds
@@ -101,7 +106,11 @@ class LanSession:
         buffer = b""
         while not self.stop_event.is_set():
             try:
-                data = self.sock.recv(4096)
+                with self._sock_lock:
+                    sock = self.sock
+                if not sock:
+                    break
+                data = sock.recv(4096)
                 if not data:
                     # Connection closed cleanly
                     break
@@ -164,8 +173,12 @@ class LanSession:
                     continue  # Try next message instead of disconnecting
 
         self.stop_event.set()
-        self.inbox.put({"type": "disconnect"})
-        self.chat_inbox.put({"type": "disconnect"})
+        # Send disconnect to queues only once (reader or keepalive, whichever exits first)
+        with self._sock_lock:
+            if not self._disconnect_sent:
+                self._disconnect_sent = True
+                self.inbox.put({"type": "disconnect"})
+                self.chat_inbox.put({"type": "disconnect"})
 
     def _keepalive_sender(self):
         """Send periodic keepalive and ping messages to detect dead connections and measure latency."""
@@ -175,7 +188,9 @@ class LanSession:
                 try:
                     # Send keepalive packet
                     packet = json.dumps({"type": "keepalive"}).encode("utf-8") + b"\n"
-                    self.sock.sendall(packet)
+                    with self._sock_lock:
+                        if self.sock:
+                            self.sock.sendall(packet)
 
                     # Also send ping for latency measurement
                     self.last_ping_time = time.time()
@@ -183,12 +198,17 @@ class LanSession:
                         "type": "ping",
                         "payload": {"timestamp": self.last_ping_time}
                     }).encode("utf-8") + b"\n"
-                    self.sock.sendall(ping_packet)
+                    with self._sock_lock:
+                        if self.sock:
+                            self.sock.sendall(ping_packet)
                 except OSError:
-                    # Connection lost
+                    # Connection lost — send disconnect only once
                     self.stop_event.set()
-                    self.inbox.put({"type": "disconnect"})
-                    self.chat_inbox.put({"type": "disconnect"})
+                    with self._sock_lock:
+                        if not self._disconnect_sent:
+                            self._disconnect_sent = True
+                            self.inbox.put({"type": "disconnect"})
+                            self.chat_inbox.put({"type": "disconnect"})
                     break
 
     def is_connected(self):
@@ -229,21 +249,26 @@ class LanSession:
             return None
 
     def send(self, message_type, payload=None):
-        if self.stop_event.is_set() or not self.sock:
+        if self.stop_event.is_set():
             return False
         packet = json.dumps({"type": message_type, "payload": payload}).encode("utf-8") + b"\n"
         try:
-            self.sock.sendall(packet)
+            with self._sock_lock:
+                if not self.sock:
+                    return False
+                self.sock.sendall(packet)
             return True
         except OSError:
             return False
 
     def close(self):
         self.stop_event.set()
-        if self.sock:
+        with self._sock_lock:
+            sock = self.sock
+            self.sock = None
+        if sock:
             try:
-                self.sock.shutdown(socket.SHUT_RDWR)
+                sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
-            self.sock.close()
-            self.sock = None
+            sock.close()

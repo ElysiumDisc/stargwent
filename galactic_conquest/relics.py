@@ -116,6 +116,34 @@ RELICS = {
         icon_char="\u2B2F",  # mirror
         category="exploration",
     ),
+    "teltak_transport": Relic(
+        id="teltak_transport",
+        name="Tel'tak Transport",
+        description="See defender power total before attacking",
+        icon_char="\u2708",  # airplane
+        category="exploration",
+    ),
+    "jaffa_tretonin": Relic(
+        id="jaffa_tretonin",
+        name="Jaffa Tretonin",
+        description="Weather can't reduce your cards below 3 power",
+        icon_char="\u2695",  # caduceus
+        category="combat",
+    ),
+    "ancient_repository": Relic(
+        id="ancient_repository",
+        name="Ancient Repository",
+        description="+30 naq/turn if you control Atlantis",
+        icon_char="\u2261",  # triple bar
+        category="economy",
+    ),
+    "asgard_time_machine": Relic(
+        id="asgard_time_machine",
+        name="Asgard Time Machine",
+        description="Once per campaign: undo last planet loss",
+        icon_char="\u231B",  # hourglass
+        category="exploration",
+    ),
 }
 
 

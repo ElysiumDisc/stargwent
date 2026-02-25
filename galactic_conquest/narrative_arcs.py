@@ -45,6 +45,30 @@ NARRATIVE_ARCS = {
         rewards={"type": "relic_and_naquadah", "value": {"relic": "staff_of_ra", "naquadah": 100}},
         completion_message="The Jaffa are free! Teal'c would be proud. Staff of Ra + 100 Naquadah.",
     ),
+    "asgard_exodus": NarrativeArc(
+        id="asgard_exodus",
+        name="Asgard Exodus",
+        description="Secure the remnants of the Asgard civilization before their knowledge is lost.",
+        required_planets=["Othala", "Orilla", "Hala"],
+        rewards={"type": "relic_and_naquadah", "value": {"relic": "thors_hammer", "naquadah": 80}},
+        completion_message="The Asgard legacy is preserved! Thor's Hammer secured + 80 Naquadah.",
+    ),
+    "lucian_underworld": NarrativeArc(
+        id="lucian_underworld",
+        name="Lucian Underworld",
+        description="Dismantle the Lucian Alliance's criminal network across the galaxy.",
+        required_planets=["P4C-452", "Lucia", "Langara"],
+        rewards={"type": "naquadah_and_purge", "value": 200},
+        completion_message="The Lucian Alliance is crushed! +200 Naquadah, 5 weak cards purged.",
+    ),
+    "alliance_of_four_races": NarrativeArc(
+        id="alliance_of_four_races",
+        name="Alliance of Four Races",
+        description="Unite the legacy of the four great races: Ancients, Asgard, Nox, and Furlings.",
+        required_planets=["Earth", "Atlantis", "Othala"],
+        rewards={"type": "relic_and_naquadah", "value": {"relic": "quantum_mirror", "naquadah": 150}},
+        completion_message="The Alliance is reborn! Quantum Mirror + 150 Naquadah.",
+    ),
 }
 
 
@@ -102,12 +126,13 @@ def apply_arc_rewards(campaign_state, arc):
 
     elif rewards["type"] == "naquadah_and_purge":
         campaign_state.add_naquadah(rewards["value"])
-        # Remove 3 weakest cards
+        # Remove weakest cards (more for higher naq rewards)
+        purge_count = 5 if rewards["value"] >= 200 else 3
         from cards import ALL_CARDS
         deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
                       for cid in campaign_state.current_deck]
         deck_power.sort(key=lambda x: x[1])
-        for cid, _ in deck_power[:3]:
+        for cid, _ in deck_power[:purge_count]:
             if len(campaign_state.current_deck) > 10:
                 campaign_state.remove_card(cid)
 

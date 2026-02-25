@@ -41,14 +41,18 @@ def _apply_relic_combat_modifiers(relics, player_deck, ai_deck, player_faction):
             if hasattr(card, 'power') and card.power is not None and card.power > 1:
                 card.power -= 1
 
-    # Netu Enemy Debuff: enemy starts -1 card (handled by removing from deck)
-    # (This is handled in campaign_controller via weaken_enemy passive, not here)
+    # Ori Prior Staff: flag for weather minimum 3 (applied in game.py calculate_score)
+    # (Handled via game.conquest_relics check in Player.calculate_score)
+
+    # Weaken enemy passive: handled in campaign_controller before calling run_card_battle
 
 
 def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
                     ai_faction, ai_leader, exempt_penalties=True,
                     starting_weather=None, upgraded_cards=None,
-                    ai_elite_bonus=0, ai_extra_cards=0, relics=None):
+                    ai_elite_bonus=0, ai_extra_cards=0, relics=None,
+                    ai_weaken_amount=0, extra_player_cards=0,
+                    fort_defense_bonus=0):
     """
     Run a complete card battle for Galactic Conquest.
 
@@ -118,6 +122,38 @@ def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
     if relics:
         _apply_relic_combat_modifiers(relics, player_deck, ai_deck, player_faction)
 
+    # Ancient ZPM: +1 starting card (add extra card to player deck before Game creation)
+    if relics and "ancient_zpm" in relics:
+        faction_pool = [cid for cid, c in ALL_CARDS.items()
+                        if getattr(c, 'faction', None) == player_faction
+                        and getattr(c, 'card_type', '') != "Legendary Commander"
+                        and getattr(c, 'row', '') != "weather"]
+        if faction_pool:
+            extra_cid = random.choice(faction_pool)
+            player_deck.append(copy.deepcopy(ALL_CARDS[extra_cid]))
+
+    # Weaken enemy passive: remove cards from AI deck
+    if ai_weaken_amount and ai_weaken_amount > 0 and len(ai_deck) > 10:
+        for _ in range(min(ai_weaken_amount, len(ai_deck) - 10)):
+            ai_deck.pop(random.randrange(len(ai_deck)))
+
+    # Extra player cards for defense (extra_defense_card passive)
+    if extra_player_cards and extra_player_cards > 0:
+        faction_pool = [cid for cid, c in ALL_CARDS.items()
+                        if getattr(c, 'faction', None) == player_faction
+                        and getattr(c, 'card_type', '') != "Legendary Commander"
+                        and getattr(c, 'row', '') != "weather"]
+        if faction_pool:
+            for _ in range(extra_player_cards):
+                extra_cid = random.choice(faction_pool)
+                player_deck.append(copy.deepcopy(ALL_CARDS[extra_cid]))
+
+    # Fortification defense bonus: +1 power per fort level to all player cards
+    if fort_defense_bonus and fort_defense_bonus > 0:
+        for card in player_deck:
+            if hasattr(card, 'power') and card.power is not None:
+                card.power += fort_defense_bonus
+
     # Create Game object
     game = Game(
         player1_faction=player_faction,
@@ -129,6 +165,9 @@ def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
         player2_is_ai=True,
         player1_exempt_penalties=exempt_penalties,
     )
+
+    # Attach conquest relics to game for in-game effects (spy blocking, weather min, etc.)
+    game.conquest_relics = list(relics) if relics else []
 
     # Wire starting weather into game state
     if starting_weather and isinstance(starting_weather, dict):

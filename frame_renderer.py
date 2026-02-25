@@ -854,6 +854,14 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         )
         draw_opponent_hand(screen, game.player2)
 
+        # Conquest Quantum Mirror relic: show enemy hand size indicator
+        if getattr(game, 'conquest_relics', None) and "quantum_mirror" in game.conquest_relics:
+            enemy_hand_count = len(game.player2.hand)
+            qm_font = cfg.get_font("Arial", max(16, int(18 * SCALE_FACTOR)), bold=True)
+            qm_text = qm_font.render(f"Enemy Hand: {enemy_hand_count}", True, (180, 140, 255))
+            screen.blit(qm_text, (SCREEN_WIDTH - qm_text.get_width() - int(20 * SCALE_FACTOR),
+                                   cfg.opponent_hand_area_y + cfg.OPPONENT_HAND_HEIGHT + int(4 * SCALE_FACTOR)))
+
         # Draw keyboard navigation hint when active
         if game.current_player == game.player1 and state.ui_state == UIState.PLAYING:
             hint_font = cfg.get_font("Arial", max(18, int(20 * SCALE_FACTOR)))

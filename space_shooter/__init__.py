@@ -252,11 +252,15 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
         if game.exit_to_menu:
             session.send(CoopMsg.DISCONNECT, {"reason": "host_exit"})
         else:
-            session.send(CoopMsg.GAME_OVER, {
+            game_over_payload = {
                 'score': game.score,
                 'survival_frames': game.survival_frames,
                 'enemies_defeated': game.enemies_defeated,
-            })
+            }
+            # Send game-over twice with a short gap — cheap insurance on LAN
+            session.send(CoopMsg.GAME_OVER, game_over_payload)
+            pygame.time.wait(100)
+            session.send(CoopMsg.GAME_OVER, game_over_payload)
 
         _stop_space_music()
         return None if game.exit_to_menu else game.survival_seconds > 120
@@ -298,6 +302,7 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
             # Receive state snapshots
             msg = session.receive()
             while msg:
+                client.on_any_message()  # Reset disconnect timer on any message
                 mtype = msg.get("type")
                 if mtype == CoopMsg.STATE:
                     client.apply_state(msg.get("payload", {}))

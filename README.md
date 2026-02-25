@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-8.8.0-blue)
+![Version](https://img.shields.io/badge/version-9.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -96,7 +96,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
 - **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
 - **14 Enemy Types** - Regular, Fast, Tank, Elite, Kamikaze + Stargate-themed (Wraith Dart, Replicator, Ori Fighter, Ancient Drone, Death Glider, Al'kesh Bomber, Wraith Hive mini-boss, Ori Mothership boss, Wraith Supergate boss)
-- **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, and per-player revival invulnerability all synced perfectly across both players
+- **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, per-player revival invulnerability, proximity mines, and ion pulse effects all synced across both players
 - **Co-op Revival** - When a player dies, their partner's next kill revives them at the partner's position with 50% HP/shields and 3 seconds of per-player invulnerability (blocks all damage: projectiles, beams, contact, bombs)
 - **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, per-faction + per-variant thruster boost sounds, per-variant secondary fire sounds, cloak activation sound, supergate activation sound, Ori beam + Wraith beam boss sounds — all controlled by Master/Effects volume sliders. Audio cuts off immediately on game exit
 - **Asteroid Field Events** - Periodic dense asteroid waves from a random direction with 3-second warning, escalating density and duration, navigate or destroy to survive
@@ -106,19 +106,26 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🌌 Galactic Conquest (Roguelite Campaign)
 - **Territory Conquest**: Conquer a galaxy of 20+ planets through card battles across 5 faction territories
 - **Roguelite Deck Progression**: Draft cards from defeated factions, upgrade card power, trim weak cards
-- **Customize Your Run**: Choose friendly factions, neutral event count, and enemy leaders before starting
-- **Faction Conquest Bonuses**: Each faction grants unique rewards — Tau'ri intel, Goa'uld domination, Jaffa training, Lucian trade, Asgard tech
-- **15 Neutral Events**: Trader caravans, Replicator infestations, Prior conversions, Time Dilation, Tok'ra alliances, Furling ruins, Ba'al clones, Wraith cullings, Ascension trials, and more
-- **14 Stargate Relics**: Combat relics (Staff of Ra, Thor's Hammer, Kull Armor), Economy relics (Asgard Core, Naquadah Reactor), Exploration relics (Ring Platform 2-hop, Alteran Database) — homeworlds award guaranteed faction relics
-- **18 Planet Passives**: Owned planets grant bonuses — Earth +15 naq/turn, Atlantis +1 card choice, Tartarus enemies -1 card, and more
-- **Fortification System**: Spend naquadah to fortify planets (max level 3) with shield icons on the galaxy map
+- **Customize Your Run**: Choose friendly factions, neutral event count, enemy leaders, and difficulty before starting
+- **4 Difficulty Levels**: Easy / Normal / Hard / Insane — scaling counterattack chance, starting naquadah, AI power, and loss penalties
+- **Stargate Network**: Connected planet count determines network tier (Outpost → Regional → Sector → Quadrant → Galactic) with scaling bonuses — naquadah income, cooldown reduction, attack range, and leader ability level
+- **35 Conquest Leader Abilities**: Every leader has a unique conquest ability (L1-L4) that scales with network tier — O'Neill's MacGyver Protocol, Carter's Naquadah Generator, Ba'al's Clone Network, Thor's Asgard Fleet, and 31 more
+- **Diplomacy System**: Faction relations from HOSTILE to ALLIED — trade agreements (50 naq), alliances (100 naq + shared adjacency), betrayals (+80 naq, permanent hostility)
+- **5 Planet Buildings**: Naquadah Refinery, Training Ground, Shipyard, Sensor Array, Shield Generator — 1 per planet
+- **Supply Lines**: Planets disconnected from homeworld are unsupplied (-50% income, +20% counterattack, no fortification)
+- **18 Stargate Relics**: Combat, Economy, and Exploration relics — homeworlds award guaranteed faction relics
+- **18 Planet Passives**: Owned planets grant bonuses — Earth +15 naq/turn, Atlantis +1 card choice, and more
+- **20 Neutral Events**: Trader caravans, Nox Sanctuary, Tollan Ion Cannons, Ori Supergates, Pegasus Expeditions, and more
+- **5 Crisis Events**: Galaxy-wide disruptions after turn 5 — Replicator Outbreak, Ori Crusade, Galactic Plague, Ascension Wave, Wraith Invasion
+- **6 Narrative Arcs**: Story chains tracking conquest sequences for relic and naquadah rewards
+- **Fortification System**: Spend naquadah to fortify planets (max level 3) — fortified planets grant defense bonuses in battle
 - **Elite Homeworld Defenders**: Homeworld attacks trigger dramatic elite screen; AI gets +2 power and +2 extra cards
 - **AI Faction Wars**: AI factions attack each other's territory, creating a dynamic shifting galaxy
-- **3 Narrative Arcs**: Story chains (Path of the Ancients, Fall of the System Lords, Jaffa Liberation) tracking conquest sequences for relic and naquadah rewards
-- **AI Counterattacks**: Enemy factions attack your borders with audio alert; successful defense earns cards and upgrades
-- **Planet Control Scaling**: More planets = better rewards (Standard / Enhanced / Supreme tiers)
+- **Meta-Progression**: Earn Conquest Points per run → unlock persistent perks (Extra Starting Card, Naquadah Boost, Veteran Recruits, Diplomatic Immunity, Ancient Knowledge)
+- **Pre-Battle Preview**: ENGAGE/RETREAT screen showing forces, weather, and modifiers before every attack
+- **Turn Summary**: Animated income breakdown showing passive, reactor, network, and building income
 - **Campaign Persistence**: Auto-saves every turn; resume from exact state
-- **CRT Terminal Menu**: Retro scanline aesthetic with pulsing amber title
+- **CRT Terminal Menu**: Retro scanline aesthetic with pulsing amber title, unlocks screen with high scores
 
 ### 🌐 LAN Multiplayer
 - **Full 2-Player Networked Gameplay** - Host/Join with deck selection and chat
@@ -127,15 +134,9 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Rematch System** - Play again with new faction/leader or disconnect
 - **Integrated Chat** - Press 'T' to chat, quick chat keys 1-0 (Stargate quotes!), message bubbles, opponent name display
 - **Connection Quality** - Real-time latency indicator (green/yellow/red) in HUD
-- **Reliable Connections** - JSON error recovery, host timeout, graceful disconnect handling
-
-### 🎨 Visual Polish
-- **4K Native Resolution** (3840×2160) with perfect scaling and GPU fullscreen support
-- **GPU Post-Processing** - ModernGL shader pipeline with bloom, vignette, CRT scanlines, screen distortion, and cinematic effects
-- **Persistent Weather Animations** - Ice crystals, fiery meteors, nebula clouds, EMP arcs
-- **Faction Power Cinematics** - Asgard beams, Goa'uld sarcophagus, Lucian EM glitches
-- **Combat Text Pop-ups** - "BUFFED!", "INSPIRED!", "WIPED!" float with score changes
-- **Smooth Card Interactions** - Hover enlargement, drag shadows, glow borders
+- **Thread-Safe Networking** - Socket lock protects all concurrent send/recv/close operations across reader, keepalive, and main threads
+- **Game Action ACKs** - Every card play, pass, and ability sends a message ID; receiver confirms receipt with an acknowledgment
+- **Reliable Connections** - JSON error recovery (10 consecutive), keepalive-aware disconnect detection, duplicate disconnect prevention, graceful shutdown
 
 ### ⌨️ Universal Controls
 - **Full Keyboard Navigation** - Arrow keys, F to play, G for faction power, Tab to cycle
@@ -176,89 +177,6 @@ All abilities renamed and themed around Stargate lore:
 - **Persistent Progress** - All unlocks saved to JSON
 - **Win Streak Tracking** - Stats tracked across sessions
 - **Faction-Specific Unlocks** - Leaders and cards match your chosen faction
-
-### 🔮 GPU Post-Processing (ModernGL)
-- **Bloom/Glow** - 3-pass bloom shader makes all bright pixels genuinely glow (stargate chevrons, explosions, energy waves)
-- **Vignette** - Cinematic edge darkening with smoothstep radial falloff
-- **CRT/Hologram** - MALP panel scanlines, static noise, green tint, flicker, chromatic aberration (GPU-accelerated, always active)
-- **Screen Distortion** - Shockwave ripples from Naquadah explosions (up to 8 concurrent points)
-- **Event Horizon** - Procedural rippling portal surface with animated noise
-- **Kawoosh Vortex** - Pixel displacement during stargate activation
-- **Hyperspace Warp** - Radial motion blur with procedural speed lines, chromatic aberration, tunnel vignette, and center glow — active during round transitions
-- **Shockwave Impact** - Expanding ring distortion with screen flash and chromatic aberration at the wavefront — triggers on round winner and game start
-- **Asgard Beam** - Volumetric light column with scan line and shimmer
-- **ZPM Surge** - Procedural electric arcs, particle burst, lightning, and screen flash radiating from ZPM
-- **Shield Bubble** - On-hit shield flash around player ship with hexagonal grid pattern, UV refraction, pulsing rim glow — faction-tinted (blue for Tau'ri/Asgard, orange for Goa'uld/Jaffa/Lucian), fades over ~1 second after taking shield damage. Ship looks clean when not being hit
-- **Graceful Fallback** - All effects auto-disable if GPU unavailable; game runs unchanged on pure Pygame
-- **Configurable** - Toggle bloom, vignette, shader quality in settings
-
-### 🎨 Stunning Visual Effects
-- **4K Resolution** - Native 3840×2160 support with perfect scaling
-- **Persistent Row Weather Effects** - Each weather type has unique animations that remain on affected rows:
-  - **Ice Planet Hazard**: Falling ice crystals with sparkle effects
-  - **Nebula Interference**: Drifting purple/pink cosmic clouds
-  - **Asteroid Storm**: Fiery orange meteors with trail effects
-  - **Electromagnetic Pulse**: Cyan particles with electric arcs
-  - **Wormhole Stabilization**: Blue spiral vortex (black hole clearing)
-- **Animated Weather Borders** - Pulsing faction-colored borders on weathered rows
-- **Naquadah Overload Animation** - Blue energy explosions with shockwave rings appear on rows where highest power units are destroyed
-- **Smooth Card Interactions** - NEW v1.1: Cards follow mouse with easing (not snappy), gentle hover enlargement (8%), dynamic shadows
-- **Juicy Drag FX** - Inspired by John Scolaro's [pygame card experiments](https://johnscolaro.xyz/blog/pygame-cards) and [pygame-examples repo](https://github.com/JohnScolaro/pygame-examples): cards tilt with momentum, glow near drop zones, and leave energy trails while you drag them
-- **AI Turn Animations** - NEW v1.1: 4-phase cinematic AI actions (thinking particles → selection glow → card travel → resolution)
-- **Delta Time Animations** - Frame-rate independent smooth motion at any FPS (30-144Hz)
-- **Stargate Opening** - Epic KAWOOSH vortex animation before game starts
-- **Hyperspace Transitions** - GPU-enhanced streaking stars with radial motion blur, procedural speed lines, and chromatic aberration when entering/exiting hyperspace (rounds 2 & 3)
-- **Planet Emergence** - Beautiful planet appearance in round 3
-- **Animated Background** - Moving starfield, chevron glows, energy waves
-- **Stargate Activation** - Faction-colored portal effect with event horizon shimmer when playing cards
-- **Retro Neon Leader HUD** - Universal matchup template overlays glowing faction-colored typography and scanlines across the Stargate event horizon for every confrontation.
-- **Score Animations** - Dramatic pop effects with deltas and **Combat Text labels** ("BUFFED!", "INSPIRED!", etc.)
-- **Weather Effects** - Row-specific highlights plus custom particle fields:
-  - **Ice Planet Hazard** - Blue ice crystals with sparkles
-  - **Nebula Interference** - Purple/pink drifting clouds
-  - **Asteroid Storm** - Orange fiery meteors with trails
-  - **Electromagnetic Pulse** - Cyan glowing particles with lightning arcs
-  - **Replicator Swarm** - Jittering grey metallic blocks consuming the row
-- **EMP Plasma Field** - Floating green motes when Electromagnetic Pulse is active
-- **Nebula Clouds** - Layered pink fog drifting through affected lanes
-- **Black Hole Animation** - When clearing weather effects (Wormhole Stabilization)
-- **Particle Systems** - Fire, energy bursts, faction-specific effects
-- **DHD Button** - Glowing red center button with chevron ring
-- **Faction Power Effects** - Unique cinematic animations for each faction:
-  - **Tau'ri**: Fiery explosions destroying units
-  - **Goa'uld**: Sarcophagus lid animation with golden revival beams
-  - **Lucian Alliance**: Green naquadah shockwave with scanline/EM glitch effect
-  - **Jaffa**: Stealth Tel'tak ship delivery
-  - **Asgard**: White light de-materialization/re-materialization transporter beams
-
----
-
-#### Chat System Overhaul
-- ✅ **Sound Notifications** – Audio feedback for incoming messages:
-  - Plays `assets/audio/chat_notification.ogg` on peer messages
-  - Respects game sound settings (silent if file missing)
-- ✅ **Chat Scrolling** – Full history navigation:
-  - PageUp/PageDown, Home/End keys for scrolling
-  - Mouse wheel support
-  - Keeps 100 messages in memory (was 20)
-  - "New messages below" indicator when scrolled up
-- ✅ **Quick Chat** – Pre-defined messages via number keys:
-  - `1`: "Good game!"
-  - `2`: "Nice play!"
-  - `3`: "Good luck!"
-  - `4`: "One moment..."
-  - `5`: "Well played!"
-  - Hints displayed below chat input
-- ✅ **Unread Message Indicator** – Track messages when chat minimized:
-  - Badge shows unread count
-  - Clears when chat is opened
-  - `draw_unread_badge()` method for custom UI placement
-- ✅ **Message Delivery Confirmation** – Know your messages arrived:
-  - Unique message IDs with ACK protocol
-  - Checkmark (v) appears next to confirmed messages
-  - Unconfirmed messages shown dimmed
-  - Auto-confirms after 5-second timeout
-
 
 ## 🎮 How to Play
 
@@ -470,46 +388,13 @@ All abilities renamed and themed around Stargate lore:
 
 ### 🌌 Galactic Conquest Mode
 - **GALACTIC CONQUEST** from main menu launches the roguelite campaign
-- **Customize Run** — set friendly faction, neutral event count, enemy leaders
+- **Customize Run** — set difficulty, friendly faction, neutral event count, enemy leaders
 - **New Campaign** — pick faction, leader, deck, then conquer the galaxy
-- **Galaxy Map** — click adjacent enemy planets to attack, end turn for AI counterattacks
-- **Win card battles** and neutral events to claim planets
+- **Galaxy Map** — click adjacent enemy planets to attack, build, fortify, and manage diplomacy
+- **Win card battles** and neutral events to claim planets; manage your Stargate Network for scaling bonuses
 - **Capture all 4 enemy homeworlds** to win; lose your homeworld = defeat
+- **Unlocks** — earn Conquest Points, unlock persistent perks, compete on the high scores leaderboard
 
-## 🔮 Future Roadmap (Ideas)
-
-### Card Unlocks ✅
-- **Trigger**: Win any game
-- **Reward**: Choose 1 of 3 random cards
-- **Filter**: Only shows cards from your faction + Neutral
-- **Total**: 20 unlockable cards (ALL abilities verified v3.9.4!)
-- **Persistence**: Saved to `player_unlocks.json`
-- **Usage**: Access via Deck Builder to customize decks
-
-### Leader Unlocks 🎖️
-- **Trigger**: Win 3 games in a row
-- **Reward**: Choose 1 of 3 faction leaders
-- **Filter**: Only shows leaders from your current faction
-- **Total**: 20 unlockable leaders (4 per faction)
-- **Effect**: Replaces current leader (can switch anytime)
-- **Persistence**: Saved to `player_unlocks.json` per faction
-
-### Deck Customization 🃏
-- **Access**: Main Menu → "DECK BUILDING"
-- **Rules**:
-  - **MINIMUM 20 cards** to start a game
-  - Maximum 40 cards
-  - At least 15 unit cards
-  - Only your faction + Neutral cards
-  - **Naquadah Budget**: 150 Naquadah limit (cost = 4 + power - 1, heroes +3 bonus)
-  - **Mercenary Tax**: If your deck contains more Neutral cards than Faction cards, your total score is reduced by 25%.
-  - **Ori Corruption**: Decks exceeding 150 Naquadah suffer 50% score reduction in-game!
-- **Features**:
-  - Add/remove cards from your unlocked collection
-  - Select leader from unlocked leaders
-  - Save custom decks per faction (auto-saves when done)
-  - Reset to default anytime
-- **Persistence**: Saved to `player_decks.json`
 
 ### Unlockable Content
 
@@ -570,7 +455,7 @@ All abilities renamed and themed around Stargate lore:
 
 
 
-#### **35/35 Leader Abilities Working**
+#### **35/35 Leader Abilities **
 - ✅ Gen. Landry - "Homeworld Command": +1 to most populated row
 - ✅ Ba'al - "System Lord's Cunning": Resurrect unit from discard
 - ✅ Jonas Quinn - "Eidetic Memory": Copy opponent's drawn card
@@ -580,7 +465,7 @@ All abilities renamed and themed around Stargate lore:
 - ✅ Aegir - "Asgard Archives": Draw 1 card when playing siege units
 - ✅ All other leader abilities fully functional!
 
-#### **20/20 Card Abilities Working**
+#### **20/20 Card Abilities **
 - Draw abilities (Prometheus, Mothership, Operative)
 - Special destruction (Thor's Hammer removes Goa'uld)
 - Power doubling (ZPM doubles siege)
@@ -605,51 +490,6 @@ All abilities renamed and themed around Stargate lore:
 | Drag Card (Deck Builder) | Left click + drag |
 | Zoom Card (Deck Builder) | Right click |
 
-
-### Art Assembler
-
-Automated art pipeline that assembles finished card images, leader portraits, leader backgrounds, and faction/lobby backgrounds from raw art.
-
-```bash
-python scripts/card_assembler.py                    # Assemble all cards with raw art
-python scripts/card_assembler.py tauri_oneill       # Specific cards
-python scripts/card_assembler.py --faction tauri    # Entire faction
-python scripts/card_assembler.py --no-overwrite     # Skip existing
-python scripts/card_assembler.py --status           # Show progress per faction
-python scripts/card_assembler.py --list-missing     # Cards without raw art
-python scripts/card_assembler.py --dry-run          # Preview without writing
-```
-
-**Workflow:**
-1. Generate art in ComfyUI
-2. Drop PNGs in `raw_art/` named by card_id (e.g., `tauri_oneill.png`)
-3. Run `python scripts/card_assembler.py` to auto-assemble all assets
-
-**Each asset type has its own raw art file:**
-- `raw_art/{card_id}.png` → `assets/{card_id}.png` - Assembled card (200x280, border/icons/text)
-- `raw_art/{card_id}_leader.png` → `assets/{card_id}_leader.png` - Leader portrait (200x280, stretched)
-- `raw_art/leader_bg_{card_id}.png` → `assets/leader_bg_{card_id}.png` - Leader background (3840x2160, stretched)
-- `raw_art/faction_bg_{faction}.png` → `assets/faction_bg_{faction}.png` - Faction background (3840x2160, stretched)
-- `raw_art/lobby_background.png` → `assets/lobby_background.png` - Lobby background (3840x2160, stretched)
-
-**Asset directories:**
-- `assets/card_assembler/borders/` - Faction border templates (200x280 RGBA)
-- `assets/card_assembler/row_icons/` - Row type icons (close, ranged, siege, agile)
-- `assets/card_assembler/ability_icons/` - Ability icons (12 abilities with icons)
-- `raw_art/` - Raw art input (each output asset has its own unique source image)
-- `scripts/card_quotes.json` - Optional flavor text quotes per card
-
-**Dependencies:** Pillow (`pip install Pillow`)
-
-
-### 📋 Planned
-- Tournament mode (best-of-3)
-- Achievement system
-- More factions (Wraith, Ori, Atlantis)
-- Internet matchmaking (beyond LAN/VPN)
-- GPU particle system (instanced rendering for heavy particle effects)
-- Texture atlas for cards (single 4096x4096 GPU texture)
-- Direct OpenGL display mode (eliminate CPU-GPU roundtrip)
 
 
 ## 📝 License & Credits

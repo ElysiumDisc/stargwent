@@ -26,6 +26,14 @@ class CampaignState:
     fortification_levels: dict = field(default_factory=dict)  # planet_id → 0-3
     relics: list = field(default_factory=list)               # relic ID strings
     narrative_progress: dict = field(default_factory=dict)   # arc_id → [planet_names conquered]
+    conquest_ability_data: dict = field(default_factory=dict)  # leader ability persistent state
+    attacks_this_turn: int = 0                                 # attacks made this turn (for multi-attack abilities)
+    difficulty: str = "normal"                                 # easy/normal/hard/insane
+    faction_relations: dict = field(default_factory=dict)      # faction → "hostile"/"neutral"/"trading"/"allied"
+    buildings: dict = field(default_factory=dict)               # planet_id → building_type string
+    meta_points_earned: int = 0                                 # conquest points earned this run
+    network_tier: int = 1                                       # current stargate network tier
+    crisis_cooldown: int = 0                                    # turns until next crisis can fire
 
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
@@ -46,6 +54,14 @@ class CampaignState:
             "fortification_levels": dict(self.fortification_levels),
             "relics": list(self.relics),
             "narrative_progress": {k: list(v) for k, v in self.narrative_progress.items()},
+            "conquest_ability_data": dict(self.conquest_ability_data),
+            "attacks_this_turn": self.attacks_this_turn,
+            "difficulty": self.difficulty,
+            "faction_relations": dict(self.faction_relations),
+            "buildings": dict(self.buildings),
+            "meta_points_earned": self.meta_points_earned,
+            "network_tier": self.network_tier,
+            "crisis_cooldown": self.crisis_cooldown,
         }
 
     @classmethod
@@ -68,6 +84,14 @@ class CampaignState:
             fortification_levels=data.get("fortification_levels", {}),
             relics=data.get("relics", []),
             narrative_progress=data.get("narrative_progress", {}),
+            conquest_ability_data=data.get("conquest_ability_data", {}),
+            attacks_this_turn=data.get("attacks_this_turn", 0),
+            difficulty=data.get("difficulty", "normal"),
+            faction_relations=data.get("faction_relations", {}),
+            buildings=data.get("buildings", {}),
+            meta_points_earned=data.get("meta_points_earned", 0),
+            network_tier=data.get("network_tier", 1),
+            crisis_cooldown=data.get("crisis_cooldown", 0),
         )
 
     def tick_cooldowns(self):

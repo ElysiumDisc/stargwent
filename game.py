@@ -766,6 +766,16 @@ class Player:
             artifact.apply_effect(game, self)
 
         # Apply weather effects last so nothing can override them
+        # Conquest relics: weather floor modifiers
+        # Ori Prior Staff: weather sets non-heroes to 3 instead of 1
+        # Jaffa Tretonin: weather can't reduce below 3
+        weather_min = 1
+        if game and hasattr(game, 'conquest_relics'):
+            if self == game.player1:  # Only applies to player's cards
+                if "ori_prior_staff" in game.conquest_relics:
+                    weather_min = 3
+                if "jaffa_tretonin" in game.conquest_relics:
+                    weather_min = max(weather_min, 3)
         for row_name, row_cards in self.board.items():
             if self.weather_effects[row_name]:
                 for card in row_cards:
@@ -774,7 +784,7 @@ class Player:
                     if has_ability(card, Ability.SURVIVAL_INSTINCT):
                         card.displayed_power = card.power + 2
                     else:
-                        card.displayed_power = 1
+                        card.displayed_power = weather_min
 
         # Sum the final scores
         self.score = 0
@@ -1243,6 +1253,25 @@ class Game:
                     target_player = self.player2
                 else:
                     target_player = self.player1
+
+                # Conquest Iris Shield relic: block first spy played against player1
+                conquest_relics = getattr(self, 'conquest_relics', [])
+                if (conquest_relics and "iris_shield" in conquest_relics
+                        and target_player == self.player1
+                        and not getattr(self, '_iris_shield_used', False)):
+                    self._iris_shield_used = True
+                    # Spy is blocked — card goes to discard, no board placement
+                    self.current_player.discard_pile.append(card)
+                    self.add_history_event(
+                        "ability",
+                        f"Iris Shield blocked {card.name}! Spy neutralized.",
+                        self._owner_label(self.player1),
+                        card_ref=card, icon="O"
+                    )
+                    self.calculate_scores_and_log()
+                    self.last_turn_actor = self.current_player
+                    self.switch_turn()
+                    return
 
                 # Track spies played this round for Lucian Network combo
                 player.spies_played_this_round += 1
@@ -2749,6 +2778,20 @@ class Game:
             return
 
         self.round_number = min(self.round_number + 1, 3)
+
+        # Conquest Sarcophagus relic: return 1 random card from player1's discard to hand
+        conquest_relics = getattr(self, 'conquest_relics', [])
+        if conquest_relics and "sarcophagus" in conquest_relics:
+            if self.player1.discard_pile:
+                import random as _rng
+                revived = _rng.choice(self.player1.discard_pile)
+                self.player1.discard_pile.remove(revived)
+                self.player1.hand.append(revived)
+                self.add_history_event(
+                    "ability",
+                    f"Sarcophagus revived {revived.name} from the discard pile!",
+                    "player", icon="+"
+                )
 
         self._cleanup_round()
 
