@@ -57,6 +57,9 @@ class SpaceShooterGame:
     SCORE_BOSS = 1000
     SCORE_ASTEROID = 50
 
+    # Miniship escort thresholds: level → max escorts (Carrier-style)
+    MINISHIP_THRESHOLDS = {3: 2, 6: 3, 10: 4, 15: 5}
+
     def __init__(self, screen_width, screen_height, player_faction, ai_faction, session_scores=None,
                  mission_type=None, mission_target=None, starting_upgrades=None, variant=0):
         self.screen_width = screen_width
@@ -175,6 +178,17 @@ class SpaceShooterGame:
         # Ally ships (summoned by upgrades/powerups)
         self.ally_ships = []
 
+        # Miniship escorts (Carrier-style interceptors)
+        self.miniships = []
+        self.miniship_max = 0  # Current max count (0 until level threshold)
+        self.miniship_respawn_timer = 0
+        self.miniship_respawn_delay = 300  # 5s at 60fps
+        self.miniship_overdrive_timer = 0
+        self.miniship_shields_timer = 0
+        self._miniship_images = {}  # Cached directional sprites
+        self._miniship_faction_sprite = None  # Raw sprite for this faction
+        self._load_miniship_sprites()
+
         # Area bombs (from Al'kesh bombers)
         self.area_bombs = []
 
@@ -186,6 +200,7 @@ class SpaceShooterGame:
         self.supergate_timer = 0
         self.last_ori_boss_defeat_time = -999
         self.supergate_wave = 0  # Escalation counter: more bosses each wave
+        self._supergate_next_spawn_delay = random.uniform(180, 300)
         self.sensor_sweep_marks = []  # [{enemy, timer}] for sensor_sweep secondary
 
         # Supergate activation sound
@@ -777,6 +792,99 @@ class SpaceShooterGame:
             ally.image_down = pygame.transform.rotate(ally.image_right, -90)
         self.ally_ships.append(ally)
 
+    def _load_miniship_sprites(self):
+        """Load faction-specific miniship sprite (Tau'ri or Goa'uld only).
+
+        Sprite source orientations:
+        - tau'ri_miniship.png faces UP
+        - goa'uld_miniship.png faces LEFT
+        All are normalized to face RIGHT as the base orientation.
+        """
+        sprite_map = {
+            "Tau'ri": ("tau'ri_miniship.png", -90),     # UP → rotate -90° → RIGHT
+            "Goa'uld": ("goa'uld_miniship.png", 180),   # LEFT → rotate 180° → RIGHT
+        }
+        entry = sprite_map.get(self.player_faction)
+        if not entry:
+            return  # No miniship support for this faction
+        fname, rotation = entry
+        path = os.path.join("assets", "ships", fname)
+        if not os.path.exists(path):
+            return
+        try:
+            raw = pygame.image.load(path).convert_alpha()
+            raw = pygame.transform.smoothscale(raw, (28, 28))
+            # Normalize to face right
+            if rotation != 0:
+                raw = pygame.transform.rotate(raw, rotation)
+            # Apply faction tint
+            tint_color = (0, 100, 100, 30) if self.player_faction == "Tau'ri" else (100, 60, 0, 30)
+            tint_surf = pygame.Surface(raw.get_size(), pygame.SRCALPHA)
+            tint_surf.fill(tint_color)
+            raw.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            self._miniship_faction_sprite = raw
+            self._miniship_images = {
+                'right': raw.copy(),
+                'left': pygame.transform.flip(raw, True, False),
+                'up': pygame.transform.rotate(raw, 90),
+                'down': pygame.transform.rotate(raw, -90),
+            }
+        except Exception:
+            pass
+
+    def _spawn_miniship(self):
+        """Spawn a single Carrier-style interceptor miniship from the player."""
+        if not self._miniship_faction_sprite:
+            return
+        # Spawn at player position
+        px = self.player_ship.x + self.player_ship.width // 2
+        py = self.player_ship.y
+        angle = random.uniform(0, math.pi * 2)
+        dist = random.uniform(40, 80)
+        mx = px + math.cos(angle) * dist
+        my = py + math.sin(angle) * dist
+
+        mini = Ship(mx, my, self.player_faction, is_player=False,
+                    screen_width=self.screen_width, screen_height=self.screen_height)
+        mini.is_friendly = True
+        mini.ally_owner = self.player_ship
+        mini.ally_lifetime = 999999  # Permanent
+        mini.is_miniship = True
+        mini.max_health = 40
+        mini.health = 40
+        mini.speed = 10
+        mini.fire_rate = 20
+        # Apply cached miniship sprite
+        if self._miniship_images:
+            mini.image = self._miniship_images['right'].copy()
+            mini.image_right = self._miniship_images['right'].copy()
+            mini.image_left = self._miniship_images['left'].copy()
+            mini.image_up = self._miniship_images['up'].copy()
+            mini.image_down = self._miniship_images['down'].copy()
+            mini.width = 28
+            mini.height = 28
+        self.miniships.append(mini)
+
+    def _check_miniship_threshold(self):
+        """Check if level unlocks more escort miniships (Carrier-style)."""
+        if not self._miniship_faction_sprite:
+            return  # No miniship support for this faction
+        new_max = 0
+        for threshold_level, count in self.MINISHIP_THRESHOLDS.items():
+            if self.level >= threshold_level:
+                new_max = max(new_max, count)
+        if new_max > self.miniship_max:
+            delta = new_max - self.miniship_max
+            self.miniship_max = new_max
+            for _ in range(delta):
+                if len(self.miniships) < self.miniship_max:
+                    self._spawn_miniship()
+            label = "ESCORTS ONLINE!" if self.miniship_max == 2 else f"ESCORTS: {self.miniship_max}!"
+            self.popup_notifications.append(PopupNotification(
+                self.player_ship.x + self.player_ship.width // 2,
+                self.player_ship.y - 80,
+                label, (80, 200, 255)))
+
     def _save_score(self):
         """Save the score to the per-session leaderboard."""
         import time as time_module
@@ -1073,6 +1181,20 @@ class SpaceShooterGame:
             self.player_ship.fire_rate = max(2, self.player_ship.fire_rate // 3)
             self.screen_shake.trigger(8, 15)
 
+        # --- MINISHIP ESCORT POWERUPS ---
+        elif ptype in ("miniship_overdrive", "goauld_miniship_overdrive"):
+            self.miniship_overdrive_timer = duration
+            self.screen_shake.trigger(4, 8)
+            # Spawn 2 temporary extra miniships
+            for _ in range(2):
+                self._spawn_miniship()
+        elif ptype in ("miniship_shields", "goauld_miniship_shields"):
+            self.miniship_shields_timer = duration
+            # Full heal all miniships
+            for mini in self.miniships:
+                mini.health = mini.max_health
+            self.screen_shake.trigger(3, 6)
+
     def _expire_powerup(self, ptype):
         """Handle expiration of a power-up effect."""
         if ptype == "rapid_fire":
@@ -1263,6 +1385,8 @@ class SpaceShooterGame:
             self.pending_level_ups += 1
             if self.level == 20:
                 self._apply_primary_mastery()
+            # Check miniship escort thresholds (Carrier-style)
+            self._check_miniship_threshold()
 
     def _prepare_level_up_choices(self):
         """Prepare 3 random upgrade choices for level-up selection."""
@@ -1507,7 +1631,7 @@ class SpaceShooterGame:
             self.ori_boss = None  # Sync legacy ref
             if self.survival_seconds >= 180:
                 time_since_last = self.survival_seconds - self.last_ori_boss_defeat_time
-                if self.last_ori_boss_defeat_time < 0 or time_since_last >= random.uniform(180, 300):
+                if self.last_ori_boss_defeat_time < 0 or time_since_last >= self._supergate_next_spawn_delay:
                     self.supergate_wave += 1
                     num_bosses = min(self.supergate_wave, 3)  # Cap at 3
                     for bi in range(num_bosses):
@@ -1528,6 +1652,7 @@ class SpaceShooterGame:
                         self.player_ship.y - 100,
                         wave_msg, color))
                     self.screen_shake.trigger(6 + num_bosses * 2, 12 + num_bosses * 4)
+                    self._supergate_next_spawn_delay = random.uniform(180, 300)
 
         # Update supergates
         for sg in self.supergates[:]:
@@ -1865,6 +1990,7 @@ class SpaceShooterGame:
         # Only update defeat time when ALL bosses from this wave are dead
         if not self.ori_bosses:
             self.last_ori_boss_defeat_time = self.survival_seconds
+            self._supergate_next_spawn_delay = random.uniform(180, 300)
             self.ori_boss = None
         else:
             self.ori_boss = self.ori_bosses[0]
@@ -2562,6 +2688,60 @@ class SpaceShooterGame:
                     ally.x + ally.width // 2, ally.y, tier="small"))
                 self.ally_ships.remove(ally)
 
+        # --- Update miniship escorts (Carrier interceptors) ---
+        if self.miniship_overdrive_timer > 0:
+            self.miniship_overdrive_timer -= 1
+            # Remove temp extras when overdrive expires
+            if self.miniship_overdrive_timer <= 0:
+                while len(self.miniships) > self.miniship_max:
+                    excess = self.miniships.pop()
+                    self.explosions.append(Explosion(
+                        excess.x + excess.width // 2, excess.y, tier="small"))
+        if self.miniship_shields_timer > 0:
+            self.miniship_shields_timer -= 1
+        overdrive = self.miniship_overdrive_timer > 0
+        orbit_speed = 0.008  # Slow orbit around player
+        for i, mini in enumerate(self.miniships[:]):
+            # Formation angle: evenly spaced, slowly rotating
+            base_angle = (2 * math.pi * i / max(1, len(self.miniships)))
+            formation_angle = base_angle + self.survival_frames * orbit_speed
+            proj = mini.update_miniship_ai(self.player_ship, self.ai_ships,
+                                           formation_angle, overdrive)
+            if proj:
+                self.projectiles.append(proj)
+            if mini.health <= 0:
+                self.explosions.append(Explosion(
+                    mini.x + mini.width // 2, mini.y, tier="small"))
+                self.miniships.remove(mini)
+        # Respawn dead miniships
+        if len(self.miniships) < self.miniship_max and self._miniship_faction_sprite:
+            self.miniship_respawn_timer += 1
+            if self.miniship_respawn_timer >= self.miniship_respawn_delay:
+                self.miniship_respawn_timer = 0
+                self._spawn_miniship()
+
+        # --- Handle hostile_all projectile collisions against ai_ships ---
+        hostile_remove = set()
+        for proj in self.projectiles[:]:
+            if not getattr(proj, 'is_hostile_all', False):
+                continue
+            source = getattr(proj, '_source_ship', None)
+            proj_rect = pygame.Rect(int(proj.x - 4), int(proj.y - 4), 8, 8)
+            for ai_ship in self.ai_ships[:]:
+                if ai_ship is source:
+                    continue
+                if proj_rect.colliderect(ai_ship.get_rect()):
+                    ai_ship.hit_flash = 5
+                    self.damage_numbers.append(DamageNumber(
+                        ai_ship.x + ai_ship.width // 2, ai_ship.y,
+                        proj.damage, (160, 40, 255)))
+                    if self._damage_enemy(ai_ship, proj.damage):
+                        self._on_enemy_killed(ai_ship)
+                    hostile_remove.add(id(proj))
+                    break
+        if hostile_remove:
+            self.projectiles = [p for p in self.projectiles if id(p) not in hostile_remove]
+
         # Player auto-fire
         if not self.game_over:
             berserker_mult = self._get_berserker_mult()
@@ -3050,6 +3230,18 @@ class SpaceShooterGame:
                 if ally_hit:
                     continue
 
+                # Enemy projectile vs miniship escorts
+                mini_hit = False
+                for mini in self.miniships[:]:
+                    if proj_rect.colliderect(mini.get_rect()):
+                        mini.hit_flash = 5
+                        mini.take_damage(proj.damage)
+                        to_remove_projs.append(proj_idx)
+                        mini_hit = True
+                        break
+                if mini_hit:
+                    continue
+
             # Projectile vs asteroids
             for asteroid in self.asteroids[:]:
                 if proj_rect.colliderect(asteroid.get_rect()):
@@ -3461,6 +3653,21 @@ class SpaceShooterGame:
                                  (int(ax) - ally_label.get_width() // 2,
                                   int(ay) - ally.height // 2 - 22))
 
+        # Draw miniship escorts with health bar
+        escort_label_color = (80, 190, 255)
+        for mini in self.miniships:
+            if cam.is_visible(mini.x, mini.y, margin=mini.width):
+                mini.draw(draw_surface, time_tick, camera=cam)
+                mx, my = cam.world_to_screen(mini.x + mini.width // 2, mini.y)
+                # Health bar if damaged
+                if mini.health < mini.max_health:
+                    bar_w = 24
+                    pct = max(0, mini.health / mini.max_health)
+                    bx = int(mx) - bar_w // 2
+                    by = int(my) - mini.height // 2 - 8
+                    pygame.draw.rect(draw_surface, (40, 40, 40), (bx, by, bar_w, 3))
+                    pygame.draw.rect(draw_surface, escort_label_color, (bx, by, int(bar_w * pct), 3))
+
         # Draw all AI ships (culled)
         for ai_ship in self.ai_ships:
             if cam.is_visible(ai_ship.x, ai_ship.y, margin=ai_ship.width):
@@ -3492,8 +3699,9 @@ class SpaceShooterGame:
         if self.showing_level_up and self.level_up_choices:
             _ui.draw_level_up_screen(self, draw_surface)
 
-        # Drive shield bubble GPU shader
+        # Drive GPU shaders for space shooter effects
         self._update_shield_shader(cam)
+        self._update_black_hole_shader(cam)
 
         # Blit with shake offset
         if shake_x != 0 or shake_y != 0:
@@ -3546,5 +3754,54 @@ class SpaceShooterGame:
                 gpu.set_effect_enabled('shield_bubble', True)
             else:
                 gpu.set_effect_enabled('shield_bubble', False)
+        except Exception:
+            pass  # GPU shader is optional — never crash the game
+
+    # ------------------------------------------------------------------
+    def _update_black_hole_shader(self, cam):
+        """Drive the black_hole GPU shader when a Sun is in wormhole/closing phase."""
+        try:
+            import display_manager
+            gpu = display_manager.gpu_renderer
+            if not gpu or not gpu.enabled:
+                return
+
+            bh_pass = gpu.get_effect('black_hole')
+            if bh_pass is None:
+                return
+
+            # Find any sun in wormhole or closing phase
+            from space_shooter.entities import Sun
+            active_sun = None
+            for sun in self.suns:
+                if sun.active and sun.phase in (Sun.PHASE_WORMHOLE, Sun.PHASE_CLOSING):
+                    active_sun = sun
+                    break
+
+            if active_sun is None:
+                gpu.set_effect_enabled('black_hole', False)
+                return
+
+            # Convert sun world position to screen coords
+            sx, sy = cam.world_to_screen(active_sun.x, active_sun.y)
+            w, h = self.screen_width, self.screen_height
+            center_uv = (sx / w, 1.0 - sy / h)  # flip Y for GL UV
+
+            # Radius in UV space from current_radius
+            radius_uv = active_sun.current_radius / h
+
+            # Intensity: fade in during first frames of WORMHOLE, fade out during CLOSING
+            dur = active_sun.phase_durations[active_sun.phase]
+            progress = min(1.0, active_sun.timer / max(dur, 1))
+            if active_sun.phase == Sun.PHASE_WORMHOLE:
+                # Fade in over first 30 frames (~0.5s)
+                intensity = min(1.0, active_sun.timer / 30.0)
+            else:  # PHASE_CLOSING
+                intensity = 1.0 - progress
+
+            t = gpu.time
+            bh_pass.update_black_hole(center_uv, radius_uv, intensity, t,
+                                      screen_size=(w, h))
+            gpu.set_effect_enabled('black_hole', True)
         except Exception:
             pass  # GPU shader is optional — never crash the game

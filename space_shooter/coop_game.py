@@ -210,6 +210,36 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                     ally.x + ally.width // 2, ally.y, tier="small"))
                 self.ally_ships.remove(ally)
 
+        # --- Update miniship escorts (Carrier interceptors) ---
+        if self.miniship_overdrive_timer > 0:
+            self.miniship_overdrive_timer -= 1
+            if self.miniship_overdrive_timer <= 0:
+                while len(self.miniships) > self.miniship_max:
+                    excess = self.miniships.pop()
+                    self.explosions.append(Explosion(
+                        excess.x + excess.width // 2, excess.y, tier="small"))
+        if self.miniship_shields_timer > 0:
+            self.miniship_shields_timer -= 1
+        overdrive = self.miniship_overdrive_timer > 0
+        orbit_speed = 0.008
+        for i, mini in enumerate(self.miniships[:]):
+            base_angle = (2 * math.pi * i / max(1, len(self.miniships)))
+            formation_angle = base_angle + self.survival_frames * orbit_speed
+            proj = mini.update_miniship_ai(self.player_ship, self.ai_ships,
+                                           formation_angle, overdrive)
+            if proj:
+                self.projectiles.append(proj)
+            if mini.health <= 0:
+                self.explosions.append(Explosion(
+                    mini.x + mini.width // 2, mini.y, tier="small"))
+                self.miniships.remove(mini)
+        # Respawn dead miniships
+        if len(self.miniships) < self.miniship_max and self._miniship_faction_sprite:
+            self.miniship_respawn_timer += 1
+            if self.miniship_respawn_timer >= self.miniship_respawn_delay:
+                self.miniship_respawn_timer = 0
+                self._spawn_miniship()
+
         # --- Update area bombs ---
         for bomb in self.area_bombs[:]:
             bomb.update()
@@ -498,6 +528,16 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                     if pr.colliderect(ally.get_rect()):
                         ally.hit_flash = 5
                         ally.take_damage(getattr(proj, 'damage', 10))
+                        proj.active = False
+                        break
+                if not proj.active:
+                    continue
+
+                # Enemy projectile → miniship escorts
+                for mini in self.miniships[:]:
+                    if pr.colliderect(mini.get_rect()):
+                        mini.hit_flash = 5
+                        mini.take_damage(getattr(proj, 'damage', 10))
                         proj.active = False
                         break
 
@@ -1044,10 +1084,10 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         """
         def ship_data(ship, alive, ghost):
             return {
-                'x': round(ship.x, 1), 'y': round(ship.y, 1),
-                'vx': round(ship.vx, 1), 'vy': round(ship.vy, 1),
-                'health': round(ship.health, 1),
-                'shields': round(ship.shields, 1),
+                'x': round(ship.x), 'y': round(ship.y),
+                'vx': round(ship.vx), 'vy': round(ship.vy),
+                'health': round(ship.health),
+                'shields': round(ship.shields),
                 'max_health': ship.max_health,
                 'max_shields': ship.max_shields,
                 'facing': ship.facing,
@@ -1057,9 +1097,9 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         def entity_data(ent):
             return {
-                'x': round(ent.x, 1), 'y': round(ent.y, 1),
+                'x': round(ent.x), 'y': round(ent.y),
                 'type': getattr(ent, 'enemy_type', 'regular'),
-                'health': round(getattr(ent, 'health', 0), 1),
+                'health': round(getattr(ent, 'health', 0)),
                 'max_health': getattr(ent, 'max_health', 100),
                 'faction': getattr(ent, 'faction', ''),
                 'facing': getattr(ent, 'facing', (1, 0)),
@@ -1068,14 +1108,14 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         def proj_data(p):
             return {
-                'x': round(p.x, 1), 'y': round(p.y, 1),
+                'x': round(p.x), 'y': round(p.y),
                 'player': getattr(p, 'is_player_proj', False),
                 'color': getattr(p, 'color', (255, 255, 255)),
             }
 
         def powerup_data(pu):
             return {
-                'x': round(pu.x, 1), 'y': round(pu.y, 1),
+                'x': round(pu.x), 'y': round(pu.y),
                 'type': pu.type,
                 'color': pu.props.get('color', (255, 255, 255)),
                 'rarity': pu.props.get('rarity', 'common'),
@@ -1083,13 +1123,13 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         def xp_data(orb):
             return {
-                'x': round(orb.x, 1), 'y': round(orb.y, 1),
+                'x': round(orb.x), 'y': round(orb.y),
                 'value': orb.value,
             }
 
         def explosion_data(exp):
             return {
-                'x': round(exp.x, 1), 'y': round(exp.y, 1),
+                'x': round(exp.x), 'y': round(exp.y),
                 'tier': exp.tier,
                 'timer': exp.timer,
                 'duration': exp.duration,
@@ -1097,7 +1137,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         def sun_data(s):
             return {
-                'x': round(s.x, 1), 'y': round(s.y, 1),
+                'x': round(s.x), 'y': round(s.y),
                 'phase': s.phase,
                 'timer': s.timer,
                 'radius': getattr(s, 'radius', 80),
@@ -1105,11 +1145,19 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         def ally_data(a):
             return {
-                'x': round(a.x, 1), 'y': round(a.y, 1),
-                'health': round(a.health, 1),
+                'x': round(a.x), 'y': round(a.y),
+                'health': round(a.health),
                 'max_health': a.max_health,
                 'facing': a.facing,
                 'faction': a.faction,
+            }
+
+        def miniship_data(m):
+            return {
+                'x': round(m.x), 'y': round(m.y),
+                'health': round(m.health),
+                'max_health': m.max_health,
+                'facing': m.facing,
             }
 
         return {
@@ -1124,30 +1172,31 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             # Total counts so client can detect truncation
             'total_enemies': len(self.ai_ships),
             'total_projectiles': len(self.projectiles),
-            'asteroids': [{'x': round(a.x, 1), 'y': round(a.y, 1),
+            'asteroids': [{'x': round(a.x), 'y': round(a.y),
                           'size': a.size} for a in self.asteroids[:30]],
             'suns': [sun_data(s) for s in self.suns],
             'allies': [ally_data(a) for a in self.ally_ships],
-            'area_bombs': [{'x': round(b.x, 1), 'y': round(b.y, 1),
+            'miniships': [miniship_data(m) for m in self.miniships],
+            'area_bombs': [{'x': round(b.x), 'y': round(b.y),
                            'fuse': b.fuse_timer, 'fuse_duration': b.fuse_duration}
                           for b in self.area_bombs],
-            'mines': [{'x': round(m.x, 1), 'y': round(m.y, 1),
+            'mines': [{'x': round(m.x), 'y': round(m.y),
                        'radius': m.radius, 'armed': m.is_armed(),
                        'color': m.color[:3]} for m in self.mines[:20]],
-            'ion_pulses': [{'x': round(e['x'], 1), 'y': round(e['y'], 1),
+            'ion_pulses': [{'x': round(e['x']), 'y': round(e['y']),
                            'radius': e.get('radius', 200),
                            'max_radius': e.get('max_radius', 200),
                            'timer': e.get('timer', 0),
                            'duration': e.get('duration', 30),
                            'color': e.get('color', (100, 180, 255))[:3]}
                           for e in self.ion_pulse_effects[:10]],
-            'supergates': [{'x': round(sg.x, 1), 'y': round(sg.y, 1),
+            'supergates': [{'x': round(sg.x), 'y': round(sg.y),
                            'phase': sg.phase, 'timer': sg.timer,
                            'ring_scale': round(sg.ring_scale, 2),
-                           'health': round(sg.health, 1),
+                           'health': round(sg.health),
                            'max_health': sg.max_health}
                           for sg in self.supergates],
-            'ori_beams': [{'x': round(ob.x, 1), 'y': round(ob.y, 1),
+            'ori_beams': [{'x': round(ob.x), 'y': round(ob.y),
                           'angle': round(ob.current_angle, 3),
                           'length': ob.length, 'width': ob.width,
                           'active': ob.active}

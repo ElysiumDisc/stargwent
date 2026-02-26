@@ -21,7 +21,7 @@ class LanSession:
         self.thread = None
         self.keepalive_thread = None
         self.inbox = queue.Queue()
-        self.chat_inbox = queue.Queue()  # Separate queue for chat/typing/chat_ack messages
+        self.chat_inbox = queue.Queue(maxsize=100)  # Bounded to prevent memory growth
         self.stop_event = threading.Event()
         self.last_received = 0
         self.connection_timeout = 30  # seconds without message = disconnect
@@ -98,6 +98,8 @@ class LanSession:
         self.sock = conn
         # Set TCP keepalive at OS level
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # Disable Nagle's algorithm — critical for low-latency small packets (co-op 20Hz snapshots)
+        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         # Set socket timeout for recv
         self.sock.settimeout(1.0)  # 1 second timeout for recv
 
@@ -114,8 +116,9 @@ class LanSession:
         buffer = b""
         while not self.stop_event.is_set():
             try:
-                with self._sock_lock:
-                    sock = self.sock
+                # No lock needed for recv — TCP supports concurrent send+recv on separate threads.
+                # Locking recv would block send() for up to 1s (the socket timeout).
+                sock = self.sock
                 if not sock:
                     break
                 data = sock.recv(4096)
@@ -164,7 +167,10 @@ class LanSession:
 
                     # Route chat-related messages to dedicated queue
                     if msg_type in ("chat", "chat_ack", "typing"):
-                        self.chat_inbox.put(payload)
+                        try:
+                            self.chat_inbox.put_nowait(payload)
+                        except queue.Full:
+                            pass  # Discard overflow — stale chat messages are acceptable to drop
                     else:
                         self.inbox.put(payload)
                 except json.JSONDecodeError as e:
@@ -189,18 +195,16 @@ class LanSession:
                 self.chat_inbox.put({"type": "disconnect"})
 
     def _keepalive_sender(self):
-        """Send periodic keepalive and ping messages to detect dead connections and measure latency."""
+        """Send periodic ping messages to keep connection alive and measure latency.
+
+        The ping/pong already serves as a keepalive — no need for a separate
+        keepalive packet.  This halves idle network overhead.
+        """
         while not self.stop_event.is_set():
             time.sleep(self.keepalive_interval)
             if not self.stop_event.is_set():
                 try:
-                    # Send keepalive packet
-                    packet = json.dumps({"type": "keepalive"}).encode("utf-8") + b"\n"
-                    with self._sock_lock:
-                        if self.sock:
-                            self.sock.sendall(packet)
-
-                    # Also send ping for latency measurement
+                    # Ping doubles as keepalive — pong response keeps connection alive
                     self.last_ping_time = time.time()
                     ping_packet = json.dumps({
                         "type": "ping",

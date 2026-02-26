@@ -280,26 +280,26 @@ def draw_stargwent_button(surface, rect, text, mouse_pos, font=None,
     bg_color = hover_color if is_hovered else base_color
     pygame.draw.rect(surface, bg_color, rect, border_radius=12)
 
-    # Draw inner glow on hover
+    # Draw inner glow on hover — cached surface
     if is_hovered:
         inner_rect = rect.inflate(-4, -4)
-        glow_surface = pygame.Surface(inner_rect.size, pygame.SRCALPHA)
-        glow_surface.fill((100, 180, 255, 30))
+        from render_engine import _get_cached_panel
+        glow_surface = _get_cached_panel(inner_rect.width, inner_rect.height, (100, 180, 255, 30))
         surface.blit(glow_surface, inner_rect.topleft)
 
     # Draw border
     bd_color = hover_border if is_hovered else border_color
     pygame.draw.rect(surface, bd_color, rect, width=2, border_radius=12)
 
-    # Draw text with optional shadow
+    # Draw text with optional shadow — cached rendering
     use_font = font or cfg.UI_FONT
+    from render_engine import _render_text
     if is_hovered:
-        # Shadow for hover state
-        shadow = use_font.render(text, True, (0, 0, 0))
+        shadow = _render_text(use_font, text, (0, 0, 0))
         shadow_rect = shadow.get_rect(center=(rect.centerx + 2, rect.centery + 2))
         surface.blit(shadow, shadow_rect)
 
-    btn_text = use_font.render(text, True, text_color if not is_hovered else (255, 255, 255))
+    btn_text = _render_text(use_font, text, text_color if not is_hovered else (255, 255, 255))
     text_rect = btn_text.get_rect(center=rect.center)
     surface.blit(btn_text, text_rect)
 
@@ -557,8 +557,9 @@ def draw_button_info_popup(surface, popup):
         return
 
     padding = 14
-    title_font = pygame.font.SysFont("Arial", max(20, int(20 * SCALE_FACTOR)), bold=True)
-    body_font = pygame.font.SysFont("Arial", max(14, int(16 * SCALE_FACTOR)))
+    from render_engine import _get_cached_font
+    title_font = _get_cached_font(max(20, int(20 * SCALE_FACTOR)), bold=True)
+    body_font = _get_cached_font(max(14, int(16 * SCALE_FACTOR)))
     max_text_width = max(int(320 * SCALE_FACTOR), 240)
 
     def wrap_line(text):
@@ -583,7 +584,8 @@ def draw_button_info_popup(surface, popup):
     for entry in popup.get("lines", []):
         wrapped_lines.extend(wrap_line(entry))
 
-    title_surface = title_font.render(popup.get("title", "Info"), True, popup.get("color", (255, 215, 0)))
+    from render_engine import _render_text
+    title_surface = _render_text(title_font, popup.get("title", "Info"), popup.get("color", (255, 215, 0)))
     widest_line = title_surface.get_width()
     for line in wrapped_lines:
         line_width = body_font.size(line)[0]
@@ -613,7 +615,7 @@ def draw_button_info_popup(surface, popup):
     y_cursor += title_surface.get_height() + 8
 
     for line in wrapped_lines:
-        text_surface = body_font.render(line, True, (225, 230, 240))
+        text_surface = _render_text(body_font, line, (225, 230, 240))
         popup_surface.blit(text_surface, (padding, y_cursor))
         y_cursor += body_line_height
 
@@ -816,10 +818,11 @@ async def main(lan_game_data=None):
         screen.blit(assets["mulligan_bg"], (0, 0))
 
         # Title
-        title_text = cfg.SCORE_FONT.render("Mulligan Phase", True, cfg.WHITE)
+        from render_engine import _render_text as _rt
+        title_text = _rt(cfg.SCORE_FONT, "Mulligan Phase", cfg.WHITE)
         screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, int(SCREEN_HEIGHT * 0.1)))
 
-        subtitle_text = cfg.UI_FONT.render("Select 2-5 cards to redraw, then click Redraw", True, cfg.WHITE)
+        subtitle_text = _rt(cfg.UI_FONT, "Select 2-5 cards to redraw, then click Redraw", cfg.WHITE)
         screen.blit(subtitle_text, (SCREEN_WIDTH // 2 - subtitle_text.get_width() // 2, int(SCREEN_HEIGHT * 0.15)))
 
         # Draw hand
@@ -856,8 +859,9 @@ async def main(lan_game_data=None):
             matchup_anim.draw(screen)
             display_manager.gpu_flip()
 
-        # Show game start animation
-        transitions.show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+        # Show game start animation (skip on web — blocking loops freeze browser)
+        if sys.platform != "emscripten":
+            transitions.show_game_start_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
 
     # Start battle music for Round 1
     battle_music.set_battle_music_round(1, immediate=True)
@@ -966,7 +970,8 @@ async def main(lan_game_data=None):
         sync_fullscreen_from_surface()
         # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
         screen = display_manager.screen
-        dt = state.clock.tick(144)
+        # Web browsers cap at 60 FPS; targeting 144 on Emscripten wastes budget
+        dt = state.clock.tick(60 if sys.platform == "emscripten" else 144)
         await asyncio.sleep(0)
         if display_manager.gpu_renderer:
             display_manager.gpu_renderer.update(dt)
@@ -1043,38 +1048,43 @@ async def main(lan_game_data=None):
         
         # Check for round changes and reset space battle WITH COOL TRANSITION
         if game.round_number != state.previous_round:
-            # Hide CRT scanlines during transitions so they don't bleed through
-            gpu = display_manager.gpu_renderer
-            if gpu and gpu.enabled:
-                crt = gpu.get_effect("crt_hologram")
-                if crt:
-                    crt.set_uniform('panel_rect', (0.0, 0.0, 0.0, 0.0))
+            _is_web = sys.platform == "emscripten"
 
-            # Step 1: Cards sweep off the board (before showing winner)
-            if state.previous_round >= 1:
-                transitions.create_card_sweep_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT, direction="up")
-            
-            # Step 2: Show round winner announcement with screen shake
-            if hasattr(game, 'round_winner'):
-                transitions.show_round_winner_announcement(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
-            
-            # Step 3: Hyperspace transition
-            player_lost_both = (game.player1.rounds_won == 0 and game.player2.rounds_won == 2)
-            
-            if game.round_number == 2:
-                transition_text = "ENTERING HYPERSPACE..."
-                transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
-            elif game.round_number == 3:
-                if player_lost_both:
-                    from animations import create_black_hole_defeat_transition
-                    create_black_hole_defeat_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT)
-                else:
-                    transition_text = "EMERGING NEAR PLANET..."
+            # Skip blocking transition animations on web — their synchronous
+            # loops freeze the browser event loop and crash Pygbag.
+            if not _is_web:
+                # Hide CRT scanlines during transitions so they don't bleed through
+                gpu = display_manager.gpu_renderer
+                if gpu and gpu.enabled:
+                    crt = gpu.get_effect("crt_hologram")
+                    if crt:
+                        crt.set_uniform('panel_rect', (0.0, 0.0, 0.0, 0.0))
+
+                # Step 1: Cards sweep off the board (before showing winner)
+                if state.previous_round >= 1:
+                    transitions.create_card_sweep_animation(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT, direction="up")
+
+                # Step 2: Show round winner announcement with screen shake
+                if hasattr(game, 'round_winner'):
+                    transitions.show_round_winner_announcement(screen, game, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+                # Step 3: Hyperspace transition
+                player_lost_both = (game.player1.rounds_won == 0 and game.player2.rounds_won == 2)
+
+                if game.round_number == 2:
+                    transition_text = "ENTERING HYPERSPACE..."
                     transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
-            else:
-                transition_text = f"ROUND {game.round_number}"
-                transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
-            
+                elif game.round_number == 3:
+                    if player_lost_both:
+                        from animations import create_black_hole_defeat_transition
+                        create_black_hole_defeat_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT)
+                    else:
+                        transition_text = "EMERGING NEAR PLANET..."
+                        transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
+                else:
+                    transition_text = f"ROUND {game.round_number}"
+                    transitions.create_hyperspace_transition(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game.round_number, transition_text)
+
             state.ambient_effects.end_round()
             state.ambient_effects.start_round(round_number=game.round_number)
             state.previous_round = game.round_number

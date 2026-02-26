@@ -21,12 +21,12 @@ DIFFICULTY_TIERS = [
     (20,      "Warming Up",      140,      10,   ["regular", "fast"],                0.9,  0.75, 0.00,  None),
     (45,      "Skirmish",        110,      14,   ["regular", "fast", "kamikaze"],    1.0,  0.8,  0.00,  None),
     (90,      "Engaged",         85,       18,   ["regular", "fast", "kamikaze", "death_glider"],    1.1,  0.85, 0.03,  480),
-    (150,     "Contested",       70,       22,   ["regular", "fast", "kamikaze", "death_glider", "wraith_dart", "ancient_drone"],    1.2,  0.9,  0.08,  420),
-    (240,     "Intense",         55,       28,   ["regular", "fast", "kamikaze", "tank", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator"], 1.4, 0.95, 0.12, 360),
-    (360,     "Dangerous",       42,       36,   ["regular", "fast", "kamikaze", "tank", "elite", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator"], 1.6, 1.0, 0.18, 300),
-    (500,     "Overwhelming",    34,       45,   ["regular", "fast", "kamikaze", "tank", "elite", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive"], 1.9, 1.1, 0.22, 240),
-    (720,     "Apocalypse",      28,       55,   ["regular", "fast", "kamikaze", "tank", "elite", "death_glider", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive"], 2.3, 1.2, 0.28, 200),
-    (1000,    "Beyond",          22,       70,   ["regular", "fast", "kamikaze", "tank", "elite", "death_glider", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive"], 2.8, 1.3, 0.35, 180),
+    (150,     "Contested",       70,       22,   ["regular", "fast", "kamikaze", "death_glider", "wraith_dart", "ancient_drone", "wraith_miniship"],    1.2,  0.9,  0.08,  420),
+    (240,     "Intense",         55,       28,   ["regular", "fast", "kamikaze", "tank", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "wraith_miniship"], 1.4, 0.95, 0.12, 360),
+    (360,     "Dangerous",       42,       36,   ["regular", "fast", "kamikaze", "tank", "elite", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "wraith_miniship"], 1.6, 1.0, 0.18, 300),
+    (500,     "Overwhelming",    34,       45,   ["regular", "fast", "kamikaze", "tank", "elite", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive", "wraith_miniship"], 1.9, 1.1, 0.22, 240),
+    (720,     "Apocalypse",      28,       55,   ["regular", "fast", "kamikaze", "tank", "elite", "death_glider", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive", "wraith_miniship"], 2.3, 1.2, 0.28, 200),
+    (1000,    "Beyond",          22,       70,   ["regular", "fast", "kamikaze", "tank", "elite", "death_glider", "wraith_dart", "ancient_drone", "alkesh_bomber", "replicator", "ori_fighter", "wraith_hive", "wraith_miniship"], 2.8, 1.3, 0.35, 180),
 ]
 
 
@@ -139,6 +139,15 @@ class ContinuousSpawner:
                         pair.x = ship.x + random.randint(-80, 80)
                         pair.y = ship.y + random.randint(-80, 80)
                         new_ships.append(pair)
+                # Wraith miniships come in pairs (±60px offset)
+                elif behavior == "hostile_all":
+                    if len(ai_ships) + len(new_ships) < effective_max:
+                        pair = self._spawn_enemy(tier, screen_width, screen_height,
+                                                force_type=ship.enemy_type)
+                        if pair:
+                            pair.x = ship.x + random.randint(-60, 60)
+                            pair.y = ship.y + random.randint(-60, 60)
+                            new_ships.append(pair)
                 # Swarm behavior: wraith_darts come in groups of 3-5
                 elif behavior == "swarm_lifesteal":
                     swarm_count = random.randint(2, 4)  # +1 already spawned = 3-5 total
@@ -191,6 +200,22 @@ class ContinuousSpawner:
         ship = Ship(wx, wy, enemy_faction, is_player=False,
                     screen_width=screen_width, screen_height=screen_height,
                     variant=variant)
+
+        # Wraith miniship: load custom sprite asset (source faces DOWN → rotate 90° → LEFT for AI)
+        if enemy_type == "wraith_miniship":
+            import os
+            mini_path = os.path.join("assets", "ships", "wraith_miniship.png")
+            if os.path.exists(mini_path):
+                try:
+                    raw = pygame.image.load(mini_path).convert_alpha()
+                    raw = pygame.transform.smoothscale(raw, (28, 28))
+                    # DOWN → rotate 90° → face LEFT (default AI facing)
+                    raw = pygame.transform.rotate(raw, 90)
+                    ship.image = raw
+                    ship.width = 28
+                    ship.height = 28
+                except Exception:
+                    pass
 
         # Apply tier scaling
         ship.max_health = int(ship.max_health * tier["hp_mult"] * mods["hp"])

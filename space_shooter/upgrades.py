@@ -280,6 +280,7 @@ ENEMY_TYPES = {
     "wraith_hive":    {"speed": 0.3, "hp": 5.0, "scale": 1.6, "xp": 150, "tint": (100, 0, 180), "behavior": "mini_boss_spawner"},
     "ori_mothership": {"speed": 0.3, "hp": 10.0, "scale": 2.5, "xp": 500, "tint": (255, 255, 180), "behavior": "ori_boss"},
     "wraith_supergate": {"speed": 0.25, "hp": 8.0, "scale": 2.0, "xp": 500, "tint": (80, 0, 160), "behavior": "wraith_boss"},
+    "wraith_miniship": {"speed": 0.9, "hp": 1.5, "scale": 0.75, "xp": 65, "tint": (80, 0, 160), "behavior": "hostile_all"},
 }
 
 # Explosion color palettes per enemy behavior/type
@@ -291,4 +292,5 @@ ENEMY_EXPLOSION_PALETTES = {
     "ancient_drone": [(255, 200, 50), (255, 180, 0), (255, 255, 150)],
     "ori_mothership": [(255, 255, 200), (255, 220, 100), (255, 200, 50), (255, 255, 255)],
     "wraith_supergate": [(160, 0, 255), (100, 0, 180), (200, 100, 255), (80, 0, 120)],
+    "wraith_miniship": [(160, 0, 255), (100, 0, 180), (200, 100, 255)],
 }

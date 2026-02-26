@@ -1,0 +1,278 @@
+{
+  "FACTION_TAURI": {
+    "base": [
+      {
+        "name": "Col. Jack O'Neill",
+        "ability": "Clone gambit: Summon a temporary Jack clone each round. Draw +1 card at round start",
+        "ability_desc": "At the start of every round summon a 6-power Jack clone that survives exactly 3 of your turns (removed when the 4th would begin)",
+        "card_id": "tauri_oneill",
+        "faction": "Tau'ri"
+      },
+      {
+        "name": "Gen. George Hammond",
+        "ability": "Your first unit each round gets +3 power",
+        "ability_desc": "Your first unit played each round gets +3 power",
+        "card_id": "tauri_hammond",
+        "faction": "Tau'ri"
+      },
+      {
+        "name": "Dr. Samantha Carter",
+        "ability": "+2 power to all Siege units",
+        "ability_desc": "+2 power to all Siege units",
+        "card_id": "tauri_carter",
+        "faction": "Tau'ri"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Gen. Landry",
+        "ability": "Homeworld Command: Units get +1 in row with most units",
+        "ability_desc": "All units in your most populated row get +1 power",
+        "card_id": "tauri_landry",
+        "faction": "Tau'ri"
+      },
+      {
+        "name": "Dr. McKay",
+        "ability": "Draw 2 cards when you pass",
+        "ability_desc": "Draw 2 cards when you pass your turn",
+        "card_id": "tauri_mckay",
+        "faction": "Tau'ri"
+      },
+      {
+        "name": "Jonas Quinn",
+        "ability": "Eidetic Memory: Copy a card opponent drew",
+        "ability_desc": "Once per game: Look at cards opponent drew, copy one to your hand",
+        "card_id": "tauri_quinn",
+        "faction": "Tau'ri"
+      },
+      {
+        "name": "Catherine Langford",
+        "ability": "Ancient Knowledge: Look at top 3 cards of your deck, play one immediately",
+        "ability_desc": "Once per game: Reveal top 3 cards, choose one to play, rest go to bottom of deck",
+        "card_id": "tauri_langford",
+        "faction": "Tau'ri"
+      }
+    ]
+  },
+  "FACTION_GOAULD": {
+    "base": [
+      {
+        "name": "Apophis",
+        "ability": "Once per game, unleash a random weather storm",
+        "ability_desc": "Activate a random battlefield weather that hits both sides once per game",
+        "card_id": "goauld_apophis",
+        "faction": "Goa'uld"
+      },
+      {
+        "name": "Lord Yu",
+        "ability": "See opponent's hand next round when you pass",
+        "ability_desc": "When you pass, the opponent's entire next-round hand is revealed until the round ends",
+        "card_id": "goauld_yu",
+        "faction": "Goa'uld"
+      },
+      {
+        "name": "Sokar",
+        "ability": "+1 power to all Close Combat units",
+        "ability_desc": "+1 power to all Close Combat units",
+        "card_id": "goauld_sokar",
+        "faction": "Goa'uld"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Ba'al",
+        "ability": "System Lord's Cunning: Resurrect card from discard",
+        "ability_desc": "Once per game: Return a destroyed unit from discard pile to your hand",
+        "card_id": "goauld_baal",
+        "faction": "Goa'uld"
+      },
+      {
+        "name": "Anubis",
+        "ability": "Ascended power: Naquadah Overload every 2 rounds",
+        "ability_desc": "Automatically trigger Naquadah Overload at start of rounds 2 and 3",
+        "card_id": "goauld_anubis",
+        "faction": "Goa'uld"
+      },
+      {
+        "name": "Hathor",
+        "ability": "Seduction: Steal the lowest power enemy unit",
+        "ability_desc": "Use her charm to take control of the enemy's weakest unit (manual activation)",
+        "card_id": "goauld_hathor_unlock",
+        "image_path": "assets/goauld_hathor_unlock_leader.png",
+        "faction": "Goa'uld"
+      },
+      {
+        "name": "Cronus",
+        "ability": "Ancient Goa'uld: All units gain +1 power per round number",
+        "ability_desc": "Units get +1 in round 1, +2 in round 2, +3 in round 3",
+        "card_id": "goauld_cronus",
+        "faction": "Goa'uld"
+      }
+    ]
+  },
+  "FACTION_JAFFA": {
+    "base": [
+      {
+        "name": "Teal'c",
+        "ability": "Draw 1 card when winning a round",
+        "ability_desc": "Draw 1 card when winning a round",
+        "card_id": "jaffa_tealc",
+        "faction": "Jaffa Rebellion"
+      },
+      {
+        "name": "Bra'tac",
+        "ability": "All Agile cards gain +1 power",
+        "ability_desc": "All Agile cards gain +1 power",
+        "card_id": "jaffa_bratac",
+        "faction": "Jaffa Rebellion"
+      },
+      {
+        "name": "Rak'nor",
+        "ability": "Can play 2 cards on your first turn each round",
+        "ability_desc": "Can play 2 cards on your first turn of each round",
+        "card_id": "jaffa_raknor",
+        "faction": "Jaffa Rebellion"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Ka'lel",
+        "ability": "Warrior training: First 3 units each round get +2 power",
+        "ability_desc": "The first 3 units you play each round gain +2 power",
+        "card_id": "jaffa_kalel",
+        "faction": "Jaffa Rebellion"
+      },
+      {
+        "name": "Gerak",
+        "ability": "Free Jaffa: Draw 1 card for every 2 units played",
+        "ability_desc": "Draw 1 card for every 2 units you play in a round",
+        "card_id": "jaffa_gerak",
+        "faction": "Jaffa Rebellion"
+      },
+      {
+        "name": "Ishta",
+        "ability": "Hak'tyl resistance: All Gate Reinforcement units gain +2 power",
+        "ability_desc": "Units with Gate Reinforcement ability get +2 power",
+        "card_id": "jaffa_ishta",
+        "faction": "Jaffa Rebellion"
+      },
+      {
+        "name": "Rya'c",
+        "ability": "Hope for Tomorrow: Draw 2 extra cards at start of round 3",
+        "ability_desc": "Automatically draw 2 extra cards when round 3 begins",
+        "card_id": "jaffa_ryac",
+        "faction": "Jaffa Rebellion"
+      }
+    ]
+  },
+  "FACTION_LUCIAN": {
+    "base": [
+      {
+        "name": "Varro",
+        "ability": "Spy cards draw 3 instead of 2",
+        "ability_desc": "Deep Cover Agents draw 3 cards instead of 2",
+        "card_id": "lucian_varro",
+        "faction": "Lucian Alliance"
+      },
+      {
+        "name": "Sodan Master",
+        "ability": "+3 power to highest unit in each row",
+        "ability_desc": "+3 power to your highest unit in each row",
+        "card_id": "lucian_sodan_master",
+        "faction": "Lucian Alliance"
+      },
+      {
+        "name": "Ba'al Clone",
+        "ability": "+2 power to all Ranged units",
+        "ability_desc": "+2 power to all Ranged units",
+        "card_id": "lucian_baal_clone",
+        "faction": "Lucian Alliance"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Netan",
+        "ability": "Smuggling: Draw +1 card each round",
+        "ability_desc": "Draw 1 extra card at the start of each round",
+        "card_id": "lucian_netan",
+        "faction": "Lucian Alliance"
+      },
+      {
+        "name": "Vala Mal Doran",
+        "ability": "Thief's Luck: Steal card from opponent's hand",
+        "ability_desc": "At start of round 2, steal 1 random card from opponent's hand",
+        "card_id": "lucian_vala",
+        "faction": "Lucian Alliance"
+      },
+      {
+        "name": "Anateo",
+        "ability": "Black market: Medical Evac ability every round",
+        "ability_desc": "Free Medical Evac at start of rounds 2 and 3",
+        "card_id": "lucian_anateo",
+        "faction": "Lucian Alliance"
+      },
+      {
+        "name": "Kiva",
+        "ability": "Brutal Tactics: First unit each round gets +4 power",
+        "ability_desc": "Your first unit each round gets +4 power",
+        "card_id": "lucian_kiva",
+        "faction": "Lucian Alliance"
+      }
+    ]
+  },
+  "FACTION_ASGARD": {
+    "base": [
+      {
+        "name": "Freyr",
+        "ability": "Immune to weather effects",
+        "ability_desc": "Immune to all space hazards (weather effects)",
+        "card_id": "asgard_freyr",
+        "faction": "Asgard"
+      },
+      {
+        "name": "Loki",
+        "ability": "Steal 1 power from opponent's strongest unit",
+        "ability_desc": "Steal 1 power from opponent's strongest unit each turn",
+        "card_id": "asgard_loki",
+        "faction": "Asgard"
+      },
+      {
+        "name": "Heimdall",
+        "ability": "Your Legendary Commanders get +3 power",
+        "ability_desc": "Your Legendary Commanders get +3 power",
+        "card_id": "asgard_heimdall",
+        "faction": "Asgard"
+      }
+    ],
+    "unlockable": [
+      {
+        "name": "Thor Supreme Commander",
+        "ability": "Fleet Command: Motherships get +3 power",
+        "ability_desc": "All Mothership and O'Neill-Class ships get +3 power",
+        "card_id": "asgard_thor",
+        "faction": "Asgard"
+      },
+      {
+        "name": "Hermiod",
+        "ability": "Shields up: Weather affects opponent only",
+        "ability_desc": "Weather cards you play only affect your opponent",
+        "card_id": "asgard_hermiod",
+        "faction": "Asgard"
+      },
+      {
+        "name": "Penegal",
+        "ability": "Cloning bay: Revive one unit at start of each round",
+        "ability_desc": "Revive 1 random unit from discard at start of rounds 2 and 3",
+        "card_id": "asgard_penegal",
+        "faction": "Asgard"
+      },
+      {
+        "name": "Aegir",
+        "ability": "Asgard Archives: Draw 1 when playing Siege unit",
+        "ability_desc": "Draw 1 card whenever you play a Siege unit",
+        "card_id": "asgard_aegir",
+        "faction": "Asgard"
+      }
+    ]
+  }
+}

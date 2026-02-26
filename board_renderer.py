@@ -10,9 +10,12 @@ from game_config import (
     HAND_REGION_LEFT
 )
 from render_engine import (
-    draw_card, draw_weather_slots, draw_horn_slots, _compute_hand_positions
+    draw_card, draw_weather_slots, draw_horn_slots, _compute_hand_positions,
+    _render_text, _get_cached_font,
 )
 from abilities import Ability, has_ability, is_spy
+
+_pass_btn_cache = {}
 
 
 def draw_aa_circle(surface, color, center, radius, width=0):
@@ -83,33 +86,29 @@ def draw_weather_separator(surface, game):
     # Turn indicator moved to HUD - no duplicate text here
 
 
+_iris_cache = {}
+
 def _draw_iris_overlay(surface, row_rects):
     """Draw metallic shutter overlay over opponent's play area when Iris is active."""
-    # Cache the font to avoid repeated creation
-    font = pygame.font.SysFont("Arial", max(14, int(16 * display_manager.SCALE_FACTOR)), bold=True)
-
     for row_name, rect in row_rects.items():
-        # Semi-transparent metallic overlay
-        overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-
-        # Draw interlocking titanium blade pattern
-        blade_color = cfg.IRIS_BLADE_COLOR
-        highlight = (140, 145, 155, 100)
-
-        # Horizontal blades
-        num_blades = 6
-        blade_height = rect.height // num_blades
-        for i in range(num_blades):
-            y = i * blade_height
-            pygame.draw.rect(overlay, blade_color, (0, y, rect.width, blade_height - 2))
-            pygame.draw.line(overlay, highlight, (0, y), (rect.width, y), 2)
-
-        # "GATE SHIELD ACTIVE" text (only on middle row)
-        if row_name == "ranged":
-            text = font.render("GATE SHIELD ACTIVE", True, cfg.IRIS_TEXT_COLOR)
-            text_rect = text.get_rect(center=(rect.width // 2, rect.height // 2))
-            overlay.blit(text, text_rect)
-
+        cache_key = (row_name, rect.width, rect.height)
+        overlay = _iris_cache.get(cache_key)
+        if overlay is None:
+            overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            blade_color = cfg.IRIS_BLADE_COLOR
+            highlight = (140, 145, 155, 100)
+            num_blades = 6
+            blade_height = rect.height // num_blades
+            for i in range(num_blades):
+                y = i * blade_height
+                pygame.draw.rect(overlay, blade_color, (0, y, rect.width, blade_height - 2))
+                pygame.draw.line(overlay, highlight, (0, y), (rect.width, y), 2)
+            if row_name == "ranged":
+                font = _get_cached_font(max(14, int(16 * display_manager.SCALE_FACTOR)), bold=True)
+                text = _render_text(font, "GATE SHIELD ACTIVE", cfg.IRIS_TEXT_COLOR)
+                text_rect = text.get_rect(center=(rect.width // 2, rect.height // 2))
+                overlay.blit(text, text_rect)
+            _iris_cache[cache_key] = overlay
         surface.blit(overlay, rect.topleft)
 
 
@@ -286,15 +285,15 @@ def draw_scores(surface, game, anim_manager=None, p1_score_x=0, p1_score_y=0, p2
         return
 
     p1_color = (100, 255, 100) if game.player1.score > game.player2.score else cfg.WHITE
-    p1_score_text = cfg.SCORE_FONT.render(f"Score: {game.player1.score}", True, p1_color)
+    p1_score_text = _render_text(cfg.SCORE_FONT, f"Score: {game.player1.score}", p1_color)
     surface.blit(p1_score_text, (p1_score_x, p1_score_y))
-    
+
     p2_color = (100, 255, 100) if game.player2.score > game.player1.score else cfg.WHITE
-    p2_score_text = cfg.SCORE_FONT.render(f"Score: {game.player2.score}", True, p2_color)
+    p2_score_text = _render_text(cfg.SCORE_FONT, f"Score: {game.player2.score}", p2_color)
     surface.blit(p2_score_text, (p2_score_x, p2_score_y))
 
-    p1_rounds_text = cfg.UI_FONT.render(f"Rounds Won: {game.player1.rounds_won}", True, cfg.WHITE)
-    p2_rounds_text = cfg.UI_FONT.render(f"Rounds Won: {game.player2.rounds_won}", True, cfg.WHITE)
+    p1_rounds_text = _render_text(cfg.UI_FONT, f"Rounds Won: {game.player1.rounds_won}", cfg.WHITE)
+    p2_rounds_text = _render_text(cfg.UI_FONT, f"Rounds Won: {game.player2.rounds_won}", cfg.WHITE)
     surface.blit(p1_rounds_text, (p1_score_x, p1_score_y + 55))
     surface.blit(p2_rounds_text, (p2_score_x, p2_score_y + 55))
 
@@ -338,9 +337,13 @@ def draw_pass_button(surface, game, button_rect=None):
         glow_pulse = abs(math.sin(glow_time))
         center_alpha = int(150 + glow_pulse * 105)
         
-        # Outer glow
-        glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
-        pygame.draw.circle(glow_surf, (255, 50, 50, 80), (inner_radius * 1.5, inner_radius * 1.5), inner_radius + int(10 * display_manager.SCALE_FACTOR))
+        # Outer glow — cached
+        glow_key = ("pass_glow", inner_radius)
+        glow_surf = _pass_btn_cache.get(glow_key)
+        if glow_surf is None:
+            glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surf, (255, 50, 50, 80), (inner_radius * 1.5, inner_radius * 1.5), inner_radius + int(10 * display_manager.SCALE_FACTOR))
+            _pass_btn_cache[glow_key] = glow_surf
         surface.blit(glow_surf, (center_x - inner_radius * 1.5, center_y - inner_radius * 1.5))
         
         # Main button - glowing red
@@ -360,12 +363,12 @@ def draw_pass_button(surface, game, button_rect=None):
     
     # "PASS" text below DHD
     text_color = (255, 200, 200) if can_pass else (120, 120, 120)
-    pass_text = cfg.UI_FONT.render("PASS", True, text_color)
+    pass_text = _render_text(cfg.UI_FONT, "PASS", text_color)
     text_rect = pass_text.get_rect(center=(center_x, center_y + outer_radius + int(20 * display_manager.SCALE_FACTOR)))
-    
+
     # Add shadow
     if can_pass:
-        shadow = cfg.UI_FONT.render("PASS", True, (0, 0, 0, 100))
+        shadow = _render_text(cfg.UI_FONT, "PASS", (0, 0, 0))
         surface.blit(shadow, (text_rect.x + int(2 * display_manager.SCALE_FACTOR), text_rect.y + int(2 * display_manager.SCALE_FACTOR)))
     
     surface.blit(pass_text, text_rect)
@@ -413,14 +416,16 @@ def draw_dhd_back_button(surface, x=30, y=30, size=80, label=None):
     glow_time = pygame.time.get_ticks() / 600.0
     glow_pulse = abs(math.sin(glow_time))
 
-    # Outer glow
-    glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
+    # Outer glow — cached by state, alpha modulated
     glow_alpha = int(60 + glow_pulse * 40)
-    if is_hovered:
-        glow_color = (255, 80, 80, glow_alpha)
-    else:
-        glow_color = (50, 150, 255, glow_alpha)
-    pygame.draw.circle(glow_surf, glow_color, (inner_radius * 1.5, inner_radius * 1.5), inner_radius + 8)
+    dhd_glow_color = (255, 80, 80) if is_hovered else (50, 150, 255)
+    dhd_glow_key = ("dhd_glow", inner_radius, dhd_glow_color)
+    glow_surf = _pass_btn_cache.get(dhd_glow_key)
+    if glow_surf is None:
+        glow_surf = pygame.Surface((inner_radius * 3, inner_radius * 3), pygame.SRCALPHA)
+        pygame.draw.circle(glow_surf, (*dhd_glow_color, 100), (inner_radius * 1.5, inner_radius * 1.5), inner_radius + 8)
+        _pass_btn_cache[dhd_glow_key] = glow_surf
+    glow_surf.set_alpha(glow_alpha)
     surface.blit(glow_surf, (center_x - inner_radius * 1.5, center_y - inner_radius * 1.5))
 
     # Main button - glowing red on hover, cyan/blue otherwise
@@ -457,7 +462,7 @@ def draw_mulligan_button(surface, mulligan_selected):
     
     pygame.draw.rect(surface, color, cfg.MULLIGAN_BUTTON_RECT, border_radius=5)
     text = f"Redraw ({num_selected}/2-5)"
-    mulligan_text = cfg.UI_FONT.render(text, True, cfg.WHITE)
+    mulligan_text = _render_text(cfg.UI_FONT, text, cfg.WHITE)
     text_rect = mulligan_text.get_rect(center=cfg.MULLIGAN_BUTTON_RECT.center)
     surface.blit(mulligan_text, text_rect)
 
@@ -492,14 +497,14 @@ def draw_zpm_resource(surface, player, x, y):
 def draw_mission_objective(surface, player, x, y):
     """Draw current mission objective."""
     if player.current_mission and not player.current_mission.completed:
-        mission_text = cfg.UI_FONT.render("Mission:", True, (255, 255, 100))
+        mission_text = _render_text(cfg.UI_FONT, "Mission:", (255, 255, 100))
         surface.blit(mission_text, (x, y))
-        
-        desc_text = cfg.UI_FONT.render(player.current_mission.description, True, cfg.WHITE)
+
+        desc_text = _render_text(cfg.UI_FONT, player.current_mission.description, cfg.WHITE)
         surface.blit(desc_text, (x, y + 20))
-        
-        reward_text = cfg.UI_FONT.render(f"Reward: {player.current_mission.reward_desc}", True, (100, 255, 100))
+
+        reward_text = _render_text(cfg.UI_FONT, f"Reward: {player.current_mission.reward_desc}", (100, 255, 100))
         surface.blit(reward_text, (x, y + 40))
     elif player.current_mission and player.current_mission.completed:
-        completed_text = cfg.UI_FONT.render("Mission Completed!", True, (100, 255, 100))
+        completed_text = _render_text(cfg.UI_FONT, "Mission Completed!", (100, 255, 100))
         surface.blit(completed_text, (x, y))

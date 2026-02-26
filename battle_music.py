@@ -1,5 +1,6 @@
 import pygame
 import os
+import sys
 from game_settings import get_settings
 
 # Round-based battle music (increases intensity each round)
@@ -52,7 +53,7 @@ def _play_battle_theme(round_number, *, force=False):
         _next_music_allowed_at = now + _battle_music_cooldown_ms
         print(f"[audio] Battle music playing for round {round_number}: {music_path} at volume {volume:.2f}")
         return True
-    except pygame.error as exc:
+    except (pygame.error, Exception) as exc:
         print(f"[audio] Unable to play battle music ({music_path}): {exc}")
         return False
 
@@ -63,6 +64,19 @@ def set_battle_music_round(round_number, *, immediate=False):
     if round_number == _current_music_round:
         if immediate:
             _play_battle_theme(round_number, force=True)
+        return
+    # On web, fadeout() immediately followed by load() on a new track can crash
+    # the Emscripten audio backend.  Just stop instantly (no fade) then let
+    # update_battle_music() pick it up on the next frame.
+    if sys.platform == "emscripten":
+        if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+            try:
+                pygame.mixer.music.stop()
+            except Exception:
+                pass
+        _current_battle_music = None
+        _current_music_round = round_number
+        _next_music_allowed_at = 0
         return
     stop_battle_music()
     _current_music_round = round_number
@@ -88,8 +102,11 @@ def stop_battle_music(fade_ms=800):
     global _current_battle_music, _current_music_round
     if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
         try:
-            pygame.mixer.music.fadeout(fade_ms)
-        except pygame.error:
+            if sys.platform == "emscripten":
+                pygame.mixer.music.stop()
+            else:
+                pygame.mixer.music.fadeout(fade_ms)
+        except (pygame.error, Exception):
             pygame.mixer.music.stop()
     if _current_battle_music:
         print(f"[audio] Battle music stopped ({_current_battle_music})")

@@ -20,6 +20,8 @@ from render_engine import (
     draw_history_panel,
     draw_leader_column,
     _compute_hand_positions,
+    _render_text,
+    _surface_cache,
 )
 from animations import RowScoreAnimation, HathorStealAnimation, AbilityBurstEffect
 from abilities import Ability, has_ability
@@ -56,12 +58,14 @@ _overlay_cache = {}
 
 
 def _get_cached_overlay(w, h, alpha):
-    """Return a cached full-screen dim overlay."""
+    """Return a cached full-screen dim overlay using fast whole-surface alpha."""
     key = (w, h, alpha)
     surf = _overlay_cache.get(key)
     if surf is None:
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        surf.fill((0, 0, 0, alpha))
+        # Use non-SRCALPHA surface + set_alpha for fast blending (no per-pixel alpha)
+        surf = pygame.Surface((w, h))
+        surf.fill((0, 0, 0))
+        surf.set_alpha(alpha)
         _overlay_cache[key] = surf
     return surf
 
@@ -236,17 +240,16 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     else:
         screen.blit(state.assets["board"], (0, 0))
 
+    # Row separator lines — direct draw (no SRCALPHA surface needed)
     separator_color = (100, 150, 200, 150)
     separator_width = 3
     glow_color = (150, 200, 255, 80)
     x_start = PLAYFIELD_LEFT
     x_end = PLAYFIELD_LEFT + PLAYFIELD_WIDTH
-
     for row_rect in list(cfg.OPPONENT_ROW_RECTS.values()) + list(cfg.PLAYER_ROW_RECTS.values()):
         y_pos = row_rect.bottom
         if row_rect in cfg.OPPONENT_ROW_RECTS.values():
             y_pos += 8
-
         pygame.draw.line(screen, glow_color, (x_start, y_pos - 2), (x_end, y_pos - 2), 1)
         pygame.draw.line(screen, glow_color, (x_start, y_pos - 1), (x_end, y_pos - 1), 1)
         pygame.draw.line(screen, separator_color, (x_start, y_pos), (x_end, y_pos), separator_width)
@@ -483,7 +486,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         # Position score and messages directly below the animation (tighter spacing)
         messages_base_y = content_start_y + int(20 * SCALE_FACTOR)
         score_font = cfg.get_font("Arial", max(20, int(24 * SCALE_FACTOR)), bold=True)
-        score_text = score_font.render(f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", True, cfg.WHITE)
+        score_text = _render_text(score_font, f"Final Score: {game.player1.name} {game.player1.rounds_won} - {game.player2.rounds_won} {game.player2.name}", cfg.WHITE)
         screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, messages_base_y))
 
         # Show unlock messages if exist (tighter spacing)
@@ -502,7 +505,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         if hasattr(game, 'draft_messages'):
             for msg in game.draft_messages:
                 if isinstance(msg, str):
-                    msg_surf = cfg.UI_FONT.render(msg, True, cfg.HIGHLIGHT_ORANGE)
+                    msg_surf = _render_text(cfg.UI_FONT, msg, cfg.HIGHLIGHT_ORANGE)
                 else:
                     msg_surf = msg
                 screen.blit(msg_surf, (SCREEN_WIDTH // 2 - msg_surf.get_width() // 2, messages_base_y + y_offset))
@@ -510,9 +513,9 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         if getattr(game, 'draft_victory', False):
             egg_font = cfg.get_font("Arial", max(36, int(48 * SCALE_FACTOR)), bold=True)
-            egg_text = egg_font.render("EASTER EGG UNLOCKED!", True, (255, 0, 255))
+            egg_text = _render_text(egg_font, "EASTER EGG UNLOCKED!", (255, 0, 255))
             sub_font = cfg.get_font("Arial", max(16, int(20 * SCALE_FACTOR)))
-            sub_text = sub_font.render("Press ENTER to play STARGATE SPACE BATTLE!", True, (200, 100, 255))
+            sub_text = _render_text(sub_font, "Press ENTER to play STARGATE SPACE BATTLE!", (200, 100, 255))
 
             screen.blit(egg_text, (SCREEN_WIDTH // 2 - egg_text.get_width() // 2, messages_base_y + y_offset + int(20 * SCALE_FACTOR)))
             screen.blit(sub_text, (SCREEN_WIDTH // 2 - sub_text.get_width() // 2, messages_base_y + y_offset + int(70 * SCALE_FACTOR)))
@@ -539,7 +542,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                     # mouse_pos already cached at frame start
 
                     # Progress message (positioned above button panel)
-                    progress_text = cfg.UI_FONT.render(f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", True, cfg.HIGHLIGHT_GREEN)
+                    progress_text = _render_text(cfg.UI_FONT, f"Draft Progress: {current_wins}/{DraftRun.MAX_WINS} Wins", cfg.HIGHLIGHT_GREEN)
                     screen.blit(progress_text, (SCREEN_WIDTH // 2 - progress_text.get_width() // 2, start_y - int(35 * scale)))
 
                     # Define buttons
@@ -774,23 +777,24 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 # Draw input text or placeholder
                 input_text = state.lan_chat_panel.input_text if state.lan_chat_panel.input_text else "Type message... (Enter to send)"
                 text_color = (220, 220, 220) if state.lan_chat_panel.input_text else (120, 140, 160)
-                input_surf = chat_font.render(input_text, True, text_color)
+                input_surf = _render_text(chat_font, input_text, text_color)
                 screen.blit(input_surf, (input_rect.x + 10, input_rect.y + 8))
 
                 # Draw typing indicator if peer is typing
                 if state.lan_chat_panel.peer_is_typing:
-                    typing_text = chat_font.render("Peer is typing...", True, cfg.HIGHLIGHT_CYAN)
+                    typing_text = _render_text(chat_font, "Peer is typing...", cfg.HIGHLIGHT_CYAN)
                     screen.blit(typing_text, (input_rect.x, input_rect.y - 22))
             else:
                 # Show hint to open chat
-                hint_text = chat_font.render("Press T to chat", True, (100, 140, 180))
+                hint_text = _render_text(chat_font, "Press T to chat", (100, 140, 180))
                 screen.blit(hint_text, (history_rect.x, history_rect.bottom + 12))
 
-        # Round and Turn indicator in HUD (horizontal layout)
+        # Round and Turn indicator in HUD (horizontal layout) — cached text
         round_font = cfg.get_font("Arial", max(24, int(26 * SCALE_FACTOR)), bold=True)
-        round_text = round_font.render(f"Round {game.round_number}", True, cfg.WHITE)
+        round_text = _render_text(round_font, f"Round {game.round_number}", cfg.WHITE)
         turn_color = (120, 255, 160) if game.current_player == game.player1 else (255, 140, 140)
-        turn_text = round_font.render("YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN", True, turn_color)
+        turn_label = "YOUR TURN" if game.current_player == game.player1 else "ENEMY TURN"
+        turn_text = _render_text(round_font, turn_label, turn_color)
         # Draw on same line: "Round X - YOUR TURN"
         hud_text_x = HUD_LEFT + int(HUD_WIDTH * 0.05)
         hud_text_y = pct_y(0.04)
@@ -807,7 +811,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             latency_y = hud_text_y + round_text.get_height() + turn_text.get_height() + 12
             dot_radius = 6
             pygame.draw.circle(screen, latency_color, (hud_text_x + dot_radius, latency_y + dot_radius), dot_radius)
-            latency_text = latency_font.render(f"{rtt}ms ({latency_label})", True, latency_color)
+            latency_text = _render_text(latency_font, f"{rtt}ms ({latency_label})", latency_color)
             screen.blit(latency_text, (hud_text_x + dot_radius * 3, latency_y))
 
         # LAN Mode: Draw desync warning flash
@@ -820,9 +824,9 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                     # Pulsing red warning
                     alpha = int(180 + 75 * math.sin(now * 0.008))
                     warn_font = cfg.get_font("Arial", max(18, int(20 * SCALE_FACTOR)), bold=True)
-                    warn_surf = warn_font.render(f"! {text}", True, (255, 80, 80))
-                    warn_bg = pygame.Surface((warn_surf.get_width() + 16, warn_surf.get_height() + 8), pygame.SRCALPHA)
-                    warn_bg.fill((40, 0, 0, min(255, alpha)))
+                    warn_surf = _render_text(warn_font, f"! {text}", (255, 80, 80))
+                    warn_bg = re_mod._get_cached_panel(warn_surf.get_width() + 16, warn_surf.get_height() + 8, (40, 0, 0, 200))
+                    warn_bg.set_alpha(min(255, alpha))
                     wx = HUD_LEFT + (HUD_WIDTH - warn_bg.get_width()) // 2
                     wy = pct_y(0.12)
                     screen.blit(warn_bg, (wx, wy))
@@ -858,7 +862,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         if getattr(game, 'conquest_relics', None) and "quantum_mirror" in game.conquest_relics:
             enemy_hand_count = len(game.player2.hand)
             qm_font = cfg.get_font("Arial", max(16, int(18 * SCALE_FACTOR)), bold=True)
-            qm_text = qm_font.render(f"Enemy Hand: {enemy_hand_count}", True, (180, 140, 255))
+            qm_text = _render_text(qm_font, f"Enemy Hand: {enemy_hand_count}", (180, 140, 255))
             screen.blit(qm_text, (SCREEN_WIDTH - qm_text.get_width() - int(20 * SCALE_FACTOR),
                                    cfg.opponent_hand_area_y + cfg.OPPONENT_HAND_HEIGHT + int(4 * SCALE_FACTOR)))
 
@@ -879,7 +883,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 hint_text = f"↑/↓: Switch | SPACE: {btn_name} | ←/→: Cards"
 
             if hint_text:
-                hint_surf = hint_font.render(hint_text, True, (180, 200, 220))
+                hint_surf = _render_text(hint_font, hint_text, (180, 200, 220))
                 hint_x = (SCREEN_WIDTH - hint_surf.get_width()) // 2
                 hint_y = COMMAND_BAR_Y - hint_surf.get_height() - 8
                 hint_bg = pygame.Surface((hint_surf.get_width() + 16, hint_surf.get_height() + 8), pygame.SRCALPHA)
@@ -958,22 +962,27 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         # Draw instruction text
         hint_font = cfg.get_font(None, 48)
-        hint_text = hint_font.render("Click a CLOSE COMBAT unit to return to hand", True, cfg.HIGHLIGHT_ORANGE)
+        hint_text = _render_text(hint_font, "Click a CLOSE COMBAT unit to return to hand", cfg.HIGHLIGHT_ORANGE)
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, 100))
 
         # Draw text shadow
-        shadow_text = hint_font.render("Click a CLOSE COMBAT unit to return to hand", True, (0, 0, 0))
+        shadow_text = _render_text(hint_font, "Click a CLOSE COMBAT unit to return to hand", (0, 0, 0))
         screen.blit(shadow_text, (hint_rect.x + 3, hint_rect.y + 3))
         screen.blit(hint_text, hint_rect)
 
         # Highlight ONLY close combat cards on board with golden glow
         row_cards = game.player1.board.get("close", [])
+        glow_alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() * 0.005))
         for card in row_cards:
             if hasattr(card, 'rect'):
-                # Golden glow around selectable cards
-                glow_surf = pygame.Surface((card.rect.width + 20, card.rect.height + 20), pygame.SRCALPHA)
-                glow_alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() * 0.005))
-                pygame.draw.rect(glow_surf, (255, 200, 100, glow_alpha), glow_surf.get_rect(), border_radius=10)
+                gw, gh = card.rect.width + 20, card.rect.height + 20
+                glow_key = ("card_glow", gw, gh)
+                glow_surf = _surface_cache.get(glow_key)
+                if glow_surf is None:
+                    glow_surf = pygame.Surface((gw, gh), pygame.SRCALPHA)
+                    pygame.draw.rect(glow_surf, (255, 200, 100, 255), glow_surf.get_rect(), border_radius=10)
+                    _surface_cache[glow_key] = glow_surf
+                glow_surf.set_alpha(glow_alpha)
                 screen.blit(glow_surf, (card.rect.x - 10, card.rect.y - 10))
 
     # Draw visual feedback when dragging Ring Transport over valid targets
@@ -1066,10 +1075,9 @@ def render_frame(state, game, screen, dt, drag_visual_state):
     # Thor move mode - visual indicator only, clicks handled in event_handler
     if state.ui_state == UIState.THOR_MOVE_SELECT:
         indicator_font = cfg.get_font(None, 48)
-        indicator_text = indicator_font.render("THOR: Click a unit to move, then click destination row", True, (50, 200, 150))
+        indicator_text = _render_text(indicator_font, "THOR: Click a unit to move, then click destination row", (50, 200, 150))
         indicator_rect = indicator_text.get_rect(center=(SCREEN_WIDTH // 2, 50))
-        bg_surf = pygame.Surface((indicator_rect.width + 40, indicator_rect.height + 20), pygame.SRCALPHA)
-        bg_surf.fill((0, 0, 0, 180))
+        bg_surf = re_mod._get_cached_panel(indicator_rect.width + 40, indicator_rect.height + 20, (0, 0, 0, 180))
         screen.blit(bg_surf, (indicator_rect.x - 20, indicator_rect.y - 10))
         screen.blit(indicator_text, indicator_rect)
 
@@ -1102,7 +1110,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         # Title
         pause_font = cfg.get_font("Arial", 56, bold=True)
-        title_text = pause_font.render("PAUSED", True, cfg.TEXT_DIM)
+        title_text = _render_text(pause_font, "PAUSED", cfg.TEXT_DIM)
         title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + 70))
         screen.blit(title_text, title_rect)
 
@@ -1119,7 +1127,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         resume_hover = resume_button.collidepoint(mouse_pos)
         pygame.draw.rect(screen, (70, 200, 70) if resume_hover else (50, 160, 50), resume_button, border_radius=10)
         pygame.draw.rect(screen, (100, 255, 100) if resume_hover else (80, 180, 80), resume_button, 2, border_radius=10)
-        resume_text = button_font.render("RESUME", True, (255, 255, 255))
+        resume_text = _render_text(button_font, "RESUME", (255, 255, 255))
         resume_rect = resume_text.get_rect(center=resume_button.center)
         screen.blit(resume_text, resume_rect)
 
@@ -1128,7 +1136,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         options_hover = options_button.collidepoint(mouse_pos)
         pygame.draw.rect(screen, (80, 140, 200) if options_hover else (60, 100, 160), options_button, border_radius=10)
         pygame.draw.rect(screen, (120, 180, 255) if options_hover else (80, 140, 200), options_button, 2, border_radius=10)
-        options_text = button_font.render("OPTIONS", True, (255, 255, 255))
+        options_text = _render_text(button_font, "OPTIONS", (255, 255, 255))
         options_rect = options_text.get_rect(center=options_button.center)
         screen.blit(options_text, options_rect)
 
@@ -1139,7 +1147,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             surrender_hover = surrender_button.collidepoint(mouse_pos)
             pygame.draw.rect(screen, (180, 100, 50) if surrender_hover else (140, 70, 30), surrender_button, border_radius=10)
             pygame.draw.rect(screen, (220, 140, 80) if surrender_hover else (160, 90, 50), surrender_button, 2, border_radius=10)
-            surrender_text = button_font.render("SURRENDER", True, (255, 255, 255))
+            surrender_text = _render_text(button_font, "SURRENDER", (255, 255, 255))
             surrender_rect = surrender_text.get_rect(center=surrender_button.center)
             screen.blit(surrender_text, surrender_rect)
 
@@ -1149,7 +1157,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         main_menu_hover = main_menu_button.collidepoint(mouse_pos)
         pygame.draw.rect(screen, (200, 160, 60) if main_menu_hover else (160, 120, 40), main_menu_button, border_radius=10)
         pygame.draw.rect(screen, (255, 200, 100) if main_menu_hover else (180, 140, 60), main_menu_button, 2, border_radius=10)
-        menu_text = button_font.render("MAIN MENU", True, (255, 255, 255))
+        menu_text = _render_text(button_font, "MAIN MENU", (255, 255, 255))
         menu_rect = menu_text.get_rect(center=main_menu_button.center)
         screen.blit(menu_text, menu_rect)
 
@@ -1159,13 +1167,13 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         quit_hover = quit_button.collidepoint(mouse_pos)
         pygame.draw.rect(screen, (200, 70, 70) if quit_hover else (160, 50, 50), quit_button, border_radius=10)
         pygame.draw.rect(screen, (255, 100, 100) if quit_hover else (180, 70, 70), quit_button, 2, border_radius=10)
-        quit_text = button_font.render("QUIT GAME", True, (255, 255, 255))
+        quit_text = _render_text(button_font, "QUIT GAME", (255, 255, 255))
         quit_rect = quit_text.get_rect(center=quit_button.center)
         screen.blit(quit_text, quit_rect)
 
         # Hint text
         hint_font = cfg.get_font("Arial", 18)
-        hint_text = hint_font.render("Press ESC to resume | Q to surrender | F11 fullscreen", True, (140, 140, 160))
+        hint_text = _render_text(hint_font, "Press ESC to resume | Q to surrender | F11 fullscreen", (140, 140, 160))
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, menu_y + menu_height - 25))
         screen.blit(hint_text, hint_rect)
 
@@ -1186,20 +1194,20 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
         # Draw Text
         wait_font = cfg.get_font("Arial", 48, bold=True)
-        wait_text = wait_font.render("WAITING FOR OPPONENT...", True, (255, 255, 255))
+        wait_text = _render_text(wait_font, "WAITING FOR OPPONENT...", (255, 255, 255))
         wait_rect = wait_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
 
         # Draw text background
-        pygame.draw.rect(screen, (0, 0, 0, 150), wait_rect.inflate(40, 20), border_radius=10)
+        wait_bg = re_mod._get_cached_panel(wait_rect.width + 40, wait_rect.height + 20, (0, 0, 0, 150))
+        screen.blit(wait_bg, (wait_rect.x - 20, wait_rect.y - 10))
         screen.blit(wait_text, wait_rect)
 
     # Debug overlay: FPS counter and performance stats (v4.3.1)
     if DEBUG_MODE:
         current_fps = state.clock.get_fps()
         # FPS counter (top-left corner)
-        fps_text = cfg.UI_FONT.render(f"FPS: {current_fps:.1f}", True, (0, 255, 0))
-        fps_bg = pygame.Surface((fps_text.get_width() + 10, fps_text.get_height() + 6), pygame.SRCALPHA)
-        fps_bg.fill((0, 0, 0, 180))
+        fps_text = _render_text(cfg.UI_FONT, f"FPS: {int(current_fps)}", (0, 255, 0))
+        fps_bg = re_mod._get_cached_panel(fps_text.get_width() + 10, fps_text.get_height() + 6, (0, 0, 0, 180))
         screen.blit(fps_bg, (8, 8))
         screen.blit(fps_text, (13, 11))
 

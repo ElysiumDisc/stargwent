@@ -2,3 +2,4 @@ pygame-ce
 Pillow
 moderngl
 pyinstaller
+pygbag

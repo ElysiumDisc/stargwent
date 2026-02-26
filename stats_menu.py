@@ -91,6 +91,24 @@ async def run_stats_menu(screen):
         except Exception:
             stats_bg = None
 
+    # Load tab switch sound
+    _tab_sound = None
+    _tab_snd_path = os.path.join("assets", "audio", "stats_menu_tab.ogg")
+    if os.path.exists(_tab_snd_path):
+        try:
+            _tab_sound = pygame.mixer.Sound(_tab_snd_path)
+        except (pygame.error, Exception):
+            pass
+
+    def _play_tab_sound():
+        if _tab_sound:
+            try:
+                from game_settings import get_settings as _gs
+                _tab_sound.set_volume(_gs().get_effective_sfx_volume())
+                _tab_sound.play()
+            except (pygame.error, Exception):
+                pass
+
     # Load fallback images for previews
     card_back_img = None
     cb_path = os.path.join("assets", "card_back.png")
@@ -622,6 +640,7 @@ async def run_stats_menu(screen):
                     active_tab_idx = (active_tab_idx + 1) % num_tabs
                     current_key = TAB_KEYS[active_tab_idx]
                     scroll_offset = tab_scroll_offsets[current_key]
+                    _play_tab_sound()
                 elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5, pygame.K_6):
                     idx = event.key - pygame.K_1
                     if idx < num_tabs:
@@ -629,6 +648,7 @@ async def run_stats_menu(screen):
                         active_tab_idx = idx
                         current_key = TAB_KEYS[active_tab_idx]
                         scroll_offset = tab_scroll_offsets[current_key]
+                        _play_tab_sound()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if back_rect.collidepoint(event.pos):
                     try:
@@ -661,6 +681,7 @@ async def run_stats_menu(screen):
                         current_key = TAB_KEYS[active_tab_idx]
                         scroll_offset = tab_scroll_offsets[current_key]
                         tab_clicked = True
+                        _play_tab_sound()
                         break
                 if not tab_clicked and not panel_rect.collidepoint(event.pos):
                     running = False

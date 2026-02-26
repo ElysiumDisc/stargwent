@@ -438,6 +438,47 @@ class PowerUp:
             "rarity": "legendary",
             "faction": "lucian alliance",
         },
+        # --- Miniship escort powerups ---
+        "miniship_overdrive": {
+            "name": "Escort Overdrive",
+            "color": (80, 200, 255),
+            "duration": 720,  # 12 seconds
+            "spawn_weight": 0,
+            "icon": "E",
+            "icon_file": "siege.png",
+            "rarity": "epic",
+            "faction": "tau'ri",
+        },
+        "miniship_shields": {
+            "name": "Escort Shields",
+            "color": (100, 220, 255),
+            "duration": 480,  # 8 seconds
+            "spawn_weight": 0,
+            "icon": "E",
+            "icon_file": "special.png",
+            "rarity": "rare",
+            "faction": "tau'ri",
+        },
+        "goauld_miniship_overdrive": {
+            "name": "Al'kesh Overdrive",
+            "color": (255, 180, 50),
+            "duration": 720,  # 12 seconds
+            "spawn_weight": 0,
+            "icon": "A",
+            "icon_file": "siege.png",
+            "rarity": "epic",
+            "faction": "goa'uld",
+        },
+        "goauld_miniship_shields": {
+            "name": "Al'kesh Shields",
+            "color": (255, 200, 100),
+            "duration": 480,  # 8 seconds
+            "spawn_weight": 0,
+            "icon": "A",
+            "icon_file": "special.png",
+            "rarity": "rare",
+            "faction": "goa'uld",
+        },
     }
 
     # Rarity colors for powerup border glow
@@ -671,23 +712,24 @@ class XPOrb:
     def update(self, player_x, player_y, collection_radius=30):
         """Update orb: drift toward player, check collection."""
         self.pulse += 0.15
-        # Gentle acceleration toward player (tractor beam feel)
+        # Strong acceleration toward player (magnetic tractor beam)
         dx = player_x - self.x
         dy = player_y - self.y
         dist = math.hypot(dx, dy)
         if dist > 0:
-            accel = min(0.3, 8.0 / max(dist, 1))
+            accel = min(0.8, 15.0 / max(dist, 1))
             self.vx += (dx / dist) * accel
             self.vy += (dy / dist) * accel
-        # Cap speed
+        # Cap speed (faster than player's ~8 speed)
         speed = math.hypot(self.vx, self.vy)
-        if speed > 10:
-            self.vx = self.vx / speed * 10
-            self.vy = self.vy / speed * 10
+        if speed > 14:
+            self.vx = self.vx / speed * 14
+            self.vy = self.vy / speed * 14
         self.x += self.vx
         self.y += self.vy
-        # Check collection
-        if dist < collection_radius:
+        # Check collection (post-movement distance for snap-collect)
+        new_dist = math.hypot(player_x - self.x, player_y - self.y)
+        if new_dist < collection_radius:
             self.active = False
             return self.value
         return 0
@@ -1149,10 +1191,12 @@ class Sun:
         self.triggered_shake = False
 
     def _apply_gravity(self, entities_dict):
-        """Pull everything within 1000px toward center. 2 DPS at inner 160px."""
+        """Pull everything within 1000px toward center with tiered damage zones."""
         pull_radius = 1000
+        mid_radius = 400
         core_radius = 160
-        max_accel = 5.5
+        kill_radius = 40
+        max_accel = 8.0
 
         all_entities = []
         for ship in entities_dict.get('ships', []):
@@ -1172,17 +1216,23 @@ class Sun:
                 strength = max_accel * (1 - dist / pull_radius)
                 ent.x += (dx / dist) * strength
                 ent.y += (dy / dist) * strength
-                # Core damage (2 DPS = 2/60 per frame)
-                if dist < core_radius and hasattr(ent, 'take_damage'):
-                    ent.take_damage(2.0 / 60.0)
+                # Kill zone — near-instant death (60 DPS)
+                if dist < kill_radius and hasattr(ent, 'take_damage'):
+                    ent.take_damage(60.0 / 60.0)
+                # Core damage — heavy (15 DPS)
+                elif dist < core_radius and hasattr(ent, 'take_damage'):
+                    ent.take_damage(15.0 / 60.0)
+                # Mid-range damage — light warning (3 DPS)
+                elif dist < mid_radius and hasattr(ent, 'take_damage'):
+                    ent.take_damage(3.0 / 60.0)
 
-        # Pull projectiles
+        # Pull projectiles (70% of entity strength)
         for proj in entities_dict.get('projectiles', []):
             dx = self.x - proj.x
             dy = self.y - proj.y
             dist = math.hypot(dx, dy)
             if dist < pull_radius and dist > 1:
-                strength = max_accel * 0.5 * (1 - dist / pull_radius)
+                strength = max_accel * 0.7 * (1 - dist / pull_radius)
                 proj.x += (dx / dist) * strength
                 proj.y += (dy / dist) * strength
 
@@ -1229,19 +1279,33 @@ class Sun:
                 pygame.draw.circle(surf, (200, 220, 255, ring_alpha), (c, c), ring_r, 3)
 
         elif self.phase in (self.PHASE_WORMHOLE, self.PHASE_CLOSING):
-            num_rings = 5
-            for i in range(num_rings):
-                ring_r = int(r * (0.3 + i * 0.15))
-                angle_off = math.radians(self.rotation + i * 72)
-                a = max(0, int(150 - i * 25))
-                blue = min(255, 100 + i * 30)
-                pygame.draw.circle(surf, (100, blue, 255, a), (c, c), ring_r, 2)
-                for j in range(3):
-                    spot_angle = angle_off + j * (math.pi * 2 / 3)
-                    spot_x = c + int(math.cos(spot_angle) * ring_r)
-                    spot_y = c + int(math.sin(spot_angle) * ring_r)
-                    pygame.draw.circle(surf, (180, 200, 255, a),
-                                     (spot_x, spot_y), max(2, 4 - i))
+            # When GPU black_hole shader is active, skip pygame wormhole rendering
+            # (shader handles lensing + accretion disk). Just draw a minimal dark core.
+            gpu_active = False
+            try:
+                import display_manager
+                gpu = display_manager.gpu_renderer
+                if gpu and gpu.enabled and gpu.is_effect_enabled('black_hole'):
+                    gpu_active = True
+            except Exception:
+                pass
+
+            if not gpu_active:
+                # Software fallback: concentric rings with rotating spots
+                num_rings = 5
+                for i in range(num_rings):
+                    ring_r = int(r * (0.3 + i * 0.15))
+                    angle_off = math.radians(self.rotation + i * 72)
+                    a = max(0, int(150 - i * 25))
+                    blue = min(255, 100 + i * 30)
+                    pygame.draw.circle(surf, (100, blue, 255, a), (c, c), ring_r, 2)
+                    for j in range(3):
+                        spot_angle = angle_off + j * (math.pi * 2 / 3)
+                        spot_x = c + int(math.cos(spot_angle) * ring_r)
+                        spot_y = c + int(math.sin(spot_angle) * ring_r)
+                        pygame.draw.circle(surf, (180, 200, 255, a),
+                                         (spot_x, spot_y), max(2, 4 - i))
+            # Dark core circle (always drawn — minimal indicator even under shader)
             pygame.draw.circle(surf, (20, 0, 40, 200), (c, c), int(r * 0.25))
             core_a = int(120 + math.sin(self.pulse * 2) * 60)
             pygame.draw.circle(surf, (150, 100, 255, core_a), (c, c), int(r * 0.15))

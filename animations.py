@@ -1,7 +1,30 @@
 import pygame
 import math
 import random
+import sys
 import display_manager
+
+_IS_WEB = sys.platform == "emscripten"
+
+# ============================================================================
+# PARTICLE SPRITE CACHE — avoids per-frame SRCALPHA surface creation
+# ============================================================================
+_particle_sprite_cache = {}
+_MAX_PARTICLE_CACHE = 300
+
+
+def _get_circle_sprite(size, color, alpha=255):
+    """Return a cached SRCALPHA circle surface. Avoids malloc every frame."""
+    key = (size, color, alpha)
+    s = _particle_sprite_cache.get(key)
+    if s is None:
+        if len(_particle_sprite_cache) >= _MAX_PARTICLE_CACHE:
+            _particle_sprite_cache.clear()
+        s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, (*color, alpha) if len(color) == 3 else color, (size, size), size)
+        _particle_sprite_cache[key] = s
+    return s
+
 
 # RESOLUTION SCALE FACTOR
 # All hardcoded sizes should be multiplied by this for 4K
@@ -1942,9 +1965,13 @@ class RowWeatherEffect:
         
         wt = self.weather_type.lower()
         
-        # Draw highlighted row background first
-        highlight_surf = pygame.Surface((self.row_rect.width, self.row_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(highlight_surf, self.highlight_color, highlight_surf.get_rect(), border_radius=8)
+        # Draw highlighted row background — cached
+        hl_key = (self.row_rect.width, self.row_rect.height, self.highlight_color)
+        highlight_surf = _particle_sprite_cache.get(("row_hl", hl_key))
+        if highlight_surf is None:
+            highlight_surf = pygame.Surface((self.row_rect.width, self.row_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(highlight_surf, self.highlight_color, highlight_surf.get_rect(), border_radius=8)
+            _particle_sprite_cache[("row_hl", hl_key)] = highlight_surf
         surface.blit(highlight_surf, (self.row_rect.x, self.row_rect.y))
         
         # Draw animated pulsing border
@@ -1987,31 +2014,25 @@ class RowWeatherEffect:
                 pulse_alpha = int(alpha * (0.7 + 0.3 * math.sin(particle['pulse'])))
                 alpha = pulse_alpha
             
-            # EMP particles with glow
+            # EMP particles with glow — cached sprite
             if 'pulse_speed' in particle:
                 glow_radius = particle['size'] + 4
-                glow_surf = pygame.Surface((glow_radius*2, glow_radius*2), pygame.SRCALPHA)
-                inner_color = (*particle['color'], alpha)
-                outer_color = (particle['color'][0], particle['color'][1], particle['color'][2], alpha // 2)
-                pygame.draw.circle(glow_surf, outer_color, (glow_radius, glow_radius), glow_radius, width=0)
-                pygame.draw.circle(glow_surf, inner_color, (glow_radius, glow_radius), particle['size'])
+                emp_key = ("emp", glow_radius, particle['color'], alpha)
+                glow_surf = _particle_sprite_cache.get(emp_key)
+                if glow_surf is None:
+                    glow_surf = pygame.Surface((glow_radius*2, glow_radius*2), pygame.SRCALPHA)
+                    outer_color = (*particle['color'], alpha // 2)
+                    inner_color = (*particle['color'], alpha)
+                    pygame.draw.circle(glow_surf, outer_color, (glow_radius, glow_radius), glow_radius, width=0)
+                    pygame.draw.circle(glow_surf, inner_color, (glow_radius, glow_radius), particle['size'])
+                    if len(_particle_sprite_cache) < _MAX_PARTICLE_CACHE:
+                        _particle_sprite_cache[emp_key] = glow_surf
                 surface.blit(glow_surf, (pos[0]-glow_radius, pos[1]-glow_radius))
                 continue
             
-            # Nebula/fog particles
+            # Nebula/fog particles — use cached sprites
             if 'nebula' in wt or 'fog' in wt or 'interference' in wt or particle['size'] > 10:
-                fog_surf = pygame.Surface((particle['size']*2, particle['size']*2), pygame.SRCALPHA)
-                color = (*particle['color'], alpha)
-                pygame.draw.circle(fog_surf, color, (particle['size'], particle['size']), particle['size'])
-                if 'wobble_speed' in particle:
-                    inner_radius = max(4, int(particle['size'] * 0.6))
-                    inner_color = (
-                        min(255, particle['color'][0] + 30),
-                        min(255, particle['color'][1] + 20),
-                        min(255, particle['color'][2] + 30),
-                        alpha // 2
-                    )
-                    pygame.draw.circle(fog_surf, inner_color, (particle['size'], particle['size']), inner_radius)
+                fog_surf = _get_circle_sprite(particle['size'], particle['color'], alpha)
                 surface.blit(fog_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
             
             # Asteroid/meteor particles - draw as fiery streaks
@@ -2033,27 +2054,18 @@ class RowWeatherEffect:
                 # Draw bright head
                 pygame.draw.circle(surface, (255, 255, 200), pos, particle['size'])
             
-            # Ice particles - draw as small crystals
+            # Ice particles — cached sprite
             elif 'ice' in wt or 'hazard' in wt or 'frost' in wt:
                 if alpha < 255:
-                    crystal_surf = pygame.Surface((particle['size']*2+2, particle['size']*2+2), pygame.SRCALPHA)
-                    color = (*particle['color'], alpha)
-                    center = (particle['size']+1, particle['size']+1)
-                    # Draw simple crystal shape
-                    pygame.draw.circle(crystal_surf, color, center, particle['size'])
-                    # Add a sparkle
-                    sparkle_color = (255, 255, 255, alpha // 2)
-                    pygame.draw.circle(crystal_surf, sparkle_color, (center[0]-1, center[1]-1), max(1, particle['size']//2))
-                    surface.blit(crystal_surf, (pos[0]-particle['size']-1, pos[1]-particle['size']-1))
+                    ice_surf = _get_circle_sprite(particle['size'], particle['color'], alpha)
+                    surface.blit(ice_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
                 else:
                     pygame.draw.circle(surface, particle['color'], pos, particle['size'])
             
-            # Default particles
+            # Default particles — cached sprite
             else:
                 if alpha < 255:
-                    circle_surf = pygame.Surface((particle['size']*2, particle['size']*2), pygame.SRCALPHA)
-                    color = (*particle['color'], alpha)
-                    pygame.draw.circle(circle_surf, color, (particle['size'], particle['size']), particle['size'])
+                    circle_surf = _get_circle_sprite(particle['size'], particle['color'], alpha)
                     surface.blit(circle_surf, (pos[0]-particle['size'], pos[1]-particle['size']))
                 else:
                     pygame.draw.circle(surface, particle['color'], pos, particle['size'])
@@ -2331,8 +2343,10 @@ class ScorePopAnimation(Animation):
 
         # Show combat text label (e.g. "BUFFED!")
         if self.label_text:
-            # Use smaller font for label
-            label_font = pygame.font.SysFont("Arial", 16, bold=True)
+            # Use smaller font for label — cached to avoid SysFont per frame
+            if not hasattr(ScorePopAnimation, '_label_font_cache'):
+                ScorePopAnimation._label_font_cache = pygame.font.SysFont("Arial", 16, bold=True)
+            label_font = ScorePopAnimation._label_font_cache
             label_surf = label_font.render(self.label_text, True, self.label_color)
             
             # Fade in/out
@@ -2989,14 +3003,18 @@ class AmbientBackgroundEffects:
         
     def update(self, dt):
         """Update all ambient effects."""
+        if _IS_WEB:
+            return  # Skip ambient effects on web for performance
         self.starfield.update(dt)
         self.chevrons.update(dt)
         self.energy_waves.update(dt)
         self.space_battle.update(dt)
         self.asteroids.update(dt)
-    
+
     def draw(self, surface):
         """Draw all ambient effects (call after drawing board background)."""
+        if _IS_WEB:
+            return  # Skip ambient effects on web for performance
         self.starfield.draw(surface)
         self.asteroids.draw(surface)  # Draw asteroids over stars
         self.energy_waves.draw(surface)

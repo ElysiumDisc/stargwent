@@ -164,6 +164,10 @@ class CoopSpaceShooterClient:
 
         state = self.state
 
+        # --- Interpolate entity positions for smooth rendering ---
+        if self.prev_state and self.interp_t < 1.0:
+            state = self._interpolate_state(self.prev_state, state, self.interp_t)
+
         # --- Draw suns ---
         for sun in state.get('suns', []):
             self._draw_sun(surface, sun)
@@ -349,6 +353,24 @@ class CoopSpaceShooterClient:
                 ally_lbl = self.tiny_font.render("ALLY", True, (100, 255, 100))
                 surface.blit(ally_lbl, (int(sx - ally_lbl.get_width() // 2), int(sy - 30)))
 
+        # --- Draw miniship escorts ---
+        for mini in state.get('miniships', []):
+            sx, sy = self.camera.world_to_screen(mini['x'], mini['y'])
+            if -40 < sx < self.screen_width + 40 and -40 < sy < self.screen_height + 40:
+                # Draw small ship marker
+                pygame.draw.circle(surface, (80, 190, 255), (int(sx), int(sy)), 6)
+                pygame.draw.circle(surface, (120, 220, 255), (int(sx), int(sy)), 4)
+                # Health bar if damaged
+                hp = mini.get('health', 0)
+                max_hp = mini.get('max_health', 40)
+                if hp < max_hp and max_hp > 0:
+                    bar_w = 24
+                    pct = max(0, hp / max_hp)
+                    bx = int(sx) - bar_w // 2
+                    by = int(sy) - 10
+                    pygame.draw.rect(surface, (40, 40, 40), (bx, by, bar_w, 3))
+                    pygame.draw.rect(surface, (80, 190, 255), (bx, by, int(bar_w * pct), 3))
+
         # --- Draw projectiles ---
         for proj in state.get('projectiles', []):
             sx, sy = self.camera.world_to_screen(proj['x'], proj['y'])
@@ -409,6 +431,42 @@ class CoopSpaceShooterClient:
         # Game over overlay
         if state.get('game_over'):
             self._draw_game_over(surface, state)
+
+    @staticmethod
+    def _lerp_entities(prev_list, curr_list, t, key='x'):
+        """Linearly interpolate x/y positions between two snapshot entity lists."""
+        if not prev_list:
+            return curr_list
+        # Build index of prev entities by position (approximate matching)
+        result = []
+        for i, curr in enumerate(curr_list):
+            if i < len(prev_list):
+                prev = prev_list[i]
+                interped = dict(curr)
+                interped['x'] = prev.get('x', 0) + (curr.get('x', 0) - prev.get('x', 0)) * t
+                interped['y'] = prev.get('y', 0) + (curr.get('y', 0) - prev.get('y', 0)) * t
+                result.append(interped)
+            else:
+                result.append(curr)
+        return result
+
+    def _interpolate_state(self, prev, curr, t):
+        """Create an interpolated state snapshot between two frames."""
+        interped = dict(curr)
+        # Interpolate player positions
+        for key in ('p1', 'p2'):
+            if key in prev and key in curr:
+                p = dict(curr[key])
+                pp = prev[key]
+                p['x'] = pp.get('x', 0) + (p.get('x', 0) - pp.get('x', 0)) * t
+                p['y'] = pp.get('y', 0) + (p.get('y', 0) - pp.get('y', 0)) * t
+                interped[key] = p
+        # Interpolate entity lists
+        for list_key in ('enemies', 'allies', 'miniships', 'projectiles', 'powerups', 'xp_orbs'):
+            if list_key in prev and list_key in curr:
+                interped[list_key] = self._lerp_entities(
+                    prev.get(list_key, []), curr.get(list_key, []), t)
+        return interped
 
     def _draw_sun(self, surface, sun_info):
         """Draw a sun/wormhole hazard from snapshot data."""

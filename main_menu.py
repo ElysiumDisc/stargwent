@@ -96,7 +96,11 @@ def stop_menu_music(fade_ms=600):
         _menu_music_next_allowed = 0
         return
     try:
-        pygame.mixer.music.fadeout(fade_ms)
+        import sys
+        if sys.platform == "emscripten":
+            pygame.mixer.music.stop()
+        else:
+            pygame.mixer.music.fadeout(fade_ms)
     except pygame.error:
         pygame.mixer.music.stop()
     _menu_music_playing = False
@@ -610,17 +614,20 @@ class MainMenu:
                 panel_height
             )
             
-            # Panel background with gradient effect
-            panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-            for y in range(panel_rect.height):
-                progress = y / panel_rect.height
-                alpha = int(200 - progress * 30)
-                r = int(25 + progress * 10)
-                g = int(35 + progress * 15)
-                b = int(55 + progress * 20)
-                pygame.draw.line(panel_surf, (r, g, b, alpha), (0, y), (panel_rect.width, y))
-            
-            surface.blit(panel_surf, panel_rect.topleft)
+            # Panel background with gradient effect (cached — avoids 1000+ draw.line calls per frame)
+            _panel_grad_key = ("options_panel", panel_rect.width, panel_rect.height)
+            if not hasattr(self, '_options_panel_cache') or getattr(self, '_options_panel_cache_key', None) != _panel_grad_key:
+                panel_surf = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+                for y in range(panel_rect.height):
+                    progress = y / panel_rect.height
+                    alpha = int(200 - progress * 30)
+                    r = int(25 + progress * 10)
+                    g = int(35 + progress * 15)
+                    b = int(55 + progress * 20)
+                    pygame.draw.line(panel_surf, (r, g, b, alpha), (0, y), (panel_rect.width, y))
+                self._options_panel_cache = panel_surf
+                self._options_panel_cache_key = _panel_grad_key
+            surface.blit(self._options_panel_cache, panel_rect.topleft)
             
             # Panel border with glow
             pygame.draw.rect(surface, (60, 140, 220), panel_rect, width=3, border_radius=16)
@@ -656,20 +663,26 @@ class MainMenu:
                 )
                 pygame.draw.rect(surface, (50, 60, 80), track_rect, border_radius=5)
 
-                # Filled portion with gradient
+                # Filled portion with gradient (cached per slider width + value)
                 vol = getter()
                 filled_w = int(vol * slider_width)
                 if filled_w > 0:
-                    for px in range(filled_w):
-                        t = px / max(1, slider_width)
-                        c = (
-                            int(color_start[0] + t * (color_end[0] - color_start[0])),
-                            int(color_start[1] + t * (color_end[1] - color_start[1])),
-                            int(color_start[2] + t * (color_end[2] - color_start[2])),
-                        )
-                        pygame.draw.line(surface, c,
-                                         (s_rect.x + px, track_rect.y),
-                                         (s_rect.x + px, track_rect.y + slider_track_height))
+                    _sg_key = (key, filled_w, color_start, color_end, slider_track_height)
+                    if not hasattr(self, '_slider_grad_cache'):
+                        self._slider_grad_cache = {}
+                    _sg_surf = self._slider_grad_cache.get(_sg_key)
+                    if _sg_surf is None:
+                        _sg_surf = pygame.Surface((filled_w, slider_track_height))
+                        for px in range(filled_w):
+                            t = px / max(1, slider_width)
+                            c = (
+                                int(color_start[0] + t * (color_end[0] - color_start[0])),
+                                int(color_start[1] + t * (color_end[1] - color_start[1])),
+                                int(color_start[2] + t * (color_end[2] - color_start[2])),
+                            )
+                            pygame.draw.line(_sg_surf, c, (px, 0), (px, slider_track_height))
+                        self._slider_grad_cache[_sg_key] = _sg_surf
+                    surface.blit(_sg_surf, (s_rect.x, track_rect.y))
 
                 # Handle
                 hx = get_slider_handle_pos(key)

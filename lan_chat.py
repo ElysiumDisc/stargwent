@@ -170,12 +170,28 @@ class LanChatPanel:
         self.pending_acks.pop(msg_id, None)
 
     def _mark_failed(self, msg_id: str):
-        """Mark a message as failed (ACK timeout)."""
-        for entry in self.full_history:
-            if entry.get("msg_id") == msg_id:
-                entry["failed"] = True
-                entry["confirmed"] = False
+        """Mark a message as failed (ACK timeout), retry once before giving up."""
+        # Find the message entry
+        entry = None
+        for e in self.full_history:
+            if e.get("msg_id") == msg_id:
+                entry = e
                 break
+        if entry and not entry.get("_retried"):
+            # Retry once — resend and reset the ACK timer
+            entry["_retried"] = True
+            text = entry.get("text", "")
+            # Extract just the message content (strip "You: " prefix)
+            colon_idx = text.find(": ")
+            if colon_idx != -1 and colon_idx < 20:
+                text = text[colon_idx + 2:]
+            self.session.send(LanMessageType.CHAT.value, {"text": text, "msg_id": msg_id})
+            self.pending_acks[msg_id] = pygame.time.get_ticks() / 1000.0
+            return
+        # Already retried or not found — mark as permanently failed
+        if entry:
+            entry["failed"] = True
+            entry["confirmed"] = False
         # Remove from pending
         self.pending_acks.pop(msg_id, None)
 

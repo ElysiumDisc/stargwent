@@ -340,6 +340,7 @@ class Ship:
         self.is_friendly = False
         self.ally_owner = None
         self.ally_lifetime = 0
+        self.is_miniship = False
 
         # Smooth velocity-based movement (player only)
         self.vx = 0.0
@@ -785,6 +786,100 @@ class Ship:
         self._update_engine_trail()
         return None
 
+    def update_miniship_ai(self, owner, enemies, formation_angle=0, overdrive=False):
+        """Carrier-style interceptor AI: orbit owner, sortie to attack, return.
+
+        Mimics Protoss Carrier interceptors — miniships orbit the owner in
+        formation, launch toward nearby enemies to strafe, then return to
+        orbit when no targets are in range.  Permanent (no lifetime countdown).
+
+        Args:
+            owner: The player Ship this miniship escorts.
+            enemies: List of enemy Ships to engage.
+            formation_angle: Radians offset for formation orbit position.
+            overdrive: If True, halve fire cooldown for doubled fire rate.
+
+        Returns:
+            A Laser projectile if fired, else None.
+        """
+        if self.fire_cooldown > 0:
+            self.fire_cooldown -= 1
+
+        # --- Compute orbit anchor around owner ---
+        orbit_radius = 120
+        ox = owner.x + owner.width // 2 + math.cos(formation_angle) * orbit_radius
+        oy = owner.y + math.sin(formation_angle) * orbit_radius
+
+        # --- Find nearest enemy within engagement range (leash = 500px from owner) ---
+        leash = 500
+        nearest = None
+        nearest_dist = float('inf')
+        owner_cx = owner.x + owner.width // 2
+        owner_cy = owner.y
+        for e in enemies:
+            ed = math.hypot(e.x - owner_cx, e.y - owner_cy)
+            if ed < leash:
+                md = math.hypot(e.x - self.x, e.y - self.y)
+                if md < nearest_dist:
+                    nearest = e
+                    nearest_dist = md
+
+        proj = None
+        if nearest:
+            # --- Sortie toward enemy (interceptor attack run) ---
+            ex = nearest.x + nearest.width // 2
+            ey = nearest.y
+            edx = ex - (self.x + self.width // 2)
+            edy = ey - self.y
+            edist = math.hypot(edx, edy)
+
+            # Approach to 150px strafing range
+            if edist > 150 and edist > 1:
+                self.x += (edx / edist) * self.speed * 0.9
+                self.y += (edy / edist) * self.speed * 0.9
+            elif edist > 1:
+                # Strafe around target
+                perp_x = -edy / edist
+                perp_y = edx / edist
+                self.x += perp_x * self.speed * 0.6
+                self.y += perp_y * self.speed * 0.6
+
+            # Face enemy
+            if edx > 0:
+                self.set_facing((1, 0))
+            else:
+                self.set_facing((-1, 0))
+
+            # Fire at enemy
+            effective_rate = max(3, self.fire_rate // 2) if overdrive else self.fire_rate
+            if self.fire_cooldown <= 0 and edist < 400:
+                self.fire_cooldown = effective_rate
+                direction = (edx / edist, edy / edist) if edist > 1 else self.facing
+                from .projectiles import Laser
+                proj = Laser(self.x + self.width // 2, self.y, direction,
+                             self.laser_color, speed=20)
+                proj.damage = 8
+                proj.is_player_proj = True
+        else:
+            # --- Return to orbit anchor (no enemy nearby) ---
+            dx = ox - (self.x + self.width // 2)
+            dy = oy - self.y
+            dist = math.hypot(dx, dy)
+            if dist > 20 and dist > 1:
+                # Fly back to orbit position smoothly
+                self.x += (dx / dist) * self.speed * 0.7
+                self.y += (dy / dist) * self.speed * 0.7
+            # Face owner direction if idle
+            face_dx = owner.x - self.x
+            if face_dx > 0:
+                self.set_facing((1, 0))
+            elif face_dx < 0:
+                self.set_facing((-1, 0))
+
+        self._update_rotation()
+        self._update_engine_trail()
+        return proj
+
     def update_ai(self, target_ship, asteroids, other_ships=None):
         """Space-battle AI: approach to combat range, then strafe/orbit the target."""
         player_ship = target_ship  # local alias for backwards compat
@@ -829,6 +924,9 @@ class Ship:
             return
         elif self._behavior == "wraith_boss":
             self._ai_wraith_boss(dx, dy, dist_to_player, player_ship, asteroids, other_ships)
+            return
+        elif self._behavior == "hostile_all":
+            self._ai_hostile_all(dx, dy, dist_to_player, player_ship, other_ships)
             return
         # "paired" and "split_on_death" use standard strafe AI (handled by spawner/game.py)
 
@@ -1517,6 +1615,68 @@ class Ship:
             if not hasattr(self, '_pending_spawns'):
                 self._pending_spawns = []
             self._pending_spawns.append("wraith_dart")
+
+        self._update_rotation()
+        self._update_engine_trail()
+
+    def _ai_hostile_all(self, dx, dy, dist_to_player, target, other_ships):
+        """Wraith miniship: hostile to everyone — targets nearest entity (player OR other enemy)."""
+        # Build combined target list: player + other AI ships (excluding self)
+        candidates = [(target.x + target.width // 2, target.y, dist_to_player, target)]
+        if other_ships:
+            for o in other_ships:
+                if o is self:
+                    continue
+                od = math.hypot(o.x - self.x, o.y - self.y)
+                candidates.append((o.x + o.width // 2, o.y, od, o))
+
+        # Pick nearest
+        candidates.sort(key=lambda c: c[2])
+        tx, ty, tdist, _ = candidates[0]
+
+        # Standard approach/strafe against chosen target
+        if tdist > 1:
+            ux = (tx - (self.x + self.width // 2)) / tdist
+            uy = (ty - self.y) / tdist
+            strafe_sign = 1 if id(self) % 2 == 0 else -1
+            perp_x = -uy * strafe_sign
+            perp_y = ux * strafe_sign
+
+            preferred_range = 200
+            if tdist > preferred_range + 75:
+                self.x += ux * self.speed * 0.8
+                self.y += uy * self.speed * 0.8
+            elif tdist < preferred_range - 75:
+                self.x += -ux * self.speed * 0.3 + perp_x * self.speed * 0.5
+                self.y += -uy * self.speed * 0.3 + perp_y * self.speed * 0.5
+            else:
+                self.x += perp_x * self.speed * 0.5
+                self.y += perp_y * self.speed * 0.5
+
+        # Facing
+        face_dx = tx - (self.x + self.width // 2)
+        if face_dx > 0:
+            self.set_facing((1, 0))
+        else:
+            self.set_facing((-1, 0))
+
+        # Fire at target — mark projectiles as hostile_all
+        if self.fire_cooldown <= 0 and tdist < 450:
+            self.fire_cooldown = self.fire_rate
+            if tdist > 1:
+                direction = ((tx - (self.x + self.width // 2)) / tdist,
+                             (ty - self.y) / tdist)
+            else:
+                direction = self.facing
+            proj = Laser(self.x + self.width // 2, self.y, direction,
+                         (160, 40, 255), speed=14)
+            proj.damage = 10
+            proj.is_player_proj = False
+            proj.is_hostile_all = True
+            proj._source_ship = self
+            if not hasattr(self, '_pending_projectiles'):
+                self._pending_projectiles = []
+            self._pending_projectiles.append(proj)
 
         self._update_rotation()
         self._update_engine_trail()

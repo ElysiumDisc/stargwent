@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-9.2.0-blue)
+![Version](https://img.shields.io/badge/version-9.4.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -61,7 +61,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
 - **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
-- **Granular Audio Control** - 4 volume sliders (Master, Music, Voice, Effects) — master applies as multiplier, all game sounds respect settings including space shooter SFX
+- **Granular Audio Control** - 4 volume sliders (Master, Music, Voice, Effects) — master applies as multiplier. Card effect animations (Replicator Swarm, Asgard Beam, etc.) use **Effects** slider; Commander voice snippets use **Voice** slider. All game sounds respect settings including space shooter SFX
 
 ### 🎨 Stargate-Authentic UI
 - **MALP Feed History Panel** - Military monitor aesthetic with scan-lines, score delta badges, turn numbers, round separators, and latest-entry pulse
@@ -97,8 +97,10 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **26 Upgrades (4 Rarities)** - Common, Rare, Epic, and Legendary upgrades including 5 Evolution combos (Thor's Hammer, Bullet Hell, Black Hole, Ancient Outpost, Cluster Bomb)
 - **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
 - **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
-- **14 Enemy Types** - Regular, Fast, Tank, Elite, Kamikaze + Stargate-themed (Wraith Dart, Replicator, Ori Fighter, Ancient Drone, Death Glider, Al'kesh Bomber, Wraith Hive mini-boss, Ori Mothership boss, Wraith Supergate boss)
-- **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, per-player revival invulnerability, proximity mines, and ion pulse effects all synced across both players
+- **15 Enemy Types** - Regular, Fast, Tank, Elite, Kamikaze + Stargate-themed (Wraith Dart, Replicator, Ori Fighter, Ancient Drone, Death Glider, Al'kesh Bomber, Wraith Miniship, Wraith Hive mini-boss, Ori Mothership boss, Wraith Supergate boss)
+- **Carrier-Style Miniship Escorts** - Tau'ri and Goa'uld players unlock autonomous interceptor miniships (StarCraft Carrier-inspired): orbit in formation, sortie to attack, respawn on destruction. Scales from 2 escorts at level 3 to 5 at level 15. Escort Overdrive and Escort Shields powerups
+- **Wraith Miniship Enemies** - Hostile-all cruisers that attack both the player and other enemies, spawning in pairs from tier 5+
+- **LAN Co-op Parity** - Full crossplay between host and client: alt ship variants, supergate boss events, asteroids, beam damage, boss rewards, per-player revival invulnerability, proximity mines, ion pulse effects, and miniship escorts all synced across both players with client-side entity interpolation
 - **Co-op Revival** - When a player dies, their partner's next kill revives them at the partner's position with 50% HP/shields and 3 seconds of per-player invulnerability (blocks all damage: projectiles, beams, contact, bombs)
 - **Background Music & SFX** - Looping soundtrack, per-faction enemy hit sounds, shield hit feedback, per-faction + per-variant thruster boost sounds, per-variant secondary fire sounds, cloak activation sound, supergate activation sound, Ori beam + Wraith beam boss sounds — all controlled by Master/Effects volume sliders. Audio cuts off immediately on game exit
 - **Asteroid Field Events** - Periodic dense asteroid waves from a random direction with 3-second warning, escalating density and duration, navigate or destroy to survive
@@ -142,12 +144,14 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🌐 Play in Browser (PWA)
 - **No Install Needed** - Play directly in your browser via Pygbag (Pygame→WASM)
+- **1080p Resolution** - Full 1920x1080 rendering in browser with aggressive render caching for smooth performance
 - **iOS Home Screen App** - Add to Home Screen in Safari for fullscreen landscape gameplay
 - **Touch Controls** - Tap to select cards, long-press to inspect, drag to play, two-finger scroll
 - **Virtual Joystick** - Space shooter plays with on-screen joystick + action buttons
 - **WebGL 2.0 Shaders** - All 12 GPU effects (bloom, vignette, event horizon, etc.) ported to GLSL ES 3.0
 - **Offline Play** - Service worker caches everything for offline use after first load
 - **Persistent Saves** - Progress saved to IndexedDB, persists across browser sessions
+- **Web-Safe Audio** - Battle music transitions use instant stop instead of fadeout to prevent Emscripten audio crashes
 
 ### ⌨️ Universal Controls
 - **Full Keyboard Navigation** - Arrow keys, F to play, G for faction power, Tab to cycle

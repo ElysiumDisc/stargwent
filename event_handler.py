@@ -531,8 +531,7 @@ async def handle_events(state, game, screen, dt):
                     btns = state.game_over_buttons
                     if "continue_draft" in btns and btns["continue_draft"].collidepoint(event.pos):
                         battle_music.stop_battle_music()
-                        _main.main()
-                        return
+                        game.main_menu_requested = True
                     elif "save_exit" in btns and btns["save_exit"].collidepoint(event.pos):
                         battle_music.stop_battle_music()
                         game.main_menu_requested = True
@@ -564,9 +563,7 @@ async def handle_events(state, game, screen, dt):
                         game.surrender(game.player1)
                         state.ui_state = UIState.GAME_OVER
                     elif "main_menu" in btns and btns["main_menu"].collidepoint(event.pos):
-                        battle_music.stop_battle_music()
-                        _main.main()
-                        return
+                        game.main_menu_requested = True
                     elif "quit" in btns and btns["quit"].collidepoint(event.pos):
                         battle_music.stop_battle_music()
                         pygame.quit()

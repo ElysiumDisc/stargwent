@@ -99,6 +99,17 @@ class ConquestMenu:
             self.buttons.append({"label": label, "action": action, "rect": rect})
 
         self.hovered = -1
+        self._last_hovered = -1
+
+        # Hover sound
+        self._hover_sound = None
+        try:
+            snd_path = os.path.join("assets", "audio", "conquest_menu_select.ogg")
+            if os.path.exists(snd_path):
+                self._hover_sound = pygame.mixer.Sound(snd_path)
+        except pygame.error:
+            pass
+
         self.has_save = has_campaign_save()
 
         # Load save info for display
@@ -125,6 +136,17 @@ class ConquestMenu:
                 if btn["rect"].collidepoint(mx, my):
                     self.hovered = i
                     break
+            # Play hover sound when entering a new button
+            if self.hovered != self._last_hovered and self.hovered >= 0:
+                if self._hover_sound:
+                    try:
+                        from game_settings import get_settings
+                        vol = get_settings().get_effective_sfx_volume()
+                        self._hover_sound.set_volume(vol)
+                        self._hover_sound.play()
+                    except (pygame.error, Exception):
+                        pass
+            self._last_hovered = self.hovered
 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos

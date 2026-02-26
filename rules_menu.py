@@ -18,9 +18,16 @@ from typing import Dict, List, Optional, Tuple
 
 import pygame
 
-SPEC_PATH = Path("docs") / "rules_menu_spec.md"
-CARD_JSON = Path("docs") / "card_catalog.json"
-LEADER_JSON = Path("docs") / "leader_catalog.json"
+def _find_data_file(name: str) -> Path:
+    """Return path to a data file, checking assets/data/ first (for web builds)."""
+    web_path = Path("assets") / "data" / name
+    if web_path.exists():
+        return web_path
+    return Path("docs") / name
+
+SPEC_PATH = _find_data_file("rules_menu_spec.md")
+CARD_JSON = _find_data_file("card_catalog.json")
+LEADER_JSON = _find_data_file("leader_catalog.json")
 
 TAB_BEHAVIOR = {
     "Tab 1 – Basic Rules": "text",

@@ -56,7 +56,11 @@ def _stop_space_music(fade_ms=800):
         return
     try:
         if pygame.mixer.music.get_busy():
-            pygame.mixer.music.fadeout(fade_ms)
+            import sys
+            if sys.platform == "emscripten":
+                pygame.mixer.music.stop()
+            else:
+                pygame.mixer.music.fadeout(fade_ms)
     except pygame.error:
         try:
             pygame.mixer.music.stop()
@@ -127,8 +131,12 @@ async def run_space_shooter(screen, player_faction=None, ai_faction=None,
     # Stop any existing music (e.g. main menu) and start space shooter music
     try:
         if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
-            pygame.mixer.music.fadeout(400)
-            pygame.time.wait(400)
+            import sys
+            if sys.platform == "emscripten":
+                pygame.mixer.music.stop()
+            else:
+                pygame.mixer.music.fadeout(400)
+                pygame.time.wait(400)
     except pygame.error:
         pass
     _start_space_music()
@@ -159,9 +167,15 @@ async def run_space_shooter(screen, player_faction=None, ai_faction=None,
                     game.handle_event(event)
             else:
                 game.handle_event(event)
+                # Track keyboard events for VirtualKeys (reliable on web)
+                if touch_vkeys and event.type == pygame.KEYDOWN:
+                    touch_vkeys.key_event(event.key, True)
+                elif touch_vkeys and event.type == pygame.KEYUP:
+                    touch_vkeys.key_event(event.key, False)
 
         if touch_overlay:
             touch_vkeys.update(touch_overlay.get_virtual_keys_dict())
+            touch_vkeys.merge_keyboard()  # Keyboard always works alongside touch
             game.update(touch_keys=touch_vkeys)
         else:
             game.update()
@@ -214,8 +228,12 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
     # Stop existing music and start space shooter music
     try:
         if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
-            pygame.mixer.music.fadeout(400)
-            pygame.time.wait(400)
+            import sys
+            if sys.platform == "emscripten":
+                pygame.mixer.music.stop()
+            else:
+                pygame.mixer.music.fadeout(400)
+                pygame.time.wait(400)
     except pygame.error:
         pass
     _start_space_music()

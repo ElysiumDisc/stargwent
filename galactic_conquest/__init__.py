@@ -70,7 +70,11 @@ def stop_conquest_music(fade_ms=600):
         _conquest_music_playing = False
         return
     try:
-        pygame.mixer.music.fadeout(fade_ms)
+        import sys
+        if sys.platform == "emscripten":
+            pygame.mixer.music.stop()
+        else:
+            pygame.mixer.music.fadeout(fade_ms)
     except pygame.error:
         pygame.mixer.music.stop()
     _conquest_music_playing = False

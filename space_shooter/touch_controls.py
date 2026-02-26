@@ -22,6 +22,16 @@ class VirtualJoystick:
         self.finger_id = None
         self.dx = 0.0
         self.dy = 0.0
+        # Pre-render the static ring
+        size = int(radius * 2 + 4)
+        self._ring_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.circle(self._ring_surf, (255, 255, 255, 60),
+                          (size // 2, size // 2), int(radius), 2)
+        self._knob_r = max(8, int(radius * 0.25))
+        knob_d = self._knob_r * 2 + 2
+        self._knob_surf = pygame.Surface((knob_d, knob_d), pygame.SRCALPHA)
+        pygame.draw.circle(self._knob_surf, (200, 200, 255, 100),
+                          (knob_d // 2, knob_d // 2), self._knob_r)
 
     def handle_down(self, finger_id, x, y):
         dist = math.hypot(x - self.cx, y - self.cy)
@@ -61,15 +71,19 @@ class VirtualJoystick:
             self.dy = oy
 
     def draw(self, surface):
-        # Outer ring
-        pygame.draw.circle(surface, (255, 255, 255, 60),
-                          (int(self.cx), int(self.cy)), int(self.radius), 2)
-        # Inner knob
+        # Blit pre-rendered ring
+        rs = self._ring_surf
+        surface.blit(rs, (int(self.cx - rs.get_width() // 2),
+                         int(self.cy - rs.get_height() // 2)))
+        # Blit knob at current position
         knob_x = int(self.cx + self.dx * self.radius * 0.6)
         knob_y = int(self.cy + self.dy * self.radius * 0.6)
-        knob_r = max(8, int(self.radius * 0.25))
-        pygame.draw.circle(surface, (200, 200, 255, 100),
-                          (knob_x, knob_y), knob_r)
+        ks = self._knob_surf
+        surface.blit(ks, (knob_x - ks.get_width() // 2,
+                         knob_y - ks.get_height() // 2))
+
+
+_button_font_cache = {}
 
 
 class TouchActionButton:
@@ -83,6 +97,27 @@ class TouchActionButton:
         self.key_name = key_name  # "e", "q", or "shift"
         self.finger_id = None
         self.pressed = False
+        # Pre-render both states (pressed and unpressed)
+        self._surfs = {}
+        for pressed_state in (False, True):
+            self._surfs[pressed_state] = self._render_button(radius, label, pressed_state)
+
+    def _render_button(self, radius, label, pressed):
+        size = int(radius * 2 + 4)
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        center = size // 2
+        fill = (100, 200, 100, 120) if pressed else (80, 80, 120, 80)
+        pygame.draw.circle(surf, fill, (center, center), int(radius))
+        pygame.draw.circle(surf, (200, 200, 255, 100),
+                          (center, center), int(radius), 2)
+        font_size = max(12, int(radius * 0.6))
+        if font_size not in _button_font_cache:
+            _button_font_cache[font_size] = pygame.font.SysFont("Arial", font_size, bold=True)
+        font = _button_font_cache[font_size]
+        text = font.render(label, True, (220, 220, 255))
+        surf.blit(text, (center - text.get_width() // 2,
+                        center - text.get_height() // 2))
+        return surf
 
     def handle_down(self, finger_id, x, y):
         dist = math.hypot(x - self.cx, y - self.cy)
@@ -100,15 +135,9 @@ class TouchActionButton:
         return False
 
     def draw(self, surface):
-        color = (100, 200, 100, 120) if self.pressed else (80, 80, 120, 80)
-        pygame.draw.circle(surface, color,
-                          (int(self.cx), int(self.cy)), int(self.radius))
-        pygame.draw.circle(surface, (200, 200, 255, 100),
-                          (int(self.cx), int(self.cy)), int(self.radius), 2)
-        font = pygame.font.SysFont("Arial", max(12, int(self.radius * 0.6)), bold=True)
-        text = font.render(self.label, True, (220, 220, 255))
-        surface.blit(text, (int(self.cx - text.get_width() // 2),
-                           int(self.cy - text.get_height() // 2)))
+        surf = self._surfs[self.pressed]
+        surface.blit(surf, (int(self.cx - surf.get_width() // 2),
+                           int(self.cy - surf.get_height() // 2)))
 
 
 class SpaceShooterTouchOverlay:
@@ -139,8 +168,6 @@ class SpaceShooterTouchOverlay:
             TouchActionButton(btn_base_x - spacing, btn_base_y, btn_r, "WARP", "q"),
             TouchActionButton(btn_base_x, btn_base_y, btn_r, "BOOST", "shift"),
         ]
-
-        self._overlay_surface = None
 
     def handle_event(self, event):
         """Process a FINGER* event. Returns True if consumed."""
@@ -199,14 +226,7 @@ class SpaceShooterTouchOverlay:
         return keys
 
     def draw(self, surface):
-        """Draw semi-transparent overlay controls."""
-        # Create transparent overlay
-        if (self._overlay_surface is None or
-                self._overlay_surface.get_size() != surface.get_size()):
-            self._overlay_surface = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-
-        self._overlay_surface.fill((0, 0, 0, 0))
-        self.joystick.draw(self._overlay_surface)
+        """Draw pre-cached touch controls (small SRCALPHA blits, not full-screen)."""
+        self.joystick.draw(surface)
         for btn in self.buttons:
-            btn.draw(self._overlay_surface)
-        surface.blit(self._overlay_surface, (0, 0))
+            btn.draw(surface)

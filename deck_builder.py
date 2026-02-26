@@ -2498,7 +2498,11 @@ def load_default_faction_deck(faction):
     import json
     import os
 
-    json_path = os.path.join(os.path.dirname(__file__), "docs", "default_faction_decks.json")
+    # Try assets/data/ first (included in web builds), then docs/ (desktop dev)
+    base = os.path.dirname(__file__)
+    json_path = os.path.join(base, "assets", "data", "default_faction_decks.json")
+    if not os.path.exists(json_path):
+        json_path = os.path.join(base, "docs", "default_faction_decks.json")
     try:
         with open(json_path, "r") as f:
             decks = json.load(f)

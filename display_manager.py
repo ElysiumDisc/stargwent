@@ -154,10 +154,10 @@ def initialize_display():
     # Web/Emscripten: simplified display setup — Pygbag manages the canvas.
     # pygame.SCALED, vsync, fullscreen, and temp-file caching don't work on WASM.
     if _is_web:
-        SCREEN_WIDTH = 1280
-        SCREEN_HEIGHT = 720
-        DESKTOP_WIDTH = 1280
-        DESKTOP_HEIGHT = 720
+        SCREEN_WIDTH = 1920
+        SCREEN_HEIGHT = 1080
+        DESKTOP_WIDTH = 1920
+        DESKTOP_HEIGHT = 1080
         SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
         WINDOWED_WIDTH = SCREEN_WIDTH
         WINDOWED_HEIGHT = SCREEN_HEIGHT

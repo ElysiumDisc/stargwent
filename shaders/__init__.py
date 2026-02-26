@@ -132,3 +132,12 @@ def register_all_effects(gpu_renderer):
         print("[GPU] Shield bubble effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register shield bubble: {e}")
+
+    try:
+        from shaders.black_hole import create_black_hole_pass
+        bh_pass = create_black_hole_pass(ctx)
+        gpu_renderer.add_effect("black_hole", bh_pass)
+        gpu_renderer.set_effect_enabled("black_hole", False)  # Driven by space shooter
+        print("[GPU] Black hole effect registered")
+    except Exception as e:
+        print(f"[GPU] Failed to register black hole: {e}")

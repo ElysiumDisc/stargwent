@@ -165,7 +165,7 @@ class ContinuousBeam:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.active = True
-        self.damage_per_frame = 0.55
+        self.damage_per_frame = 0.9
         self.pulse = 0
         # Max beam range (infinite world — don't go to screen edge)
         self.max_range = 2000
