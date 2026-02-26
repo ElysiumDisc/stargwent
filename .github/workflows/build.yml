@@ -193,11 +193,25 @@ jobs:
           else
             SRC="dist/Stargwent"
           fi
+          # Detach any auto-mounted volumes and sync before creating DMG
+          hdiutil detach /Volumes/Stargwent 2>/dev/null || true
+          sync
+          # Retry once on "Resource busy" (macOS runners sometimes hold locks briefly)
           hdiutil create \
             -volname "Stargwent" \
             -srcfolder "$SRC" \
             -ov -format UDZO \
-            "builds/releases/Stargwent-${{ needs.version.outputs.version }}-macos.dmg"
+            "builds/releases/Stargwent-${{ needs.version.outputs.version }}-macos.dmg" \
+          || {
+            echo "hdiutil failed, retrying in 5s..."
+            sleep 5
+            hdiutil detach /Volumes/Stargwent 2>/dev/null || true
+            hdiutil create \
+              -volname "Stargwent" \
+              -srcfolder "$SRC" \
+              -ov -format UDZO \
+              "builds/releases/Stargwent-${{ needs.version.outputs.version }}-macos.dmg"
+          }
 
       - name: Upload artifact (manual dispatch)
         if: "!startsWith(github.ref, 'refs/tags/v')"
