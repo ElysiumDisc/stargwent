@@ -22,10 +22,6 @@ def _get_cached_font(size, bold=False):
 
 def draw_ui(game, surface):
     """Draw game UI overlay (all screen-space, no camera)."""
-    # Title
-    title = game.title_font.render("STARGATE SPACE BATTLE", True, (255, 215, 0))
-    surface.blit(title, (game.screen_width // 2 - title.get_width() // 2, 20))
-
     # Survival timer (centered, large)
     mins = int(game.survival_seconds) // 60
     secs = int(game.survival_seconds) % 60

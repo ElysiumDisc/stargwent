@@ -793,16 +793,19 @@ class SpaceShooterGame:
         self.ally_ships.append(ally)
 
     def _load_miniship_sprites(self):
-        """Load faction-specific miniship sprite (Tau'ri or Goa'uld only).
+        """Load faction-specific miniship sprite.
 
         Sprite source orientations:
         - tau'ri_miniship.png faces UP
         - goa'uld_miniship.png faces LEFT
+        - wraith_miniship.png faces DOWN
         All are normalized to face RIGHT as the base orientation.
+        Images used at native 120x120 scale (x1) — art is pre-sized.
         """
         sprite_map = {
-            "Tau'ri": ("tau'ri_miniship.png", -90),     # UP → rotate -90° → RIGHT
-            "Goa'uld": ("goa'uld_miniship.png", 180),   # LEFT → rotate 180° → RIGHT
+            "Tau'ri": ("tau'ri_miniship.png", -90),      # UP → rotate -90° → RIGHT
+            "Goa'uld": ("goa'uld_miniship.png", 180),    # LEFT → rotate 180° → RIGHT
+            "Wraith": ("wraith_miniship.png", 90),        # DOWN → rotate 90° → RIGHT
         }
         entry = sprite_map.get(self.player_faction)
         if not entry:
@@ -813,15 +816,10 @@ class SpaceShooterGame:
             return
         try:
             raw = pygame.image.load(path).convert_alpha()
-            raw = pygame.transform.smoothscale(raw, (28, 28))
+            # Use native 120x120 size (x1 scale) — art is pre-sized, no tint
             # Normalize to face right
             if rotation != 0:
                 raw = pygame.transform.rotate(raw, rotation)
-            # Apply faction tint
-            tint_color = (0, 100, 100, 30) if self.player_faction == "Tau'ri" else (100, 60, 0, 30)
-            tint_surf = pygame.Surface(raw.get_size(), pygame.SRCALPHA)
-            tint_surf.fill(tint_color)
-            raw.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
             self._miniship_faction_sprite = raw
             self._miniship_images = {
                 'right': raw.copy(),
@@ -854,15 +852,15 @@ class SpaceShooterGame:
         mini.health = 40
         mini.speed = 10
         mini.fire_rate = 20
-        # Apply cached miniship sprite
+        # Apply cached miniship sprite (native size, x1 scale)
         if self._miniship_images:
             mini.image = self._miniship_images['right'].copy()
             mini.image_right = self._miniship_images['right'].copy()
             mini.image_left = self._miniship_images['left'].copy()
             mini.image_up = self._miniship_images['up'].copy()
             mini.image_down = self._miniship_images['down'].copy()
-            mini.width = 28
-            mini.height = 28
+            mini.width = mini.image.get_width()
+            mini.height = mini.image.get_height()
         self.miniships.append(mini)
 
     def _check_miniship_threshold(self):
@@ -1624,9 +1622,16 @@ class SpaceShooterGame:
                         self.explosions.append(Explosion(player_cx, player_cy, tier="large"))
 
     def _update_supergate_system(self):
-        """Manage supergate spawning, boss lifecycle, beams, and common threat."""
-        # Supergate spawning: first at 180s, then 180-300s after last boss wave cleared
-        # Escalation: wave 1 = 1 boss, wave 2 = 2, wave 3+ = 3 (capped)
+        """Manage supergate spawning, boss lifecycle, beams, and common threat.
+
+        Flow: ONE supergate appears at 3 min → startup animation → kawoosh →
+        gate opens + play song → bosses emerge one at a time → supergate stays
+        until all bosses dead → closes → no new event until fully resolved.
+        Boss events never stack.
+        """
+        # === SPAWN CONDITION ===
+        # No new supergate event until current one is fully resolved:
+        # no active supergates AND no living bosses from this wave.
         if not self.ori_bosses and not self.supergates:
             self.ori_boss = None  # Sync legacy ref
             if self.survival_seconds >= 180:
@@ -1634,94 +1639,142 @@ class SpaceShooterGame:
                 if self.last_ori_boss_defeat_time < 0 or time_since_last >= self._supergate_next_spawn_delay:
                     self.supergate_wave += 1
                     num_bosses = min(self.supergate_wave, 3)  # Cap at 3
-                    for bi in range(num_bosses):
-                        # Spread supergates around the player
-                        base_angle = random.uniform(0, math.pi * 2)
-                        angle = base_angle + bi * (math.pi * 2 / max(num_bosses, 1))
-                        dist = random.uniform(800, 1200)
-                        sx = self.player_ship.x + math.cos(angle) * dist
-                        sy = self.player_ship.y + math.sin(angle) * dist
-                        boss_type = random.choice(["ori", "wraith"])
-                        sg = Supergate(sx, sy)
-                        sg._boss_type = boss_type
-                        self.supergates.append(sg)
+                    # ONE supergate per wave — all bosses emerge through it
+                    angle = random.uniform(0, math.pi * 2)
+                    dist = random.uniform(800, 1200)
+                    sx = self.player_ship.x + math.cos(angle) * dist
+                    sy = self.player_ship.y + math.sin(angle) * dist
+                    sg = Supergate(sx, sy)
+                    sg._num_bosses = num_bosses
+                    sg._bosses_spawned = 0
+                    sg._boss_spawn_timer = 0
+                    sg._boss_types = [random.choice(["ori", "wraith"])
+                                      for _ in range(num_bosses)]
+                    self.supergates.append(sg)
                     color = (255, 100, 50) if num_bosses > 1 else (255, 200, 50)
-                    wave_msg = f"SUPERGATE WAVE {self.supergate_wave}!" if num_bosses > 1 else "SUPERGATE DETECTED!"
+                    wave_msg = (f"SUPERGATE WAVE {self.supergate_wave}!"
+                                if num_bosses > 1 else "SUPERGATE DETECTED!")
                     self.popup_notifications.append(PopupNotification(
                         self.player_ship.x + self.player_ship.width // 2,
                         self.player_ship.y - 100,
                         wave_msg, color))
-                    self.screen_shake.trigger(6 + num_bosses * 2, 12 + num_bosses * 4)
+                    self.screen_shake.trigger(6 + num_bosses * 2,
+                                              12 + num_bosses * 4)
                     self._supergate_next_spawn_delay = random.uniform(180, 300)
 
-        # Update supergates
+        # === UPDATE SUPERGATES ===
         for sg in self.supergates[:]:
             prev_phase = sg.phase
-            result = sg.update()
-            # Play activation sound when entering ACTIVATING phase (kawoosh)
+            sg.update()
+
+            # Duck music when kawoosh animation starts (APPEARING → ACTIVATING)
             if prev_phase == sg.PHASE_APPEARING and sg.phase == sg.PHASE_ACTIVATING:
-                if self._supergate_sound:
-                    try:
-                        # Supersede all other sounds so player can hear it
-                        pygame.mixer.stop()  # Stop all current sfx
-                        self._supergate_sound.set_volume(_get_sfx_vol())
-                        self._supergate_sound.play()
-                        # Briefly duck music volume for dramatic effect
-                        try:
-                            self._pre_supergate_music_vol = pygame.mixer.music.get_volume()
-                            pygame.mixer.music.set_volume(
-                                self._pre_supergate_music_vol * 0.15)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-            # Restore music volume after supergate sound plays
-            if sg.phase == sg.PHASE_OPEN and hasattr(self, '_pre_supergate_music_vol'):
                 try:
-                    pygame.mixer.music.set_volume(self._pre_supergate_music_vol)
+                    self._pre_supergate_music_vol = pygame.mixer.music.get_volume()
+                    pygame.mixer.music.set_volume(
+                        self._pre_supergate_music_vol * 0.15)
                 except Exception:
                     pass
-                del self._pre_supergate_music_vol
-            if result == "spawn_boss":
-                boss_type = getattr(sg, '_boss_type', 'ori')
-                if boss_type == "wraith":
-                    self._spawn_wraith_boss(sg.x, sg.y)
-                else:
-                    self._spawn_ori_boss(sg.x, sg.y)
-                # Link the supergate to the boss so it stays open until boss dies
-                if self.ori_bosses:
-                    sg._linked_boss = self.ori_bosses[-1]
+
+            # When opening animation finishes (ACTIVATING → OPEN): play song
+            if prev_phase == sg.PHASE_ACTIVATING and sg.phase == sg.PHASE_OPEN:
+                if self._supergate_sound:
+                    try:
+                        pygame.mixer.stop()
+                        self._supergate_sound.set_volume(_get_sfx_vol())
+                        self._supergate_sound.play()
+                    except Exception:
+                        pass
+                # Restore music after sound plays out (~3s)
+                self._supergate_music_restore_timer = 180
+
+            # Spawn bosses through the gate one at a time
+            if sg.phase in (sg.PHASE_OPEN, sg.PHASE_HOLDING):
+                num_bosses = getattr(sg, '_num_bosses', 1)
+                bosses_spawned = getattr(sg, '_bosses_spawned', 0)
+                if bosses_spawned < num_bosses:
+                    sg._boss_spawn_timer += 1
+                    # First boss immediately on gate open, then 2s between each
+                    delay = 1 if bosses_spawned == 0 else 120
+                    if sg._boss_spawn_timer >= delay:
+                        sg._boss_spawn_timer = 0
+                        boss_type = sg._boss_types[bosses_spawned]
+                        if boss_type == "wraith":
+                            self._spawn_wraith_boss(sg.x, sg.y)
+                        else:
+                            self._spawn_ori_boss(sg.x, sg.y)
+                        if self.ori_bosses:
+                            sg._linked_boss = self.ori_bosses[-1]
+                        sg._bosses_spawned += 1
+
             if not sg.active:
                 self.supergates.remove(sg)
 
-        # Player projectiles can damage supergates (destroyable)
+        # Restore ducked music volume after supergate sound finishes
+        if hasattr(self, '_supergate_music_restore_timer'):
+            self._supergate_music_restore_timer -= 1
+            if self._supergate_music_restore_timer <= 0:
+                if hasattr(self, '_pre_supergate_music_vol'):
+                    try:
+                        pygame.mixer.music.set_volume(
+                            self._pre_supergate_music_vol)
+                    except Exception:
+                        pass
+                    del self._pre_supergate_music_vol
+                del self._supergate_music_restore_timer
+
+        # Supergates can be damaged by projectiles, wormhole, and asteroids
+        # (but NOT by boss/enemy touch contact)
         for sg in self.supergates[:]:
             if sg.phase < sg.PHASE_OPEN:
                 continue  # Can't hit during appear/activation
             sg_rect = sg.get_rect()
+            # Projectile damage
             for proj in self.projectiles[:]:
                 if proj.is_player_proj and proj.get_rect().colliderect(sg_rect):
                     dmg = proj.damage
                     self.damage_numbers.append(DamageNumber(
                         sg.x, sg.y - sg.ring_radius, dmg, (100, 200, 255)))
                     if sg.take_damage(dmg):
-                        # Supergate destroyed — close it, boss (if any) remains alive
-                        self.explosions.append(Explosion(sg.x, sg.y, tier="large",
-                            color_palette=[(100, 180, 255), (50, 120, 200), (200, 220, 255), (255, 255, 255)]))
-                        self.screen_shake.trigger(8, 15)
-                        self.popup_notifications.append(PopupNotification(
-                            sg.x, sg.y - 100, "SUPERGATE DESTROYED!", (100, 200, 255)))
-                        self.score += 2000
-                        sg.active = False
-                        self.supergates.remove(sg)
+                        self._on_supergate_destroyed(sg)
                     if proj in self.projectiles:
                         self.projectiles.remove(proj)
                     break  # One proj per supergate per frame
+            # Asteroid damage
+            if sg.active:
+                for asteroid in self.asteroids[:]:
+                    if not asteroid.active:
+                        continue
+                    if asteroid.get_rect().colliderect(sg_rect):
+                        dmg = 500
+                        self.damage_numbers.append(DamageNumber(
+                            sg.x, sg.y - sg.ring_radius, dmg, (200, 150, 100)))
+                        self.explosions.append(Explosion(
+                            asteroid.x, asteroid.y, tier="small"))
+                        asteroid.active = False
+                        if sg.take_damage(dmg):
+                            self._on_supergate_destroyed(sg)
+                        break
+            # Wormhole damage (exit vortex lands near supergate — once per wormhole)
+            if sg.active and self.wormhole_active and not getattr(sg, '_wormhole_hit', False):
+                wx, wy = self.wormhole_exit_x, self.wormhole_exit_y
+                dist = math.hypot(wx - sg.x, wy - sg.y)
+                if dist < sg.ring_radius + 80:
+                    sg._wormhole_hit = True
+                    dmg = 2000
+                    self.damage_numbers.append(DamageNumber(
+                        sg.x, sg.y - sg.ring_radius, dmg, (0, 200, 255)))
+                    sg.hit_flash = 10
+                    self.screen_shake.trigger(6, 10)
+                    if sg.take_damage(dmg):
+                        self._on_supergate_destroyed(sg)
 
-        # Close ALL supergates only when every boss from the wave is dead
+        # Close supergate only when ALL bosses have been spawned AND killed
         if not self.ori_bosses:
             for sg in self.supergates:
-                if sg.phase in (sg.PHASE_HOLDING, sg.PHASE_OPEN):
+                all_spawned = (getattr(sg, '_bosses_spawned', 0)
+                               >= getattr(sg, '_num_bosses', 1))
+                if all_spawned and sg.phase in (sg.PHASE_HOLDING, sg.PHASE_OPEN):
                     sg.close()
 
         # Update Ori boss beams
@@ -1819,6 +1872,33 @@ class SpaceShooterGame:
         # Clean up dead bosses
         self.ori_bosses = [b for b in self.ori_bosses if b in self.ai_ships]
         self.ori_boss = self.ori_bosses[0] if self.ori_bosses else None
+
+    def _on_supergate_destroyed(self, sg):
+        """Handle supergate destruction — explosion, rewards, music restore."""
+        self.explosions.append(Explosion(sg.x, sg.y, tier="large",
+            color_palette=[(100, 180, 255), (50, 120, 200),
+                           (200, 220, 255), (255, 255, 255)]))
+        self.screen_shake.trigger(8, 15)
+        remaining = (getattr(sg, '_num_bosses', 1)
+                     - getattr(sg, '_bosses_spawned', 0))
+        msg = "SUPERGATE DESTROYED!"
+        if remaining > 0:
+            msg += f" ({remaining} BOSS{'ES' if remaining > 1 else ''} PREVENTED)"
+        self.popup_notifications.append(PopupNotification(
+            sg.x, sg.y - 100, msg, (100, 200, 255)))
+        self.score += 2000
+        sg.active = False
+        if sg in self.supergates:
+            self.supergates.remove(sg)
+        # Restore music if still ducked
+        if hasattr(self, '_pre_supergate_music_vol'):
+            try:
+                pygame.mixer.music.set_volume(self._pre_supergate_music_vol)
+            except Exception:
+                pass
+            del self._pre_supergate_music_vol
+        if hasattr(self, '_supergate_music_restore_timer'):
+            del self._supergate_music_restore_timer
 
     def _spawn_ori_boss(self, x, y):
         """Spawn an Ori mothership boss at the given position."""
@@ -2201,6 +2281,9 @@ class SpaceShooterGame:
             if self.wormhole_transit_timer >= self.wormhole_transit_duration:
                 self.wormhole_active = False
                 self.wormhole_cooldown = self.wormhole_max_cooldown
+                # Reset wormhole-hit flag on supergates
+                for sg in self.supergates:
+                    sg._wormhole_hit = False
 
         self.wormhole_effects = [e for e in self.wormhole_effects if e.update()]
 
@@ -3435,6 +3518,34 @@ class SpaceShooterGame:
                         self._on_enemy_killed(ai_ship)
                     ai_ship.contact_damage_cooldown = 30
 
+        # Contact damage: boss ships vs regular enemies (mutual)
+        for boss in self.ori_bosses:
+            if boss not in self.ai_ships:
+                continue
+            boss_rect = boss.get_rect()
+            for enemy in self.ai_ships[:]:
+                if enemy in self.ori_bosses:
+                    continue  # Don't collide bosses with each other
+                if enemy.contact_damage_cooldown > 0:
+                    continue
+                if enemy.get_rect().colliderect(boss_rect):
+                    # Boss damages enemy (heavy)
+                    boss_dmg = 50
+                    enemy.hit_flash = 5
+                    self.damage_numbers.append(DamageNumber(
+                        enemy.x + enemy.width // 2, enemy.y,
+                        boss_dmg, (255, 200, 50)))
+                    if self._damage_enemy(enemy, boss_dmg):
+                        self._on_enemy_killed(enemy)
+                    # Enemy damages boss (light)
+                    enemy_dmg = 10
+                    boss.hit_flash = 3
+                    self.damage_numbers.append(DamageNumber(
+                        boss.x + boss.width // 2, boss.y,
+                        enemy_dmg, (255, 100, 100)))
+                    self._damage_enemy(boss, enemy_dmg)
+                    enemy.contact_damage_cooldown = 30
+
         # Update XP orbs
         collection_radius = (30 + self.upgrades.get("tractor_beam", 0) * 15
                              + self.upgrades.get("magnet_field", 0) * 40)
@@ -3653,20 +3764,10 @@ class SpaceShooterGame:
                                  (int(ax) - ally_label.get_width() // 2,
                                   int(ay) - ally.height // 2 - 22))
 
-        # Draw miniship escorts with health bar
-        escort_label_color = (80, 190, 255)
+        # Draw miniship escorts (no health bar — keep UI clean)
         for mini in self.miniships:
             if cam.is_visible(mini.x, mini.y, margin=mini.width):
                 mini.draw(draw_surface, time_tick, camera=cam)
-                mx, my = cam.world_to_screen(mini.x + mini.width // 2, mini.y)
-                # Health bar if damaged
-                if mini.health < mini.max_health:
-                    bar_w = 24
-                    pct = max(0, mini.health / mini.max_health)
-                    bx = int(mx) - bar_w // 2
-                    by = int(my) - mini.height // 2 - 8
-                    pygame.draw.rect(draw_surface, (40, 40, 40), (bx, by, bar_w, 3))
-                    pygame.draw.rect(draw_surface, escort_label_color, (bx, by, int(bar_w * pct), 3))
 
         # Draw all AI ships (culled)
         for ai_ship in self.ai_ships:

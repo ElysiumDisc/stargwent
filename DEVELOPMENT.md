@@ -97,8 +97,8 @@ Carrier-style interceptors (StarCraft Carrier inspired). Permanent escorts orbit
 | `space_shooter/coop_client.py` | Client-side rendering + entity interpolation |
 
 ### Adding a New Miniship Faction
-1. Create `assets/ships/<faction>_miniship.png`
-2. `game.py:_load_miniship_sprites()` — add faction entry (normalize to face-right)
+1. Create `assets/ships/<faction>_miniship.png` (120x120, used at native x1 scale)
+2. `game.py:_load_miniship_sprites()` — add faction entry with rotation to face-right
 3. `spawner.py:_spawn_enemy()` — add sprite loading for enemy miniship types
 
 ### Hostile-All Behavior
@@ -333,9 +333,9 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 
 ### Key Systems
 - **Ship Variants**: Data-driven `SHIP_VARIANTS` dict per faction with weapon, secondary, passive configs
-- **Supergate Bosses**: At 3 min, Supergate (40k HP) spawns → Ori Mothership or Wraith Hive. Escalating waves. All gates stay open until bosses killed
-- **Common Threat**: Enemies retarget boss within 500px, boss beam damages everything
-- **Miniship Escorts**: Tau'ri/Goa'uld get permanent interceptors (2 at level 3 → 5 at level 15)
+- **Supergate Bosses**: At 3 min, single Supergate (40k HP) spawns → bosses emerge one at a time (Ori Mothership / Wraith Hive). Song plays when gate opens. Gate stays until all bosses spawned AND killed. Damageable by projectiles, asteroids (500), wormhole (2000) — immune to touch contact. Boss events never stack
+- **Common Threat**: Enemies retarget boss within 500px, boss beam damages everything, boss ↔ enemy touch damage (50/10)
+- **Miniship Escorts**: Tau'ri/Goa'uld/Wraith get permanent interceptors (2 at level 3 → 5 at level 15), native 120x120 sprites, lerp-smoothed movement
 - **Enemy Behaviors**: swarm_lifesteal, split_on_death, shielded_charge, homing, paired, bomber, mini_boss_spawner, hostile_all, ori_boss, wraith_boss
 - **Secondary Fire**: Per-faction + per-variant E-key abilities (Railgun, Staff Barrage, Ion Pulse, etc.)
 - **Passives**: heavy_armor, adaptive_shields, analyzer, sarcophagus_regen, point_defense, symbiote_resilience, anubis_shield

@@ -4,13 +4,38 @@
 
 ---
 
+### Version 9.5.0 (February 2026)
+**Supergate Boss Overhaul, Eye of Ra Buff, Miniship Visual & Movement Polish**
+
+#### Supergate Boss Event Overhaul
+- **Single supergate per wave** — One supergate spawns per boss wave; all bosses emerge through it sequentially (was: one supergate per boss)
+- **Sound timing fixed** — Supergate song now plays when the opening animation finishes (kawoosh complete → gate open), not at the start of activation. Music ducks during kawoosh buildup for dramatic tension
+- **Staggered boss spawns** — First boss emerges immediately when gate opens, then 2-second delay between each additional boss coming through
+- **Supergate destroyed = bosses prevented** — Destroying the supergate cancels unspawned bosses with notification ("SUPERGATE DESTROYED! (2 BOSSES PREVENTED)"). Already-spawned bosses stay alive
+- **Supergate stays until wave resolved** — Gate only closes when ALL bosses have spawned AND all are killed, preventing premature closing
+- **Boss events never stack** — No new supergate event can trigger while any supergate or boss from the current wave exists
+- **Environmental damage** — Supergates can be damaged by projectiles, asteroids (500 damage), and wormhole exit vortex (2000 damage). No touch/contact damage from ships
+- **Boss ↔ enemy touch damage** — Ori/Wraith bosses deal 50 contact damage to regular enemies on collision, enemies deal 10 back to boss (30-frame cooldown)
+
+#### Eye of Ra Buff
+- **Anubis Eye of Ra beam** — Damage increased from 60 → 100, range from 600 → 800px
+
+#### Miniship Visual & Movement Polish
+- **Native resolution sprites** — Miniship images used at full 120x120 (x1 scale) instead of crushed 28x28, preserving all art detail
+- **No color tint** — Removed faction color tint overlay that was creating visible colored squares around miniship sprites via BLEND_RGBA_ADD on transparent pixels
+- **Wraith faction miniship support** — Wraith players now get miniship escorts using `wraith_miniship.png` with purple tint
+- **Smooth lerp movement** — Miniship AI uses velocity blending for fluid motion: orbit return via lerp (natural deceleration), attack runs via smoothed velocity (responsive but no jerk)
+- **No health bar clutter** — Miniship health bars removed for cleaner UI
+
+---
+
 ### Version 9.4.0 (February 2026)
 **Miniship Escort System, Wraith Cruiser Enemies, LAN Performance & Reliability**
 
 #### Miniship Escort System (Carrier-Style Interceptors)
 - **Carrier-style miniship escorts** — Tau'ri and Goa'uld players unlock autonomous interceptor miniships that orbit the player, sortie to attack enemies, and return to formation (inspired by Protoss Carrier interceptors from StarCraft)
 - **Level-based scaling** — 2 escorts at level 3, growing to 3/4/5 at levels 6/10/15
-- **Faction-specific sprites** — Tau'ri bee-ships with cyan tint, Goa'uld Al'kesh miniships with orange tint, loaded from dedicated miniship assets
+- **Faction-specific sprites** — Tau'ri bee-ships, Goa'uld Al'kesh miniships, loaded from dedicated miniship assets at native resolution
 - **Permanent with respawn** — Escorts persist until destroyed, then respawn after 5-second cooldown
 - **Formation orbit** — Miniships orbit the player in evenly spaced formation when no enemies are nearby, with smooth rotation
 - **Interceptor AI** — Engage enemies within 500px leash of owner, approach to 150px strafing range, fire Laser projectiles (8 damage, speed 20)
@@ -22,7 +47,7 @@
 - **Wraith Cruiser enemies** — New `wraith_miniship` enemy type with `hostile_all` behavior: attacks both the player AND other enemies
 - **Hostile-all projectiles** — Purple bolts that damage any entity except the source ship, with XP/score awarded on kills
 - **Spawns in pairs** from tier 5+ (Contested, 150s onward) with ±60px offset
-- **Custom sprite** — Loaded from `wraith_miniship.png`, scaled to 28x28, purple explosion palette
+- **Custom sprite** — Loaded from `wraith_miniship.png`, purple explosion palette
 
 #### LAN Mode Audit & Fixes
 - **TCP_NODELAY** — Eliminates 40ms Nagle buffering delay on all LAN packets, critical for smooth 20Hz co-op snapshots

@@ -792,6 +792,7 @@ class Ship:
         Mimics Protoss Carrier interceptors — miniships orbit the owner in
         formation, launch toward nearby enemies to strafe, then return to
         orbit when no targets are in range.  Permanent (no lifetime countdown).
+        Uses lerp-based movement for smooth, fluid motion.
 
         Args:
             owner: The player Ship this miniship escorts.
@@ -804,6 +805,11 @@ class Ship:
         """
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
+
+        # Smooth velocity tracking (init once)
+        if not hasattr(self, '_mini_vx'):
+            self._mini_vx = 0.0
+            self._mini_vy = 0.0
 
         # --- Compute orbit anchor around owner ---
         orbit_radius = 120
@@ -824,7 +830,11 @@ class Ship:
                     nearest = e
                     nearest_dist = md
 
+        # Compute desired velocity toward target
+        target_vx = 0.0
+        target_vy = 0.0
         proj = None
+
         if nearest:
             # --- Sortie toward enemy (interceptor attack run) ---
             ex = nearest.x + nearest.width // 2
@@ -833,16 +843,16 @@ class Ship:
             edy = ey - self.y
             edist = math.hypot(edx, edy)
 
-            # Approach to 150px strafing range
-            if edist > 150 and edist > 1:
-                self.x += (edx / edist) * self.speed * 0.9
-                self.y += (edy / edist) * self.speed * 0.9
-            elif edist > 1:
-                # Strafe around target
-                perp_x = -edy / edist
-                perp_y = edx / edist
-                self.x += perp_x * self.speed * 0.6
-                self.y += perp_y * self.speed * 0.6
+            if edist > 1:
+                nx, ny = edx / edist, edy / edist
+                if edist > 150:
+                    # Approach to strafing range
+                    target_vx = nx * self.speed * 0.9
+                    target_vy = ny * self.speed * 0.9
+                else:
+                    # Strafe around target
+                    target_vx = -ny * self.speed * 0.6
+                    target_vy = nx * self.speed * 0.6
 
             # Face enemy
             if edx > 0:
@@ -865,16 +875,32 @@ class Ship:
             dx = ox - (self.x + self.width // 2)
             dy = oy - self.y
             dist = math.hypot(dx, dy)
-            if dist > 20 and dist > 1:
-                # Fly back to orbit position smoothly
-                self.x += (dx / dist) * self.speed * 0.7
-                self.y += (dy / dist) * self.speed * 0.7
-            # Face owner direction if idle
-            face_dx = owner.x - self.x
-            if face_dx > 0:
-                self.set_facing((1, 0))
-            elif face_dx < 0:
-                self.set_facing((-1, 0))
+            if dist > 10:
+                # Lerp toward orbit — smooth deceleration as we approach
+                lerp = min(0.08, self.speed * 0.7 / max(dist, 1))
+                target_vx = dx * lerp / 1.0  # Will be blended below
+                target_vy = dy * lerp / 1.0
+                # Use direct lerp for orbit return (feels floaty and nice)
+                self._mini_vx = dx * 0.08
+                self._mini_vy = dy * 0.08
+                self.x += self._mini_vx
+                self.y += self._mini_vy
+                # Face owner direction if idle
+                face_dx = owner.x - self.x
+                if face_dx > 0:
+                    self.set_facing((1, 0))
+                elif face_dx < 0:
+                    self.set_facing((-1, 0))
+                self._update_rotation()
+                self._update_engine_trail()
+                return proj
+
+        # Smooth velocity blending for attack movement (0.15 = responsive but smooth)
+        smooth = 0.15
+        self._mini_vx += (target_vx - self._mini_vx) * smooth
+        self._mini_vy += (target_vy - self._mini_vy) * smooth
+        self.x += self._mini_vx
+        self.y += self._mini_vy
 
         self._update_rotation()
         self._update_engine_trail()
@@ -1230,7 +1256,7 @@ class Ship:
             # Anubis Eye of Ra: devastating focused golden beam (5s cooldown)
             # Fires a concentrated beam that deals massive damage to everything in a line
             results.append(("eye_of_ra", {"x": cx, "y": cy, "direction": self.facing,
-                                          "damage": 60, "range": 600}))
+                                          "damage": 100, "range": 800}))
 
         return results
 
