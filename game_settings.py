@@ -6,7 +6,7 @@ import json
 import os
 import pygame
 import board_renderer
-from save_paths import get_settings_path, ensure_migration
+from save_paths import get_settings_path, ensure_migration, sync_saves
 
 # Ensure legacy saves are migrated to XDG directory on first access
 ensure_migration()
@@ -40,6 +40,7 @@ class GameSettings:
         try:
             with open(SETTINGS_FILE, 'w') as f:
                 json.dump(self.settings, f, indent=2)
+            sync_saves()
             print(f"✓ Settings saved to {SETTINGS_FILE}")
         except Exception as e:
             print(f"Error saving settings: {e}")

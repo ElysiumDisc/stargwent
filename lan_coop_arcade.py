@@ -8,6 +8,7 @@ Top-level orchestration for LAN co-op space shooter:
   4. Game loop → Game over → combined stats → return
 """
 
+import asyncio
 import pygame
 import display_manager
 
@@ -16,7 +17,7 @@ from space_shooter.ship_select import ShipSelectScreen
 from space_shooter.coop_protocol import CoopMsg, build_ready
 
 
-def run_lan_coop_arcade(screen, session, role):
+async def run_lan_coop_arcade(screen, session, role):
     """
     Run the LAN co-op arcade flow.
 
@@ -33,7 +34,7 @@ def run_lan_coop_arcade(screen, session, role):
     screen_height = screen.get_height()
 
     # --- Phase 1: Ship Selection ---
-    selection = _select_faction(screen, clock, screen_width, screen_height)
+    selection = await _select_faction(screen, clock, screen_width, screen_height)
     if selection is None:
         return None  # User pressed ESC
 
@@ -56,6 +57,7 @@ def run_lan_coop_arcade(screen, session, role):
 
     while waiting:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -105,26 +107,27 @@ def run_lan_coop_arcade(screen, session, role):
     # --- Phase 3: Start game ---
     if role == "host":
         # Host is P1, client is P2
-        return run_coop_space_shooter(screen, session, role,
+        return await run_coop_space_shooter(screen, session, role,
                                        p1_faction=local_faction,
                                        p2_faction=remote_faction,
                                        p1_variant=local_variant,
                                        p2_variant=remote_variant)
     else:
         # Client is P2, host is P1
-        return run_coop_space_shooter(screen, session, role,
+        return await run_coop_space_shooter(screen, session, role,
                                        p1_faction=remote_faction,
                                        p2_faction=local_faction,
                                        p1_variant=remote_variant,
                                        p2_variant=local_variant)
 
 
-def _select_faction(screen, clock, screen_width, screen_height):
+async def _select_faction(screen, clock, screen_width, screen_height):
     """Show ship selection screen and return chosen faction or None."""
     select_screen = ShipSelectScreen(screen_width, screen_height)
 
     while True:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

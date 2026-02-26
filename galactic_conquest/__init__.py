@@ -7,6 +7,7 @@ Win card battles to claim planets across the galaxy.
 Entry point: run_galactic_conquest(screen, unlock_system)
 """
 
+import asyncio
 import random
 import os
 import pygame
@@ -75,7 +76,7 @@ def stop_conquest_music(fade_ms=600):
     _conquest_music_playing = False
 
 
-def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback=None):
+async def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback=None):
     """
     Main entry point for Galactic Conquest mode.
 
@@ -93,7 +94,7 @@ def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback=None
 
     while True:
         # Show conquest submenu
-        action = run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback)
+        action = await run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback)
         # Refresh screen after potential fullscreen toggle
         screen = display_manager.screen
 
@@ -105,22 +106,22 @@ def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback=None
         if action == "new_run":
             # Stop music during faction setup (different screen context)
             stop_conquest_music()
-            result = _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback)
+            result = await _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback)
             # Restart when returning to submenu
             if result != "quit":
                 start_conquest_music()
         elif action == "resume":
-            result = _resume_campaign(screen)
+            result = await _resume_campaign(screen)
             # Restart when returning to submenu
             if result != "quit":
                 start_conquest_music()
         elif action == "customize_run":
-            run_customize_screen(screen, toggle_fullscreen_callback)
+            await run_customize_screen(screen, toggle_fullscreen_callback)
             screen = display_manager.screen
             continue
         elif action == "unlocks":
             stop_conquest_music()
-            run_unlocks_screen(screen, toggle_fullscreen_callback)
+            await run_unlocks_screen(screen, toggle_fullscreen_callback)
             screen = display_manager.screen
             start_conquest_music()
             continue
@@ -131,7 +132,7 @@ def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback=None
         # Otherwise loop back to submenu (after victory/defeat/save_quit)
 
 
-def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
+async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
     """Start a fresh campaign: faction select -> generate galaxy -> begin."""
     # Faction + leader + deck selection (supports custom decks)
     setup = run_faction_setup(screen, unlock_system, toggle_fullscreen_callback)
@@ -197,14 +198,14 @@ def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
 
     # Run campaign
     controller = CampaignController(screen, state)
-    return controller.run()
+    return await controller.run()
 
 
-def _resume_campaign(screen):
+async def _resume_campaign(screen):
     """Resume a saved campaign."""
     state = load_campaign()
     if not state:
         return "back"
 
     controller = CampaignController(screen, state)
-    return controller.run()
+    return await controller.run()

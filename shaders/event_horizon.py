@@ -9,9 +9,9 @@ Procedural rippling portal surface overlay:
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-EVENT_HORIZON_FRAG = """
-#version 330
+EVENT_HORIZON_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform vec2 gate_center;    // UV-space center of stargate

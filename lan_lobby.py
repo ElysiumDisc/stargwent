@@ -2,6 +2,7 @@
 Improved LAN Waiting Lobby with Chat
 Players can chat while waiting to start the match
 """
+import asyncio
 import pygame
 import os
 import display_manager
@@ -282,7 +283,7 @@ class LanLobby:
         self.chat_panel.draw(surface, self.chat_rect, title="💬 CHAT WITH OPPONENT")
 
 
-def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
+async def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
     """
     Run the LAN lobby waiting room.
 
@@ -315,6 +316,7 @@ def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
 
         display_manager.gpu_flip()
         clock.tick(60)
+        await asyncio.sleep(0)
 
     return False
 

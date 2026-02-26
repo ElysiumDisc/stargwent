@@ -11,10 +11,10 @@ stargate chevrons, energy waves, explosions, score pops, faction glows.
 """
 
 from gpu_renderer import ShaderPass, PASSTHROUGH_VERT
+from shaders import glsl_version_header
 
 # Pass 1: Extract bright pixels
-BRIGHT_EXTRACT_FRAG = """
-#version 330
+BRIGHT_EXTRACT_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float threshold;
 in vec2 uv;
@@ -29,8 +29,7 @@ void main() {
 """
 
 # Pass 2a: Horizontal Gaussian blur
-BLUR_H_FRAG = """
-#version 330
+BLUR_H_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform vec2 tex_size;
 in vec2 uv;
@@ -50,8 +49,7 @@ void main() {
 """
 
 # Pass 2b: Vertical Gaussian blur
-BLUR_V_FRAG = """
-#version 330
+BLUR_V_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform vec2 tex_size;
 in vec2 uv;
@@ -71,8 +69,7 @@ void main() {
 """
 
 # Pass 3: Composite original + bloom
-COMPOSITE_FRAG = """
-#version 330
+COMPOSITE_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform sampler2D bloom_tex;
 uniform float intensity;

@@ -8,9 +8,9 @@ Displacement-based vortex during the kawoosh phase of stargate opening:
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-KAWOOSH_FRAG = """
-#version 330
+KAWOOSH_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform vec2 gate_center;    // UV-space center

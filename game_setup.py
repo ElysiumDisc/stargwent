@@ -3,6 +3,7 @@ import sys
 import random
 import os
 import copy
+import asyncio
 import display_manager
 from game import Game
 from deck_builder import run_deck_builder, build_faction_deck, load_default_faction_deck, FACTION_LEADERS
@@ -13,7 +14,7 @@ from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTI
 from draft_mode import DraftRun
 from game_config import FACTION_GLOW_COLORS
 
-def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
+async def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
                    toggle_fullscreen_callback=None, lan_game_data=None):
     """
     Handles game initialization flow: menu, deck selection, game creation.
@@ -44,7 +45,7 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
         if 'player_faction' in lan_game_data:
             # Show Stargate opening animation for rematch
             if not os.environ.get('STARGWENT_SKIP_INTRO'):
-                if not show_stargate_opening(screen):
+                if not await show_stargate_opening(screen):
                     return None
                 os.environ['STARGWENT_SKIP_INTRO'] = '1'
 
@@ -95,7 +96,7 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
         lan_data = {"context": lan_context}
     elif not lan_game_data:
         # Run main menu
-        result = run_main_menu(screen, unlock_system, toggle_fullscreen_callback)
+        result = await run_main_menu(screen, unlock_system, toggle_fullscreen_callback)
         # Refresh screen — fullscreen may have been toggled inside the menu
         screen = display_manager.screen
         if not result:
@@ -124,15 +125,15 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
     if menu_action == 'draft_mode':
         from draft_controller import launch_draft_mode
         # Run draft menu to start a run
-        draft_result = launch_draft_mode(screen, unlock_system)
+        draft_result = await launch_draft_mode(screen, unlock_system)
         if not draft_result:
-            return initialize_game(screen, unlock_system, toggle_fullscreen_callback=toggle_fullscreen_callback)
+            return await initialize_game(screen, unlock_system, toggle_fullscreen_callback=toggle_fullscreen_callback)
 
         # If draft result is a deck, we are ready to play
         if isinstance(draft_result, dict) and 'cards' in draft_result:
             # Show Stargate opening animation before starting draft game
             if not os.environ.get('STARGWENT_SKIP_INTRO'):
-                if not show_stargate_opening(screen):
+                if not await show_stargate_opening(screen):
                     return None
                 # Set flag to skip on retry/back
                 os.environ['STARGWENT_SKIP_INTRO'] = '1'
@@ -162,7 +163,7 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
     elif menu_action == 'new_game':
         # Show Stargate opening animation before starting new game
         if not os.environ.get('STARGWENT_SKIP_INTRO'):
-            if not show_stargate_opening(screen):
+            if not await show_stargate_opening(screen):
                 return None
             # Set flag to skip on retry/back
             os.environ['STARGWENT_SKIP_INTRO'] = '1'
@@ -179,7 +180,7 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
             pass
 
         # Deck Builder / Selection
-        deck_result = run_deck_builder(
+        deck_result = await run_deck_builder(
             screen,
             for_new_game=True,
             unlock_override=unlock_system.is_unlock_override_enabled(),
@@ -190,7 +191,7 @@ def initialize_game(screen, unlock_system, lan_mode=False, lan_context=None,
         screen = display_manager.screen
 
         if not deck_result:
-            return initialize_game(screen, unlock_system, toggle_fullscreen_callback=toggle_fullscreen_callback)
+            return await initialize_game(screen, unlock_system, toggle_fullscreen_callback=toggle_fullscreen_callback)
 
         player_faction = deck_result['faction']
         player_leader = dict(deck_result['leader'])

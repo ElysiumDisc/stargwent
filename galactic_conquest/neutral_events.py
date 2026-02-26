@@ -6,6 +6,7 @@ Every neutral event always offers the option to add a neutral card to the deck.
 Features player's leader portrait alongside event text.
 """
 
+import asyncio
 import pygame
 import random
 import os
@@ -263,7 +264,7 @@ def _load_leader_portrait(campaign_state, sh):
         return None
 
 
-def run_neutral_event(screen, campaign_state):
+async def run_neutral_event(screen, campaign_state):
     """
     Show a random neutral planet text event with 2 choices + always a neutral card option.
     Shows player's leader portrait alongside the event.
@@ -331,6 +332,7 @@ def run_neutral_event(screen, campaign_state):
     running = True
     while running:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:

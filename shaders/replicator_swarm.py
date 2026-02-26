@@ -6,9 +6,9 @@ centered on the swarm. Driven by ReplicatorCrawlEffect.get_gpu_params().
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-REPLICATOR_SWARM_FRAG = """
-#version 330
+REPLICATOR_SWARM_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform vec2 swarm_center;   // UV-space center of the swarm

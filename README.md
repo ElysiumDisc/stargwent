@@ -20,11 +20,12 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-9.1.0-blue)
+![Version](https://img.shields.io/badge/version-9.2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
+![PWA](https://img.shields.io/badge/PWA-iOS%20%2B%20Android-blueviolet)
 ![Status](https://img.shields.io/badge/status-Optimized-brightgreen)
 
 ---
@@ -44,6 +45,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - [📊 Implementation Status](#-implementation-status)
 - [🏗️ Project Structure](#️-project-structure)
 - [🔧 Technical Details](#-technical-details)
+- [🌐 Play in Browser (PWA)](#-play-in-browser-pwa)
 - [🛠 Build & Packaging](#-build--packaging)
 - [📜 Rules Spec Generator](#-rules-spec-generator-auto-detection)
 - [🛠️ Content Manager](#️-content-manager-developer-tool)
@@ -138,10 +140,20 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Game Action ACKs** - Every card play, pass, and ability sends a message ID; receiver confirms receipt with an acknowledgment
 - **Reliable Connections** - JSON error recovery (10 consecutive), keepalive-aware disconnect detection, duplicate disconnect prevention, graceful shutdown
 
+### 🌐 Play in Browser (PWA)
+- **No Install Needed** - Play directly in your browser via Pygbag (Pygame→WASM)
+- **iOS Home Screen App** - Add to Home Screen in Safari for fullscreen landscape gameplay
+- **Touch Controls** - Tap to select cards, long-press to inspect, drag to play, two-finger scroll
+- **Virtual Joystick** - Space shooter plays with on-screen joystick + action buttons
+- **WebGL 2.0 Shaders** - All 12 GPU effects (bloom, vignette, event horizon, etc.) ported to GLSL ES 3.0
+- **Offline Play** - Service worker caches everything for offline use after first load
+- **Persistent Saves** - Progress saved to IndexedDB, persists across browser sessions
+
 ### ⌨️ Universal Controls
 - **Full Keyboard Navigation** - Arrow keys, F to play, G for faction power, Tab to cycle
 - **Row-Type Highlighting** - Cards glow red (close), blue (ranged), green (siege)
 - **Mouse + Keyboard** - Drag-and-drop or keyboard-only gameplay
+- **Touch (Mobile/Tablet)** - Tap, long-press, drag, and two-finger scroll with automatic gesture recognition
 
 ### 💾 Progression & Customization
 - **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop

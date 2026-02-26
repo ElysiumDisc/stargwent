@@ -1,0 +1,74 @@
+name: Deploy Web (PWA)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+      - 'assets/**'
+      - 'shaders/**'
+      - 'build/web/**'
+      - '.github/workflows/web-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pygbag
+        run: pip install pygbag
+
+      - name: Preserve PWA files before build
+        run: |
+          mkdir -p /tmp/pwa-assets
+          cp build/web/manifest.json /tmp/pwa-assets/
+          cp build/web/sw.js /tmp/pwa-assets/
+          cp -r build/web/icons /tmp/pwa-assets/
+
+      - name: Build with Pygbag
+        run: |
+          pygbag --build main.py
+          echo "Pygbag build complete"
+
+      - name: Inject PWA files into build output
+        run: |
+          cp /tmp/pwa-assets/manifest.json build/web/
+          cp /tmp/pwa-assets/sw.js build/web/
+          cp -r /tmp/pwa-assets/icons build/web/
+          # Inject PWA tags into Pygbag's index.html
+          if [ -f build/web/index.html ]; then
+            sed -i 's|</head>|<link rel="manifest" href="manifest.json">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">\n<link rel="apple-touch-icon" href="icons/icon-192.png">\n</head>|' build/web/index.html
+            # Register service worker
+            sed -i 's|</body>|<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js");}</script>\n</body>|' build/web/index.html
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

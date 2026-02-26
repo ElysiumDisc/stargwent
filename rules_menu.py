@@ -6,6 +6,7 @@ and card filtering backed by docs/rules_menu_spec.md plus generated JSON data.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import string
 from dataclasses import dataclass, field
@@ -1767,7 +1768,7 @@ class RulesMenuScreen:
         return y
 
 
-def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
+async def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
     viewer = RulesMenuScreen(screen.get_width(), screen.get_height())
     clock = pygame.time.Clock()
     while True:
@@ -1790,3 +1791,4 @@ def run_rules_menu(screen: pygame.Surface, toggle_fullscreen_callback=None):
         viewer.draw(screen)
         display_manager.gpu_flip()
         clock.tick(60)
+        await asyncio.sleep(0)

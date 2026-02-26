@@ -476,6 +476,14 @@ The game uses a **hybrid rendering approach**: all drawing is done via Pygame to
 - Shader compilation fails → that effect skipped, others continue
 - Runtime GPU error → `self.enabled = False` → auto-reverts to `pygame.SCALED`
 - Settings `gpu_enabled: false` → skips initialization
+- **Web (Emscripten):** ModernGL unavailable → `webgl_renderer.py` (raw GL ES via PyOpenGL) → same API as `GPURenderer`
+
+**Dual renderer (desktop + web):**
+- `gpu_renderer.py` — ModernGL backend (desktop, GLSL 330)
+- `webgl_renderer.py` — PyOpenGL/raw GL ES backend (web, GLSL 300 es)
+- `display_manager.initialize_gpu()` tries ModernGL first, falls back to WebGL on Emscripten
+- `shaders/__init__.py: glsl_version_header()` returns `#version 300 es\nprecision highp float;\n` on web, `#version 330\n` on desktop
+- All 12 shader sources use `glsl_version_header()` instead of hardcoded version strings
 
 **Settings** (in `game_settings.py`):
 - `voice_volume` — voice clips volume (leader/commander voices)
@@ -662,23 +670,38 @@ This triggers 4 parallel jobs (linux .deb+AppImage, windows .exe, macos .dmg), c
 
 ---
 
-### Roadmap: Web Browser (WebGL / WASM)
+### Web Browser (PWA via Pygbag)
 
-**Approach:** [Pygbag](https://github.com/nicegui-community/pygbag) — compiles Pygame to WASM via Emscripten. `pip install pygbag && pygbag main.py` → deploy `build/web/` to GitHub Pages, Netlify, or itch.io.
+The game runs in the browser via [Pygbag](https://github.com/nicegui-community/pygbag) (Pygame→WASM/Emscripten). Single-player parity: card game, space shooter, deck builder, galactic conquest — all playable with touch controls and full GPU shader effects.
 
-**What works out of the box:** Core game loop, rendering, card art, animations, menus, AI gameplay.
+**Build & test locally:**
+```bash
+pip install pygbag
+pygbag main.py          # Dev server at localhost:8000
+pygbag --build main.py  # Production build → build/web/
+```
 
-**What needs adaptation:**
+**Deploy:** Push to `main` → GitHub Actions builds + deploys to GitHub Pages automatically (`.github/workflows/web-deploy.yml`).
 
-| Feature | Issue | Solution |
-|---------|-------|----------|
-| GPU shaders | ModernGL = desktop OpenGL 3.3; browsers = WebGL | Port GLSL to ES 3.0 or disable GPU effects in WASM |
-| LAN multiplayer | No raw TCP sockets in browsers | WebSocket relay server or WebRTC peer-to-peer |
-| File I/O | No filesystem in browser sandbox | Browser `localStorage` / `IndexedDB` via Pygbag |
-| Threading | No `threading` in WASM | Refactor to `asyncio` (Pygbag requires async main loop) |
-| Audio | Browser requires user interaction first | "Click to Start" splash to unlock audio context |
+**Architecture:**
 
-**Multiplayer:** WebSocket relay server (Python `websockets` or Node.js) bridges browser↔browser and browser↔desktop. Room codes for matchmaking, no accounts needed. Host on Fly.io/Railway (~$0-5/month).
+| Layer | Module | Description |
+|-------|--------|-------------|
+| Platform detection | `touch_support.py` | `is_web_platform()`, `is_touch_platform()`, `force_touch_mode()` |
+| Async loops | All game loop files | `async def` + `await asyncio.sleep(0)` after every `clock.tick()` |
+| Touch → Mouse | `touch_gestures.py` | Translates FINGER events → synthetic mouse events (tap, long-press, drag, scroll) |
+| Touch → Keys | `space_shooter/touch_controls.py` | Virtual joystick + action buttons for space shooter |
+| WebGL renderer | `webgl_renderer.py` | Raw GL ES backend, same API as `GPURenderer` |
+| GLSL porting | `shaders/__init__.py` | `glsl_version_header()` — `#version 300 es` on web, `#version 330` on desktop |
+| File I/O | `save_paths.py` | IndexedDB-backed via `sync_saves()` after every write |
+| Audio unlock | `main.py` | "Tap to Start" splash before game start |
+| Conditional imports | `lan_session.py`, `lan_menu.py` | Threading/sockets guarded, multiplayer hidden on web |
+| PWA | `build/web/` | manifest.json, sw.js, icons for installable offline app |
+| CI/CD | `.github/workflows/web-deploy.yml` | Pygbag build → inject PWA tags → deploy to GitHub Pages |
+
+**Desktop compatibility:** All web code gated behind `is_web_platform()` — zero behavior change on desktop.
+
+**LAN multiplayer on web:** Not supported in v1 (no TCP sockets in WASM). Future: WebSocket relay server or WebRTC.
 
 ---
 

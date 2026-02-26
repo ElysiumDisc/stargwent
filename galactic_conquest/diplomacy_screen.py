@@ -4,6 +4,7 @@ STARGWENT - GALACTIC CONQUEST - Diplomacy Screen
 CRT-styled screen for managing faction relations: trade, alliance, betray.
 """
 
+import asyncio
 import pygame
 import math
 import os
@@ -17,7 +18,7 @@ from .diplomacy import (get_diplomacy_options, propose_trade, form_alliance,
                           betray_alliance, RELATION_DISPLAY, get_relation)
 
 
-def run_diplomacy_screen(screen, state, galaxy):
+async def run_diplomacy_screen(screen, state, galaxy):
     """Run the diplomacy management screen.
 
     Returns: None (always returns to map)
@@ -48,6 +49,7 @@ def run_diplomacy_screen(screen, state, galaxy):
 
     while True:
         clock.tick(60)
+        await asyncio.sleep(0)
         frame_count += 1
 
         # Build fresh options each frame (state may have changed)

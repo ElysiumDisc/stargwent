@@ -15,6 +15,7 @@ Uniforms (set from game code):
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
 # Faction → shield tint (0-1 normalised RGB)
 SHIELD_TINTS = {
@@ -32,8 +33,7 @@ SHIELD_TINTS = {
 # Default blue tint (fallback)
 DEFAULT_SHIELD_TINT = (0.31, 0.75, 1.0)
 
-SHIELD_BUBBLE_FRAG = """
-#version 330
+SHIELD_BUBBLE_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform vec2  shield_center;   // UV-space center of the bubble
 uniform float shield_radius;   // UV-space radius

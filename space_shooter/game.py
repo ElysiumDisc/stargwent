@@ -1995,8 +1995,13 @@ class SpaceShooterGame:
                     pu.x += (px - pu.x) * pull
                     pu.y += (py - pu.y) * pull
 
-    def update(self):
-        """Update game state."""
+    def update(self, touch_keys=None):
+        """Update game state.
+
+        Args:
+            touch_keys: Optional VirtualKeys-like object. If provided, used
+                       instead of pygame.key.get_pressed() for input.
+        """
         if self.showing_level_up:
             return
 
@@ -2014,7 +2019,7 @@ class SpaceShooterGame:
             self.damage_numbers = [d for d in self.damage_numbers if d.update()]
             return
 
-        keys = pygame.key.get_pressed()
+        keys = touch_keys if touch_keys is not None else pygame.key.get_pressed()
 
         # Update player ship
         if not self.wormhole_active:

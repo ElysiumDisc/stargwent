@@ -5,6 +5,7 @@ Extracted from main.py to reduce its size. All event processing
 """
 
 import sys
+import asyncio
 import pygame
 from pygame.math import Vector2
 import game_config as cfg
@@ -32,7 +33,7 @@ from deck_persistence import get_persistence
 from draft_mode import DraftRun
 
 
-def handle_events(state, game, screen, dt):
+async def handle_events(state, game, screen, dt):
     """Process all pygame events for the current frame.
 
     Args:
@@ -377,14 +378,14 @@ def handle_events(state, game, screen, dt):
                         battle_music.stop_battle_music()
                         # Return to LAN menu with existing session for rematch
                         from lan_menu import run_lan_rematch
-                        result = run_lan_rematch(screen, state.network_proxy.session, state.network_proxy.role)
+                        result = await run_lan_rematch(screen, state.network_proxy.session, state.network_proxy.role)
                         if result:
                             # Both players ready - run deck selection and start new game
                             from lan_game import run_lan_setup
                             from unlocks import CardUnlockSystem
                             import main as main_module
                             state.unlock_system = CardUnlockSystem()
-                            new_context = run_lan_setup(screen, state.unlock_system, result["session"], result["role"])
+                            new_context = await run_lan_setup(screen, state.unlock_system, result["session"], result["role"])
                             if new_context:
                                 # Set global LAN context via module and restart game
                                 main_module.LAN_MODE = True
@@ -399,7 +400,7 @@ def handle_events(state, game, screen, dt):
                 elif event.key == pygame.K_RETURN and getattr(game, 'draft_victory', False):
                     # Launch space shooter easter egg with ship selection!
                     from space_shooter import run_space_shooter
-                    run_space_shooter(screen)  # Shows ship selection screen
+                    await run_space_shooter(screen)  # Shows ship selection screen
         elif event.type == pygame.MOUSEWHEEL:
             if state.history_panel_rect and state.history_panel_rect.collidepoint(pygame.mouse.get_pos()):
                 # Scroll down (event.y < 0) = see older entries = increase offset

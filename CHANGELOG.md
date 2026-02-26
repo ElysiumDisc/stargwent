@@ -1,3 +1,85 @@
+### Version 9.2.0 (February 2026)
+**PWA Web Deployment — Browser Play, Touch Controls, WebGL Shaders, Offline Support**
+
+#### Web Platform (Pygbag WASM)
+- **Full browser deployment** via Pygbag — compiles Pygame to WASM/Emscripten, playable at any URL
+- **Async game loops** — all ~30 game loops across 22 files converted to `async/await` with `await asyncio.sleep(0)` for browser event loop compatibility
+- **Platform detection** — `touch_support.py` module with `is_web_platform()`, `is_touch_platform()`, `force_touch_mode()` used by all subsystems
+- **Conditional imports** — `threading`, `socket`, `subprocess` guarded behind `is_web_platform()` checks; MULTIPLAYER button hidden on web
+- **"Tap to Start" splash** — unlocks browser audio context before game starts (required by all browsers)
+
+#### Touch Controls
+- **Touch gesture recognition** — `touch_gestures.py` translates FINGER events to synthetic mouse events: tap→click, long-press→right-click, drag→mouse drag, two-finger scroll→mousewheel
+- **Zero downstream changes** — all existing menus, card game, deck builder work with touch via transparent event translation in `display_manager.py`
+- **Space shooter virtual joystick** — `space_shooter/touch_controls.py` with `VirtualJoystick` (bottom-left) + `TouchActionButton` cluster (fire/wormhole/boost, bottom-right)
+- **Multi-touch orchestrator** — finger IDs tracked per control, simultaneous move+fire supported
+
+#### WebGL 2.0 Renderer
+- **Dual renderer architecture** — `webgl_renderer.py` (PyOpenGL/raw GL ES) implements same API as `GPURenderer` (ModernGL)
+- **Automatic backend selection** — tries ModernGL first, falls back to WebGL renderer on Emscripten
+- **GLSL ES 3.0 shader porting** — all 12 shaders (bloom, vignette, CRT, distortion, event_horizon, kawoosh, hyperspace, asgard_beam, zpm_surge, shockwave, replicator_swarm, shield_bubble) use dynamic `glsl_version_header()` — `#version 300 es` + `precision highp float;` on web, `#version 330` on desktop
+
+#### File I/O & Persistence
+- **IndexedDB-backed saves** — `save_paths.py` routes to `/home/web_user/.local/share/stargwent/` on Emscripten
+- **`sync_saves()` helper** — calls `platform.window.FS.syncfs()` after every JSON write to persist to IndexedDB
+- **5 persistence files updated** — `deck_persistence.py`, `game_settings.py`, `unlocks.py`, `campaign_persistence.py`, `meta_progression.py`
+
+#### PWA & Deployment
+- **PWA manifest** — `build/web/manifest.json` with fullscreen display, landscape orientation, app icons
+- **Service worker** — `build/web/sw.js` with cache-first strategy for offline play
+- **GitHub Actions CI/CD** — `.github/workflows/web-deploy.yml` builds with Pygbag, injects PWA tags, deploys to GitHub Pages
+- **Placeholder PWA icons** — `build/web/icons/icon-192.png` and `icon-512.png`
+
+#### Desktop Compatibility
+- **Zero behavior change on desktop** — all web-specific code gated behind `is_web_platform()` guards
+- **All 45 modified/new files** pass Python syntax validation
+
+#### Files Added
+| File | Description |
+|------|-------------|
+| `touch_support.py` | Platform detection (web, touch, force override) |
+| `touch_gestures.py` | FINGER event → mouse event gesture recognizer |
+| `webgl_renderer.py` | WebGL 2.0 / PyOpenGL renderer backend |
+| `space_shooter/touch_controls.py` | Virtual joystick + action buttons overlay |
+| `build/web/manifest.json` | PWA manifest |
+| `build/web/sw.js` | Service worker for offline caching |
+| `build/web/icons/icon-192.png` | PWA icon (192x192) |
+| `build/web/icons/icon-512.png` | PWA icon (512x512) |
+| `.github/workflows/web-deploy.yml` | GitHub Actions web deploy pipeline |
+
+#### Files Modified
+| File | Changes |
+|------|---------|
+| `main.py` | Async entry point, tap-to-start splash, `await` all sub-loops |
+| `main_menu.py` | Async loops, hide MULTIPLAYER on web |
+| `game_setup.py` | Async `initialize_game()` |
+| `event_handler.py` | Async `handle_events()` |
+| `display_manager.py` | Touch gesture integration, WebGL backend selection |
+| `gpu_renderer.py` | Dynamic GLSL version headers |
+| `shaders/__init__.py` | `glsl_version_header()` function |
+| `shaders/*.py` (12 files) | Dynamic GLSL version instead of hardcoded `#version 330` |
+| `save_paths.py` | Web-aware save paths + `sync_saves()` |
+| `deck_builder.py` | Async loop |
+| `lan_session.py` | Guarded threading/socket imports |
+| `lan_menu.py` | Guarded imports, async loops |
+| `lan_game.py` | Async loops |
+| `lan_coop_arcade.py` | Async loops |
+| `lan_lobby.py` | Async loop |
+| `draft_controller.py` | Async loops |
+| `stats_menu.py` | Async loops |
+| `rules_menu.py` | Async loop |
+| `deck_persistence.py` | `sync_saves()` after writes |
+| `game_settings.py` | `sync_saves()` after writes |
+| `unlocks.py` | `sync_saves()` after writes |
+| `space_shooter/__init__.py` | Async loops, touch overlay wiring |
+| `space_shooter/game.py` | `update(touch_keys=None)` parameter |
+| `space_shooter/ui.py` | Hide keyboard hints on touch |
+| `galactic_conquest/*.py` (8 files) | Async loops throughout |
+| `galactic_conquest/campaign_persistence.py` | `sync_saves()` after writes |
+| `galactic_conquest/meta_progression.py` | `sync_saves()` after writes |
+
+---
+
 ### Version 9.1.0 (February 2026)
 **LAN Networking Robustness — Thread Safety, Co-op Sync, Chat Fixes, Game Action ACKs**
 

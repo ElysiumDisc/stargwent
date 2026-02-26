@@ -13,13 +13,22 @@ __pycache__/
 .Python
 
 # Build & Distribution
-build/
 builds/
 dist/
 *.egg-info/
 *.egg
 *.deb
 *.rpm
+
+# Pygbag (web build)
+build/version.txt
+build/web-cache/
+build/web/index.html
+build/web/favicon.png
+build/web/*.apk
+build/web/*.tar.gz
+*-pygbag.ogg
+*-pygbag.???
 
 # IDE & Editor Files
 .vscode/

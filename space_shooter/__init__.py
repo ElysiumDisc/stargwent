@@ -16,6 +16,7 @@ Scoring:
 - Survival time: 10 pts per second
 """
 
+import asyncio
 import pygame
 import random
 import os
@@ -68,7 +69,7 @@ def _stop_space_music(fade_ms=800):
         pass
 
 
-def run_space_shooter(screen, player_faction=None, ai_faction=None,
+async def run_space_shooter(screen, player_faction=None, ai_faction=None,
                       mission_type=None, mission_target=None, starting_upgrades=None):
     """
     Run the space shooter mini-game.
@@ -95,6 +96,7 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None,
 
         while selecting:
             clock.tick(60)
+            await asyncio.sleep(0)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -137,19 +139,40 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None,
                             mission_type=mission_type, mission_target=mission_target,
                             starting_upgrades=starting_upgrades, variant=variant)
 
+    # Touch controls overlay (lazy init on touch platforms)
+    touch_overlay = None
+    touch_vkeys = None
+    from touch_support import is_touch_platform
+    if is_touch_platform():
+        from .touch_controls import SpaceShooterTouchOverlay
+        from .virtual_keys import VirtualKeys
+        touch_overlay = SpaceShooterTouchOverlay(screen_width, screen_height)
+        touch_vkeys = VirtualKeys()
+
     while game.running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 game.exit_to_menu = True
                 game.running = False
+            elif touch_overlay and event.type in (pygame.FINGERDOWN, pygame.FINGERUP, pygame.FINGERMOTION):
+                if not touch_overlay.handle_event(event):
+                    game.handle_event(event)
             else:
                 game.handle_event(event)
 
-        game.update()
+        if touch_overlay:
+            touch_vkeys.update(touch_overlay.get_virtual_keys_dict())
+            game.update(touch_keys=touch_vkeys)
+        else:
+            game.update()
+
         game.draw(screen)
+        if touch_overlay:
+            touch_overlay.draw(screen)
 
         display_manager.gpu_flip()
         clock.tick(60)
+        await asyncio.sleep(0)
 
     # Stop space shooter music when leaving
     _stop_space_music()
@@ -165,7 +188,7 @@ def run_space_shooter(screen, player_faction=None, ai_faction=None,
     return game.survival_seconds > 120  # "Won" if survived >2 minutes
 
 
-def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=None,
+async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=None,
                            p1_variant=0, p2_variant=0):
     """
     Run co-op space shooter over LAN.
@@ -247,6 +270,7 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
 
             display_manager.gpu_flip()
             clock.tick(60)
+            await asyncio.sleep(0)
 
         # Notify client before exiting
         if game.exit_to_menu:
@@ -329,6 +353,7 @@ def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_faction=No
 
             display_manager.gpu_flip()
             clock.tick(60)
+            await asyncio.sleep(0)
 
         # Send disconnect notification to host
         try:

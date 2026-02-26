@@ -12,9 +12,9 @@ Panel rect passed as uniform from frame_renderer.py.
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-CRT_HOLOGRAM_FRAG = """
-#version 330
+CRT_HOLOGRAM_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform vec4 panel_rect;  // x, y, width, height in UV space (0-1)

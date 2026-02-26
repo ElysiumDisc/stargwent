@@ -6,6 +6,7 @@ Galaxy-wide crisis events that trigger randomly after turn 5.
 Each crisis affects ALL factions and creates dramatic turning points.
 """
 
+import asyncio
 import random
 import pygame
 import display_manager
@@ -174,7 +175,7 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None):
     return "The crisis passes without incident."
 
 
-def show_crisis_screen(screen, crisis, result_text):
+async def show_crisis_screen(screen, crisis, result_text):
     """Show a dramatic crisis event screen.
 
     Args:
@@ -196,6 +197,7 @@ def show_crisis_screen(screen, crisis, result_text):
     frame = 0
     while running:
         clock.tick(60)
+        await asyncio.sleep(0)
         frame += 1
 
         for ev in pygame.event.get():

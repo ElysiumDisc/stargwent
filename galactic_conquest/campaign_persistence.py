@@ -7,7 +7,7 @@ Save/load/clear campaign state to/from JSON on disk.
 import json
 import os
 
-from save_paths import get_data_dir
+from save_paths import get_data_dir, sync_saves
 
 CAMPAIGN_SAVE_FILENAME = "galactic_conquest_save.json"
 CONQUEST_SETTINGS_FILENAME = "conquest_settings.json"
@@ -25,6 +25,7 @@ def save_campaign(state) -> bool:
         data = state.to_dict()
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
+        sync_saves()
         print(f"[conquest] Campaign saved to {path}")
         return True
     except (IOError, OSError, TypeError) as e:
@@ -101,6 +102,7 @@ def save_conquest_settings(settings: dict) -> bool:
     try:
         with open(path, "w") as f:
             json.dump(settings, f, indent=2)
+        sync_saves()
         return True
     except (IOError, OSError):
         return False

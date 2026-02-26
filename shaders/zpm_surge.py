@@ -8,9 +8,9 @@ GPU lightning arcs radiating from ZPM center:
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-ZPM_SURGE_FRAG = """
-#version 330
+ZPM_SURGE_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform vec2 zpm_center;     // UV-space center

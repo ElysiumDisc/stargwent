@@ -10,9 +10,9 @@ Enhances hyperspace transitions with:
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-HYPERSPACE_FRAG = """
-#version 330
+HYPERSPACE_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float warp_factor;   // 0.0 = none, 1.0 = full warp
 uniform vec2 center;         // UV-space center of warp

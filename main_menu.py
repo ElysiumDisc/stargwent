@@ -8,6 +8,7 @@ import json
 import os
 import math
 import random
+import asyncio
 import display_manager
 from deck_persistence import get_persistence
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
@@ -253,12 +254,16 @@ class MainMenu:
         self.highlight_color = (100, 200, 255)  # Stargate blue
         
         # Menu options
+        from touch_support import is_web_platform
         self.options = [
             {'text': 'NEW GAME', 'action': 'new_game'},
             {'text': 'GALACTIC CONQUEST', 'action': 'galactic_conquest'},
             {'text': 'DRAFT MODE', 'action': 'draft_mode'},
             {'text': 'DECK BUILDING', 'action': 'deck_building'},
-            {'text': 'MULTIPLAYER', 'action': 'lan_menu'},
+        ]
+        if not is_web_platform():
+            self.options.append({'text': 'MULTIPLAYER', 'action': 'lan_menu'})
+        self.options += [
             {'text': 'RULE MENU', 'action': 'rules_menu'},
             {'text': 'STATS', 'action': 'stats_menu'},
             {'text': 'OPTIONS', 'action': 'options_menu'},
@@ -308,7 +313,7 @@ class MainMenu:
             self.unlock_system.set_unlock_override(not self._unlock_override_state())
         self._update_unlock_option_label()
     
-    def run_options_menu(self, surface):
+    async def run_options_menu(self, surface):
         from game_settings import get_settings
         import os
 
@@ -485,8 +490,9 @@ class MainMenu:
 
         while running:
             dt = clock.tick(60)
+            await asyncio.sleep(0)
             pulse_phase += dt * 0.005  # Animate toggles
-            
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return 'quit'
@@ -915,7 +921,7 @@ class MainMenu:
         self._title_surf = surf
         self._title_pad = pad
 
-    def handle_event(self, event):
+    async def handle_event(self, event):
         """Handle input events."""
         if event.type == pygame.MOUSEMOTION:
             mouse_pos = event.pos
@@ -937,7 +943,7 @@ class MainMenu:
                     self.dhd_manager.activate_button(i)
 
                     if option['action'] == 'options_menu':
-                        result = self.run_options_menu(display_manager.screen)
+                        result = await self.run_options_menu(display_manager.screen)
                         if isinstance(result, str):
                             return result
                         return '_refresh'
@@ -1357,7 +1363,7 @@ class DeckCustomizationUI:
             surface.blit(name_text, (x + 5, y + 5))
 
 
-def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
+async def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     """Run the main menu loop."""
     # CRITICAL: Reload card images at menu start to ensure proper loading
     print("Main Menu: Reloading card images for current screen size...")
@@ -1372,11 +1378,12 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     running = True
     while running:
         dt = clock.tick(60)
-        
+        await asyncio.sleep(0)
+
         # Update DHD button animations
         mouse_pos = pygame.mouse.get_pos()
         main_menu.dhd_manager.update(dt, mouse_pos, main_menu.selected_option)
-        
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 stop_menu_music()
@@ -1394,7 +1401,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                     pygame.event.clear()  # Discard stale events from display recreation
                     break
             
-            action = main_menu.handle_event(event)
+            action = await main_menu.handle_event(event)
             if action == '_refresh':
                 # Options menu may have toggled fullscreen — refresh screen/menu
                 screen = display_manager.screen
@@ -1407,7 +1414,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             elif action == 'galactic_conquest':
                 stop_menu_music()
                 from galactic_conquest import run_galactic_conquest
-                run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback)
+                await run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callback)
                 # Returned from conquest — refresh and resume menu
                 screen = display_manager.screen
                 main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
@@ -1419,7 +1426,7 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
             elif action == 'deck_building':
                 # Use the GOOD deck builder from deck_builder.py
                 from deck_builder import run_deck_builder
-                result = run_deck_builder(
+                result = await run_deck_builder(
                     screen,
                     for_new_game=False,
                     unlock_override=unlock_system.is_unlock_override_enabled(),
@@ -1434,18 +1441,18 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
                 # If result is None, user clicked MAIN MENU or ESC - just continue showing main menu
                 # (Don't return None here, that would quit the game!)
             elif action == 'rules_menu':
-                run_rules_menu(screen, toggle_fullscreen_callback)
+                await run_rules_menu(screen, toggle_fullscreen_callback)
                 # Refresh screen — fullscreen may have been toggled in rules menu
                 screen = display_manager.screen
                 main_menu = MainMenu(screen.get_width(), screen.get_height(), unlock_system)
                 main_menu.screen_surface = screen
             elif action == 'lan_menu':
-                lan_data = run_lan_menu(screen)
+                lan_data = await run_lan_menu(screen)
                 if isinstance(lan_data, dict):
                     stop_menu_music()
                     return lan_data
             elif action == 'stats_menu':
-                run_stats_menu(screen)
+                await run_stats_menu(screen)
             elif action == 'toggle_unlock_override':
                 main_menu.toggle_unlock_override()
             elif action == 'quit':
@@ -1460,24 +1467,25 @@ def run_main_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     return None
 
 
-def run_deck_customization(screen, deck_manager):
+async def run_deck_customization(screen, deck_manager):
     """Run the deck customization UI."""
     deck_ui = DeckCustomizationUI(screen.get_width(), screen.get_height(), deck_manager)
     clock = pygame.time.Clock()
-    
+
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return None
-            
+
             result = deck_ui.handle_event(event)
             if result == 'back':
                 return 'back'
-        
+
         deck_ui.draw(screen)
         display_manager.gpu_flip()
         clock.tick(60)
+        await asyncio.sleep(0)
     
     return None
 
@@ -2160,7 +2168,7 @@ class StargateOpeningAnimation:
 
 
 
-def show_stargate_opening(screen):
+async def show_stargate_opening(screen):
     """Show the Stargate opening animation."""
     from game_settings import get_settings
     animation = StargateOpeningAnimation(screen.get_width(), screen.get_height())
@@ -2179,7 +2187,8 @@ def show_stargate_opening(screen):
     running = True
     while running:
         dt = clock.tick(60)
-        
+        await asyncio.sleep(0)
+
         # Handle events (allow skip)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

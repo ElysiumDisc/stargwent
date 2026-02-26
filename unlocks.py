@@ -10,7 +10,7 @@ import os
 import display_manager
 from cards import Card, FACTION_NEUTRAL
 from content_registry import UNLOCKABLE_LEADERS
-from save_paths import get_unlock_save_path, ensure_migration
+from save_paths import get_unlock_save_path, ensure_migration, sync_saves
 
 # Ensure legacy saves are migrated to XDG directory on first access
 ensure_migration()
@@ -301,7 +301,8 @@ class CardUnlockSystem:
         
         with open(UNLOCK_DATA_FILE, 'w') as f:
             json.dump(existing_data, f, indent=2)
-    
+        sync_saves()
+
     def record_game_result(self, won):
         """Record game result and update consecutive wins."""
         self.total_games += 1

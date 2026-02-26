@@ -1,11 +1,19 @@
-import threading
+import asyncio
 import pygame
 import display_manager
-import socket
-import subprocess
 import re
 import time
+from touch_support import is_web_platform
 from lan_session import LanSession
+
+if not is_web_platform():
+    import threading
+    import socket
+    import subprocess
+else:
+    threading = None
+    socket = None
+    subprocess = None
 
 FONT_CACHE = {}
 
@@ -229,7 +237,7 @@ def draw_button(surface, rect, text, font_size=32, hover=False, color_normal=(50
     surface.blit(text_surf, (text_x, text_y))
 
 
-def run_lan_menu(screen):
+async def run_lan_menu(screen):
     # Preload lobby background if available
     lobby_background = None
     try:
@@ -412,7 +420,7 @@ def run_lan_menu(screen):
                     if coop_btn.collidepoint(mx, my) and session and role:
                         # Launch co-op arcade directly
                         from lan_coop_arcade import run_lan_coop_arcade
-                        run_lan_coop_arcade(screen, session, role)
+                        await run_lan_coop_arcade(screen, session, role)
                         # After arcade, return to chat state (don't close session)
 
         # Draw UI based on state
@@ -560,13 +568,14 @@ def run_lan_menu(screen):
 
         display_manager.gpu_flip()
         clock.tick(60)
+        await asyncio.sleep(0)
 
     if session:
         session.close()
     return None
 
 
-def run_lan_rematch(screen, session, role):
+async def run_lan_rematch(screen, session, role):
     """
     Handle rematch flow after a LAN game ends.
     Both players stay connected and can choose new factions/leaders.
@@ -695,5 +704,6 @@ def run_lan_rematch(screen, session, role):
         
         display_manager.gpu_flip()
         clock.tick(60)
-    
+        await asyncio.sleep(0)
+
     return None

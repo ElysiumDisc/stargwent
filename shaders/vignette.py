@@ -6,9 +6,9 @@ Uses smoothstep falloff from screen center.
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-VIGNETTE_FRAG = """
-#version 330
+VIGNETTE_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float strength;
 uniform float radius;

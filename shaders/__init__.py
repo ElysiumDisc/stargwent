@@ -5,7 +5,20 @@ Each module provides a ShaderPass subclass (or factory function)
 that plugs into the GPURenderer effect chain.
 """
 
+import sys
+
 from gpu_renderer import MODERNGL_AVAILABLE
+
+
+def glsl_version_header():
+    """Return the appropriate GLSL version header for the current platform.
+
+    Desktop: #version 330
+    Web (Emscripten/WebGL 2.0): #version 300 es with precision qualifier
+    """
+    if sys.platform == "emscripten":
+        return "#version 300 es\nprecision highp float;\n"
+    return "#version 330\n"
 
 
 def register_all_effects(gpu_renderer):

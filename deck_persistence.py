@@ -6,7 +6,7 @@ import json
 import os
 from typing import Dict, List, Optional
 from content_registry import iter_unlockable_leader_ids
-from save_paths import get_deck_save_path, get_unlock_save_path, ensure_migration
+from save_paths import get_deck_save_path, get_unlock_save_path, ensure_migration, sync_saves
 
 # Ensure legacy saves are migrated to XDG directory on first access
 ensure_migration()
@@ -81,6 +81,7 @@ class DeckPersistence:
                     if was_migrated:
                         with open(DECK_SAVE_FILE, 'w') as fw:
                             json.dump(data, fw, indent=2)
+                        sync_saves()
                         print(f"✓ Migrated deck data saved to {DECK_SAVE_FILE}")
                     return data
             except Exception as e:
@@ -104,17 +105,19 @@ class DeckPersistence:
         try:
             with open(DECK_SAVE_FILE, 'w') as f:
                 json.dump(self.deck_data, f, indent=2)
+            sync_saves()
             print(f"✓ Decks saved to {DECK_SAVE_FILE}")
             return True
         except Exception as e:
             print(f"Error saving deck data: {e}")
             return False
-    
+
     def save_unlocks(self):
         """Save unlock progress"""
         try:
             with open(UNLOCK_SAVE_FILE, 'w') as f:
                 json.dump(self.unlock_data, f, indent=2)
+            sync_saves()
             print(f"✓ Unlocks saved to {UNLOCK_SAVE_FILE}")
         except Exception as e:
             print(f"Error saving unlock data: {e}")
@@ -843,6 +846,7 @@ def export_deck_json(faction: str, filepath: str) -> bool:
     try:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(export_data, f, indent=2, ensure_ascii=False)
+        sync_saves()
         print(f"[deck-export] Deck exported to {filepath}")
         return True
     except (IOError, OSError) as e:

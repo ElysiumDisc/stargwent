@@ -1,9 +1,12 @@
 import pygame
 import sys
 import os
-import ctypes
-import tempfile
 from cards import reload_card_images
+
+# ctypes and tempfile may not be available on Emscripten/WASM
+if sys.platform != "emscripten":
+    import ctypes
+    import tempfile
 
 # Initialize Pygame
 pygame.init()
@@ -12,13 +15,14 @@ pygame.init()
 pygame.key.set_repeat(300, 50)
 
 # Set high DPI awareness for Windows
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)  # Windows 8.1+
-except:
+if sys.platform != "emscripten":
     try:
-        ctypes.windll.user32.SetProcessDPIAware()  # Windows Vista+
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)  # Windows 8.1+
     except:
-        pass  # Not Windows or already set
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()  # Windows Vista+
+        except:
+            pass  # Not Windows or already set
 
 screen = None
 gpu_renderer = None  # GPURenderer instance (None if unavailable)
@@ -49,6 +53,9 @@ _original_event_get = pygame.event.get
 _cached_mouse_sx = 1.0
 _cached_mouse_sy = 1.0
 
+# Touch gesture recognizer — lazy-initialized on first touch platform use
+_touch_recognizer = None
+
 
 def _recalc_mouse_scale():
     """Recompute cached mouse scale factors. Call after display mode changes."""
@@ -72,7 +79,12 @@ def _get_mouse_scale():
 
 
 def _scaled_mouse_get_pos():
-    """pygame.mouse.get_pos() returning game-space coordinates."""
+    """pygame.mouse.get_pos() returning game-space coordinates.
+
+    On touch platforms, returns the last touch position instead.
+    """
+    if _touch_recognizer is not None:
+        return _touch_recognizer.get_last_touch_pos()
     x, y = _original_mouse_get_pos()
     sx, sy = _get_mouse_scale()
     if sx != 1.0 or sy != 1.0:
@@ -81,20 +93,39 @@ def _scaled_mouse_get_pos():
 
 
 def _scaled_event_get(*args, **kwargs):
-    """pygame.event.get() with mouse positions scaled to game space."""
+    """pygame.event.get() with touch→mouse translation and coordinate scaling."""
+    global _touch_recognizer
     events = _original_event_get(*args, **kwargs)
+
+    # --- Touch gesture translation (lazy init) ---
+    from touch_support import is_touch_platform
+    if is_touch_platform():
+        if _touch_recognizer is None:
+            from touch_gestures import TouchGestureRecognizer
+            _touch_recognizer = TouchGestureRecognizer(SCREEN_WIDTH or 1280, SCREEN_HEIGHT or 720)
+
+        translated = []
+        for event in events:
+            if event.type in (pygame.FINGERDOWN, pygame.FINGERUP, pygame.FINGERMOTION):
+                translated.extend(_touch_recognizer.process_event(event))
+            else:
+                translated.append(event)
+        # Check for long-press (time-based)
+        translated.extend(_touch_recognizer.update())
+        events = translated
+
+    # --- Coordinate scaling for GPU fullscreen ---
     sx, sy = _get_mouse_scale()
-    if sx == 1.0 and sy == 1.0:
-        return events
-    for event in events:
-        if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
-            ox, oy = event.pos
-            event.pos = (int(ox * sx), int(oy * sy))
-        elif event.type == pygame.MOUSEMOTION:
-            ox, oy = event.pos
-            event.pos = (int(ox * sx), int(oy * sy))
-            rx, ry = event.rel
-            event.rel = (int(rx * sx), int(ry * sy))
+    if sx != 1.0 or sy != 1.0:
+        for event in events:
+            if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+                ox, oy = event.pos
+                event.pos = (int(ox * sx), int(oy * sy))
+            elif event.type == pygame.MOUSEMOTION:
+                ox, oy = event.pos
+                event.pos = (int(ox * sx), int(oy * sy))
+                rx, ry = event.rel
+                event.rel = (int(rx * sx), int(ry * sy))
     return events
 
 
@@ -117,6 +148,32 @@ def initialize_display():
     if _initialized:
         return
     _initialized = True
+
+    _is_web = sys.platform == "emscripten"
+
+    # Web/Emscripten: simplified display setup — Pygbag manages the canvas.
+    # pygame.SCALED, vsync, fullscreen, and temp-file caching don't work on WASM.
+    if _is_web:
+        SCREEN_WIDTH = 1280
+        SCREEN_HEIGHT = 720
+        DESKTOP_WIDTH = 1280
+        DESKTOP_HEIGHT = 720
+        SCALE_FACTOR = SCREEN_HEIGHT / 1080.0
+        WINDOWED_WIDTH = SCREEN_WIDTH
+        WINDOWED_HEIGHT = SCREEN_HEIGHT
+        WINDOWED_SCALE_FACTOR = SCALE_FACTOR
+        WINDOWED_FLAGS = 0
+        FULLSCREEN = False
+        VSYNC_ENABLED = False
+        COMPETITIVE_MODE = False
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Stargwent")
+        print(f"[Web] Display: {SCREEN_WIDTH}x{SCREEN_HEIGHT}, scale={SCALE_FACTOR:.3f}x")
+        # Load card images
+        print("Loading card images...")
+        reload_card_images()
+        print("Card images loaded.")
+        return
 
     # Load vsync and competitive mode settings
     try:
@@ -395,10 +452,20 @@ def _recreate_gpu_display(fullscreen_enabled, vsync_value):
 def initialize_gpu():
     """Attempt to create GPURenderer with shared OpenGL context.
 
-    Recreates the display with pygame.OPENGL so ModernGL can share
-    the GL context.  On failure, reverts to SCALED Pygame rendering.
+    On desktop: uses ModernGL with Pygame's shared GL context.
+    On web (Emscripten): tries ModernGL first, falls back to WebGL renderer.
+    On failure, reverts to SCALED Pygame rendering.
     """
     global gpu_renderer, screen
+
+    import sys as _sys
+    _is_web = _sys.platform == "emscripten"
+
+    # Web/Emscripten: skip GPU — Pygbag manages its own canvas and GL context.
+    # OPENGL|DOUBLEBUF display flags conflict with Pygbag's rendering pipeline.
+    if _is_web:
+        print("[GPU] Web platform — using Pygame rendering (Pygbag canvas)")
+        return
 
     from gpu_renderer import MODERNGL_AVAILABLE
     if not MODERNGL_AVAILABLE:
@@ -442,62 +509,74 @@ def initialize_gpu():
     # Offscreen surface — all game drawing targets this
     screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 
-    # --- Create GPU renderer sharing Pygame's GL context ---
-    from gpu_renderer import GPURenderer
-    renderer = GPURenderer(SCREEN_WIDTH, SCREEN_HEIGHT)
-    if not renderer.initialize():
+    # --- Create GPU renderer ---
+    renderer = None
+
+    if MODERNGL_AVAILABLE:
+        # Try ModernGL first (works on both desktop and some Emscripten builds)
+        from gpu_renderer import GPURenderer
+        renderer = GPURenderer(SCREEN_WIDTH, SCREEN_HEIGHT)
+        if not renderer.initialize():
+            renderer = None
+
+        # Validate with FBO render test (desktop only — skip on web)
+        if renderer and not _is_web:
+            try:
+                import moderngl
+                ctx = renderer.ctx
+                test_tex = ctx.texture((16, 16), 4)
+                test_fbo = ctx.framebuffer(color_attachments=[test_tex])
+                from gpu_renderer import _glsl_version
+                _ver = _glsl_version()
+                test_prog = ctx.program(
+                    vertex_shader=_ver + """
+                    in vec2 in_position;
+                    void main() { gl_Position = vec4(in_position, 0.0, 1.0); }
+                    """,
+                    fragment_shader=_ver + """
+                    out vec4 fragColor;
+                    void main() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }
+                    """,
+                )
+                import struct
+                vbo_data = struct.pack('8f', -1, -1, 1, -1, -1, 1, 1, 1)
+                test_vbo = ctx.buffer(vbo_data)
+                test_vao = ctx.vertex_array(test_prog, [(test_vbo, '2f', 'in_position')])
+                test_fbo.use()
+                test_fbo.clear(0.0, 0.0, 0.0, 1.0)
+                test_vao.render(moderngl.TRIANGLE_STRIP)
+                ctx.finish()
+                result = test_tex.read()
+                r, g, b, a = result[0], result[1], result[2], result[3]
+                test_vao.release()
+                test_vbo.release()
+                test_prog.release()
+                test_fbo.release()
+                test_tex.release()
+                if r < 200:
+                    print(f"[GPU] Render test failed: expected red, got RGBA=({r},{g},{b},{a})")
+                    renderer.cleanup()
+                    renderer = None
+                else:
+                    print(f"[GPU] Render test passed: RGBA=({r},{g},{b},{a})")
+            except Exception as e:
+                print(f"[GPU] Render test failed: {e}")
+                renderer.cleanup()
+                renderer = None
+
+    # Fallback to WebGL renderer on Emscripten if ModernGL failed
+    if renderer is None and _is_web:
+        try:
+            from webgl_renderer import WebGLRenderer
+            renderer = WebGLRenderer(SCREEN_WIDTH, SCREEN_HEIGHT)
+            if not renderer.initialize():
+                renderer = None
+        except Exception as e:
+            print(f"[WebGL] Fallback failed: {e}")
+            renderer = None
+
+    if renderer is None:
         print("[GPU] Failed to initialize — reverting to Pygame rendering")
-        _revert_to_scaled()
-        return
-
-    # Validate with actual FBO render test
-    try:
-        import moderngl
-        ctx = renderer.ctx
-
-        test_tex = ctx.texture((16, 16), 4)
-        test_fbo = ctx.framebuffer(color_attachments=[test_tex])
-
-        test_prog = ctx.program(
-            vertex_shader="""
-            #version 330
-            in vec2 in_position;
-            void main() { gl_Position = vec4(in_position, 0.0, 1.0); }
-            """,
-            fragment_shader="""
-            #version 330
-            out vec4 fragColor;
-            void main() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }
-            """,
-        )
-        import struct
-        vbo_data = struct.pack('8f', -1, -1, 1, -1, -1, 1, 1, 1)
-        test_vbo = ctx.buffer(vbo_data)
-        test_vao = ctx.vertex_array(test_prog, [(test_vbo, '2f', 'in_position')])
-
-        test_fbo.use()
-        test_fbo.clear(0.0, 0.0, 0.0, 1.0)
-        test_vao.render(moderngl.TRIANGLE_STRIP)
-        ctx.finish()
-
-        result = test_tex.read()
-        r, g, b, a = result[0], result[1], result[2], result[3]
-
-        test_vao.release()
-        test_vbo.release()
-        test_prog.release()
-        test_fbo.release()
-        test_tex.release()
-
-        if r < 200:
-            print(f"[GPU] Render test failed: expected red, got RGBA=({r},{g},{b},{a})")
-            renderer.cleanup()
-            _revert_to_scaled()
-            return
-        print(f"[GPU] Render test passed: RGBA=({r},{g},{b},{a})")
-    except Exception as e:
-        print(f"[GPU] Render test failed: {e}")
-        renderer.cleanup()
         _revert_to_scaled()
         return
 

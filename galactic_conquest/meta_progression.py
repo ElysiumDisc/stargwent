@@ -9,7 +9,7 @@ and finishing story arcs. Spend CP to unlock permanent perks.
 import json
 import os
 
-from save_paths import get_data_dir
+from save_paths import get_data_dir, sync_saves
 
 META_SAVE_FILENAME = "conquest_meta.json"
 HIGH_SCORES_FILENAME = "conquest_high_scores.json"
@@ -100,6 +100,7 @@ def save_meta(meta: dict) -> bool:
     try:
         with open(path, "w") as f:
             json.dump(meta, f, indent=2)
+        sync_saves()
         return True
     except (IOError, OSError):
         return False
@@ -125,6 +126,7 @@ def save_high_scores(scores: list) -> bool:
     try:
         with open(path, "w") as f:
             json.dump(scores, f, indent=2)
+        sync_saves()
         return True
     except (IOError, OSError):
         return False

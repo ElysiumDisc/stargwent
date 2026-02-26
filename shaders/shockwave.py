@@ -8,9 +8,9 @@ Used during round winner announcements:
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-SHOCKWAVE_FRAG = """
-#version 330
+SHOCKWAVE_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform vec2 center;          // UV-space center of shockwave

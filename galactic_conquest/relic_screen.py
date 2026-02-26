@@ -5,12 +5,13 @@ CRT-styled screen shown when the player acquires a new relic.
 Supports single-relic "Acquired!" mode and multi-choice mode (events).
 """
 
+import asyncio
 import pygame
 import math
 import display_manager
 
 
-def show_relic_acquired(screen, relic, source_text=""):
+async def show_relic_acquired(screen, relic, source_text=""):
     """Show a dramatic relic acquisition screen.
 
     Args:
@@ -36,6 +37,7 @@ def show_relic_acquired(screen, relic, source_text=""):
     running = True
     while running:
         clock.tick(60)
+        await asyncio.sleep(0)
         frame += 1
 
         for event in pygame.event.get():
@@ -93,7 +95,7 @@ def show_relic_acquired(screen, relic, source_text=""):
         display_manager.gpu_flip()
 
 
-def show_relic_choice(screen, relic_ids):
+async def show_relic_choice(screen, relic_ids):
     """Show a choice between multiple relics (for events).
 
     Args:
@@ -109,7 +111,7 @@ def show_relic_choice(screen, relic_ids):
     if not valid:
         return None
     if len(valid) == 1:
-        show_relic_acquired(screen, valid[0][1])
+        await show_relic_acquired(screen, valid[0][1])
         return valid[0][0]
 
     sw, sh = screen.get_width(), screen.get_height()
@@ -142,6 +144,7 @@ def show_relic_choice(screen, relic_ids):
 
     while chosen is None:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

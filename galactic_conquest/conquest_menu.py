@@ -5,6 +5,7 @@ Entry screen: New Run / Resume / Customize Run / Back.
 CRT-themed Stargate terminal UI with scanline overlay.
 """
 
+import asyncio
 import pygame
 import os
 import math
@@ -601,7 +602,7 @@ class CustomizeRunScreen:
         return CRT_TEXT_DIM
 
 
-def run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback=None):
+async def run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback=None):
     """
     Run the Galactic Conquest submenu.
 
@@ -613,6 +614,7 @@ def run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback=None):
 
     while True:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -637,7 +639,7 @@ def run_conquest_menu(screen, unlock_system, toggle_fullscreen_callback=None):
         display_manager.gpu_flip()
 
 
-def run_customize_screen(screen, toggle_fullscreen_callback=None):
+async def run_customize_screen(screen, toggle_fullscreen_callback=None):
     """
     Run the Customize Run settings screen.
 
@@ -648,6 +650,7 @@ def run_customize_screen(screen, toggle_fullscreen_callback=None):
 
     while True:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -671,7 +674,7 @@ def run_customize_screen(screen, toggle_fullscreen_callback=None):
         display_manager.gpu_flip()
 
 
-def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
+async def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
     """Show the meta-progression unlocks screen where players spend CP on perks."""
     from .meta_progression import load_meta, get_all_perks_display, unlock_perk, load_high_scores
 
@@ -711,6 +714,7 @@ def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
     running = True
     while running:
         clock.tick(60)
+        await asyncio.sleep(0)
         frame_count += 1
         if message_timer > 0:
             message_timer -= 1

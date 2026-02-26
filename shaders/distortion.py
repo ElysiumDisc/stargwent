@@ -7,9 +7,9 @@ Driven by animation classes via get_gpu_distortion_params().
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-DISTORTION_FRAG = """
-#version 330
+DISTORTION_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform int num_points;
 uniform vec2 centers[8];      // UV-space center of each distortion

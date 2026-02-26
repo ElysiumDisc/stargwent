@@ -1,4 +1,5 @@
 import random
+import asyncio
 import pygame
 import display_manager
 from typing import Optional
@@ -34,8 +35,9 @@ def find_leader(faction, leader_id):
     return {"id": leader_id, "name": leader_id, "faction": faction}
 
 
-def wait_for_message(session, expected_type):
+async def wait_for_message(session, expected_type):
     while True:
+        await asyncio.sleep(0)
         msg = session.receive()
         if msg:
             parsed = parse_message(msg)
@@ -46,17 +48,17 @@ def wait_for_message(session, expected_type):
         pygame.time.wait(50)
 
 
-def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_fullscreen_callback=None) -> Optional[LanContext]:
+async def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_fullscreen_callback=None) -> Optional[LanContext]:
     from lan_lobby import run_lan_lobby
 
     # Show waiting lobby with chat until both players are ready
-    ready = run_lan_lobby(screen, session, role)
+    ready = await run_lan_lobby(screen, session, role)
     if not ready:
         session.close()
         return None
 
     clock = pygame.time.Clock()
-    selection = run_deck_builder(
+    selection = await run_deck_builder(
         screen,
         unlock_override=True,  # In LAN, always give full pool to both players
         unlock_system=unlock_system,
@@ -90,7 +92,7 @@ def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_
         "deck_ids": selection["deck_ids"],
     }
     session.send(LanMessageType.DECK_SELECTION.value, local_payload)
-    remote_payload = wait_for_message(session, LanMessageType.DECK_SELECTION.value)
+    remote_payload = await wait_for_message(session, LanMessageType.DECK_SELECTION.value)
     if not remote_payload:
         session.close()
         return
@@ -99,12 +101,12 @@ def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_
         seed = random.randint(0, 2**32 - 1)
         session.send(LanMessageType.SEED.value, {"seed": seed})
     else:
-        payload = wait_for_message(session, LanMessageType.SEED.value)
+        payload = await wait_for_message(session, LanMessageType.SEED.value)
         seed = payload.get("seed", 0)
     local_leader = find_leader(local_payload["faction"], local_payload["leader_id"])
     remote_leader = find_leader(remote_payload["faction"], remote_payload["leader_id"])
     
-    show_leader_matchup(screen, local_leader, remote_leader)
+    await show_leader_matchup(screen, local_leader, remote_leader)
     context = LanContext(
         session=session,
         role=role,
@@ -116,11 +118,12 @@ def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_
     return context
 
 
-def show_leader_matchup(screen, local_leader, remote_leader):
+async def show_leader_matchup(screen, local_leader, remote_leader):
     animation = LeaderMatchupAnimation(local_leader, remote_leader, screen.get_width(), screen.get_height())
     clock = pygame.time.Clock()
     while not animation.finished:
         dt = clock.tick(60)
+        await asyncio.sleep(0)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 animation.finished = True
@@ -131,7 +134,7 @@ def show_leader_matchup(screen, local_leader, remote_leader):
         display_manager.gpu_flip()
 
 
-def run_lan_match(screen, context: LanContext):
+async def run_lan_match(screen, context: LanContext):
     """
     Run a LAN multiplayer match.
 
@@ -148,7 +151,7 @@ def run_lan_match(screen, context: LanContext):
 
     # Run the main game (it will detect LAN_MODE and use NetworkController)
     try:
-        game_main.run_game_with_context(screen, context)
+        await game_main.run_game_with_context(screen, context)
     finally:
         # Clean up
         game_main.LAN_MODE = False
@@ -156,7 +159,7 @@ def run_lan_match(screen, context: LanContext):
         context.session.close()
 
 
-def run_lan_chat_scene(screen, session: LanSession, role: str):
+async def run_lan_chat_scene(screen, session: LanSession, role: str):
     clock = pygame.time.Clock()
     running = True
     info_font = pygame.font.SysFont("Arial", 28)
@@ -182,5 +185,6 @@ def run_lan_chat_scene(screen, session: LanSession, role: str):
         
         display_manager.gpu_flip()
         clock.tick(60)
-    
+        await asyncio.sleep(0)
+
     session.close()

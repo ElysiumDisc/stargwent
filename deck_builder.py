@@ -2,6 +2,7 @@
 Deck Builder Menu System for Stargwent
 Allows players to select a faction and build their deck before starting a game.
 """
+import asyncio
 import os
 import pygame
 import random
@@ -2748,7 +2749,7 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     return sorted_ids
 
 
-def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None, exclude_user_content=False, conquest_save_callback=None, preset_faction=None, preset_leader=None, preset_deck_ids=None):
+async def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock_system=None, toggle_fullscreen_callback=None, exclude_user_content=False, conquest_save_callback=None, preset_faction=None, preset_leader=None, preset_deck_ids=None):
     """
     Run the deck builder interface.
     Args:
@@ -2833,5 +2834,6 @@ def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, unlock
         deck_builder.draw(screen)
         display_manager.gpu_flip()
         clock.tick(144)  # Higher FPS for buttery smooth card movement
-    
+        await asyncio.sleep(0)
+
     return None

@@ -2,9 +2,11 @@
 Save Paths Module for Stargwent
 Implements XDG Base Directory Specification for Linux compatibility.
 Works correctly with both .deb and AppImage builds.
+On web (Pygbag/Emscripten), uses IDBFS virtual filesystem with IndexedDB sync.
 """
 import os
 import shutil
+import sys
 
 # Application name for XDG directories
 APP_NAME = "stargwent"
@@ -17,24 +19,26 @@ SETTINGS_FILENAME = "game_settings.json"
 
 def get_data_dir() -> str:
     """
-    Get the XDG data directory for Stargwent.
+    Get the data directory for Stargwent.
 
-    Uses $XDG_DATA_HOME if set, otherwise defaults to ~/.local/share/stargwent/
-    This ensures saves work correctly regardless of how the game is launched
-    (from terminal, .deb install, AppImage, etc.)
+    - Web (Emscripten): /home/web_user/.local/share/stargwent/ (Pygbag's IDBFS)
+    - Desktop: $XDG_DATA_HOME/stargwent or ~/.local/share/stargwent/
 
     Returns:
         Path to the data directory (created if it doesn't exist)
     """
-    # Check XDG_DATA_HOME environment variable
-    xdg_data_home = os.environ.get("XDG_DATA_HOME")
-
-    if xdg_data_home:
-        data_dir = os.path.join(xdg_data_home, APP_NAME)
+    if sys.platform == "emscripten":
+        # Pygbag provides a virtual FS backed by IndexedDB
+        data_dir = f"/home/web_user/.local/share/{APP_NAME}"
     else:
-        # Default XDG location: ~/.local/share/stargwent/
-        home = os.path.expanduser("~")
-        data_dir = os.path.join(home, ".local", "share", APP_NAME)
+        # Check XDG_DATA_HOME environment variable
+        xdg_data_home = os.environ.get("XDG_DATA_HOME")
+        if xdg_data_home:
+            data_dir = os.path.join(xdg_data_home, APP_NAME)
+        else:
+            # Default XDG location: ~/.local/share/stargwent/
+            home = os.path.expanduser("~")
+            data_dir = os.path.join(home, ".local", "share", APP_NAME)
 
     # Create directory if it doesn't exist
     if not os.path.exists(data_dir):
@@ -102,6 +106,21 @@ def migrate_legacy_saves():
         print(f"[save_paths] You may delete the old files from the game directory")
 
     return migrated
+
+
+def sync_saves():
+    """Flush virtual filesystem writes to IndexedDB on web platform.
+
+    On desktop this is a no-op. On Emscripten/Pygbag, calls FS.syncfs()
+    to persist IDBFS writes to the browser's IndexedDB.
+    """
+    if sys.platform != "emscripten":
+        return
+    try:
+        from platform import window  # Pygbag JS interop
+        window.FS.syncfs(False)
+    except Exception as e:
+        print(f"[save_paths] syncfs failed: {e}")
 
 
 def get_all_save_paths() -> dict:

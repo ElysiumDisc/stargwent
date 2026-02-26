@@ -1,8 +1,16 @@
 import json
-import queue
-import socket
-import threading
 import time
+
+from touch_support import is_web_platform
+
+if not is_web_platform():
+    import queue
+    import socket
+    import threading
+else:
+    queue = None
+    socket = None
+    threading = None
 
 
 class LanSession:

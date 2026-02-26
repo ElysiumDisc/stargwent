@@ -5,6 +5,7 @@ Post-victory screen: pick 1+ cards from defeated faction + naquadah display.
 Card reward quality and quantity scale with planets controlled.
 """
 
+import asyncio
 import pygame
 import random
 import os
@@ -52,7 +53,7 @@ def _get_reward_tier(player_planet_count, total_planets):
     return 1
 
 
-def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="territory",
+async def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="territory",
                       galaxy_map=None, bonus_message="", extra_card_choices=0):
     """
     Show post-victory rewards: naquadah + pick 1 of N cards (scales with territory).
@@ -169,6 +170,7 @@ def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="ter
     running = True
     while running:
         clock.tick(60)
+        await asyncio.sleep(0)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

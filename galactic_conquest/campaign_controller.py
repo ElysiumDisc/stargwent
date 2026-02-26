@@ -5,6 +5,7 @@ Main orchestrator: turn loop, planet attacks, card battles,
 AI counterattacks, and campaign flow.
 """
 
+import asyncio
 import pygame
 import random
 import os
@@ -75,12 +76,13 @@ class CampaignController:
         from . import stop_conquest_music
         stop_conquest_music()
 
-    def run(self):
+    async def run(self):
         """Main campaign loop. Returns 'victory', 'defeat', 'quit', or 'save_quit'."""
         clock = pygame.time.Clock()
         self._music_start()
 
         while True:
+            await asyncio.sleep(0)
             # Refresh screen reference (may have changed after card battle)
             self.screen = display_manager.screen
 
@@ -93,12 +95,12 @@ class CampaignController:
             if self.galaxy.check_win():
                 self._music_stop()
                 self._finalize_run("victory")
-                self._show_end_screen("VICTORY", "You have conquered the galaxy!")
+                await self._show_end_screen("VICTORY", "You have conquered the galaxy!")
                 return "victory"
             if self.galaxy.check_loss(self.state.player_faction):
                 self._music_stop()
                 self._finalize_run("defeat")
-                self._show_end_screen("DEFEAT", "Your homeworld has fallen!")
+                await self._show_end_screen("DEFEAT", "Your homeworld has fallen!")
                 return "defeat"
 
             has_ring = self.state.has_relic("ring_platform")
@@ -109,7 +111,7 @@ class CampaignController:
             attackable = [p for p in attackable if p not in self.state.cooldowns]
 
             # Map screen loop (player turn)
-            action = self._run_map_screen(clock, attackable)
+            action = await self._run_map_screen(clock, attackable)
 
             if action == "save_quit":
                 self._save()
@@ -119,11 +121,11 @@ class CampaignController:
                 self._music_stop()
                 return "quit"
             elif action == "view_deck":
-                self._show_deck_viewer()
+                await self._show_deck_viewer()
             elif action == "run_info":
-                self._show_run_info()
+                await self._show_run_info()
             elif action == "diplomacy":
-                self._show_diplomacy()
+                await self._show_diplomacy()
             elif action and action.startswith("build_"):
                 building_id = action[6:]  # strip "build_" prefix
                 planet_id = self.map_screen.selected_planet
@@ -145,7 +147,7 @@ class CampaignController:
             elif action == "attack":
                 planet_id = self.map_screen.selected_planet
                 if planet_id:
-                    result = self._attack_planet(planet_id)
+                    result = await self._attack_planet(planet_id)
                     if result == "quit":
                         return "quit"
             elif action == "end_turn":
@@ -157,7 +159,7 @@ class CampaignController:
                 if ai_result == "defeat":
                     self._music_stop()
                     self._finalize_run("defeat")
-                    self._show_end_screen("DEFEAT", "Your homeworld has fallen!")
+                    await self._show_end_screen("DEFEAT", "Your homeworld has fallen!")
                     return "defeat"
 
                 # AI faction wars phase
@@ -176,7 +178,7 @@ class CampaignController:
                 self.rng = random.Random(self.state.seed + self.state.turn_number)
 
                 # Turn summary display — brief animated income breakdown
-                self._show_turn_summary()
+                await self._show_turn_summary()
 
                 # Planet passive income + relic income + network bonus + building income
                 naq_income = get_naquadah_per_turn(self.galaxy)
@@ -218,7 +220,7 @@ class CampaignController:
                     crisis = pick_crisis(self.state)
                     if crisis:
                         crisis_result = apply_crisis(self.state, self.galaxy, crisis, self.rng)
-                        show_crisis_screen(self.screen, crisis, crisis_result)
+                        await show_crisis_screen(self.screen, crisis, crisis_result)
                         self._refresh_after_battle()
                         self.state.crisis_cooldown = 3  # 3-turn cooldown between crises
                         turn_msg += f" | CRISIS: {crisis['title']}"
@@ -228,10 +230,11 @@ class CampaignController:
                 # Auto-save
                 self._save()
 
-    def _run_map_screen(self, clock, attackable):
+    async def _run_map_screen(self, clock, attackable):
         """Run the galaxy map until player takes an action."""
         while True:
             clock.tick(60)
+            await asyncio.sleep(0)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -246,14 +249,14 @@ class CampaignController:
                 self.screen, self.galaxy, self.state, attackable, self.message)
             display_manager.gpu_flip()
 
-    def _attack_planet(self, planet_id):
+    async def _attack_planet(self, planet_id):
         """Execute an attack on a planet. Returns 'done' or 'quit'."""
         planet = self.galaxy.planets[planet_id]
 
         # Neutral planet — text event, no combat
         if planet.owner == "neutral":
             self._music_stop()
-            result = run_neutral_event(self.screen, self.state)
+            result = await run_neutral_event(self.screen, self.state)
             self._refresh_after_battle()
             if result == "quit":
                 return "quit"
@@ -262,7 +265,7 @@ class CampaignController:
             self.state.planet_ownership[planet_id] = "player"
             self.message = f"Claimed {planet.name}!"
             # Check narrative arc progress (neutral planets like Atlantis are in arcs)
-            self._check_narrative_arcs(planet.name)
+            await self._check_narrative_arcs(planet.name)
             return "done"
 
         # Enemy faction planet — card battle
@@ -276,7 +279,7 @@ class CampaignController:
             ai_extra_cards = 2
 
         # Pre-battle preview screen with ENGAGE / RETREAT
-        preview_result = self._show_pre_battle_preview(
+        preview_result = await self._show_pre_battle_preview(
             planet, ai_elite_bonus, ai_extra_cards)
         if preview_result == "retreat":
             self._refresh_after_battle()
@@ -317,7 +320,7 @@ class CampaignController:
             # Relic: Alteran Database gives +1 card choice
             if hasattr(self.state, 'relics') and "alteran_database" in self.state.relics:
                 extra_choices += 1
-            reward_result = run_reward_screen(
+            reward_result = await run_reward_screen(
                 self.screen, self.state, planet.faction,
                 planet_type=planet.planet_type,
                 galaxy_map=self.galaxy,
@@ -353,12 +356,12 @@ class CampaignController:
                     relic = get_relic(relic_id)
                     if relic:
                         self.state.add_relic(relic_id)
-                        show_relic_acquired(self.screen, relic,
+                        await show_relic_acquired(self.screen, relic,
                                             source_text=f"Conquered {planet.faction} Homeworld")
                         self._refresh_after_battle()
 
             # Check narrative arc progress
-            self._check_narrative_arcs(planet.name)
+            await self._check_narrative_arcs(planet.name)
         else:
             # Lost card battle — cooldown
             loss_penalty = get_loss_penalty(self.state.difficulty)
@@ -599,7 +602,7 @@ class CampaignController:
                 if self.galaxy.get_faction_planet_count(defender_faction) == 0:
                     self._flash_message(f"{defender_faction} has been ELIMINATED!", 2000)
 
-    def _check_narrative_arcs(self, planet_name):
+    async def _check_narrative_arcs(self, planet_name):
         """Check narrative arc progress after conquering a planet."""
         results = check_arc_progress(self.state, planet_name)
         for arc, step, total, is_complete in results:
@@ -610,26 +613,26 @@ class CampaignController:
                 if arc.rewards["type"] == "relic":
                     relic = get_relic(arc.rewards["value"])
                     if relic and self.state.has_relic(relic.id):
-                        show_relic_acquired(self.screen, relic,
+                        await show_relic_acquired(self.screen, relic,
                                             source_text=f"Story Arc: {arc.name}")
                         self._refresh_after_battle()
                 elif arc.rewards["type"] == "relic_and_naquadah":
                     relic = get_relic(arc.rewards["value"]["relic"])
                     if relic and self.state.has_relic(relic.id):
-                        show_relic_acquired(self.screen, relic,
+                        await show_relic_acquired(self.screen, relic,
                                             source_text=f"Story Arc: {arc.name}")
                         self._refresh_after_battle()
             else:
                 self._flash_message(f"{arc.name}: {step}/{total}", 1500)
 
-    def _show_diplomacy(self):
+    async def _show_diplomacy(self):
         """Show diplomacy screen for managing faction relations."""
         from .diplomacy_screen import run_diplomacy_screen
         self._music_stop()
-        run_diplomacy_screen(self.screen, self.state, self.galaxy)
+        await run_diplomacy_screen(self.screen, self.state, self.galaxy)
         self._refresh_after_battle()
 
-    def _show_deck_viewer(self):
+    async def _show_deck_viewer(self):
         """Show the player's current conquest deck using the full deck builder UI."""
         from deck_builder import run_deck_builder
 
@@ -643,7 +646,7 @@ class CampaignController:
             save_campaign(self.state)
 
         self._music_stop()
-        run_deck_builder(
+        await run_deck_builder(
             self.screen,
             for_new_game=False,
             conquest_save_callback=_conquest_save,
@@ -653,7 +656,7 @@ class CampaignController:
         )
         self._refresh_after_battle()
 
-    def _show_run_info(self):
+    async def _show_run_info(self):
         """Show a summary of the current campaign run with CRT terminal aesthetic."""
         import math
         from .conquest_menu import (_get_scanline_overlay, CRT_AMBER, CRT_CYAN,
@@ -685,6 +688,7 @@ class CampaignController:
 
         while running:
             clock.tick(60)
+            await asyncio.sleep(0)
             frame_count += 1
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -991,7 +995,7 @@ class CampaignController:
             return " | " + " | ".join(bonus_parts)
         return ""
 
-    def _show_pre_battle_preview(self, planet, ai_elite_bonus, ai_extra_cards):
+    async def _show_pre_battle_preview(self, planet, ai_elite_bonus, ai_extra_cards):
         """Show pre-battle preview with matchup info. Returns 'engage', 'retreat', or 'quit'."""
         from .map_renderer import FACTION_COLORS
         from .stargate_network import get_network_bonuses
@@ -1064,6 +1068,7 @@ class CampaignController:
 
         while True:
             clock.tick(60)
+            await asyncio.sleep(0)
             frame += 1
 
             for ev in pygame.event.get():
@@ -1187,7 +1192,7 @@ class CampaignController:
 
             display_manager.gpu_flip()
 
-    def _show_turn_summary(self):
+    async def _show_turn_summary(self):
         """Show a brief animated turn transition with income breakdown."""
         sw, sh = self.screen.get_width(), self.screen.get_height()
 
@@ -1234,6 +1239,7 @@ class CampaignController:
 
             display_manager.gpu_flip()
             pygame.time.Clock().tick(60)
+            await asyncio.sleep(0)
 
             # Allow skip
             for ev in pygame.event.get():
@@ -1286,7 +1292,7 @@ class CampaignController:
         display_manager.gpu_flip()
         pygame.time.wait(2500)
 
-    def _show_end_screen(self, title, subtitle):
+    async def _show_end_screen(self, title, subtitle):
         """Show a victory/defeat screen."""
         self.screen = display_manager.screen
         sw, sh = self.screen.get_width(), self.screen.get_height()
@@ -1301,6 +1307,7 @@ class CampaignController:
         running = True
         while running:
             clock.tick(60)
+            await asyncio.sleep(0)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return

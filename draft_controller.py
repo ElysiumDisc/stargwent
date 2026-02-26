@@ -4,6 +4,7 @@ STARGWENT - DRAFT MODE CONTROLLER
 Main controller for Draft Mode that ties together the logic and UI.
 """
 
+import asyncio
 import pygame
 import display_manager
 from typing import Optional
@@ -594,7 +595,7 @@ class DraftModeController:
 
         return self.current_run.get_deck_dict()
 
-    def run_draft_loop(self, screen: pygame.Surface) -> Optional[dict]:
+    async def run_draft_loop(self, screen: pygame.Surface) -> Optional[dict]:
         """
         Run the draft mode main loop.
 
@@ -611,6 +612,7 @@ class DraftModeController:
 
         while running:
             self.clock.tick(60)  # 60 FPS
+            await asyncio.sleep(0)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -625,7 +627,7 @@ class DraftModeController:
                     return None
                 elif action == "launch_arcade":
                     from space_shooter import run_space_shooter
-                    run_space_shooter(screen)
+                    await run_space_shooter(screen)
 
             # Render
             self.render(screen)
@@ -634,7 +636,7 @@ class DraftModeController:
         return None
 
 
-def launch_draft_mode(screen: pygame.Surface, unlock_manager: CardUnlockSystem) -> Optional[dict]:
+async def launch_draft_mode(screen: pygame.Surface, unlock_manager: CardUnlockSystem) -> Optional[dict]:
     """
     Launch Draft Mode and return the drafted deck.
 
@@ -647,4 +649,4 @@ def launch_draft_mode(screen: pygame.Surface, unlock_manager: CardUnlockSystem) 
     """
     screen_width, screen_height = screen.get_size()
     controller = DraftModeController(screen_width, screen_height, unlock_manager)
-    return controller.run_draft_loop(screen)
+    return await controller.run_draft_loop(screen)

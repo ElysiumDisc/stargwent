@@ -11,6 +11,7 @@ the game runs with pure Pygame rendering unchanged.
 """
 
 import struct
+import sys
 
 import pygame
 
@@ -33,8 +34,13 @@ QUAD_VERTICES = [
 # Pre-packed VBO data — avoids struct.pack() on every ShaderPass / VAO creation
 _QUAD_VBO_DATA = struct.pack(f'{len(QUAD_VERTICES)}f', *QUAD_VERTICES)
 
-PASSTHROUGH_VERT = """
-#version 330
+def _glsl_version():
+    """Return the GLSL version header for the current platform."""
+    if sys.platform == "emscripten":
+        return "#version 300 es\nprecision highp float;\n"
+    return "#version 330\n"
+
+PASSTHROUGH_VERT = _glsl_version() + """
 in vec2 in_position;
 in vec2 in_texcoord;
 out vec2 uv;
@@ -44,8 +50,7 @@ void main() {
 }
 """
 
-PASSTHROUGH_FRAG = """
-#version 330
+PASSTHROUGH_FRAG = _glsl_version() + """
 uniform sampler2D tex;
 in vec2 uv;
 out vec4 fragColor;

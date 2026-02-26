@@ -1,3 +1,4 @@
+import asyncio
 import pygame
 import os
 import math
@@ -14,7 +15,7 @@ FACTION_LEADERS = {
     for f in [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
 }
 
-def show_confirmation_dialog(surface, text, screen_width, screen_height):
+async def show_confirmation_dialog(surface, text, screen_width, screen_height):
     """Show a simple Yes/No confirmation dialog."""
     overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 200))
@@ -73,8 +74,9 @@ def show_confirmation_dialog(surface, text, screen_width, screen_height):
         
         # Keep UI responsive if needed, but blocking is fine for dialog
         pygame.time.wait(10)
+        await asyncio.sleep(0)
 
-def run_stats_menu(screen):
+async def run_stats_menu(screen):
     """Show a stats overlay with tabbed layout: Overview, Factions, Leaders, Records, Draft."""
     screen_width, screen_height = screen.get_size()
     stats = get_persistence().get_stats()
@@ -591,6 +593,7 @@ def run_stats_menu(screen):
 
     while running:
         dt = clock.tick(60)
+        await asyncio.sleep(0)
         bg_phase += dt / 1000.0
         current_key = TAB_KEYS[active_tab_idx]
         scroll_offset = tab_scroll_offsets[current_key]
@@ -640,7 +643,7 @@ def run_stats_menu(screen):
                     running = False
                     continue
                 if reset_rect.collidepoint(event.pos):
-                    if show_confirmation_dialog(screen, "Reset all statistics?", screen_width, screen_height):
+                    if await show_confirmation_dialog(screen, "Reset all statistics?", screen_width, screen_height):
                         get_persistence().reset_stats()
                         stats = get_persistence().get_stats()
                         computed = compute(stats)

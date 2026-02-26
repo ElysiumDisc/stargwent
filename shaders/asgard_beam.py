@@ -8,9 +8,9 @@ Adds a light-scattering column overlay to existing AsgardBeamTransportEffect:
 """
 
 from gpu_renderer import ShaderPass
+from shaders import glsl_version_header
 
-ASGARD_BEAM_FRAG = """
-#version 330
+ASGARD_BEAM_FRAG = glsl_version_header() + """
 uniform sampler2D tex;
 uniform float time;
 uniform float beam_x;        // UV-space x center of beam

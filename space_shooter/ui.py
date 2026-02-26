@@ -239,11 +239,13 @@ def draw_ui(game, surface):
                 f"[E] {sec_name}  READY", True, ship.laser_color)
             surface.blit(sec_label, (sec_x, sec_y))
 
-    # Controls hint
-    controls = game.small_font.render(
-        "WASD: Move  |  SHIFT: Boost  |  E: Special  |  Q: Wormhole  |  ESC: Exit",
-        True, (150, 150, 150))
-    surface.blit(controls, (game.screen_width // 2 - controls.get_width() // 2, game.screen_height - 30))
+    # Controls hint (hidden on touch platforms — virtual joystick is shown instead)
+    from touch_support import is_touch_platform
+    if not is_touch_platform():
+        controls = game.small_font.render(
+            "WASD: Move  |  SHIFT: Boost  |  E: Special  |  Q: Wormhole  |  ESC: Exit",
+            True, (150, 150, 150))
+        surface.blit(controls, (game.screen_width // 2 - controls.get_width() // 2, game.screen_height - 30))
 
     # Mini-radar (bottom-right corner)
     _draw_mini_radar(game, surface)

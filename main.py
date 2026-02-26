@@ -3,6 +3,9 @@ import sys
 import math
 import random
 import os
+import asyncio
+
+print("[INIT] main.py: core imports done")
 
 # Ensure working directory matches the application directory.
 # PyInstaller (exe/dmg) doesn't cd to the app dir like our deb/AppImage launchers do.
@@ -104,6 +107,8 @@ import transitions
 import board_renderer
 import game_setup
 
+print("[INIT] main.py: game module imports done")
+
 # ============================================================================
 # MODULE IMPORTS & INITIALIZATION
 # ============================================================================
@@ -111,11 +116,17 @@ import display_manager
 import game_config as cfg
 import render_engine as re
 
+print("[INIT] main.py: display_manager imported, calling initialize_display()")
+
 # Initialize display via the new manager
 display_manager.initialize_display()
 
+print("[INIT] main.py: display initialized, calling initialize_gpu()")
+
 # Initialize GPU post-processing (graceful fallback if unavailable)
 display_manager.initialize_gpu()
+
+print("[INIT] main.py: GPU initialized")
 
 # Load user-created content (cards, leaders, factions)
 # This must happen early, before card images are loaded
@@ -366,7 +377,7 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
 # draw_leader_column moved to render_engine.py
 
 
-def _show_disconnect_overlay(screen, screen_width, screen_height, reason="connection_lost", countdown_seconds=10):
+async def _show_disconnect_overlay(screen, screen_width, screen_height, reason="connection_lost", countdown_seconds=10):
     """Show a disconnect overlay with countdown and return options.
 
     Args:
@@ -406,6 +417,7 @@ def _show_disconnect_overlay(screen, screen_width, screen_height, reason="connec
     start_time = pygame.time.get_ticks()
 
     while True:
+        await asyncio.sleep(0)
         elapsed_ms = pygame.time.get_ticks() - start_time
         remaining = max(0, countdown_seconds - elapsed_ms // 1000)
 
@@ -658,17 +670,17 @@ def get_opponent_hand_card_center(total_cards, index):
 
 
 
-def run_game_with_context(screen, context):
+async def run_game_with_context(screen, context):
     """Run the main game loop initialized with a LAN context.
 
     Delegates to run_game(). The caller (lan_game.py) sets LAN_MODE and
     LAN_CONTEXT globals before calling us, which main() passes through
     to game_setup.initialize_game() via lan_mode/lan_context params.
     """
-    run_game()
+    await run_game()
 
 
-def main(lan_game_data=None):
+async def main(lan_game_data=None):
     """Main game loop.
 
     Args:
@@ -686,7 +698,7 @@ def main(lan_game_data=None):
     unlock_system = CardUnlockSystem()
 
     # Initialize game using new setup module
-    init_result = game_setup.initialize_game(
+    init_result = await game_setup.initialize_game(
         screen,
         unlock_system=unlock_system, # Pass the initialized system
         lan_mode=LAN_MODE,
@@ -753,6 +765,7 @@ def main(lan_game_data=None):
 
     while game.game_state == "mulligan":
         dt = mulligan_clock.tick(60)
+        await asyncio.sleep(0)
 
         # Handle events
         for event in pygame.event.get():
@@ -830,6 +843,7 @@ def main(lan_game_data=None):
         clock_matchup = pygame.time.Clock()
         while not matchup_anim.finished:
             dt_matchup = clock_matchup.tick(60)
+            await asyncio.sleep(0)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -953,6 +967,7 @@ def main(lan_game_data=None):
         # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
         screen = display_manager.screen
         dt = state.clock.tick(144)
+        await asyncio.sleep(0)
         if display_manager.gpu_renderer:
             display_manager.gpu_renderer.update(dt)
         battle_music.update_battle_music()
@@ -974,7 +989,7 @@ def main(lan_game_data=None):
         if LAN_MODE and LAN_CONTEXT:
             if not LAN_CONTEXT.session.is_connected():
                 # Show disconnect overlay with countdown
-                _show_disconnect_overlay(
+                await _show_disconnect_overlay(
                     screen, SCREEN_WIDTH, SCREEN_HEIGHT,
                     reason="opponent_disconnected",
                     countdown_seconds=10
@@ -1214,7 +1229,7 @@ def main(lan_game_data=None):
             state.waiting_for_opponent = True
     
         # Event handling (extracted to event_handler.py)
-        handle_events(state, game, screen, dt)
+        await handle_events(state, game, screen, dt)
 
         # Leader ability triggers (at start of player's turn)
         if game.current_player == game.player1 and game.game_state == "playing" and not game.player1.has_passed:
@@ -1683,17 +1698,70 @@ def main(lan_game_data=None):
     return "quit"
 
 
-def run_game():
-    """Entry point that loops on restart instead of recursing."""
+async def _show_tap_to_start_splash():
+    """Show a 'Tap to Start' splash on web to unlock browser audio context.
+
+    Browsers block audio playback until the first user gesture (tap/click).
+    This splash ensures the user interacts before we initialize audio.
+    On desktop this function is never called.
+    """
+    splash_screen = display_manager.screen
+    sw, sh = splash_screen.get_width(), splash_screen.get_height()
+    font_large = pygame.font.SysFont("Arial", 72, bold=True)
+    font_small = pygame.font.SysFont("Arial", 32)
+    clock = pygame.time.Clock()
+
     while True:
-        result = main()
+        clock.tick(30)
+        await asyncio.sleep(0)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type in (pygame.FINGERDOWN, pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN):
+                return
+
+        splash_screen.fill((10, 12, 28))
+
+        # Game title
+        title = font_large.render("STARGWENT", True, (100, 180, 255))
+        splash_screen.blit(title, (sw // 2 - title.get_width() // 2, sh // 2 - 80))
+
+        # Pulsing "Tap to Start" text
+        pulse = abs(math.sin(pygame.time.get_ticks() * 0.003))
+        alpha = int(130 + 125 * pulse)
+        tap_text = font_small.render("Tap to Start", True, (alpha, alpha, alpha))
+        splash_screen.blit(tap_text, (sw // 2 - tap_text.get_width() // 2, sh // 2 + 30))
+
+        display_manager.gpu_flip()
+
+
+async def run_game():
+    """Entry point that loops on restart instead of recursing."""
+    print("[INIT] run_game() entered")
+    # On web platform, show splash to unlock browser audio context
+    from touch_support import is_web_platform
+    if is_web_platform():
+        print("[INIT] web platform detected, showing tap-to-start splash")
+        await _show_tap_to_start_splash()
+        print("[INIT] tap-to-start complete")
+
+    while True:
+        result = await main()
         if result != "restart":
             break
 
 
 if __name__ == "__main__":
-    run_game()
-    if display_manager.gpu_renderer:
-        display_manager.gpu_renderer.cleanup()
-    pygame.quit()
-    sys.exit()
+    print("[INIT] main.py: calling asyncio.run(run_game())")
+    asyncio.run(run_game())
+    print("[INIT] main.py: asyncio.run() returned")
+    # On web (Pygbag), asyncio.run() may return immediately while the
+    # coroutine continues on the browser event loop.  Do NOT call
+    # pygame.quit() / sys.exit() on Emscripten — that would destroy
+    # the display before the game loop renders its first frame.
+    if sys.platform != "emscripten":
+        if display_manager.gpu_renderer:
+            display_manager.gpu_renderer.cleanup()
+        pygame.quit()
+        sys.exit()
