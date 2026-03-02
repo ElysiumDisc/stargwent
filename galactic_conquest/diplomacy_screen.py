@@ -2,12 +2,14 @@
 STARGWENT - GALACTIC CONQUEST - Diplomacy Screen
 
 CRT-styled screen for managing faction relations: trade, alliance, betray.
+Shows active benefits per faction and faction strength indicators.
 """
 
 import asyncio
 import pygame
 import math
 import os
+import random
 import display_manager
 
 from .conquest_menu import (_get_scanline_overlay, CRT_AMBER, CRT_CYAN,
@@ -15,7 +17,26 @@ from .conquest_menu import (_get_scanline_overlay, CRT_AMBER, CRT_CYAN,
                              CRT_BTN_BG, CRT_BTN_HOVER, CRT_BTN_BORDER,
                              CRT_BTN_BORDER_HOVER, FACTION_DISPLAY_COLORS)
 from .diplomacy import (get_diplomacy_options, propose_trade, form_alliance,
-                          betray_alliance, RELATION_DISPLAY, get_relation)
+                          betray_alliance, RELATION_DISPLAY, get_relation,
+                          get_trade_income, get_alliance_upkeep,
+                          HOSTILE, TRADING, ALLIED)
+
+# Benefit text per relation level
+_RELATION_BENEFITS = {
+    HOSTILE: [("Counterattacks active", (255, 100, 100))],
+    "neutral": [("No active benefits", CRT_TEXT_DIM)],
+    TRADING: [
+        ("+5 naq/turn", CRT_CYAN),
+        ("Card pool access", CRT_CYAN),
+        ("No counterattacks", (100, 220, 140)),
+    ],
+    ALLIED: [
+        ("Network bridge", (80, 255, 140)),
+        ("50% passive sharing", (80, 255, 140)),
+        ("-10 naq/turn upkeep", (255, 180, 80)),
+        ("No counterattacks", (100, 220, 140)),
+    ],
+}
 
 
 async def run_diplomacy_screen(screen, state, galaxy):
@@ -30,6 +51,7 @@ async def run_diplomacy_screen(screen, state, galaxy):
     title_font = pygame.font.SysFont("Impact, Arial", max(40, sh // 22), bold=True)
     section_font = pygame.font.SysFont("Impact, Arial", max(22, sh // 42), bold=True)
     info_font = pygame.font.SysFont("Arial", max(17, sh // 55))
+    small_font = pygame.font.SysFont("Arial", max(14, sh // 65))
     btn_font = pygame.font.SysFont("Arial", max(15, sh // 60), bold=True)
 
     # Background
@@ -47,6 +69,9 @@ async def run_diplomacy_screen(screen, state, galaxy):
     message = None
     message_timer = 0
 
+    # Total planet count for strength bars
+    total_planets = max(1, len(galaxy.planets))
+
     while True:
         clock.tick(60)
         await asyncio.sleep(0)
@@ -55,25 +80,28 @@ async def run_diplomacy_screen(screen, state, galaxy):
         # Build fresh options each frame (state may have changed)
         options = get_diplomacy_options(state, galaxy)
 
+        # Row height includes benefits sub-row
+        row_height = int(sh * 0.14)
+
         # Build button rects
         btn_rects = []  # [(rect, faction, action_name)]
-        panel_w = int(sw * 0.6)
+        panel_w = int(sw * 0.65)
         panel_x = sw // 2 - panel_w // 2
-        base_y = int(sh * 0.22)
+        base_y = int(sh * 0.24)
 
         for i, (faction, rel, actions) in enumerate(options):
-            row_y = base_y + i * int(sh * 0.12)
+            row_y = base_y + i * row_height
             for j, (action, cost, enabled, desc) in enumerate(actions):
                 btn_w = int(sw * 0.14)
                 btn_h = int(sh * 0.04)
                 btn_x = panel_x + panel_w - btn_w - 30 - j * (btn_w + 10)
-                rect = pygame.Rect(btn_x, row_y + int(sh * 0.05), btn_w, btn_h)
+                rect = pygame.Rect(btn_x, row_y + int(sh * 0.02), btn_w, btn_h)
                 btn_rects.append((rect, faction, action, enabled, desc))
 
         # Close button
         close_w = int(sw * 0.12)
         close_h = int(sh * 0.05)
-        close_rect = pygame.Rect(sw // 2 - close_w // 2, int(sh * 0.88), close_w, close_h)
+        close_rect = pygame.Rect(sw // 2 - close_w // 2, int(sh * 0.90), close_w, close_h)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -92,12 +120,12 @@ async def run_diplomacy_screen(screen, state, galaxy):
                         elif action == "alliance":
                             msg = form_alliance(state, faction, galaxy)
                         elif action == "betray":
-                            msg = betray_alliance(state, faction)
+                            msg = betray_alliance(state, faction, random.Random())
                         else:
                             msg = None
                         if msg:
                             message = msg
-                            message_timer = 120  # ~2 seconds
+                            message_timer = 150  # ~2.5 seconds
 
         # Tick message timer
         if message_timer > 0:
@@ -107,8 +135,10 @@ async def run_diplomacy_screen(screen, state, galaxy):
 
         # ===== RENDER =====
         screen.blit(background, (0, 0))
-        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
+        # Non-SRCALPHA overlay for web performance
+        overlay = pygame.Surface((sw, sh))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(180)
         screen.blit(overlay, (0, 0))
 
         # Title
@@ -124,13 +154,21 @@ async def run_diplomacy_screen(screen, state, galaxy):
                          (sw // 2 - line_w // 2, line_y),
                          (sw // 2 + line_w // 2, line_y), 2)
 
-        # Naquadah display
-        naq_text = info_font.render(f"Naquadah: {state.naquadah}", True, CRT_CYAN)
-        screen.blit(naq_text, (sw // 2 - naq_text.get_width() // 2, int(sh * 0.14)))
+        # Naquadah + diplomacy income display
+        trade_inc = get_trade_income(state)
+        ally_upkeep = get_alliance_upkeep(state)
+        net_diplo = trade_inc - ally_upkeep
+        naq_str = f"Naquadah: {state.naquadah}"
+        if net_diplo > 0:
+            naq_str += f"  |  Diplomacy: +{net_diplo}/turn"
+        elif net_diplo < 0:
+            naq_str += f"  |  Diplomacy: {net_diplo}/turn"
+        naq_text = info_font.render(naq_str, True, CRT_CYAN)
+        screen.blit(naq_text, (sw // 2 - naq_text.get_width() // 2, int(sh * 0.15)))
 
         # Faction rows
         for i, (faction, rel, actions) in enumerate(options):
-            row_y = base_y + i * int(sh * 0.12)
+            row_y = base_y + i * row_height
 
             # Faction name
             faction_color = FACTION_DISPLAY_COLORS.get(faction, CRT_TEXT)
@@ -142,10 +180,35 @@ async def run_diplomacy_screen(screen, state, galaxy):
             rel_surf = info_font.render(f"[{rel_info['name']}]", True, rel_info["color"])
             screen.blit(rel_surf, (panel_x + 30 + fname.get_width() + 15, row_y + 5))
 
-            # Planet count
+            # Planet count + strength bar
             planet_count = galaxy.get_faction_planet_count(faction)
             pc_surf = info_font.render(f"{planet_count} planets", True, CRT_TEXT_DIM)
-            screen.blit(pc_surf, (panel_x + 30, row_y + int(sh * 0.03)))
+            pc_x = panel_x + 30
+            screen.blit(pc_surf, (pc_x, row_y + int(sh * 0.025)))
+
+            # Strength bar (small horizontal bar after planet count)
+            bar_x = pc_x + pc_surf.get_width() + 10
+            bar_y = row_y + int(sh * 0.030)
+            bar_w = int(sw * 0.08)
+            bar_h = max(6, sh // 120)
+            strength_ratio = planet_count / total_planets
+            pygame.draw.rect(screen, (30, 40, 30), (bar_x, bar_y, bar_w, bar_h))
+            fill_w = max(1, int(bar_w * strength_ratio))
+            bar_color = faction_color if faction_color != CRT_TEXT else (100, 150, 200)
+            pygame.draw.rect(screen, bar_color, (bar_x, bar_y, fill_w, bar_h))
+            pygame.draw.rect(screen, (80, 80, 80), (bar_x, bar_y, bar_w, bar_h), 1)
+
+            # Benefits sub-row
+            benefits = _RELATION_BENEFITS.get(rel, [])
+            # Betrayal indicator
+            if state.conquest_ability_data.get(f"betrayed_{faction}"):
+                benefits = list(benefits) + [("+15% counterattack (betrayed)", (255, 80, 80))]
+            benefit_x = panel_x + 30
+            benefit_y = row_y + int(sh * 0.05)
+            for b_text, b_color in benefits:
+                b_surf = small_font.render(b_text, True, b_color)
+                screen.blit(b_surf, (benefit_x, benefit_y))
+                benefit_x += b_surf.get_width() + 15
 
             # Action buttons
             for rect, btn_faction, action, enabled, desc in btn_rects:
@@ -167,9 +230,7 @@ async def run_diplomacy_screen(screen, state, galaxy):
                     border_color = CRT_BTN_BORDER
                     text_color = CRT_TEXT
 
-                btn_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-                btn_surf.fill((*bg_color, 220))
-                screen.blit(btn_surf, rect.topleft)
+                pygame.draw.rect(screen, bg_color, rect)
                 pygame.draw.rect(screen, border_color, rect, 2)
 
                 label = btn_font.render(action.upper(), True, text_color)
@@ -186,9 +247,7 @@ async def run_diplomacy_screen(screen, state, galaxy):
         close_hovered = close_rect.collidepoint(mx, my)
         close_bg = CRT_BTN_HOVER if close_hovered else CRT_BTN_BG
         close_border = CRT_BTN_BORDER_HOVER if close_hovered else CRT_BTN_BORDER
-        close_surf = pygame.Surface((close_rect.width, close_rect.height), pygame.SRCALPHA)
-        close_surf.fill((*close_bg, 220))
-        screen.blit(close_surf, close_rect.topleft)
+        pygame.draw.rect(screen, close_bg, close_rect)
         pygame.draw.rect(screen, close_border, close_rect, 2)
         close_label = section_font.render("CLOSE", True, (255, 255, 255) if close_hovered else CRT_TEXT)
         screen.blit(close_label, (close_rect.centerx - close_label.get_width() // 2,
@@ -197,7 +256,7 @@ async def run_diplomacy_screen(screen, state, galaxy):
         # Status message
         if message:
             msg_surf = info_font.render(message, True, CRT_GREEN)
-            screen.blit(msg_surf, (sw // 2 - msg_surf.get_width() // 2, int(sh * 0.83)))
+            screen.blit(msg_surf, (sw // 2 - msg_surf.get_width() // 2, int(sh * 0.85)))
 
         # CRT scanlines
         scanlines = _get_scanline_overlay(sw, sh, alpha=25)

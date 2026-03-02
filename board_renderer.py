@@ -215,6 +215,21 @@ def draw_board(surface, game, selected_card, dragging_card=None, drag_hover_high
     if hasattr(game.player1, 'iris_defense') and game.player1.iris_defense.is_active():
         _draw_iris_overlay(surface, cfg.OPPONENT_ROW_RECTS)
 
+    # --- Draw subtle row type labels in empty rows ---
+    _ROW_LABELS = {"close": "CLOSE COMBAT", "ranged": "RANGED", "siege": "SIEGE"}
+    _label_font = _get_cached_font(max(11, int(13 * display_manager.SCALE_FACTOR)), bold=True)
+    for player, rects in [(game.player1, cfg.PLAYER_ROW_RECTS),
+                          (game.player2, cfg.OPPONENT_ROW_RECTS)]:
+        for row_name, row_rect in rects.items():
+            if player.board[row_name]:
+                continue
+            label = _ROW_LABELS.get(row_name)
+            if not label:
+                continue
+            dim_color = (60, 70, 90)
+            text_surf = _render_text(_label_font, label, dim_color)
+            surface.blit(text_surf, text_surf.get_rect(center=row_rect.center))
+
     # --- Draw cards on board (Dynamic Fan Layout with Gap) ---
     row_map = {
         game.player2: cfg.OPPONENT_ROW_RECTS,

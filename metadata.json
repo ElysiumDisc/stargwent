@@ -1,0 +1,52 @@
+{
+  "title": "Stargwent",
+  "short_text": "A Stargate SG-1 themed Gwent card game",
+  "type": "default",
+  "classification": "game",
+  "kind_of_project": "game",
+  "has_demo": false,
+  "can_be_bought": false,
+  "min_price": 0,
+  "platforms": {
+    "windows": true,
+    "linux": true,
+    "osx": true,
+    "web": true
+  },
+  "cover_image": "assets/backgrounds/main_menu_bg.png",
+  "genre": "card_game",
+  "tags": [
+    "card-game",
+    "gwent",
+    "stargate",
+    "sci-fi",
+    "strategy",
+    "fan-game",
+    "open-source",
+    "pygame",
+    "singleplayer",
+    "multiplayer"
+  ],
+  "channels": {
+    "linux-deb": {
+      "upload": "builds/releases/stargwent-*-linux-amd64.deb",
+      "platform": "linux"
+    },
+    "linux-appimage": {
+      "upload": "builds/releases/Stargwent-*-linux-x86_64.AppImage",
+      "platform": "linux"
+    },
+    "windows": {
+      "upload": "builds/releases/Stargwent-*-windows.zip",
+      "platform": "windows"
+    },
+    "macos": {
+      "upload": "builds/releases/Stargwent-*-macos.dmg",
+      "platform": "osx"
+    },
+    "web": {
+      "upload": "builds/web/",
+      "platform": "web"
+    }
+  }
+}

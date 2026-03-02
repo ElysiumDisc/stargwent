@@ -17,6 +17,8 @@ class LanSession:
     """LAN session supporting TCP host/join + JSON messages with robustness features."""
 
     def __init__(self):
+        if queue is None or threading is None:
+            raise RuntimeError("LAN multiplayer is not available on this platform")
         self.sock = None
         self.thread = None
         self.keepalive_thread = None
@@ -284,3 +286,8 @@ class LanSession:
             except OSError:
                 pass
             sock.close()
+        # Join threads to ensure clean shutdown
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=3)
+        if self.keepalive_thread and self.keepalive_thread.is_alive():
+            self.keepalive_thread.join(timeout=3)

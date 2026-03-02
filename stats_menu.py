@@ -527,55 +527,155 @@ async def run_stats_menu(screen):
         add_section(rows, "Galactic Conquest")
         conquest = stats.get("conquest_stats", {})
         if conquest and conquest.get("campaigns_started", 0) > 0:
-            add_row(rows, "Campaigns Started", str(conquest.get("campaigns_started", 0)))
-            add_row(rows, "Campaigns Won", str(conquest.get("campaigns_won", 0)))
-            add_row(rows, "Campaigns Lost", str(conquest.get("campaigns_lost", 0)))
+            # Campaign overview
+            started = conquest.get("campaigns_started", 0)
+            won = conquest.get("campaigns_won", 0)
+            lost = conquest.get("campaigns_lost", 0)
+            add_row(rows, "Campaigns", f"{started} started / {won}W / {lost}L")
+
+            # Battle record with win rate bar
             battles_won = conquest.get("battles_won", 0)
             battles_lost = conquest.get("battles_lost", 0)
             total_battles = battles_won + battles_lost
             if total_battles > 0:
                 battle_wr = (battles_won / total_battles) * 100
-                add_bar_row(rows, "Battle Record", f"{battles_won}W / {battles_lost}L ({battle_wr:.1f}%)", battle_wr / 100.0, (100, 220, 140))
-            else:
-                add_row(rows, "Battle Record", "No battles yet")
+                add_bar_row(rows, "Battle Record",
+                            f"{battles_won}W / {battles_lost}L ({battle_wr:.1f}%)",
+                            battle_wr / 100.0, (100, 220, 140))
+
+            # Territory
             planets_conquered = conquest.get("planets_conquered", 0)
-            add_row(rows, "Total Planets Conquered", str(planets_conquered))
+            add_row(rows, "Planets Conquered", str(planets_conquered))
+            homeworlds = conquest.get("homeworlds_captured", 0)
+            if homeworlds > 0:
+                add_row(rows, "Homeworlds Captured", str(homeworlds))
+
+            # Defense
             defenses_won = conquest.get("defenses_won", 0)
             defenses_lost = conquest.get("defenses_lost", 0)
             if defenses_won + defenses_lost > 0:
                 add_row(rows, "Defenses", f"{defenses_won}W / {defenses_lost}L")
+
+            # Speed & progression
             best_turn = conquest.get("best_victory_turn")
             if best_turn:
                 add_row(rows, "Fastest Victory", f"Turn {best_turn}")
+            best_tier = conquest.get("best_network_tier", 0)
+            tier_names = {1: "Outpost", 2: "Regional", 3: "Sector",
+                          4: "Quadrant", 5: "Galactic"}
+            if best_tier > 0:
+                add_row(rows, "Best Network Tier",
+                        f"{tier_names.get(best_tier, '?')} (T{best_tier})")
+
+            # Collection & progress
+            add_section(rows, "Collection & Progress")
+            relics = conquest.get("relics_collected", 0)
+            if relics > 0:
+                unique_count = len(conquest.get("unique_relics_seen", []))
+                add_row(rows, "Relics Collected",
+                        f"{relics} total ({unique_count}/17 unique)")
+            arcs = conquest.get("arcs_completed", 0)
+            if arcs > 0:
+                unique_arcs = len(conquest.get("unique_arcs_completed", []))
+                add_row(rows, "Story Arcs Completed",
+                        f"{arcs} total ({unique_arcs}/6 unique)")
+            crises = conquest.get("crises_survived", 0)
+            if crises > 0:
+                unique_crises = len(conquest.get("unique_crises_seen", []))
+                add_row(rows, "Crises Survived",
+                        f"{crises} ({unique_crises}/5 types)")
             cards_drafted = conquest.get("cards_drafted", 0)
             if cards_drafted > 0:
                 add_row(rows, "Cards Drafted", str(cards_drafted))
-            cards_upgraded = conquest.get("cards_upgraded", 0)
-            if cards_upgraded > 0:
-                add_row(rows, "Cards Upgraded", str(cards_upgraded))
+
+            # Diplomacy & economy
+            trades = conquest.get("trades_made", 0)
+            alliances = conquest.get("alliances_forged", 0)
+            betrayals = conquest.get("betrayals", 0)
+            if trades + alliances + betrayals > 0:
+                add_section(rows, "Diplomacy & Economy")
+                if alliances > 0:
+                    add_row(rows, "Alliances Forged", str(alliances))
+                if trades > 0:
+                    add_row(rows, "Trades Made", str(trades))
+                if betrayals > 0:
+                    add_row(rows, "Betrayals", str(betrayals))
+
+            buildings = conquest.get("buildings_constructed", 0)
+            if buildings > 0:
+                add_row(rows, "Buildings Constructed", str(buildings))
             naq_earned = conquest.get("naquadah_earned", 0)
             if naq_earned > 0:
                 add_row(rows, "Total Naquadah Earned", str(naq_earned))
 
+            # Favorites
+            factions_used = conquest.get("conquest_factions_used", {})
+            if factions_used:
+                fav_faction = max(factions_used, key=factions_used.get)
+                add_row(rows, "Favorite Faction",
+                        f"{fav_faction} ({factions_used[fav_faction]}x)")
+            leaders_used = conquest.get("conquest_leaders_used", {})
+            if leaders_used:
+                fav_leader = max(leaders_used, key=leaders_used.get)
+                add_row(rows, "Favorite Leader",
+                        f"{fav_leader} ({leaders_used[fav_leader]}x)")
+
+            # Difficulty wins
+            diff_wins = conquest.get("difficulty_wins", {})
+            if any(v > 0 for v in diff_wins.values()):
+                add_section(rows, "Difficulty Wins")
+                for diff in ["easy", "normal", "hard", "insane"]:
+                    w = diff_wins.get(diff, 0)
+                    if w > 0:
+                        add_row(rows, f"  {diff.title()}", str(w))
+
             # Conquest achievements
             add_section(rows, "Conquest Achievements")
-            if conquest.get("campaigns_won", 0) >= 1:
-                rows.append({"type": "achievement", "text": "* Galaxy Conqueror (Won a campaign)"})
-            if conquest.get("campaigns_won", 0) >= 5:
-                rows.append({"type": "achievement", "text": "* Galactic Emperor (Won 5 campaigns)"})
+            has_achievement = False
+            if won >= 1:
+                rows.append({"type": "achievement",
+                             "text": "* Galaxy Conqueror (Won a campaign)"})
+                has_achievement = True
+            if won >= 5:
+                rows.append({"type": "achievement",
+                             "text": "* Galactic Emperor (Won 5 campaigns)"})
+                has_achievement = True
             if best_turn and best_turn <= 15:
-                rows.append({"type": "achievement", "text": "* Blitzkrieg (Won in 15 turns or fewer)"})
+                rows.append({"type": "achievement",
+                             "text": "* Blitzkrieg (Won in 15 turns or fewer)"})
+                has_achievement = True
             if planets_conquered >= 50:
-                rows.append({"type": "achievement", "text": "* Planet Hoarder (50+ planets conquered)"})
-            if not any(r.get("type") == "achievement" for r in rows if isinstance(r, dict)):
+                rows.append({"type": "achievement",
+                             "text": "* Planet Hoarder (50+ planets conquered)"})
+                has_achievement = True
+            if len(conquest.get("unique_arcs_completed", [])) >= 6:
+                rows.append({"type": "achievement",
+                             "text": "* Loremaster (Completed all 6 story arcs)"})
+                has_achievement = True
+            if len(conquest.get("unique_relics_seen", [])) >= 17:
+                rows.append({"type": "achievement",
+                             "text": "* Artifact Hunter (Collected all 17 relics)"})
+                has_achievement = True
+            if conquest.get("betrayals", 0) >= 1:
+                rows.append({"type": "achievement",
+                             "text": "* Ba'al's Gambit (Betrayed an ally)"})
+                has_achievement = True
+            if diff_wins.get("insane", 0) >= 1:
+                rows.append({"type": "achievement",
+                             "text": "* Ascended (Won on Insane difficulty)"})
+                has_achievement = True
+            if len(conquest.get("unique_crises_seen", [])) >= 5:
+                rows.append({"type": "achievement",
+                             "text": "* Crisis Veteran (Survived all 5 crisis types)"})
+                has_achievement = True
+            if naq_earned >= 1000:
+                rows.append({"type": "achievement",
+                             "text": "* Naquadah Baron (Earned 1000+ naquadah total)"})
+                has_achievement = True
+            if not has_achievement:
                 add_row(rows, "Achievements", "Keep conquering to unlock!")
         else:
-            add_row(rows, "Conquest Runs", "Play Galactic Conquest to see stats!")
-            add_section(rows, "About Conquest Mode")
-            add_row(rows, "Mode", "Roguelite card-battle campaign")
-            add_row(rows, "Goal", "Capture all enemy homeworlds")
-            add_row(rows, "Deck", "Grows via rewards from victories")
-            add_row(rows, "Planets", "20 planets across 5 factions")
+            add_row(rows, "", "Play Galactic Conquest to see stats!")
         return rows
 
     # Tab state

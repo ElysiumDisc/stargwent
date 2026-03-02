@@ -34,6 +34,14 @@ class CampaignState:
     meta_points_earned: int = 0                                 # conquest points earned this run
     network_tier: int = 1                                       # current stargate network tier
     crisis_cooldown: int = 0                                    # turns until next crisis can fire
+    minor_world_states: dict = field(default_factory=dict)       # planet_id -> MinorWorldState dict
+    wisdom: int = 0                                               # doctrine currency
+    adopted_policies: list = field(default_factory=list)          # policy_id strings
+    completed_doctrines: list = field(default_factory=list)       # tree_id strings
+    supergate_progress: dict = field(default_factory=lambda: {"built": False, "turns_held": 0})
+    operatives: list = field(default_factory=list)                # Operative dicts
+    operative_next_id: int = 0
+    operative_earn_turns: list = field(default_factory=lambda: [5, 10, 16])
 
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
@@ -62,6 +70,14 @@ class CampaignState:
             "meta_points_earned": self.meta_points_earned,
             "network_tier": self.network_tier,
             "crisis_cooldown": self.crisis_cooldown,
+            "minor_world_states": dict(self.minor_world_states),
+            "wisdom": self.wisdom,
+            "adopted_policies": list(self.adopted_policies),
+            "completed_doctrines": list(self.completed_doctrines),
+            "supergate_progress": dict(self.supergate_progress),
+            "operatives": list(self.operatives),
+            "operative_next_id": self.operative_next_id,
+            "operative_earn_turns": list(self.operative_earn_turns),
         }
 
     @classmethod
@@ -92,6 +108,14 @@ class CampaignState:
             meta_points_earned=data.get("meta_points_earned", 0),
             network_tier=data.get("network_tier", 1),
             crisis_cooldown=data.get("crisis_cooldown", 0),
+            minor_world_states=data.get("minor_world_states", {}),
+            wisdom=data.get("wisdom", 0),
+            adopted_policies=data.get("adopted_policies", []),
+            completed_doctrines=data.get("completed_doctrines", []),
+            supergate_progress=data.get("supergate_progress", {"built": False, "turns_held": 0}),
+            operatives=data.get("operatives", []),
+            operative_next_id=data.get("operative_next_id", 0),
+            operative_earn_turns=data.get("operative_earn_turns", [5, 10, 16]),
         )
 
     def tick_cooldowns(self):

@@ -24,7 +24,7 @@ FACTION_COLORS = {
 }
 
 
-def run_faction_setup(screen, unlock_system, toggle_fullscreen_callback=None):
+async def run_faction_setup(screen, unlock_system, toggle_fullscreen_callback=None):
     """
     Run faction + leader selection for a new campaign.
     Uses the existing deck builder UI which handles faction, leader, and deck selection.
@@ -34,7 +34,7 @@ def run_faction_setup(screen, unlock_system, toggle_fullscreen_callback=None):
     """
     # Use the existing deck builder in "for_new_game" mode
     # This gives the player full control: pick faction, pick leader, optionally use custom deck
-    deck_result = run_deck_builder(
+    deck_result = await run_deck_builder(
         screen,
         for_new_game=True,
         unlock_override=unlock_system.is_unlock_override_enabled(),

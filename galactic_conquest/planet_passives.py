@@ -135,44 +135,61 @@ def get_planet_passive(planet_id, galaxy_map):
     return None
 
 
-def get_active_passives(galaxy_map):
+def get_active_passives(galaxy_map, allied_factions=None):
     """Get list of active passives from player-owned planets.
 
+    If allied_factions is provided, also includes passives from allied planets
+    at 50% value (only naquadah_per_turn and reduce_counterattack).
+
     Returns:
-        List of (planet_name, passive_dict) tuples for player-owned planets.
+        List of (planet_name, passive_dict) tuples for player-owned planets,
+        plus allied passives with halved values.
     """
     active = []
     for planet in galaxy_map.planets.values():
         if planet.owner == "player" and planet.name in PLANET_PASSIVES:
             active.append((planet.name, PLANET_PASSIVES[planet.name]))
+
+    # Allied passive sharing at 50%
+    if allied_factions:
+        allied_set = set(allied_factions)
+        shareable_types = {"naquadah_per_turn", "reduce_counterattack"}
+        for planet in galaxy_map.planets.values():
+            if planet.owner in allied_set and planet.name in PLANET_PASSIVES:
+                passive = PLANET_PASSIVES[planet.name]
+                if passive["type"] in shareable_types:
+                    halved = dict(passive)
+                    halved["value"] = passive["value"] * 0.5
+                    active.append((planet.name, halved))
     return active
 
 
-def get_total_passive(galaxy_map, passive_type):
+def get_total_passive(galaxy_map, passive_type, allied_factions=None):
     """Sum a specific passive type across all player-owned planets.
 
     Args:
         galaxy_map: GalaxyMap instance
         passive_type: One of the passive type strings
+        allied_factions: Optional list of allied faction names for passive sharing
 
     Returns:
         Total value (int or float depending on type).
     """
     total = 0
-    for _name, passive in get_active_passives(galaxy_map):
+    for _name, passive in get_active_passives(galaxy_map, allied_factions):
         if passive["type"] == passive_type:
             total += passive["value"]
     return total
 
 
-def get_counterattack_reduction(galaxy_map):
+def get_counterattack_reduction(galaxy_map, allied_factions=None):
     """Get total counterattack chance reduction from passives."""
-    return get_total_passive(galaxy_map, "reduce_counterattack")
+    return get_total_passive(galaxy_map, "reduce_counterattack", allied_factions)
 
 
-def get_naquadah_per_turn(galaxy_map):
+def get_naquadah_per_turn(galaxy_map, allied_factions=None):
     """Get total naquadah income per turn from passives."""
-    return get_total_passive(galaxy_map, "naquadah_per_turn")
+    return int(get_total_passive(galaxy_map, "naquadah_per_turn", allied_factions))
 
 
 def get_card_choice_bonus(galaxy_map):

@@ -54,7 +54,8 @@ def _get_reward_tier(player_planet_count, total_planets):
 
 
 async def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="territory",
-                      galaxy_map=None, bonus_message="", extra_card_choices=0):
+                      galaxy_map=None, bonus_message="", extra_card_choices=0,
+                      trading_factions=None):
     """
     Show post-victory rewards: naquadah + pick 1 of N cards (scales with territory).
 
@@ -102,6 +103,16 @@ async def run_reward_screen(screen, campaign_state, defeated_faction, planet_typ
             cutoff = max(3, int(len(pool_with_power) * 0.75))
             pool = [cid for cid, _ in pool_with_power[:cutoff]]
         # Tier 3 uses full pool but we'll ensure variety
+
+    # Include cards from trading partners (2 per partner, added to pool)
+    if trading_factions:
+        for trade_faction in trading_factions:
+            if trade_faction == defeated_faction:
+                continue  # Already in pool
+            trade_pool = get_faction_card_pool(trade_faction, include_powerful=False)
+            if trade_pool:
+                additions = rng.sample(trade_pool, min(2, len(trade_pool)))
+                pool.extend(additions)
 
     choices = []
     if len(pool) >= num_choices:
@@ -194,6 +205,12 @@ async def run_reward_screen(screen, campaign_state, defeated_faction, planet_typ
                             picked = True
                             # Add card to deck
                             campaign_state.add_card(choices[i])
+                            # Track card drafted
+                            from deck_persistence import get_persistence
+                            _p = get_persistence()
+                            _cs = _p.unlock_data.setdefault("conquest_stats", {})
+                            _cs["cards_drafted"] = _cs.get("cards_drafted", 0) + 1
+                            _p.save_unlocks()
                             # Replicator Nanites relic: 20% chance to duplicate
                             if (hasattr(campaign_state, 'has_relic')
                                     and campaign_state.has_relic("replicator_nanites")):

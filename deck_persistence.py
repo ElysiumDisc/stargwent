@@ -84,7 +84,7 @@ class DeckPersistence:
                         sync_saves()
                         print(f"✓ Migrated deck data saved to {DECK_SAVE_FILE}")
                     return data
-            except Exception as e:
+            except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
                 print(f"Error loading deck data: {e}")
                 return self._get_default_deck_data()
         return self._get_default_deck_data()
@@ -95,7 +95,7 @@ class DeckPersistence:
             try:
                 with open(UNLOCK_SAVE_FILE, 'r') as f:
                     return json.load(f)
-            except Exception as e:
+            except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
                 print(f"Error loading unlock data: {e}")
                 return self._get_default_unlock_data()
         return self._get_default_unlock_data()
@@ -108,7 +108,7 @@ class DeckPersistence:
             sync_saves()
             print(f"✓ Decks saved to {DECK_SAVE_FILE}")
             return True
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             print(f"Error saving deck data: {e}")
             return False
 
@@ -119,7 +119,7 @@ class DeckPersistence:
                 json.dump(self.unlock_data, f, indent=2)
             sync_saves()
             print(f"✓ Unlocks saved to {UNLOCK_SAVE_FILE}")
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             print(f"Error saving unlock data: {e}")
     
     def _get_default_deck_data(self) -> Dict:
@@ -179,6 +179,38 @@ class DeckPersistence:
                 "card_draft_counts": {}  # card_id: count
             },
             "active_draft_run": None,  # Stores current run state if active
+            # Galactic Conquest Stats
+            "conquest_stats": {
+                "campaigns_started": 0,
+                "campaigns_won": 0,
+                "campaigns_lost": 0,
+                "battles_won": 0,
+                "battles_lost": 0,
+                "planets_conquered": 0,
+                "homeworlds_captured": 0,
+                "defenses_won": 0,
+                "defenses_lost": 0,
+                "best_victory_turn": None,
+                "cards_drafted": 0,
+                "cards_upgraded": 0,
+                "naquadah_earned": 0,
+                "relics_collected": 0,
+                "arcs_completed": 0,
+                "crises_survived": 0,
+                "crises_encountered": 0,
+                "alliances_forged": 0,
+                "trades_made": 0,
+                "betrayals": 0,
+                "buildings_constructed": 0,
+                "best_network_tier": 0,
+                "conquest_factions_used": {},
+                "conquest_leaders_used": {},
+                "difficulty_wins": {"easy": 0, "normal": 0, "hard": 0, "insane": 0},
+                "total_turns_played": 0,
+                "unique_relics_seen": [],
+                "unique_crises_seen": [],
+                "unique_arcs_completed": [],
+            },
             # User Content Stats (custom cards/leaders/factions created by players)
             "user_content_stats": {
                 "games_with_user_cards": 0,
@@ -372,6 +404,7 @@ class DeckPersistence:
             "round_stats": self.unlock_data.get("round_stats", {}),
             "score_records": self.unlock_data.get("score_records", {}),
             "unlock_override_enabled": self.unlock_data.get("unlock_override_enabled", False),
+            "conquest_stats": self.unlock_data.get("conquest_stats", {}),
         }
 
     def reset_stats(self):

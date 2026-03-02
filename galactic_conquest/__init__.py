@@ -139,7 +139,7 @@ async def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callbac
 async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
     """Start a fresh campaign: faction select -> generate galaxy -> begin."""
     # Faction + leader + deck selection (supports custom decks)
-    setup = run_faction_setup(screen, unlock_system, toggle_fullscreen_callback)
+    setup = await run_faction_setup(screen, unlock_system, toggle_fullscreen_callback)
     screen = display_manager.screen  # Refresh after potential fullscreen toggle
 
     if not setup:
@@ -195,6 +195,27 @@ async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=
     # Apply meta-progression perks to the new campaign
     from .meta_progression import apply_meta_perks_to_campaign
     apply_meta_perks_to_campaign(state)
+
+    # Track campaign start stats
+    from deck_persistence import get_persistence
+    p = get_persistence()
+    cs = p.unlock_data.setdefault("conquest_stats", {})
+    cs["campaigns_started"] = cs.get("campaigns_started", 0) + 1
+    factions_used = cs.setdefault("conquest_factions_used", {})
+    factions_used[player_faction] = factions_used.get(player_faction, 0) + 1
+    leader_name = player_leader.get("name", "Unknown") if player_leader else "Unknown"
+    leaders_used = cs.setdefault("conquest_leaders_used", {})
+    leaders_used[leader_name] = leaders_used.get(leader_name, 0) + 1
+    p.save_unlocks()
+
+    # Handle relic choice perk (Repository of Knowledge)
+    relic_options = state.conquest_ability_data.pop("relic_choice_options", None)
+    if relic_options:
+        from .relic_screen import show_relic_choice
+        chosen = await show_relic_choice(screen, relic_options)
+        screen = display_manager.screen
+        if chosen:
+            state.add_relic(chosen)
 
     # Clear any old save and save new campaign
     clear_campaign()

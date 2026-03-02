@@ -20,13 +20,13 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-9.4.0-blue)
+![Version](https://img.shields.io/badge/version-9.7.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
 ![Resolution](https://img.shields.io/badge/resolution-2K%20(2560x1440)-purple)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%2B%20Android-blueviolet)
-![Status](https://img.shields.io/badge/status-Optimized-brightgreen)
+![Status](https://img.shields.io/badge/status-Release%20Ready-brightgreen)
 
 ---
 
@@ -112,6 +112,10 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Roguelite Deck Progression**: Draft cards from defeated factions, upgrade card power, trim weak cards
 - **Customize Your Run**: Choose friendly factions, neutral event count, enemy leaders, and difficulty before starting
 - **4 Difficulty Levels**: Easy / Normal / Hard / Insane — scaling counterattack chance, starting naquadah, AI power, and loss penalties
+- **4 Victory Conditions**: Domination (capture all homeworlds), Ascension (Ancient wisdom), Galactic Alliance (diplomacy), Stargate Supremacy (network + Supergate wonder) — plus Score Victory at turn 30 fallback
+- **Minor Worlds**: 9 neutral planets become persistent diplomatic actors with influence (0-100), ally exclusivity, quests, and type bonuses (Scientific, Militant, Diplomatic, Economic, Spiritual)
+- **Doctrine Trees**: Wisdom resource funds 5 policy trees (Ascension, Conquest, Alliance, Shadow Operations, Tech Innovation) — 4 sequential policies + completion bonus per tree, forcing strategic identity per run
+- **Tok'ra Operatives**: Espionage system with operative lifecycle (deploy → establish → active), 6 mission types (Infiltrate, Sabotage, Steal Intel, Rig Influence, Coup, Counter-Intel), rank progression, and diplomatic incident risk
 - **Stargate Network**: Connected planet count determines network tier (Outpost → Regional → Sector → Quadrant → Galactic) with scaling bonuses — naquadah income, cooldown reduction, attack range, and leader ability level
 - **35 Conquest Leader Abilities**: Every leader has a unique conquest ability (L1-L4) that scales with network tier — O'Neill's MacGyver Protocol, Carter's Naquadah Generator, Ba'al's Clone Network, Thor's Asgard Fleet, and 31 more
 - **Diplomacy System**: Faction relations from HOSTILE to ALLIED — trade agreements (50 naq), alliances (100 naq + shared adjacency), betrayals (+80 naq, permanent hostility)
@@ -138,7 +142,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Rematch System** - Play again with new faction/leader or disconnect
 - **Integrated Chat** - Press 'T' to chat, quick chat keys 1-0 (Stargate quotes!), message bubbles, opponent name display
 - **Connection Quality** - Real-time latency indicator (green/yellow/red) in HUD
-- **Thread-Safe Networking** - Socket lock protects all concurrent send/recv/close operations across reader, keepalive, and main threads
+- **Thread-Safe Networking** - Socket lock protects all concurrent send/recv/close operations across reader, keepalive, and main threads; clean thread shutdown with join on disconnect
 - **Game Action ACKs** - Every card play, pass, and ability sends a message ID; receiver confirms receipt with an acknowledgment
 - **Reliable Connections** - JSON error recovery (10 consecutive), keepalive-aware disconnect detection, duplicate disconnect prevention, graceful shutdown
 
@@ -163,7 +167,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop
 - **Card Unlock System** - Win games to unlock 20+ powerful cards
 - **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
-- **Tabbed Stats Menu** - 5-tab layout (Overview, Factions, Leaders, Records, Draft) with score records, win rate bars, achievements, and hover preview
+- **Tabbed Stats Menu** - 6-tab layout (Overview, Factions, Leaders, Records, Draft, Conquest) with score records, win rate bars, achievements, and hover preview
 - **Persistent Saves** - All progress saved to JSON
 
 ### 💾 Persistent Progression
@@ -408,7 +412,7 @@ All abilities renamed and themed around Stargate lore:
 - **New Campaign** — pick faction, leader, deck, then conquer the galaxy
 - **Galaxy Map** — click adjacent enemy planets to attack, build, fortify, and manage diplomacy
 - **Win card battles** and neutral events to claim planets; manage your Stargate Network for scaling bonuses
-- **Capture all 4 enemy homeworlds** to win; lose your homeworld = defeat
+- **4 victory paths** — Domination, Ascension, Galactic Alliance, or Stargate Supremacy (each requiring different doctrine mastery); lose your homeworld = defeat
 - **Unlocks** — earn Conquest Points, unlock persistent perks, compete on the high scores leaderboard
 
 

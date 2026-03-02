@@ -709,17 +709,18 @@ async def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
     info_font = pygame.font.SysFont("Arial", max(15, sh // 65))
     hint_font = pygame.font.SysFont("Arial", max(14, sh // 70))
 
-    # Perk button layout
+    # Perk button layout — compact spacing for 11 perks with scroll
     perk_w = int(sw * 0.55)
-    perk_h = int(sh * 0.065)
+    perk_h = int(sh * 0.055)
     perk_x = sw // 2 - perk_w // 2
     perk_y_start = int(sh * 0.22)
-    perk_spacing = int(sh * 0.08)
+    perk_spacing = int(sh * 0.062)
 
     frame_count = 0
     message = ""
     message_timer = 0
     hovered_perk = -1
+    scroll_offset = 0
 
     # Load background
     background = None
@@ -745,10 +746,16 @@ async def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
         meta = load_meta()
         total_cp = meta.get("total_cp", 0)
 
-        # Build perk rects
+        # Build perk rects (with scroll offset)
         perk_rects = []
         for i in range(len(perks)):
-            perk_rects.append(pygame.Rect(perk_x, perk_y_start + i * perk_spacing, perk_w, perk_h))
+            perk_rects.append(pygame.Rect(
+                perk_x,
+                perk_y_start + i * perk_spacing - scroll_offset,
+                perk_w, perk_h))
+
+        # Max scroll: allow all perks + high scores to be visible
+        max_scroll = max(0, len(perks) * perk_spacing - int(sh * 0.55))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -774,6 +781,10 @@ async def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
                     if rect.collidepoint(mx, my):
                         hovered_perk = i
                         break
+
+            elif event.type == pygame.MOUSEWHEEL:
+                scroll_offset = max(0, min(max_scroll,
+                                           scroll_offset - event.y * 30))
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mx, my = event.pos
@@ -843,7 +854,7 @@ async def run_unlocks_screen(screen, toggle_fullscreen_callback=None):
             screen.blit(desc_surf, (rect.x + 12, rect.y + rect.height - desc_surf.get_height() - 4))
 
         # High scores section
-        scores_y = perk_y_start + len(perks) * perk_spacing + int(sh * 0.03)
+        scores_y = perk_y_start + len(perks) * perk_spacing - scroll_offset + int(sh * 0.03)
         scores_title = section_font.render("HIGH SCORES", True, CRT_AMBER)
         screen.blit(scores_title, (sw // 2 - scores_title.get_width() // 2, scores_y))
         scores_y += scores_title.get_height() + 8

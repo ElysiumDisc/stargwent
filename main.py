@@ -348,6 +348,11 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         from sound_manager import get_sound_manager
         get_sound_manager().play_replicator_sound()
         return True
+    # Ground Control Technician — tech sound
+    if card_id.startswith("tauri_ground_tech"):
+        from sound_manager import get_sound_manager
+        get_sound_manager().play_tech_sound()
+        return True
     # Goa'uld Symbiote - larva seeking host animation
     if card_id == "goauld_symbiote" or "symbiote" in name_lower:
         # Target a random point in opponent's board area (top third of screen)
@@ -952,7 +957,7 @@ async def main(lan_game_data=None):
         if getattr(game, 'restart_requested', False):
             battle_music.stop_battle_music()
             # Rematch: restart with same faction/leader setup
-            rematch_data = {
+            state.rematch_data = {
                 'player_faction': game.player1.faction,
                 'player_leader': game.player1.leader,
                 'ai_faction': game.player2.faction,
@@ -1703,6 +1708,9 @@ async def main(lan_game_data=None):
 
     # If restart was requested, signal the outer loop
     if state.restart_requested:
+        rematch_data = getattr(state, 'rematch_data', None)
+        if rematch_data:
+            return rematch_data
         return "restart"
 
     return "quit"
@@ -1756,9 +1764,16 @@ async def run_game():
         await _show_tap_to_start_splash()
         print("[INIT] tap-to-start complete")
 
+    lan_game_data = None
     while True:
-        result = await main()
-        if result != "restart":
+        result = await main(lan_game_data=lan_game_data)
+        if isinstance(result, dict):
+            # Rematch: pass faction/leader data back to main()
+            lan_game_data = result
+        elif result == "restart":
+            # Main menu requested: no rematch data
+            lan_game_data = None
+        else:
             break
 
 

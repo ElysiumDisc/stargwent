@@ -62,6 +62,42 @@ PERKS = {
         "cost": 20,
         "icon": "\u2261",
     },
+    "expanded_rewards": {
+        "name": "Tok'ra Intelligence",
+        "description": "+1 card choice in post-battle reward screens",
+        "cost": 15,
+        "icon": "\u2734",
+    },
+    "building_discount": {
+        "name": "Asgard Engineering",
+        "description": "All buildings cost 20 less naquadah (min 10)",
+        "cost": 15,
+        "icon": "\u2699",
+    },
+    "fortification_headstart": {
+        "name": "Iris Protocol",
+        "description": "Homeworld starts at Fortification Level 1",
+        "cost": 20,
+        "icon": "\u26E8",
+    },
+    "crisis_resistance": {
+        "name": "Ori Shield Matrix",
+        "description": "Crisis events are 50% less likely to trigger",
+        "cost": 20,
+        "icon": "\u2604",
+    },
+    "naquadah_income_bonus": {
+        "name": "Naquadria Synthesis",
+        "description": "+15% naquadah income per turn (rounded up)",
+        "cost": 25,
+        "icon": "\u269B",
+    },
+    "relic_choice": {
+        "name": "Repository of Knowledge",
+        "description": "Choose from 3 relics instead of random (needs Ancient Knowledge)",
+        "cost": 30,
+        "icon": "\u2622",
+    },
 }
 
 
@@ -168,6 +204,15 @@ def calculate_run_score(campaign_state, galaxy, outcome):
     arc_score = arcs_complete * 30
     breakdown["arcs"] = arc_score
 
+    # Diplomacy score: +15 per trade, +25 per alliance
+    diplomacy_score = 0
+    for rel in campaign_state.faction_relations.values():
+        if rel == "trading":
+            diplomacy_score += 15
+        elif rel == "allied":
+            diplomacy_score += 25
+    breakdown["diplomacy"] = diplomacy_score
+
     # Turn penalty (fewer turns = better)
     turn_penalty = min(200, campaign_state.turn_number * 3)
     breakdown["turn_penalty"] = -turn_penalty
@@ -177,7 +222,7 @@ def calculate_run_score(campaign_state, galaxy, outcome):
     breakdown["naquadah"] = naq_bonus
 
     # Raw score
-    raw = base + planet_score + relic_score + arc_score - turn_penalty + naq_bonus
+    raw = base + planet_score + relic_score + arc_score + diplomacy_score - turn_penalty + naq_bonus
 
     # Difficulty multiplier
     multiplier = DIFFICULTY_MULTIPLIERS.get(campaign_state.difficulty, 1.0)
@@ -318,6 +363,24 @@ def apply_meta_perks_to_campaign(campaign_state):
             import random
             available = [rid for rid in RELICS if rid not in campaign_state.relics]
             if available:
-                campaign_state.add_relic(random.choice(available))
+                if "relic_choice" in unlocked and len(available) >= 3:
+                    # Store options for choice screen at campaign start
+                    campaign_state.conquest_ability_data["relic_choice_options"] = \
+                        random.sample(available, 3)
+                else:
+                    campaign_state.add_relic(random.choice(available))
+
+    if "fortification_headstart" in unlocked:
+        # Homeworld starts at Fort Level 1
+        for pid, owner in campaign_state.planet_ownership.items():
+            if owner == "player":
+                # First player planet found is likely homeworld
+                campaign_state.fortification_levels[pid] = max(
+                    campaign_state.fortification_levels.get(pid, 0), 1)
+                break
 
     # diplomatic_immunity is checked at counterattack time in campaign_controller
+    # expanded_rewards is checked in campaign_controller._attack_planet()
+    # building_discount is checked in buildings.can_build() and construct_building()
+    # crisis_resistance is checked in crisis_events.should_trigger_crisis()
+    # naquadah_income_bonus is checked in campaign_controller.run() turn income

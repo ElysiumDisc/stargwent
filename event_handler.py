@@ -206,8 +206,6 @@ async def handle_events(state, game, screen, dt):
                 if state.lan_chat_panel and not state.lan_chat_panel.active:
                     state.lan_chat_panel.active = True
                     continue
-                elif state.lan_chat_panel and state.lan_chat_panel.active:
-                     pass
 
             # Arrow keys for keyboard card navigation
             elif event.key in (pygame.K_LEFT, pygame.K_RIGHT) and game.game_state == "playing" and game.current_player == game.player1 and state.ui_state == UIState.PLAYING:
@@ -940,6 +938,10 @@ async def handle_events(state, game, screen, dt):
 
                                     # Mark ability as used
                                     game.player1.ring_transportation.use(card)
+
+                                    # Play ring transport sound
+                                    from sound_manager import get_sound_manager
+                                    get_sound_manager().play_ring_transport_sound(volume=0.6)
 
                                     # Recalculate scores
                                     game.player1.calculate_score()

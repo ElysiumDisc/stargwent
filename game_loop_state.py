@@ -134,3 +134,4 @@ class GameLoopState:
     fullscreen: bool = False
     debug_overlay_enabled: bool = False
     restart_requested: bool = False
+    rematch_data: dict = None

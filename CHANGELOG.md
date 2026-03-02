@@ -4,6 +4,105 @@
 
 ---
 
+### Version 9.7.0 (March 2026)
+**Galactic Conquest Strategic Depth — Minor Worlds, Doctrine Trees, Espionage, Victory Conditions**
+
+#### Minor Worlds (Phase A)
+- **9 minor worlds** — Neutral planets become persistent diplomatic actors: Abydos (Economic), Vis Uban (Spiritual), Atlantis (Scientific), Heliopolis (Scientific), Cimmeria (Militant), Kheb (Spiritual), Proclarush (Militant), Vagonbrei (Diplomatic), P3X-888 (Economic)
+- **Influence system** (0-100) — Tiers: Neutral (0-29), Friend (30-59), Ally (60+) with passive decay toward resting point (25)
+- **Ally exclusivity** — Only one faction can be ally per minor world; AI factions compete for influence
+- **Type bonuses** — Friend/Ally tiers grant scaling bonuses: Scientific (+1 card choice / +1 card upgrade), Militant (+1 defense / +1 attack), Diplomatic (-15 naq trade / -8% counterattack), Economic (+8 / +15 naq/turn), Spiritual (+3 / +6 Wisdom/turn)
+- **4 actions** — TRIBUTE (pay naq for influence), REQUEST QUEST, ATTEMPT ALLY, BULLY (+20 influence here, -10 from all others)
+- **Quest system** — 5 quest types (Tribute, Defend, Conquer, Trade, Build) with dynamic generation and 2-turn cooldown
+- **AI competition** — AI factions gain 5-10 influence on adjacent minor worlds (25%/turn), may claim ally status
+- **Minor world screen** — CRT-styled panel showing influence bar, tier, active bonuses, quest progress, action buttons, AI competition info
+- **Map integration** — Colored type rings on neutral planets, tooltip shows world type, influence, active quest
+
+#### Doctrine Trees (Phase C)
+- **Wisdom resource** — New currency: +5 per battle victory, +3 per neutral event, +8/turn per Ancient planet owned, spiritual minor world bonuses
+- **5 doctrine trees** with 4 sequential policies + completion bonus each:
+  - **Path of Ascension** (purple): Wisdom income → reward choices → battle power → wisdom doubled → Ascension Victory
+  - **Doctrine of Conquest** (red): Cooldown reduction → attack power → extra attacks → conquest naq → free fortification
+  - **Alliance Doctrine** (teal): Minor world influence → trade discount → alliance upkeep → passive sharing → Alliance Victory
+  - **Shadow Operations** (dark purple): Operative risk reduction → faster missions → stronger sabotage → free operatives → coup mastery
+  - **Technological Innovation** (blue): Building income → building discount → network thresholds → Supergate wonder → Network Victory
+- **Escalating costs** — Each policy adopted (across ALL trees) increases the next policy's cost by 10 Wisdom, forcing meaningful choice between going wide vs deep
+- **Doctrine screen** — CRT-styled 5-column layout showing tree progress, costs, and completion bonuses
+- **Wisdom HUD** — Wisdom counter alongside Naquadah on map, DOCTRINES button on right-side
+
+#### Tok'ra Operatives / Espionage (Phase B)
+- **Operative lifecycle** — IDLE → MOVING (1 turn) → ESTABLISHING (2 turns) → ACTIVE → mission or death → IDLE/DEAD (3-turn revival)
+- **3 free operatives** earned at turns 5, 10, and 16, named from Tok'ra canon (Anise, Malek, Delek, Garshaw, Aldwin, Kelmaa, Martouf, Thoran, Per'sus, Ren'al)
+- **Rank system** (1-3) — Higher rank = better effectiveness, -5% death risk per rank; costs 40 naq to upgrade; reset on death
+- **6 mission types** — Infiltrate (reveal deck, 10% risk), Sabotage (remove AI cards, 20%), Steal Intel (gain naq, 15%), Rig Influence (boost minor world, 10%), Coup (flip minor world ally, 40%), Counter-Intel (block enemy espionage, 0%)
+- **Diplomatic incidents** — 10%/turn chance of detection on enemy faction planets; can downgrade relations from TRADING/ALLIED
+- **Shadow Operations doctrine synergy** — -10% death risk, -1 turn mission times, +1 sabotage cards, free operative every 8 turns, Shadow Mastery doubles coup success + no incidents
+- **Espionage screen** — CRT-styled operative roster with deploy, mission, recall, rank up actions
+- **Map indicators** — Eye icon on planets with operatives, OPERATIVES button next to DIPLOMACY
+
+#### Multiple Victory Conditions (Phase D)
+- **Domination** (always available) — Capture all enemy homeworlds, 1.0x score multiplier
+- **Ascension** (requires Path of Ascension doctrine) — 100+ Wisdom, control 3/5 Ancient planets, 1.2x multiplier
+- **Galactic Alliance** (requires Alliance Doctrine) — 3+ allied minor worlds, 2+ major faction trade/alliance, 1.1x multiplier
+- **Stargate Supremacy** (requires Tech Innovation doctrine) — Tier 5 network, Supergate wonder built, hold homeworld 3 turns, 1.3x multiplier
+- **Score Victory** (always available, fallback) — Survive to turn 30, 0.8x multiplier
+- **Victory progress UI** — Run info screen shows all 5 conditions with checkmark/X per requirement, locked conditions show required doctrine
+- **End screen** — Victory type name, flavor text, and score multiplier displayed
+
+#### Cross-Feature Integration
+- Espionage `rig_influence` and `coup` missions target minor worlds
+- Alliance doctrine gives +5 influence/turn to all minor worlds
+- Shadow Operations doctrine improves operative effectiveness
+- Non-default victories require completing specific doctrine trees
+- Alliance Victory requires 3+ allied minor worlds
+- Spiritual minor worlds provide Wisdom/turn for doctrine adoption
+- Caught operatives cause diplomatic incidents with major factions
+- Alliance doctrine reduces trade/alliance costs in diplomacy
+- Tech Innovation doctrine reduces building costs
+- Stargate Supremacy victory uses existing network tier system
+
+#### UI Fixes
+- **Fixed overlapping map buttons** — 10 bottom-bar buttons (SAVE & QUIT, DIPLOMACY, MINOR WORLD, OPERATIVES, DOCTRINES, RUN INFO, VIEW DECK, END TURN, FORTIFY, ATTACK) now evenly distributed across the full screen width with auto-sized widths and auto-fitting text labels
+
+#### New Files (7)
+| File | Description |
+|------|-------------|
+| `galactic_conquest/minor_worlds.py` | Minor world state, influence, quests, type bonuses |
+| `galactic_conquest/minor_world_screen.py` | CRT-styled minor world interaction panel |
+| `galactic_conquest/doctrines.py` | 5 doctrine trees, Wisdom economy, policy effects |
+| `galactic_conquest/doctrine_screen.py` | CRT-styled doctrine tree selection UI |
+| `galactic_conquest/espionage.py` | Operative lifecycle, missions, rank, diplomatic incidents |
+| `galactic_conquest/espionage_screen.py` | CRT-styled espionage management UI |
+| `galactic_conquest/victory_conditions.py` | 4 victory paths + score fallback, progress tracking |
+
+#### Key Modified Files
+| File | Changes |
+|------|---------|
+| `galactic_conquest/campaign_state.py` | Minor world states, wisdom, doctrines, operatives, supergate progress |
+| `galactic_conquest/campaign_controller.py` | Turn hooks for all 4 systems, victory check replacement, quest progress, operative ticks |
+| `galactic_conquest/map_renderer.py` | Type rings, wisdom HUD, doctrine/operative buttons, eye icons, victory progress |
+| `galactic_conquest/card_battle.py` | Doctrine power bonuses, sabotage effects |
+| `galactic_conquest/buildings.py` | Doctrine cost reduction |
+| `galactic_conquest/diplomacy.py` | Doctrine trade discount, espionage incident handling |
+| `galactic_conquest/meta_progression.py` | Victory type in scoring + multiplier |
+
+#### Bug Fixes & Performance
+- **Galaxy map: eliminated 8MB/frame SRCALPHA overlay** — Replaced per-frame full-screen SRCALPHA surface allocation with cached non-SRCALPHA + `set_alpha()` fast path (`map_renderer.py`)
+- **Card steal animation: eliminated per-particle SRCALPHA allocation** — Replaced per-trail-particle `pygame.Surface(SRCALPHA)` creation (~3000 allocs/sec) with existing `_get_circle_sprite()` cache (`animations.py`)
+- **Galaxy map: cached planet tooltip rendering** — Tooltip surface only rebuilds when content changes instead of 15+ `font.render()` calls every frame (`map_renderer.py`)
+- **Galactic Conquest: cached BFS network bonuses per turn** — `get_network_bonuses()` BFS traversal was called 4+ times per turn; now cached and invalidated on ownership change (`campaign_controller.py`)
+- **History panel: eliminated per-frame surface copy for pulse effect** — Last-entry pulse now uses a reusable overlay instead of `.copy()` every frame (`render_engine.py`)
+- **Fixed bare `except:` swallowing SystemExit/KeyboardInterrupt** — Narrowed to `except Exception:` in leader portrait loading (`render_engine.py`)
+- **Fixed LAN session crash on web platform** — `LanSession.__init__()` now raises `RuntimeError` when threading/queue unavailable instead of crashing on `None.Queue()` (`lan_session.py`)
+- **Fixed LAN thread resource leak on disconnect** — `close()` now joins reader and keepalive threads with timeout to prevent zombie threads (`lan_session.py`)
+- **Fixed supergate_progress default initialization** — Changed from empty `{}` to `{"built": False, "turns_held": 0}` for correct initial state (`campaign_state.py`)
+- **Narrowed overly broad exception handling** — `except Exception` in deck load/save replaced with specific `(json.JSONDecodeError, OSError, KeyError, TypeError)` (`deck_persistence.py`)
+- **Added logging to silent audio error catches** — 5 `except pygame.error: pass` blocks now print diagnostic messages (`sound_manager.py`)
+- **Bounded space shooter flash surface cache** — `_flash_surf_cache` now clears at 50 entries to prevent unbounded memory growth (`space_shooter/game.py`)
+- **Removed dead code** — Deleted unreachable `elif pass` block in LAN chat toggle (`event_handler.py`)
+
+---
+
 ### Version 9.5.0 (February 2026)
 **Supergate Boss Overhaul, Eye of Ra Buff, Miniship Visual & Movement Polish**
 

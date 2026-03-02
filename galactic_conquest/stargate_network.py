@@ -23,8 +23,10 @@ NETWORK_TIERS = {
 }
 
 
-def get_connected_planet_count(galaxy_map, player_faction):
+def get_connected_planet_count(galaxy_map, player_faction, allied_factions=None):
     """BFS from player homeworld through player-owned planets.
+
+    Allied faction planets act as bridges (traversable but not counted).
 
     Returns the number of player planets connected to the homeworld.
     Disconnected player planets don't count toward the network.
@@ -40,7 +42,9 @@ def get_connected_planet_count(galaxy_map, player_faction):
     if homeworld_id is None:
         return 0
 
-    # BFS through player-owned planets
+    allied = set(allied_factions) if allied_factions else set()
+
+    # BFS through player-owned and allied planets
     visited = set()
     queue = deque([homeworld_id])
     visited.add(homeworld_id)
@@ -51,17 +55,22 @@ def get_connected_planet_count(galaxy_map, player_faction):
             if neighbor_id in visited:
                 continue
             neighbor = galaxy_map.planets.get(neighbor_id)
-            if neighbor and neighbor.owner == "player":
+            if not neighbor:
+                continue
+            if neighbor.owner == "player" or neighbor.owner in allied:
                 visited.add(neighbor_id)
                 queue.append(neighbor_id)
 
-    return len(visited)
+    # Only count player-owned planets (allied are bridges only)
+    return sum(1 for pid in visited
+               if galaxy_map.planets[pid].owner == "player")
 
 
-def get_disconnected_planets(galaxy_map, player_faction):
-    """Return set of player-owned planet IDs NOT connected to homeworld."""
-    connected_count = get_connected_planet_count(galaxy_map, player_faction)
-    # Get all connected IDs via BFS
+def get_disconnected_planets(galaxy_map, player_faction, allied_factions=None):
+    """Return set of player-owned planet IDs NOT connected to homeworld.
+
+    Allied faction planets act as bridges for connectivity.
+    """
     homeworld_id = None
     for pid, planet in galaxy_map.planets.items():
         if planet.faction == player_faction and planet.planet_type == "homeworld":
@@ -72,6 +81,8 @@ def get_disconnected_planets(galaxy_map, player_faction):
     if homeworld_id is None:
         return set(pid for pid, p in galaxy_map.planets.items() if p.owner == "player")
 
+    allied = set(allied_factions) if allied_factions else set()
+
     visited = set()
     queue = deque([homeworld_id])
     visited.add(homeworld_id)
@@ -81,21 +92,25 @@ def get_disconnected_planets(galaxy_map, player_faction):
             if neighbor_id in visited:
                 continue
             neighbor = galaxy_map.planets.get(neighbor_id)
-            if neighbor and neighbor.owner == "player":
+            if not neighbor:
+                continue
+            if neighbor.owner == "player" or neighbor.owner in allied:
                 visited.add(neighbor_id)
                 queue.append(neighbor_id)
 
+    # Only player-owned planets count for disconnection check
     all_player = set(pid for pid, p in galaxy_map.planets.items() if p.owner == "player")
-    return all_player - visited
+    connected_player = set(pid for pid in visited if galaxy_map.planets[pid].owner == "player")
+    return all_player - connected_player
 
 
-def calculate_network_tier(galaxy_map, player_faction):
+def calculate_network_tier(galaxy_map, player_faction, allied_factions=None):
     """Calculate the current Stargate Network tier based on connected planets.
 
     Returns:
         (tier_number, tier_data_dict)
     """
-    connected = get_connected_planet_count(galaxy_map, player_faction)
+    connected = get_connected_planet_count(galaxy_map, player_faction, allied_factions)
 
     best_tier = 1
     for tier_num in sorted(NETWORK_TIERS.keys()):
@@ -105,14 +120,14 @@ def calculate_network_tier(galaxy_map, player_faction):
     return best_tier, NETWORK_TIERS[best_tier]
 
 
-def get_network_bonuses(galaxy_map, player_faction):
+def get_network_bonuses(galaxy_map, player_faction, allied_factions=None):
     """Get all active network bonuses.
 
     Returns:
         dict with keys: tier, name, naq_bonus, counterattack_reduction,
         ability_level, card_choice_bonus, fortify_cost, two_hop_attacks
     """
-    tier, data = calculate_network_tier(galaxy_map, player_faction)
+    tier, data = calculate_network_tier(galaxy_map, player_faction, allied_factions)
     return {
         "tier": tier,
         "name": data["name"],

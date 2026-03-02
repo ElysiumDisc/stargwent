@@ -62,6 +62,20 @@ def get_building(building_id):
     return BUILDINGS.get(building_id)
 
 
+def _get_building_cost(building, state=None):
+    """Get effective building cost, applying Asgard Engineering perk + doctrine discount."""
+    from .meta_progression import has_perk
+    cost = building.cost
+    if has_perk("building_discount"):
+        cost = max(10, cost - 20)
+    # Doctrine: Advanced Engineering (-25 naq)
+    if state is not None:
+        from .doctrines import get_active_effects
+        effects = get_active_effects(state)
+        cost -= effects.get("building_cost_reduction", 0)
+    return max(10, cost)
+
+
 def can_build(state, planet_id, building_id, galaxy):
     """Check if player can construct a building on a planet."""
     planet = galaxy.planets.get(planet_id)
@@ -73,7 +87,7 @@ def can_build(state, planet_id, building_id, galaxy):
     building = BUILDINGS.get(building_id)
     if not building:
         return False
-    return state.naquadah >= building.cost
+    return state.naquadah >= _get_building_cost(building, state)
 
 
 def construct_building(state, planet_id, building_id):
@@ -81,9 +95,16 @@ def construct_building(state, planet_id, building_id):
     building = BUILDINGS.get(building_id)
     if not building:
         return None
-    state.add_naquadah(-building.cost)
+    cost = _get_building_cost(building, state)
+    state.add_naquadah(-cost)
     state.buildings[planet_id] = building_id
-    return f"Built {building.name}! (-{building.cost} naq)"
+    # Track building construction stat
+    from deck_persistence import get_persistence
+    p = get_persistence()
+    cs = p.unlock_data.setdefault("conquest_stats", {})
+    cs["buildings_constructed"] = cs.get("buildings_constructed", 0) + 1
+    p.save_unlocks()
+    return f"Built {building.name}! (-{cost} naq)"
 
 
 def get_building_naq_income(state, galaxy):

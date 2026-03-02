@@ -262,6 +262,11 @@ pygbag --build main.py      # Production build → build/web/
 | `_history_panel_bg_cache` | `render_engine.py` | Scanline grid (dozens of draw.line) |
 | Row separator surface | `frame_renderer.py` | 30 draw.line → 1 blit |
 | Panel/slider gradients | `main_menu.py` | Per-pixel gradient renders |
+| `_dim_overlay_cache` | `map_renderer.py` | Full-screen SRCALPHA overlay (8MB/frame) |
+| `_tooltip_cache` | `map_renderer.py` | 15+ `font.render()` calls/frame on hover |
+| `_get_circle_sprite()` | `animations.py` | Per-particle SRCALPHA in steal/trail effects |
+| `_get_network_cached()` | `campaign_controller.py` | BFS traversal called 4+ times/turn |
+| `_flash_surf_cache` (bounded) | `space_shooter/game.py` | Unbounded cache growth (capped at 50) |
 
 Call `clear_render_caches()` on resolution change.
 
@@ -271,7 +276,7 @@ Call `clear_render_caches()` on resolution change.
 
 ---
 
-## Galactic Conquest Architecture (v9.0.0)
+## Galactic Conquest Architecture (v9.7.0)
 
 Roguelite card-battle campaign. Package: `galactic_conquest/`
 
@@ -279,13 +284,13 @@ Roguelite card-battle campaign. Package: `galactic_conquest/`
 |------|-------------|
 | `__init__.py` | Entry point, campaign routing |
 | `conquest_menu.py` | CRT submenu + CustomizeRunScreen + unlocks |
-| `campaign_state.py` | CampaignState dataclass (~20 fields) |
+| `campaign_state.py` | CampaignState dataclass (~30 fields) |
 | `campaign_persistence.py` | Save/load JSON via XDG paths |
-| `campaign_controller.py` | Turn loop, attacks, AI, diplomacy, buildings, crisis, scoring |
+| `campaign_controller.py` | Turn loop, attacks, AI, diplomacy, buildings, crisis, scoring, minor world/doctrine/espionage hooks |
 | `galaxy_map.py` | Planets, adjacency, supply lines, Ring Platform 2-hop |
-| `map_renderer.py` | Pulsing lanes, tooltips, building/fort icons, network HUD |
+| `map_renderer.py` | Pulsing lanes, tooltips, building/fort icons, network HUD, wisdom counter, type rings, operative icons |
 | `faction_setup.py` | Faction/leader/deck selection |
-| `card_battle.py` | Weather injection, elite params, relic modifiers |
+| `card_battle.py` | Weather injection, elite params, relic modifiers, doctrine power bonuses, sabotage effects |
 | `reward_screen.py` | Post-victory card picks with tier scaling |
 | `neutral_events.py` | 20 events with choices |
 | `planet_passives.py` | 18 planet passives |
@@ -295,16 +300,28 @@ Roguelite card-battle campaign. Package: `galactic_conquest/`
 | `difficulty.py` | 4 levels (Easy/Normal/Hard/Insane) |
 | `stargate_network.py` | Network tiers (Outpost→Galactic) based on BFS connectivity |
 | `conquest_abilities.py` | 35 leader abilities, L1-L4 scaling with network tier |
-| `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray |
-| `buildings.py` | 5 building types, 1 per planet |
+| `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray, espionage incident handling |
+| `buildings.py` | 5 building types, 1 per planet, doctrine cost reduction |
 | `crisis_events.py` | 5 galaxy-wide events (10%/turn after turn 5) |
-| `meta_progression.py` | Conquest Points, 5 perks, high scores |
+| `meta_progression.py` | Conquest Points, 5 perks, high scores, victory type multipliers |
+| `minor_worlds.py` | 9 minor worlds: influence, quests, type bonuses, AI competition |
+| `minor_world_screen.py` | CRT-styled minor world interaction panel |
+| `doctrines.py` | 5 doctrine trees (20 policies), Wisdom economy, `get_active_effects()` |
+| `doctrine_screen.py` | CRT-styled doctrine tree selection UI |
+| `espionage.py` | Operative lifecycle, 6 missions, rank system, diplomatic incidents |
+| `espionage_screen.py` | CRT-styled operative management UI |
+| `victory_conditions.py` | 4 victory paths + score fallback, progress tracking |
 
 ### Key Systems
 - **Network Tiers**: Connected planet count → tier → scaling naq/cooldown/range/ability bonuses
 - **Supply Lines**: Disconnected planets = -50% income, +20% counterattack, no fortification
 - **Pre-Battle Preview**: ENGAGE/RETREAT screen with forces, weather, modifiers
 - **Post-Battle Refresh**: `_refresh_after_battle()` — rebuild screen + `pygame.event.clear()`
+- **Minor Worlds**: 9 neutral planets with influence (0-100), quests, ally exclusivity, 5 world types with Friend/Ally bonuses
+- **Doctrine Trees**: Wisdom resource → 5 trees × 4 policies + completion bonus; escalating cross-tree cost forces 2-3 tree completions per campaign
+- **Espionage**: Tok'ra operatives with IDLE→MOVING→ESTABLISHING→ACTIVE lifecycle, 6 mission types, rank 1-3, diplomatic incident risk
+- **Victory Conditions**: Domination (always), Ascension/Alliance/Supremacy (require doctrine completion), Score (turn 30 fallback)
+- **Cross-system integration**: `get_active_effects(state)` is the central doctrine query — called by card_battle, buildings, diplomacy, espionage, minor_worlds, campaign_controller
 
 ---
 

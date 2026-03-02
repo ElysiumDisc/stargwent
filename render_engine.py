@@ -489,8 +489,8 @@ def draw_weather_slots(surface, game, dragging_card=None):
             border_width = 3
         else:
             state_key = "idle"
-            fill_color = (25, 45, 70, 150)
-            border_color = (80, 120, 170)
+            fill_color = (30, 50, 80, 180)
+            border_color = (100, 140, 200)
             border_width = 2
 
         ws_key = (slot_rect.width, slot_rect.height, state_key)
@@ -522,7 +522,7 @@ def draw_horn_slots(surface, game, dragging_card=None):
             if is_drag_target:
                 slot_surface.fill((60, 100, 180, 240))
             else:
-                slot_surface.fill((30, 30, 40, 120))
+                slot_surface.fill((35, 40, 55, 160))
             pygame.draw.rect(slot_surface, (15, 15, 20, 200), slot_surface.get_rect().inflate(-6, -6), border_radius=10)
             _slot_cache[hs_fill_key] = slot_surface
         surface.blit(slot_surface, slot_rect.topleft)
@@ -786,14 +786,20 @@ def draw_history_panel(surface, game, panel_rect, scroll_offset, hover_pos=None)
                 _history_entry_cache.clear()
             _history_entry_cache[he_cache_key] = entry_surface
 
-        # Most recent entry pulse — small overlay, applied per-frame only for the last entry
+        # Blit the cached entry surface
+        surface.blit(entry_surface, entry_rect.topleft)
+
+        # Most recent entry pulse — additive white overlay, no surface copy needed
         if entry is last_entry:
             pulse_alpha = int(40 + 30 * math.sin(now_ticks / 400.0))
-            # Use a copy so we don't mutate the cached surface
-            entry_surface = entry_surface.copy()
-            entry_surface.fill((255, 255, 255, pulse_alpha), special_flags=pygame.BLEND_RGBA_ADD)
+            if pulse_alpha > 0:
+                _pw, _ph = entry_rect.width, entry_rect.height
+                if not hasattr(draw_history_panel, '_pulse_overlay') or draw_history_panel._pulse_overlay.get_size() != (_pw, _ph):
+                    draw_history_panel._pulse_overlay = pygame.Surface((_pw, _ph))
+                    draw_history_panel._pulse_overlay.fill((255, 255, 255))
+                draw_history_panel._pulse_overlay.set_alpha(pulse_alpha)
+                surface.blit(draw_history_panel._pulse_overlay, entry_rect.topleft, special_flags=pygame.BLEND_RGB_ADD)
 
-        surface.blit(entry_surface, entry_rect.topleft)
         hitboxes.append((entry, entry_rect.copy()))
 
     surface.set_clip(None)
@@ -831,7 +837,7 @@ def draw_leader_portrait(surface, player, x, y, width=100, height=150, show_labe
                 else:
                     pygame.draw.rect(surface, (60, 60, 80), leader_rect)
                     pygame.draw.rect(surface, (255, 215, 0), leader_rect, width=3)
-            except:
+            except Exception:
                 pygame.draw.rect(surface, (60, 60, 80), leader_rect)
                 pygame.draw.rect(surface, (255, 215, 0), leader_rect, width=3)
     else:

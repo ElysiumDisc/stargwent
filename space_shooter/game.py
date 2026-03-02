@@ -38,6 +38,8 @@ def _get_flash_surf(w, h):
     key = (w, h)
     surf = _flash_surf_cache.get(key)
     if surf is None:
+        if len(_flash_surf_cache) >= 50:
+            _flash_surf_cache.clear()
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
         surf.fill((255, 0, 0, 50))
         _flash_surf_cache[key] = surf

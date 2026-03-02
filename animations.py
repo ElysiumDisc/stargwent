@@ -218,10 +218,11 @@ class CardStealAnimation(Animation):
             return
         
         for particle in self.trail:
-            size = int(40 + particle['age'] * 0.02)
-            trail_surf = pygame.Surface((size, size), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (80, 200, 255, int(particle['alpha'] * 0.4)), (size//2, size//2), size//2)
-            surface.blit(trail_surf, (int(particle['x'] - size//2), int(particle['y'] - size//2)))
+            radius = int(20 + particle['age'] * 0.01)
+            alpha = int(particle['alpha'] * 0.4)
+            if alpha > 0 and radius > 0:
+                trail_surf = _get_circle_sprite(radius, (80, 200, 255), alpha)
+                surface.blit(trail_surf, (int(particle['x'] - radius), int(particle['y'] - radius)))
         
         width, height = self.card_image.get_size()
         scaled_size = (

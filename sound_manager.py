@@ -101,8 +101,8 @@ class SoundEffectManager:
                 sound.set_volume(self._get_effective_sfx_volume(volume))
                 channel.play(sound)
                 return channel
-            except pygame.error:
-                pass
+            except pygame.error as exc:
+                print(f"[audio] Critical channel play failed: {exc}")
         return None
 
     def fadeout_all(self, fade_ms=None):
@@ -121,8 +121,8 @@ class SoundEffectManager:
                     channel = pygame.mixer.Channel(i)
                     if channel.get_busy():
                         channel.fadeout(fade_ms)
-            except pygame.error:
-                # Fallback to immediate stop
+            except pygame.error as exc:
+                print(f"[audio] Fadeout failed, stopping all: {exc}")
                 pygame.mixer.stop()
 
     def fadeout_sound(self, cache_key, fade_ms=None):
@@ -448,16 +448,16 @@ class SoundEffectManager:
             if cache_key in self.loaded_sounds:
                 try:
                     self.loaded_sounds[cache_key].stop()
-                except pygame.error:
-                    pass
+                except pygame.error as exc:
+                    print(f"[audio] Failed to stop leader voice {leader_id}: {exc}")
         else:
             # Stop all leader voices
             for key, sound in self.loaded_sounds.items():
                 if key.startswith("leader_voice_"):
                     try:
                         sound.stop()
-                    except pygame.error:
-                        pass
+                    except pygame.error as exc:
+                        print(f"[audio] Failed to stop sound {key}: {exc}")
 
     def play_symbiote_sound(self, volume=0.8):
         """
@@ -525,6 +525,22 @@ class SoundEffectManager:
             print(f"[audio] Failed to play asgard beam sound: {exc}")
             return False
 
+    def play_tech_sound(self, volume=0.8):
+        """
+        Play Ground Control Technician sound effect.
+        Looks for assets/audio/tech.ogg
+        """
+        sound = self._load_generic_sound("tech", "tech.ogg")
+        if not sound:
+            return False
+        try:
+            sound.set_volume(self._get_effective_sfx_volume(volume))
+            sound.play()
+            return True
+        except pygame.error as exc:
+            print(f"[audio] Failed to play tech sound: {exc}")
+            return False
+
     def play_chat_notification(self, msg_type="peer", volume=0.5):
         """
         Play chat notification sound.
@@ -570,8 +586,8 @@ class SoundEffectManager:
         """Stop all currently playing sound effects."""
         try:
             pygame.mixer.stop()
-        except pygame.error:
-            pass
+        except pygame.error as exc:
+            print(f"[audio] Failed to stop all effects: {exc}")
 
     def clear_cache(self):
         """Clear all cached sounds to free memory."""

@@ -61,12 +61,15 @@ def should_trigger_crisis(campaign_state):
     """Check if a crisis should trigger this turn.
 
     Returns True if crisis should fire (10% chance after turn 5, if cooldown is 0).
+    Ori Shield Matrix perk reduces chance to 5%.
     """
     if campaign_state.turn_number < 5:
         return False
     if campaign_state.crisis_cooldown > 0:
         return False
-    return random.random() < 0.10
+    from .meta_progression import has_perk
+    chance = 0.05 if has_perk("crisis_resistance") else 0.10
+    return random.random() < chance
 
 
 def pick_crisis(campaign_state):
