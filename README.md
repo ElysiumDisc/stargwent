@@ -32,6 +32,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ## 📋 Table of Contents
 
+- [📸 Screenshots](#-screenshots)
 - [✨ Key Features](#-key-features)
 - [🚀 Quick Start](#-quick-start)
 - [🎮 How to Play](#-how-to-play)
@@ -50,6 +51,25 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - [📜 Rules Spec Generator](#-rules-spec-generator-auto-detection)
 - [🛠️ Content Manager](#️-content-manager-developer-tool)
 - [📝 License & Credits](#-license--credits)
+
+---
+
+## 📸 Screenshots
+
+| | |
+|:---:|:---:|
+| ![Main Menu](assets/screenshots/main%20menu.png) | ![Faction Select](assets/screenshots/faction.png) |
+| *Main Menu — Stargate border with DHD buttons* | *Faction Selection — Choose your army* |
+| ![Leader Matchup](assets/screenshots/leader-matchup.png) | ![Mulligan](assets/screenshots/mulligan.png) |
+| *Leader Matchup — Stargate event horizon intro* | *Mulligan Phase — Redraw 2-5 cards* |
+| ![Gameplay](assets/screenshots/game.png) | ![Deck Builder](assets/screenshots/deck%20building.png) |
+| *Card Battle — Full board with MALP history panel* | *Deck Builder — Stargate-framed card inspector* |
+| ![Draft Mode](assets/screenshots/draft.png) | ![Rule Compendium](assets/screenshots/rule.png) |
+| *Draft Mode — Pick your leader for the gauntlet* | *Rule Compendium — Interactive Stargate terminal* |
+| ![Galactic Conquest](assets/screenshots/conquest.png) | ![LAN Multiplayer](assets/screenshots/LAN.png) |
+| *Galactic Conquest — Galaxy map with 20+ planets* | *LAN Multiplayer — Host or join with room codes* |
+| ![Space Shooter](assets/screenshots/arcade.png) | |
+| *Space Shooter — Pick your faction ship* | |
 
 ---
 
