@@ -99,6 +99,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ### 🏆 Draft Mode (Roguelike Gauntlet)
 - **8-Win Challenge** - Survive increasingly difficult AI opponents
 - **Cross-Faction Drafting** - Build decks from ALL factions (30 cards, pick 1 of 3)
+- **Alteran Leaders & Opponents** - Unlock the Alteran faction to draft as Adria, Merlin, Oma Desala and more — or face Alteran AI opponents with Prior's Plague and Ascension strategies
+- **Alteran Synergy Advisor** - Draft advisor scores Alteran Presence (passive snowball), Prior's Plague (row debuff spread), and Ascension (death buff combos)
 - **Redraft Milestones** - At 3 wins: redraft 5 cards. At 5 wins: redraft your leader
 - **Synergy Scoring** - Cards highlight when they combo with your current deck
 - **Save & Continue** - Progress persists between sessions

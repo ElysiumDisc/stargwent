@@ -25,6 +25,16 @@
 - Passive leader bonuses (Carter +2 siege, Bra'tac +1 agile, etc.) remain free
 - Applies to all factions, adding strategic depth to ability timing
 
+#### Draft Mode — Alteran Integration
+- **Alteran leaders selectable in Draft** — all 5 Alteran leaders (Adria, Doci, Merlin, Morgan Le Fay, Oma Desala) appear in the leader selection pool when the faction is unlocked
+- **Alteran AI opponents in Draft** — AI can play as Alteran with the curated default deck (Priors, Warships, Ascended units) when the faction is unlocked
+- **Fixed draft leader pool filtering** — `DraftModeController` now correctly builds a flat list of unlocked leader card IDs instead of passing faction names (old bug caused silent fallback to all leaders regardless of unlock state)
+- **Alteran synergy scoring** — draft deck-building advisor now evaluates Alteran-specific strategies:
+  - **Alteran Presence**: +1/+2 synergy when drafting Alteran cards as an Alteran leader (rewards building into the faction passive "Flames of Enlightenment")
+  - **Prior's Plague**: First plague card +2, 2nd-3rd +1 for multi-row debuff spread, 4th+ penalized
+  - **Ascension**: Up to 3 Ascension cards valued at +2 (death buff synergy), bonus if deck has expendable low-power units
+- **Unlock-gated everywhere** — Alteran only appears as leader choice or AI opponent when unlocked (win with all 5 base factions or unlock override toggle)
+
 #### AI Improvements
 - Alteran-specific strategy: prioritizes cheap units first for snowball passive
 - Prior's Plague and Ascension evaluation in card scoring

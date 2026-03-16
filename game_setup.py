@@ -144,7 +144,10 @@ async def initialize_game(screen, unlock_system, lan_mode=False, lan_context=Non
 
             # Create game with this deck against random opponent
             # AI setup similar to new_game
-            factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN]
+            # Only include Alteran as AI opponent if faction is unlocked
+            factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
+            if unlock_system.is_faction_unlocked(FACTION_ALTERAN):
+                factions.append(FACTION_ALTERAN)
             ai_faction = random.choice([f for f in factions if f != player_faction])
             ai_leader = dict(random.choice(FACTION_LEADERS.get(ai_faction, FACTION_LEADERS[FACTION_TAURI])))
             ai_leader.setdefault('faction', ai_faction)
@@ -213,8 +216,10 @@ async def initialize_game(screen, unlock_system, lan_mode=False, lan_context=Non
             # Use default faction deck - deep copy to prevent shared state
             player_deck = [copy.deepcopy(ALL_CARDS[id]) for id in player_deck_ids]
 
-        # Setup AI
-        factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN]
+        # Setup AI - only include Alteran if faction is unlocked
+        factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
+        if unlock_system.is_faction_unlocked(FACTION_ALTERAN):
+            factions.append(FACTION_ALTERAN)
         ai_faction = random.choice([f for f in factions if f != player_faction])
         ai_leader = dict(random.choice(FACTION_LEADERS.get(ai_faction, FACTION_LEADERS[FACTION_TAURI])))
         ai_leader.setdefault('faction', ai_faction)

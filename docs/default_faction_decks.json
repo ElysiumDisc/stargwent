@@ -157,5 +157,37 @@
       "asgard_daedalus_2",
       "asgard_defense_platform"
     ]
+  },
+  "Alteran": {
+    "name": "Flames of Enlightenment",
+    "strategy": "Build board presence with Priors and followers, snowball with faith passive, punish with plague and warships",
+    "cards": [
+      "alteran_adria",
+      "alteran_oma",
+      "alteran_prior_1",
+      "alteran_prior_2",
+      "alteran_prior_3",
+      "alteran_follower_1",
+      "alteran_follower_2",
+      "alteran_follower_3",
+      "alteran_warrior_1",
+      "alteran_warrior_2",
+      "alteran_tomin",
+      "alteran_knight",
+      "alteran_staff_1",
+      "alteran_staff_2",
+      "alteran_orlin",
+      "alteran_scientist_1",
+      "alteran_scientist_2",
+      "alteran_melia",
+      "alteran_drone_squad",
+      "alteran_warship_1",
+      "alteran_warship_2",
+      "alteran_warship_3",
+      "alteran_supergate",
+      "alteran_ark",
+      "alteran_ascended_1",
+      "alteran_book"
+    ]
   }
 }

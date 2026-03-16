@@ -911,6 +911,52 @@ def main():
 
     print(f"\nCards: {assembled} assembled, {skipped} skipped, {errors} errors")
 
+    # ── Standalone leader portrait/background assembly ────────────────────
+    # Process leader art that wasn't handled above (e.g. leader portrait
+    # exists in raw_art but the card art doesn't yet).
+    leader_extra_count = 0
+    for card_id in leader_ids:
+        # Skip leaders already processed in the card assembly loop above
+        if card_id in target_ids:
+            continue
+
+        # Leader portrait: raw_art/{card_id}_leader.{ext} -> assets/{card_id}_leader.png
+        for ext in (".png", ".jpg", ".jpeg", ".webp"):
+            leader_raw = RAW_ART_DIR / f"{card_id}_leader{ext}"
+            if leader_raw.exists():
+                leader_path = OUTPUT_DIR / f"{card_id}_leader.png"
+                if args.no_overwrite and leader_path.exists():
+                    break
+                if args.dry_run:
+                    print(f"  [DRY] {leader_raw.name} -> {leader_path.name} (leader portrait)")
+                else:
+                    leader_img = Image.open(leader_raw).convert("RGBA")
+                    leader_img = leader_img.resize((LEADER_W, LEADER_H), Image.LANCZOS)
+                    leader_img.save(leader_path, "PNG")
+                    print(f"  [OK] {leader_raw.name} -> {leader_path.name} (leader portrait)")
+                leader_extra_count += 1
+                break
+
+        # Leader background: raw_art/leader_bg_{card_id}.{ext} -> assets/leader_bg_{card_id}.png
+        for ext in (".png", ".jpg", ".jpeg", ".webp"):
+            bg_raw = RAW_ART_DIR / f"leader_bg_{card_id}{ext}"
+            if bg_raw.exists():
+                bg_path = OUTPUT_DIR / f"leader_bg_{card_id}.png"
+                if args.no_overwrite and bg_path.exists():
+                    break
+                if args.dry_run:
+                    print(f"  [DRY] {bg_raw.name} -> {bg_path.name} (leader background)")
+                else:
+                    bg_img = Image.open(bg_raw).convert("RGBA")
+                    bg_img = bg_img.resize((BG_W, BG_H), Image.LANCZOS)
+                    bg_img.save(bg_path, "PNG")
+                    print(f"  [OK] {bg_raw.name} -> {bg_path.name} (leader background)")
+                leader_extra_count += 1
+                break
+
+    if leader_extra_count:
+        print(f"Leader extras: {leader_extra_count} processed (no card art yet)")
+
     # ── Background art assembly ───────────────────────────────────────────
     bg_count = 0
 

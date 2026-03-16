@@ -20,9 +20,9 @@ RULES:
 import random
 import copy
 from typing import List, Dict, Optional, Tuple
-from cards import ALL_CARDS, Card
+from cards import ALL_CARDS, Card, FACTION_ALTERAN
 from content_registry import LEADER_REGISTRY
-from abilities import Ability, has_ability, is_hero, is_spy, is_medic
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic, is_plague_card, is_ascension_card
 
 
 class DraftPool:
@@ -413,7 +413,43 @@ class DraftRun:
             elif weather_count >= 2:
                 synergy['score'] -= 2
                 synergy['reasons'].append("-2 Too Much Weather")
-        
+
+        # Alteran faction synergy — rewards building Alteran board presence
+        if self.drafted_leader and self.drafted_leader.get('faction') == FACTION_ALTERAN:
+            # Alteran passive (Flames of Enlightenment) scales with Alteran cards on board
+            if card.faction == FACTION_ALTERAN and not is_hero(card):
+                alteran_count = sum(1 for c in self.drafted_cards if c.faction == FACTION_ALTERAN)
+                if alteran_count >= 3:
+                    synergy['score'] += 2
+                    synergy['reasons'].append("+2 Alteran Presence (passive synergy)")
+                elif alteran_count >= 1:
+                    synergy['score'] += 1
+                    synergy['reasons'].append("+1 Alteran Presence")
+
+        # Prior's Plague value — debuffs enemy row, better with more plague cards for spread
+        if is_plague_card(card):
+            plague_count = sum(1 for c in self.drafted_cards if is_plague_card(c))
+            if plague_count == 0:
+                synergy['score'] += 2
+                synergy['reasons'].append("+2 First Plague (row debuff)")
+            elif plague_count <= 2:
+                synergy['score'] += 1
+                synergy['reasons'].append("+1 Plague Spread")
+            elif plague_count >= 4:
+                synergy['score'] -= 1
+                synergy['reasons'].append("-1 Too Many Plagues")
+
+        # Ascension value — buffs all friendly on destroy, better with expendable units
+        if is_ascension_card(card):
+            ascension_count = sum(1 for c in self.drafted_cards if is_ascension_card(c))
+            low_power_count = sum(1 for c in self.drafted_cards if c.power <= 3 and not is_hero(c))
+            if ascension_count < 3:
+                synergy['score'] += 2
+                synergy['reasons'].append("+2 Ascension (death buff)")
+            if low_power_count >= 5:
+                synergy['score'] += 1
+                synergy['reasons'].append("+1 Expendable allies for Ascension")
+
         return synergy
 
     def get_deck_dict(self) -> Dict:

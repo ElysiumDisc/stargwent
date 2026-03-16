@@ -11,7 +11,8 @@ from typing import Optional
 from draft_mode import DraftPool, DraftRun
 from draft_mode_ui import DraftModeUI
 from unlocks import CardUnlockSystem
-from cards import ALL_CARDS
+from cards import ALL_CARDS, FACTION_ALTERAN
+from content_registry import BASE_FACTION_LEADERS, UNLOCKABLE_LEADERS
 from deck_persistence import get_persistence
 
 
@@ -36,7 +37,15 @@ class DraftModeController:
 
         # Get unlocked content
         unlocked_cards = list(unlock_manager.unlocked_cards)
-        unlocked_leaders = list(unlock_manager.unlocked_leaders)
+
+        # Build flat list of unlocked leader card_ids
+        # Base leaders for all unlocked factions + any explicitly unlocked leaders
+        unlocked_leader_ids = []
+        for faction, leaders in BASE_FACTION_LEADERS.items():
+            if unlock_manager.is_faction_unlocked(faction):
+                unlocked_leader_ids.extend(l['card_id'] for l in leaders)
+        for faction, leader_ids in unlock_manager.unlocked_leaders.items():
+            unlocked_leader_ids.extend(leader_ids)
 
         # Ensure all default content is available even if not unlocked
         # (for testing and to ensure draft pool is large enough)
@@ -44,7 +53,7 @@ class DraftModeController:
             unlocked_cards = list(ALL_CARDS.keys())
 
         # Create draft pool
-        self.pool = DraftPool(unlocked_cards, unlocked_leaders)
+        self.pool = DraftPool(unlocked_cards, unlocked_leader_ids)
 
         # Current draft run
         self.current_run: Optional[DraftRun] = None

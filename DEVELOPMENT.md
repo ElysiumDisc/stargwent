@@ -30,11 +30,13 @@ Major change across many files (see Alteran faction added in v10.0 for a complet
 5. `power.py` — Implement faction power class + register in `FACTION_POWERS`
 6. `game_config.py` — Add to `FACTION_GLOW_COLORS`
 7. `deck_builder.py` — Add to `AVAILABLE_FACTIONS`, colors, descriptions, theme music
-8. `game_setup.py` — Add to AI opponent faction pool
-9. `unlocks.py` — Add unlock conditions if faction is unlockable
-10. `assets/data/default_faction_decks.json` — Add default AI deck
-11. `scripts/create_placeholders.py` — Add `FACTION_COLORS`, `FACTION_BACKGROUND_IDS`, imports
-12. `scripts/card_quotes.json` — Add character quotes
+8. `game_setup.py` — Add to AI opponent faction pool (gated by `is_faction_unlocked()` if unlockable)
+9. `draft_mode.py` — Add faction-specific synergy scoring in `get_synergy_score()` (e.g., Alteran Presence, Prior's Plague, Ascension)
+10. `draft_controller.py` — Leaders auto-included via `BASE_FACTION_LEADERS` + `is_faction_unlocked()` gate
+11. `unlocks.py` — Add unlock conditions if faction is unlockable
+12. `assets/data/default_faction_decks.json` — Add default AI deck (used by both standard and draft AI opponents)
+13. `scripts/create_placeholders.py` — Add `FACTION_COLORS`, `FACTION_BACKGROUND_IDS`, imports
+14. `scripts/card_quotes.json` — Add character quotes
 
 Current factions (6): Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, **Alteran** (unlockable — win 1 game with each base faction)
 
