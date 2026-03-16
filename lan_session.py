@@ -22,7 +22,7 @@ class LanSession:
         self.sock = None
         self.thread = None
         self.keepalive_thread = None
-        self.inbox = queue.Queue()
+        self.inbox = queue.Queue(maxsize=1000)
         self.chat_inbox = queue.Queue(maxsize=100)  # Bounded to prevent memory growth
         self.stop_event = threading.Event()
         self.last_received = 0
@@ -36,11 +36,12 @@ class LanSession:
 
         # JSON error recovery (10 consecutive strikes = disconnect)
         self.parse_error_count = 0
-        self.max_parse_errors = 10
+        self.max_parse_errors = 20
 
         # Ping/latency tracking
         self.current_rtt = 0  # milliseconds
         self.last_ping_time = 0
+        self._ping_id = 0
 
     def host(self, port=4765, timeout=None):
         """
@@ -156,15 +157,17 @@ class LanSession:
 
                     # Handle ping/pong for latency measurement
                     if msg_type == "ping":
-                        # Respond with pong containing the same timestamp
-                        timestamp = payload.get("payload", {}).get("timestamp", 0)
-                        self.send("pong", {"timestamp": timestamp})
+                        # Respond with pong containing the same timestamp and id
+                        ping_payload = payload.get("payload", {})
+                        self.send("pong", {"timestamp": ping_payload.get("timestamp", 0), "id": ping_payload.get("id", 0)})
                         continue
                     elif msg_type == "pong":
-                        # Calculate RTT from the timestamp
-                        timestamp = payload.get("payload", {}).get("timestamp", 0)
-                        if timestamp:
-                            self.current_rtt = int((time.time() - timestamp) * 1000)
+                        # Calculate RTT from the timestamp, only if ping_id matches
+                        pong_payload = payload.get("payload", {})
+                        if pong_payload.get("id") == self._ping_id:
+                            timestamp = pong_payload.get("timestamp", 0)
+                            if timestamp:
+                                self.current_rtt = int((time.time() - timestamp) * 1000)
                         continue
 
                     # Route chat-related messages to dedicated queue
@@ -176,13 +179,15 @@ class LanSession:
                     else:
                         self.inbox.put(payload)
                 except json.JSONDecodeError as e:
-                    self.parse_error_count += 1
+                    with self._sock_lock:
+                        self.parse_error_count += 1
+                        error_count = self.parse_error_count
                     # Log corrupted data for debugging (truncated to avoid spam)
                     corrupted_preview = line[:100].decode("utf-8", errors="replace")
-                    print(f"[LanSession] JSON parse error #{self.parse_error_count}: {e}")
+                    print(f"[LanSession] JSON parse error #{error_count}: {e}")
                     print(f"[LanSession] Corrupted data preview: {corrupted_preview}...")
 
-                    if self.parse_error_count >= self.max_parse_errors:
+                    if error_count >= self.max_parse_errors:
                         print("[LanSession] Too many parse errors, disconnecting")
                         self.stop_event.set()
                         break
@@ -207,10 +212,11 @@ class LanSession:
             if not self.stop_event.is_set():
                 try:
                     # Ping doubles as keepalive — pong response keeps connection alive
+                    self._ping_id += 1
                     self.last_ping_time = time.time()
                     ping_packet = json.dumps({
                         "type": "ping",
-                        "payload": {"timestamp": self.last_ping_time}
+                        "payload": {"timestamp": self.last_ping_time, "id": self._ping_id}
                     }).encode("utf-8") + b"\n"
                     with self._sock_lock:
                         if self.sock:
@@ -265,7 +271,11 @@ class LanSession:
     def send(self, message_type, payload=None):
         if self.stop_event.is_set():
             return False
-        packet = json.dumps({"type": message_type, "payload": payload}).encode("utf-8") + b"\n"
+        try:
+            packet = json.dumps({"type": message_type, "payload": payload}).encode("utf-8") + b"\n"
+        except (TypeError, ValueError) as e:
+            print(f"[LanSession] Failed to serialize message '{message_type}': {e}")
+            return False
         try:
             with self._sock_lock:
                 if not self.sock:
@@ -276,8 +286,8 @@ class LanSession:
             return False
 
     def close(self):
-        self.stop_event.set()
         with self._sock_lock:
+            self.stop_event.set()
             sock = self.sock
             self.sock = None
         if sock:

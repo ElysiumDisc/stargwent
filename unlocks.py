@@ -338,6 +338,46 @@ class CardUnlockSystem:
             return True
         return leader_id in self.unlocked_leaders.get(faction, [])
 
+    # === FACTION UNLOCK SYSTEM ===
+
+    BASE_FACTIONS = ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard"]
+
+    def is_faction_unlocked(self, faction):
+        """Check if a faction is available for play."""
+        if self.unlock_override_enabled:
+            return True
+        # Base factions are always unlocked
+        if faction in self.BASE_FACTIONS or faction == "Neutral":
+            return True
+        # Alteran requires winning once with each base faction
+        if faction == "Alteran":
+            return self._check_alteran_unlock()
+        return False
+
+    def _check_alteran_unlock(self):
+        """Check if all 5 base factions have at least 1 win."""
+        faction_wins = self._get_faction_wins()
+        for f in self.BASE_FACTIONS:
+            if faction_wins.get(f, 0) < 1:
+                return False
+        return True
+
+    def _get_faction_wins(self):
+        """Load faction_wins from the unlock data file."""
+        if os.path.exists(UNLOCK_DATA_FILE):
+            try:
+                with open(UNLOCK_DATA_FILE, 'r') as f:
+                    data = json.load(f)
+                    return data.get('faction_wins', {})
+            except (json.JSONDecodeError, OSError):
+                pass
+        return {}
+
+    def get_faction_unlock_progress(self):
+        """Return dict of {faction: has_win} for Alteran unlock progress."""
+        faction_wins = self._get_faction_wins()
+        return {f: faction_wins.get(f, 0) >= 1 for f in self.BASE_FACTIONS}
+
     def is_unlock_override_enabled(self) -> bool:
         """Return True if the global unlock-all override is enabled."""
         return self.unlock_override_enabled

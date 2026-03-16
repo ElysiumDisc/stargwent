@@ -363,7 +363,7 @@ The JSON file should have the following structure:
   ]
 }
 
-Valid factions: Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard
+Valid factions: Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, Alteran
 Valid rows: close, ranged, siege, agile, special, weather
 Valid rarities: common, rare, epic, legendary
 """)

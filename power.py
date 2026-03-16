@@ -233,6 +233,55 @@ class AsgardFactionPower(FactionPower):
         return True
 
 
+class AlteranFactionPower(FactionPower):
+    """Flames of Celestis - Set all non-hero units on opponent's weakest row to power 1."""
+    def __init__(self):
+        super().__init__(
+            "Flames of Celestis",
+            "Set all non-hero units on opponent's weakest row to power 1",
+            "Alteran"
+        )
+
+    def activate(self, game, player):
+        opponent = game.player2 if player == game.player1 else game.player1
+
+        # Find opponent's row with lowest total non-hero power (must have units)
+        best_row = None
+        best_power = float('inf')
+        for row_name in ["close", "ranged", "siege"]:
+            non_heroes = [c for c in opponent.board.get(row_name, []) if not is_hero(c)]
+            if non_heroes:
+                total = sum(c.displayed_power for c in non_heroes)
+                if total < best_power:
+                    best_power = total
+                    best_row = row_name
+
+        if best_row is None:
+            return False
+
+        if not super().activate(game, player):
+            return False
+
+        # Set all non-hero units in that row to power 1
+        for card in opponent.board.get(best_row, []):
+            if not is_hero(card):
+                card.power = 1
+                card.displayed_power = 1
+
+        # Log each affected card
+        owner_label = "player" if player == game.player1 else "opponent"
+        game.add_history_event(
+            "faction_power",
+            f"Flames of Celestis scorched {best_row} row",
+            owner_label,
+            icon="🔥"
+        )
+
+        game.player1.calculate_score()
+        game.player2.calculate_score()
+        return True
+
+
 # Faction Power mapping by faction
 FACTION_POWERS = {
     "Tau'ri": TauriFactionPower(),
@@ -240,6 +289,7 @@ FACTION_POWERS = {
     "Lucian Alliance": LucianFactionPower(),
     "Jaffa Rebellion": JaffaFactionPower(),
     "Asgard": AsgardFactionPower(),
+    "Alteran": AlteranFactionPower(),
 }
 
 

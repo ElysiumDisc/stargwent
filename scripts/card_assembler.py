@@ -138,6 +138,7 @@ FACTION_BORDER = {
     "Jaffa Rebellion": "jaffa-border.png",
     "Lucian Alliance": "lucian-border.png",
     "Asgard": "asgard-border.png",
+    "Alteran": "alteran-border.png",
     "Neutral": "neutral-border.png",
 }
 
@@ -147,6 +148,7 @@ FACTION_PREFIX = {
     "jaffa": "Jaffa Rebellion",
     "lucian": "Lucian Alliance",
     "asgard": "Asgard",
+    "alteran": "Alteran",
     "neutral": "Neutral",
 }
 
@@ -171,6 +173,8 @@ ABILITY_ICON = {
     "System Lord's Curse": "System Lord's Curse.png",
     "Survival Instinct": "survival instinct.png",
     "Genetic Enhancement": "Genetic Enhancement.png",
+    "Prior's Plague": "Prior's Plague.png",
+    "Ascension": "Ascension.png",
 }
 
 

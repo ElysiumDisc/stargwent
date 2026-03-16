@@ -9,7 +9,7 @@ import random
 import display_manager
 from cards import (
     ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
-    FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, reload_card_images
+    FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN, FACTION_NEUTRAL, reload_card_images
 )
 from unlocks import CardUnlockSystem, UNLOCKABLE_CARDS
 from abilities import is_hero
@@ -23,6 +23,7 @@ FACTION_THEME_MUSIC = {
     FACTION_JAFFA: os.path.join("assets", "audio", "jaffa_theme.ogg"),
     FACTION_LUCIAN: os.path.join("assets", "audio", "lucian_theme.ogg"),
     FACTION_ASGARD: os.path.join("assets", "audio", "asgard_theme.ogg"),
+    FACTION_ALTERAN: os.path.join("assets", "audio", "alteran_theme.ogg"),
 }
 
 # Track currently playing faction theme
@@ -123,7 +124,8 @@ AVAILABLE_FACTIONS = [
     FACTION_GOAULD,
     FACTION_JAFFA,
     FACTION_LUCIAN,
-    FACTION_ASGARD
+    FACTION_ASGARD,
+    FACTION_ALTERAN,
 ]
 
 # Leader cards for each faction (alternate leaders)
@@ -135,6 +137,7 @@ FACTION_BACKGROUND_ASSET_IDS = {
     FACTION_JAFFA: "jaffa",
     FACTION_LUCIAN: "lucian",
     FACTION_ASGARD: "asgard",
+    FACTION_ALTERAN: "alteran",
 }
 
 
@@ -229,6 +232,7 @@ class DeckBuilderUI:
             FACTION_JAFFA: (150, 100, 50),      # Brown/Gold
             FACTION_LUCIAN: (200, 100, 255),    # Pink
             FACTION_ASGARD: (100, 255, 255),    # Cyan
+            FACTION_ALTERAN: (100, 200, 170),     # Seafoam Green
         }
         
         # Background colors for factions (darker versions)
@@ -238,6 +242,7 @@ class DeckBuilderUI:
             FACTION_JAFFA: (30, 20, 10),        # Dark Brown/Gold
             FACTION_LUCIAN: (30, 15, 30),       # Dark Purple
             FACTION_ASGARD: (10, 30, 25),       # Dark Cyan
+            FACTION_ALTERAN: (15, 35, 28),       # Dark Seafoam
         }
         
         # Leader-specific background colors (slightly different shades) - FALLBACK if images not found
@@ -831,6 +836,9 @@ class DeckBuilderUI:
             if self.state == "faction_select":
                 for button in self.faction_buttons:
                     if button['rect'].collidepoint(mouse_pos):
+                        # Check if faction is unlocked
+                        if not self.unlock_system.is_faction_unlocked(button['faction']):
+                            continue  # Skip locked factions
                         self.selected_faction = button['faction']
                         self.current_bg_color = self.faction_bg_colors.get(self.selected_faction, self.bg_color)
                         # Keep faction theme playing during leader selection
@@ -1284,6 +1292,9 @@ class DeckBuilderUI:
                     return
                 for button in self.faction_buttons:
                     if button['rect'].collidepoint(mouse_pos):
+                        # Check if faction is unlocked
+                        if not self.unlock_system.is_faction_unlocked(button['faction']):
+                            continue  # Skip locked factions
                         self.selected_faction = button['faction']
                         # Update background to faction color
                         self.set_faction_background(self.selected_faction)
@@ -1605,25 +1616,39 @@ class DeckBuilderUI:
         
         # Faction buttons
         for button in self.faction_buttons:
+            faction = button['faction']
+            is_locked = not self.unlock_system.is_faction_unlocked(faction)
+
             # Determine button color
-            if button['hovered']:
+            if is_locked:
+                color = (30, 30, 35)  # Dark gray for locked
+            elif button['hovered']:
                 color = self.button_hover_color
             else:
                 color = self.button_color
-            
+
             # Draw button with faction color accent
             pygame.draw.rect(surface, color, button['rect'], border_radius=10)
-            faction_color = self.faction_colors[button['faction']]
+            faction_color = self.faction_colors.get(faction, (100, 100, 100))
+            if is_locked:
+                faction_color = (80, 80, 80)  # Gray border for locked
             pygame.draw.rect(surface, faction_color, button['rect'], width=4, border_radius=10)
-            
+
             # Draw faction name
-            text = self.button_font.render(button['faction'], True, self.text_color)
+            name_color = (100, 100, 100) if is_locked else self.text_color
+            text = self.button_font.render(faction, True, name_color)
             text_rect = text.get_rect(midleft=(button['rect'].left + 20, button['rect'].centery - 10))
             surface.blit(text, text_rect)
-            
-            # Draw faction description on same button (below name)
-            desc = self.get_faction_description(button['faction'])
-            desc_text = self.small_font.render(desc, True, (180, 180, 180))
+
+            # Draw faction description or lock progress
+            if is_locked:
+                progress = self.unlock_system.get_faction_unlock_progress()
+                wins_count = sum(1 for v in progress.values() if v)
+                desc = f"LOCKED - Win with {wins_count}/5 factions to unlock"
+                desc_text = self.small_font.render(desc, True, (120, 100, 60))
+            else:
+                desc = self.get_faction_description(faction)
+                desc_text = self.small_font.render(desc, True, (180, 180, 180))
             desc_rect = desc_text.get_rect(midleft=(button['rect'].left + 20, button['rect'].centery + 15))
             surface.blit(desc_text, desc_rect)
     
@@ -2427,6 +2452,7 @@ class DeckBuilderUI:
             FACTION_JAFFA: "Freedom fighters - agile warriors",
             FACTION_LUCIAN: "Space pirates - cunning and deceptive",
             FACTION_ASGARD: "Advanced aliens - technological superiority",
+            FACTION_ALTERAN: "Ascended beings - faith empowers the faithful",
         }
         return descriptions.get(faction, "")
     

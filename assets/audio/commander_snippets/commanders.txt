@@ -11,3 +11,6 @@
   neutral_ascended_daniel.ogg  neutral_oma_desala.ogg
   neutral_mckay.ogg         neutral_teyla.ogg
   neutral_ancient_drone.ogg    neutral_weir.ogg
+  alteran_adria.ogg            alteran_doci.ogg
+  alteran_merlin.ogg           alteran_morgan.ogg
+  alteran_oma.ogg

@@ -163,6 +163,7 @@ class NetworkController:
         self.desync_detected = False
         self.desync_message = None  # (text, expire_tick) for HUD flash
         self.card_not_found_count = 0  # Track consecutive card-not-found errors
+        self._expected_remote_token = 0  # For turn token sequence validation
 
     def _find_card_in_discard(self, player, card_id):
         if not card_id:
@@ -245,6 +246,19 @@ class NetworkController:
 
             # Send ACK for this action so sender knows it arrived
             msg_id = payload.get("msg_id")
+
+            # Validate turn token sequence (warn on gaps, don't disconnect)
+            remote_token = payload.get("turn_token", "")
+            if remote_token:
+                try:
+                    token_num = int(remote_token.rsplit("-", 1)[-1])
+                    self._expected_remote_token += 1
+                    if token_num != self._expected_remote_token:
+                        print(f"[Network] Turn token gap: expected {self._expected_remote_token}, got {token_num}")
+                        self._expected_remote_token = token_num  # Resync
+                except (ValueError, IndexError):
+                    pass
+
             if msg_id:
                 self.session.send("action_ack", {"msg_id": msg_id})
 
@@ -276,6 +290,11 @@ class NetworkController:
                 )
                 if self.card_not_found_count >= 3:
                     print(f"[Network] Card not found {self.card_not_found_count} times — forcing pass to prevent hang")
+                    # Notify remote player about the desync-triggered auto-pass
+                    self.session.send("desync_warning", {
+                        "reason": "card_not_found",
+                        "count": self.card_not_found_count
+                    })
                     self.game.add_history_event(
                         "system",
                         "Too many card sync errors — auto-passing opponent turn",
@@ -359,6 +378,7 @@ class NetworkPlayerProxy:
         self.turn_token_counter = 0
         self._msg_id_counter = 0
         self._pending_acks = {}  # msg_id -> send_time
+        self.desync_warnings = []  # Stale ACK warnings for UI display
 
     def next_turn_token(self) -> str:
         """Generate next turn token."""
@@ -392,10 +412,11 @@ class NetworkPlayerProxy:
         self._pending_acks[msg_id] = time.time()
         self.session.send(msg["type"], msg["payload"])
 
-        # Check for stale unacked messages (>3s) — log warning but don't disconnect
+        # Check for stale unacked messages (>3s) — warn but don't disconnect
         stale = [mid for mid, t in self._pending_acks.items() if time.time() - t > 3.0]
         for mid in stale:
             print(f"[NetworkProxy] Warning: action {mid} unacked after 3s")
+            self.desync_warnings.append(f"Action {mid} unacked after 3s")
             del self._pending_acks[mid]
 
     def send_play_card(self, card_id: str, row: str):

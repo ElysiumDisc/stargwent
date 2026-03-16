@@ -104,8 +104,8 @@ class CoopSpaceShooterClient:
         self._frames_since_last_state += 1
         self._frames_since_last_msg += 1
 
-        # Detect host disconnect (no message of any kind for 5 seconds)
-        if self._frames_since_last_msg > 300 and not self.game_over:
+        # Detect host disconnect (no message of any kind for 3 seconds)
+        if self._frames_since_last_msg > 180 and not self.game_over:
             self.host_disconnected = True
 
         # Track how long we've been in disconnected state

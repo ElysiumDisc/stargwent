@@ -80,7 +80,7 @@ def rebuild_leader_catalog():
             del sys.modules["content_registry"]
 
         from content_registry import BASE_FACTION_LEADERS, UNLOCKABLE_LEADERS
-        from cards import FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
+        from cards import FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN
 
         faction_map = {
             FACTION_TAURI: "FACTION_TAURI",
@@ -88,6 +88,7 @@ def rebuild_leader_catalog():
             FACTION_JAFFA: "FACTION_JAFFA",
             FACTION_LUCIAN: "FACTION_LUCIAN",
             FACTION_ASGARD: "FACTION_ASGARD",
+            FACTION_ALTERAN: "FACTION_ALTERAN",
         }
 
         catalog = {}

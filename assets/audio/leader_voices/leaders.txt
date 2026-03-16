@@ -51,6 +51,13 @@ ASGARD LEADERS:
 - asgard_penegal.ogg      (Penegal) [Unlockable]
 - asgard_aegir.ogg        (Aegir) [Unlockable]
 
+ALTERAN LEADERS:
+- alteran_adria.ogg       (Adria, The Orici)
+- alteran_doci.ogg        (The Doci)
+- alteran_merlin.ogg      (Merlin / Moros)
+- alteran_morgan.ogg      (Morgan Le Fay)
+- alteran_oma.ogg         (Oma Desala)
+
 NOTES:
 - Format: OGG Vorbis audio
 - Recommended: 2-5 second clips (short intro/catchphrase)

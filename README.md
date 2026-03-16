@@ -2,7 +2,7 @@
 
 **A Gwent-style card game set in the Stargate SG-1 universe**
 
-Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, and Asgard in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
+Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lucian Alliance, Asgard, and the unlockable Alteran faction in this strategic card game featuring stunning visual effects, comprehensive progression system, and full deck customization!
 
 ---
 
@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-9.7.0-blue)
+![Version](https://img.shields.io/badge/version-10.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -77,7 +77,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics, powers, animations, persistence, LAN multiplayer, and Draft Mode
-- **247 Cards** across 5 factions + Neutral cards with 20+ Stargate-themed abilities
+- **287 Cards** across 6 factions + Neutral cards with 20+ Stargate-themed abilities
 - **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
 - **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
@@ -263,7 +263,7 @@ All abilities renamed and themed around Stargate lore:
 
 ## 🎴 Factions & Leaders
 
-### 5 Playable Factions
+### 5 + 1 Unlockable Factions
 
 #### **Tau'ri** (Earth Forces) 🌎
 *Human ingenuity and determination*
@@ -295,11 +295,19 @@ All abilities renamed and themed around Stargate lore:
 - **Leaders**: Thor, Freyr, Penegal, Aegir, Heimdall
 - **Unlockable**: Thor (Supreme Commander), Hermiod, Loki
 
+#### **Alteran** (Ori & Ancients) 🔥 — UNLOCKABLE
+*Ascended beings — faith empowers the faithful*
+- **Unlock**: Win at least one game with each of the 5 base factions
+- **Passive**: "Flames of Enlightenment" — First 3 non-hero units each round gain +1 power per Alteran card on board (max +3)
+- **Leaders**: Adria (The Orici), The Doci, Merlin (Moros), Morgan Le Fay, Oma Desala
+- **Unique Abilities**: Prior's Plague (debuff enemy row), Ascension (buff allies on death)
+- **40 cards** spanning both Ori crusaders (Priors, Warships, Supergate) and Ancient scientists (Janus, Orlin, Chaya Sar)
+
 ---
 
 ## ⚡ Faction Powers
 
-**NEW in v0.6!** Each faction has a unique, **once-per-game** (not per-round!), cinematic ability called a **Faction Power** that doesn't consume your turn.
+Each faction has a unique, **once-per-game** cinematic ability called a **Faction Power**. Using a Faction Power or an activated Leader Ability **consumes your turn** — choose your moment wisely!
 
 ### 🌍 Tau'ri - "The Gate Shutdown"
 **Effect:** Destroys the highest strength card on each of the opponent's rows.
@@ -326,6 +334,10 @@ All abilities renamed and themed around Stargate lore:
 **Effect:** Swap opponent's entire close combat row with their ranged row.
 **Visual:** Blue transference lattice effect, screen vibrates, entire rows swap positions with holographic shimmer.
 **Strategy:** Massive tactical disruption! Completely reverses opponent's row strategy. Units built for close combat are now in ranged (and vice versa). Destroys row-specific combos, horn placements, and weather strategies. **Once per game!**
+
+### 🔥 Alteran - "Flames of Celestis"
+**Effect:** Set ALL non-hero units on opponent's weakest row to power 1.
+**Strategy:** Devastating against opponents who stack one row. Forces opponents to spread their units evenly. **Once per game!**
 
 ---
 
@@ -396,6 +408,14 @@ All abilities renamed and themed around Stargate lore:
 #### **Genetic Enhancement** ⚗️
 - Transforms weakest unit in EACH row → 8-power warrior
 - Gold transformation animation
+
+#### **Prior's Plague** ☠️ *(Alteran)*
+- When played, reduces all enemy non-hero units in the same row by 1 power (min 1)
+- Devastating against packed rows
+
+#### **Ascension** ✦ *(Alteran)*
+- When this unit is destroyed, all remaining friendly non-hero units gain +1 power
+- Creates strategic tension — opponents don't want to scorch your Ascension units
 
 ### Special Card Abilities
 

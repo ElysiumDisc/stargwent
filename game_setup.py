@@ -10,7 +10,7 @@ from deck_builder import run_deck_builder, build_faction_deck, load_default_fact
 from main_menu import run_main_menu, DeckManager, show_stargate_opening
 from ai_opponent import AIController
 from lan_opponent import NetworkController, NetworkPlayerProxy
-from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD
+from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN
 from draft_mode import DraftRun
 from game_config import FACTION_GLOW_COLORS
 
@@ -144,9 +144,9 @@ async def initialize_game(screen, unlock_system, lan_mode=False, lan_context=Non
 
             # Create game with this deck against random opponent
             # AI setup similar to new_game
-            factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
+            factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN]
             ai_faction = random.choice([f for f in factions if f != player_faction])
-            ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))
+            ai_leader = dict(random.choice(FACTION_LEADERS.get(ai_faction, FACTION_LEADERS[FACTION_TAURI])))
             ai_leader.setdefault('faction', ai_faction)
             # AI deck - use curated default deck
             ai_deck_ids = load_default_faction_deck(ai_faction)
@@ -214,9 +214,9 @@ async def initialize_game(screen, unlock_system, lan_mode=False, lan_context=Non
             player_deck = [copy.deepcopy(ALL_CARDS[id]) for id in player_deck_ids]
 
         # Setup AI
-        factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD]
+        factions = [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN]
         ai_faction = random.choice([f for f in factions if f != player_faction])
-        ai_leader = dict(random.choice(FACTION_LEADERS[ai_faction]))
+        ai_leader = dict(random.choice(FACTION_LEADERS.get(ai_faction, FACTION_LEADERS[FACTION_TAURI])))
         ai_leader.setdefault('faction', ai_faction)
         # AI deck - use curated default deck
         ai_deck_ids = load_default_faction_deck(ai_faction)

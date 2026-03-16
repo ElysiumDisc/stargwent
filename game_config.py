@@ -2,7 +2,7 @@ import pygame
 import display_manager
 from cards import (
     FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
-    FACTION_LUCIAN, FACTION_ASGARD
+    FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN
 )
 
 
@@ -184,6 +184,7 @@ FACTION_GLOW_COLORS = {
     FACTION_JAFFA: hex_color("#C8A028"),    # Rebel Gold
     FACTION_LUCIAN: hex_color("#C864FF"),   # Alliance Purple
     FACTION_ASGARD: hex_color("#64FFFF"),   # Asgard Cyan
+    FACTION_ALTERAN: hex_color("#64C8AA"),  # Alteran Seafoam Green
 }
 
 # Card Layout Constants

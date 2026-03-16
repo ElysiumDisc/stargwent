@@ -4,6 +4,38 @@
 
 ---
 
+### Version 10.0.0 (March 2026)
+**Alteran Faction — Ori & Ancients Unite**
+
+#### New Faction: Alteran (Unlockable)
+- **40 cards** spanning both Ori crusaders and Ancient scientists
+- **5 heroes**: Adria (The Orici), The Doci, Merlin (Moros), Morgan Le Fay, Oma Desala
+- **5 leaders** with unique abilities: Crusade (+3 power), Voice of the Ori (spy conversion), Sangraal Protocol (destroy hero), Eternal Watch (auto-revive), Path to Ascension (sacrifice for mass buff)
+- **Faction passive**: "Flames of Enlightenment" — first 3 non-hero units each round gain +1 per Alteran card on board (max +3)
+- **Faction power**: "Flames of Celestis" — set all non-hero units on opponent's weakest row to power 1
+- **Unlock condition**: Win at least one game with each of the 5 base factions
+- **Seafoam green** visual theme (#64C8AA)
+
+#### New Abilities
+- **Prior's Plague** — When played, -1 power to all enemy non-heroes in same row (min 1)
+- **Ascension** — When destroyed, +1 power to all remaining friendly units on board
+
+#### Turn Mechanic Fix
+- **All manually-activated leader abilities AND faction powers now consume the player's turn** — no more free ability + card play
+- Passive leader bonuses (Carter +2 siege, Bra'tac +1 agile, etc.) remain free
+- Applies to all factions, adding strategic depth to ability timing
+
+#### AI Improvements
+- Alteran-specific strategy: prioritizes cheap units first for snowball passive
+- Prior's Plague and Ascension evaluation in card scoring
+- Strategic leader ability timing consideration
+
+#### Bug Fixes & Polish
+- Fixed 3 debug print statements in `game.py` (now use proper logging)
+- Deck builder shows locked factions with progress indicator
+
+---
+
 ### Version 9.7.0 (March 2026)
 **Galactic Conquest Strategic Depth — Minor Worlds, Doctrine Trees, Espionage, Victory Conditions**
 

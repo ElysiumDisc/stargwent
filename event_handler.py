@@ -81,10 +81,14 @@ async def handle_events(state, game, screen, dt):
             "player"
         )
         if state.network_proxy:
+            # Note: faction powers are deterministic (shared seed) so name-only sync is sufficient
             state.network_proxy.send_faction_power(game.player1.faction_power.name)
         game.ability_usage["faction_power"] = game.ability_usage.get("faction_power", 0) + 1
         game.player1.calculate_score()
         game.player2.calculate_score()
+        # Faction power consumes the player's turn
+        game.last_turn_actor = game.player1
+        game.switch_turn()
         return True
 
     # Event handling
@@ -459,6 +463,9 @@ async def handle_events(state, game, screen, dt):
                                     state.network_proxy.send_leader_ability("Eidetic Memory", {"card_id": card.id})
                                 state.ui_state = UIState.PLAYING
                                 game.opponent_drawn_cards = []
+                                # Leader ability consumes the turn
+                                game.last_turn_actor = game.player1
+                                game.switch_turn()
                             elif state.ui_state == UIState.BAAL_CLONE_SELECT:
                                 import copy
                                 from cards import load_card_image
@@ -490,6 +497,9 @@ async def handle_events(state, game, screen, dt):
                                     )
                                 state.ui_state = UIState.PLAYING
                                 state.catherine_cards_to_choose = []
+                                # Leader ability consumes the turn
+                                game.last_turn_actor = game.player1
+                                game.switch_turn()
                             overlay_handled = True
                             break
                     # Jonas peek: clicking outside cards also closes overlay
@@ -584,6 +594,9 @@ async def handle_events(state, game, screen, dt):
                             state.pending_leader_choice = None
                             state.leader_choice_rects = []
                             state.ui_state = UIState.PLAYING
+                            # Leader ability consumes the turn
+                            game.last_turn_actor = game.player1
+                            game.switch_turn()
                             break
                     continue  # Don't process other clicks when in leader choice mode
             if game.current_player == game.player1:
@@ -670,10 +683,16 @@ async def handle_events(state, game, screen, dt):
                                         if rect:
                                             state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player1_faction))
                                             state.anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
+                                # Weather leader ability consumes the turn
+                                game.last_turn_actor = game.player1
+                                game.switch_turn()
                             else:
                                 if state.network_proxy:
                                     ability_name = result.get("ability", game.player1.leader.get("name", "leader_ability"))
                                     state.network_proxy.send_leader_ability(ability_name, {})
+                                # Non-UI leader ability consumes the turn
+                                game.last_turn_actor = game.player1
+                                game.switch_turn()
             # RIGHT CLICK = Card Preview/Zoom or Discard Pile View
             if event.button == 3:  # Right click
                 state.button_info_popup = None

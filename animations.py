@@ -2455,7 +2455,7 @@ class ChevronGlow:
             'y': y,
             'life': 1.0,
             'duration': 2000,  # 2 seconds
-            'color': (255, 140, 0)  # Orange chevron color
+            'color': (100, 200, 170)  # Seafoam green chevron color
         })
     
     def draw(self, surface):
@@ -2565,6 +2565,7 @@ class BattleShip:
             "Jaffa Rebellion": (200, 140, 50),
             "Lucian Alliance": (150, 50, 150),
             "Asgard": (50, 200, 150),
+            "Alteran": (100, 200, 170),
         }
         self.color = self.colors.get(faction, (150, 150, 150))
         
@@ -2579,17 +2580,24 @@ class BattleShip:
         # Create safe filename from ship name
         safe_name = self.ship_name.lower().replace(" ", "_").replace("'", "")
         
-        # Try multiple paths
+        # Try multiple paths (with optional rotation fix for non-standard orientations)
+        # Convention: ship PNGs face LEFT; rotation logic applies from there.
+        # Entries are (path, correction_degrees) — correction rotates to face-left.
         possible_paths = [
-            f"assets/ships/{self.faction.lower().replace(' ', '_')}_{safe_name}.png",
-            f"assets/ships/{safe_name}.png",
-            f"assets/ships/{self.faction.lower().replace(' ', '_')}_ship.png",
+            (f"assets/ships/{self.faction.lower().replace(' ', '_')}_{safe_name}.png", 0),
+            (f"assets/ships/{safe_name}.png", 0),
+            (f"assets/ships/{self.faction.lower().replace(' ', '_')}_ship.png", 0),
         ]
-        
-        for path in possible_paths:
+        # Alteran faction uses the Ori warship art (faces down in PNG → rotate 270° to face left)
+        if self.faction == "Alteran":
+            possible_paths.append(("assets/ships/ori_ship.png", 270))
+
+        for path, correction in possible_paths:
             if os.path.exists(path):
                 try:
                     loaded_img = pygame.image.load(path).convert_alpha()
+                    if correction:
+                        loaded_img = pygame.transform.rotate(loaded_img, correction)
                     scaled_image = pygame.transform.scale(loaded_img, (self.size, self.size))
                     self.raw_image = scaled_image
                     self.image = pygame.transform.rotate(self.raw_image, self.rotation)

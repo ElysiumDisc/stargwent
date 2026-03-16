@@ -69,6 +69,7 @@ FACTION_GOAULD = "Goa'uld"
 FACTION_JAFFA = "Jaffa Rebellion"
 FACTION_LUCIAN = "Lucian Alliance"
 FACTION_ASGARD = "Asgard"
+FACTION_ALTERAN = "Alteran"
 FACTION_NEUTRAL = "Neutral"
 
 # Card Database
@@ -273,6 +274,53 @@ ALL_CARDS = {
     "asgard_defense_platform": Card("asgard_defense_platform", "Asgard Defense Platform", FACTION_ASGARD, 7, "siege", None),
     "asgard_daedalus_1": Card("asgard_daedalus_1", "Daedalus-Class Ship (Asgard Upgrades)", FACTION_ASGARD, 8, "siege", "Tactical Formation"),
     "asgard_daedalus_2": Card("asgard_daedalus_2", "Daedalus-Class Ship (Asgard Upgrades)", FACTION_ASGARD, 8, "siege", "Tactical Formation"),
+
+    # --- Alteran (Ori & Ancients) ---
+    # Heroes
+    "alteran_adria": Card("alteran_adria", "Adria, The Orici", FACTION_ALTERAN, 12, "close", "Legendary Commander"),
+    "alteran_doci": Card("alteran_doci", "The Doci", FACTION_ALTERAN, 10, "ranged", "Legendary Commander"),
+    "alteran_merlin": Card("alteran_merlin", "Merlin (Moros)", FACTION_ALTERAN, 10, "siege", "Legendary Commander, Inspiring Leadership"),
+    "alteran_morgan": Card("alteran_morgan", "Morgan Le Fay", FACTION_ALTERAN, 8, "ranged", "Legendary Commander, Medical Evac"),
+    "alteran_oma": Card("alteran_oma", "Oma Desala", FACTION_ALTERAN, 10, "close", "Legendary Commander"),
+    # Close Combat
+    "alteran_prior_1": Card("alteran_prior_1", "Prior of the Ori", FACTION_ALTERAN, 5, "close", "Gate Reinforcement, Prior's Plague"),
+    "alteran_prior_2": Card("alteran_prior_2", "Prior of the Ori", FACTION_ALTERAN, 5, "close", "Gate Reinforcement"),
+    "alteran_prior_3": Card("alteran_prior_3", "Prior of the Ori", FACTION_ALTERAN, 5, "close", "Gate Reinforcement"),
+    "alteran_follower_1": Card("alteran_follower_1", "Origin Follower", FACTION_ALTERAN, 2, "close", "Tactical Formation"),
+    "alteran_follower_2": Card("alteran_follower_2", "Origin Follower", FACTION_ALTERAN, 2, "close", "Tactical Formation"),
+    "alteran_follower_3": Card("alteran_follower_3", "Origin Follower", FACTION_ALTERAN, 2, "close", "Tactical Formation"),
+    "alteran_warrior_1": Card("alteran_warrior_1", "Ori Warrior", FACTION_ALTERAN, 4, "close", "Prior's Plague"),
+    "alteran_warrior_2": Card("alteran_warrior_2", "Ori Warrior", FACTION_ALTERAN, 4, "close", "Gate Reinforcement"),
+    "alteran_tomin": Card("alteran_tomin", "Tomin", FACTION_ALTERAN, 6, "close", "Inspiring Leadership"),
+    "alteran_knight": Card("alteran_knight", "Ancient Knight", FACTION_ALTERAN, 7, "close", "Ascension"),
+    # Ranged
+    "alteran_staff_1": Card("alteran_staff_1", "Prior (Staff of Power)", FACTION_ALTERAN, 4, "ranged", "Prior's Plague"),
+    "alteran_staff_2": Card("alteran_staff_2", "Prior (Staff of Power)", FACTION_ALTERAN, 4, "ranged", "Gate Reinforcement"),
+    "alteran_orlin": Card("alteran_orlin", "Orlin", FACTION_ALTERAN, 5, "ranged", "Deep Cover Agent"),
+    "alteran_janus": Card("alteran_janus", "Janus", FACTION_ALTERAN, 6, "ranged", "Ascension"),
+    "alteran_scientist_1": Card("alteran_scientist_1", "Ancient Scientist", FACTION_ALTERAN, 3, "ranged", "Tactical Formation"),
+    "alteran_scientist_2": Card("alteran_scientist_2", "Ancient Scientist", FACTION_ALTERAN, 3, "ranged", "Tactical Formation"),
+    "alteran_chaya": Card("alteran_chaya", "Chaya Sar", FACTION_ALTERAN, 5, "ranged", None),
+    "alteran_melia": Card("alteran_melia", "Melia", FACTION_ALTERAN, 4, "ranged", "Medical Evac"),
+    "alteran_hallowed": Card("alteran_hallowed", "Hallowed Disciple", FACTION_ALTERAN, 1, "ranged", "Deep Cover Agent"),
+    "alteran_drone_squad": Card("alteran_drone_squad", "Ancient Drone Squad", FACTION_ALTERAN, 6, "ranged", "Naquadah Overload"),
+    # Siege
+    "alteran_warship_1": Card("alteran_warship_1", "Ori Warship", FACTION_ALTERAN, 8, "siege", "Tactical Formation"),
+    "alteran_warship_2": Card("alteran_warship_2", "Ori Warship", FACTION_ALTERAN, 8, "siege", "Tactical Formation"),
+    "alteran_warship_3": Card("alteran_warship_3", "Ori Warship", FACTION_ALTERAN, 8, "siege", "Tactical Formation"),
+    "alteran_supergate": Card("alteran_supergate", "Ori Supergate", FACTION_ALTERAN, 6, "siege", "Gate Reinforcement"),
+    "alteran_satellite": Card("alteran_satellite", "Ori Satellite Weapon", FACTION_ALTERAN, 5, "siege", "Prior's Plague"),
+    "alteran_ark": Card("alteran_ark", "Ark of Truth", FACTION_ALTERAN, 0, "siege", "Command Network"),
+    "alteran_sangraal": Card("alteran_sangraal", "Sangraal Device", FACTION_ALTERAN, 4, "siege", "Naquadah Overload"),
+    "alteran_celestis": Card("alteran_celestis", "City of Celestis", FACTION_ALTERAN, 7, "siege", None),
+    "alteran_ring_1": Card("alteran_ring_1", "Ori Ring Platform", FACTION_ALTERAN, 1, "siege", "Inspiring Leadership"),
+    "alteran_ring_2": Card("alteran_ring_2", "Ori Ring Platform", FACTION_ALTERAN, 1, "siege", "Inspiring Leadership"),
+    # Agile
+    "alteran_plague": Card("alteran_plague", "Prior (Plague Bearer)", FACTION_ALTERAN, 3, "agile", "Life Force Drain"),
+    "alteran_ascended_1": Card("alteran_ascended_1", "Ascended Ancient", FACTION_ALTERAN, 5, "agile", "Ascension"),
+    "alteran_ascended_2": Card("alteran_ascended_2", "Ascended Ancient", FACTION_ALTERAN, 5, "agile", None),
+    "alteran_book": Card("alteran_book", "Book of Origin", FACTION_ALTERAN, 2, "agile", "Inspiring Leadership"),
+    "alteran_flame_keeper": Card("alteran_flame_keeper", "Flame Keeper", FACTION_ALTERAN, 4, "agile", "Survival Instinct"),
 
     # --- Neutral Cards ---
     "neutral_ascended_daniel": Card("neutral_ascended_daniel", "Ascended Daniel Jackson", FACTION_NEUTRAL, 15, "close", "Legendary Commander"),

@@ -274,5 +274,45 @@
         "faction": "Asgard"
       }
     ]
+  },
+  "FACTION_ALTERAN": {
+    "base": [
+      {
+        "name": "Adria, The Orici",
+        "ability": "Crusade: First 2 units each round gain +3 power",
+        "ability_desc": "Your first 2 non-hero units played each round get +3 power from the Ori's blessing",
+        "card_id": "alteran_adria",
+        "faction": "Alteran"
+      },
+      {
+        "name": "The Doci",
+        "ability": "Voice of the Ori: Convert enemy spy into +5 unit for you",
+        "ability_desc": "Once per game: When opponent plays a Spy on your side, it becomes a +5 unit for you instead",
+        "card_id": "alteran_doci",
+        "faction": "Alteran"
+      },
+      {
+        "name": "Merlin (Moros)",
+        "ability": "Sangraal Protocol: Destroy one enemy hero",
+        "ability_desc": "Once per game: Target and destroy one Legendary Commander on the opponent's board",
+        "card_id": "alteran_merlin",
+        "faction": "Alteran"
+      },
+      {
+        "name": "Morgan Le Fay",
+        "ability": "Eternal Watch: Revive 1 unit at rounds 2 and 3",
+        "ability_desc": "Automatically revive 1 random destroyed unit at the start of rounds 2 and 3",
+        "card_id": "alteran_morgan",
+        "faction": "Alteran"
+      },
+      {
+        "name": "Oma Desala",
+        "ability": "Path to Ascension: Sacrifice weakest for +3 all",
+        "ability_desc": "Once per game: Sacrifice your weakest non-hero unit to give +3 power to all remaining units on your board",
+        "card_id": "alteran_oma",
+        "faction": "Alteran"
+      }
+    ],
+    "unlockable": []
   }
 }

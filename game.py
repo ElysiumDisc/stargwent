@@ -3,8 +3,8 @@ import copy
 import time
 import pygame
 import logging
-from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL, Card
-from abilities import Ability, has_ability, is_hero, is_spy, is_medic, can_be_targeted
+from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN, FACTION_NEUTRAL, Card
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic, is_plague_card, is_ascension_card, can_be_targeted
 from sound_manager import get_sound_manager
 
 # Configure logging
@@ -153,6 +153,41 @@ class LucianAbility(FactionAbility):
         return 2
 
 
+class AlteranAbility(FactionAbility):
+    """Alteran: 'Flames of Enlightenment' - First 3 non-hero units each round gain +1 per Alteran card on board (max +3)."""
+    def __init__(self):
+        super().__init__(
+            "Flames of Enlightenment",
+            "First 3 non-hero units each round gain +1 power per Alteran card on board (max +3)"
+        )
+        self.units_boosted_this_round = 0
+        self._boost_tracker = {}  # card id -> bonus applied
+
+    def reset_round(self):
+        """Called at round start."""
+        self.units_boosted_this_round = 0
+        self._boost_tracker = {}
+
+    def apply_on_play(self, game, player, card):
+        """Called when a non-hero unit is played. Grants board-presence bonus."""
+        if is_hero(card):
+            return
+        if self.units_boosted_this_round >= 3:
+            return
+        # Count Alteran cards already on board (excluding the just-played card)
+        alteran_count = 0
+        for row_cards in player.board.values():
+            for c in row_cards:
+                if c is not card and c.faction == FACTION_ALTERAN:
+                    alteran_count += 1
+        bonus = min(3, alteran_count)
+        if bonus > 0:
+            card.power += bonus
+            card.displayed_power = card.power
+            self._boost_tracker[card.id] = bonus
+            self.units_boosted_this_round += 1
+
+
 # Faction ability mapping
 FACTION_ABILITIES = {
     FACTION_TAURI: TauriAbility(),
@@ -160,6 +195,7 @@ FACTION_ABILITIES = {
     FACTION_JAFFA: JaffaAbility(),
     FACTION_ASGARD: AsgardAbility(),
     FACTION_LUCIAN: LucianAbility(),
+    FACTION_ALTERAN: AlteranAbility(),
 }
 
 
@@ -691,6 +727,13 @@ class Player:
                         if hasattr(card, 'kiva_boosted') and card.kiva_boosted:
                             card.displayed_power += 4
 
+            # Adria: First 2 units each round get +3 power
+            elif "Adria" in leader_name:
+                for row_name, row_cards in self.board.items():
+                    for card in row_cards:
+                        if hasattr(card, 'adria_boosted') and card.adria_boosted:
+                            card.displayed_power += 3
+
             # Thor Supreme Commander: Mothership cards get +3 power
             elif "Thor Supreme Commander" in leader_name:
                 for row_cards in self.board.values():
@@ -1033,6 +1076,24 @@ class Game:
                 self._owner_label(player),
                 icon="++"
             )
+        # Morgan Le Fay: Revive 1 random unit at start of rounds 2 and 3
+        if "Morgan" in leader_name and self.round_number > 1:
+            valid_units = [c for c in player.discard_pile
+                          if not is_hero(c)
+                          and c.row in ["close", "ranged", "siege", "agile"]]
+            if valid_units:
+                revived = self.rng.choice(valid_units)
+                player.discard_pile.remove(revived)
+                if revived.row in ["close", "ranged", "siege"]:
+                    player.board[revived.row].append(revived)
+                elif revived.row == "agile":
+                    player.board[self.rng.choice(["close", "ranged"])].append(revived)
+                self.add_history_event(
+                    "ability",
+                    f"{player.name} (Morgan Le Fay) Eternal Watch: revived {revived.name}",
+                    self._owner_label(player),
+                    icon="+"
+                )
 
     def discard_active_weather_cards(self):
         """Move any weather cards sitting on the board into their owners' discard piles."""
@@ -1254,6 +1315,36 @@ class Game:
                 else:
                     target_player = self.player1
 
+                # Doci leader ability: convert spy into a +5 unit for the target player
+                if hasattr(target_player, '_doci_conversion_active') and target_player._doci_conversion_active:
+                    target_player._doci_conversion_active = False
+                    # Instead of placing on opponent's board, convert the spy
+                    card.power = 5
+                    card.displayed_power = 5
+                    # Place on the Doci player's board instead
+                    target_player.board[row_name].append(card)
+                    self.add_history_event(
+                        "ability",
+                        f"The Doci converted {card.name} into a loyal +5 unit!",
+                        self._owner_label(target_player),
+                        card_ref=card,
+                        icon="🔥"
+                    )
+                    # The spy still draws cards for the playing player
+                    draw_amount = 2
+                    if player.leader and "Varro" in player.leader.get('name', ''):
+                        draw_amount = 3
+                    elif player.faction_ability and hasattr(player.faction_ability, 'get_spy_draw_amount'):
+                        draw_amount = player.faction_ability.get_spy_draw_amount()
+                    player.draw_cards(draw_amount)
+                    self._log_card_play(player, card, row_name=row_name, note="Spy (Converted)")
+                    self.cards_played_this_round[player] += 1
+                    player.units_played_this_round += 1
+                    player.plays_this_turn += 1
+                    self.calculate_scores_and_log()
+                    self.switch_turn()
+                    return
+
                 # Conquest Iris Shield relic: block first spy played against player1
                 conquest_relics = getattr(self, 'conquest_relics', [])
                 if (conquest_relics and "iris_shield" in conquest_relics
@@ -1421,6 +1512,37 @@ class Game:
                             icon="⚡"
                         )
 
+
+            # === ALTERAN FACTION HOOKS ===
+
+            # Alteran passive: Flames of Enlightenment (apply_on_play)
+            if player.faction_ability and hasattr(player.faction_ability, 'apply_on_play'):
+                player.faction_ability.apply_on_play(self, player, card)
+
+            # Adria leader: First 2 units each round get +3 power
+            if player.leader and "Adria" in player.leader.get('name', ''):
+                if player.units_played_this_round <= 2 and not is_hero(card):
+                    if not hasattr(card, 'adria_boosted'):
+                        card.adria_boosted = True
+
+            # Prior's Plague: reduce all enemy non-heroes in same row by 1
+            if is_plague_card(card):
+                opponent = self.player2 if player == self.player1 else self.player1
+                plague_row = row_name
+                plagued_count = 0
+                for c in opponent.board.get(plague_row, []):
+                    if not is_hero(c) and c.power > 1:
+                        c.power = max(1, c.power - 1)
+                        c.displayed_power = c.power
+                        plagued_count += 1
+                if plagued_count > 0:
+                    self.add_history_event(
+                        "ability",
+                        f"Prior's Plague weakened {plagued_count} units in {plague_row}!",
+                        self._owner_label(player),
+                        card_ref=card,
+                        icon="☠"
+                    )
 
             # Trigger Gate Reinforcement ability
             if has_ability(card, Ability.GATE_REINFORCEMENT):
@@ -1909,6 +2031,12 @@ class Game:
             result = self._activate_baal_resurrection(player)
         elif "Jonas Quinn" in leader_name:
             result = self._activate_jonas_memory(player)
+        elif "Doci" in leader_name:
+            result = self._activate_doci_conversion(player)
+        elif "Merlin" in leader_name and "Moros" in leader_name:
+            result = self._activate_merlin_sangraal(player)
+        elif "Oma Desala" in leader_name:
+            result = self._activate_oma_ascension(player)
         if result:
             # Only mark as used if the ability doesn't require UI interaction
             # UI-requiring abilities will set the flag in their completion functions
@@ -2219,6 +2347,93 @@ class Game:
         self.calculate_scores_and_log()
         return True
 
+    # === ALTERAN LEADER ABILITIES ===
+
+    def _activate_doci_conversion(self, player):
+        """The Doci: Convert the next opponent spy that lands on your side into a +5 unit."""
+        # Set a flag that will be checked when a spy card is played against this player
+        if not hasattr(player, '_doci_conversion_active'):
+            player._doci_conversion_active = False
+        player._doci_conversion_active = True
+        self.leader_ability_used[player] = True
+        self.add_history_event(
+            "ability",
+            f"{player.name} (The Doci) Voice of the Ori: Next enemy spy will be converted!",
+            self._owner_label(player),
+            icon="🔥"
+        )
+        return {"ability": "Voice of the Ori"}
+
+    def _activate_merlin_sangraal(self, player):
+        """Merlin: Destroy one enemy Legendary Commander (requires target selection)."""
+        opponent = self.player2 if player == self.player1 else self.player1
+        enemy_heroes = []
+        for row_name, row_cards in opponent.board.items():
+            for card in row_cards:
+                if is_hero(card):
+                    enemy_heroes.append((card, row_name))
+        if not enemy_heroes:
+            self.add_history_event(
+                "ability",
+                f"{player.name} (Merlin) Sangraal Protocol: No enemy heroes to destroy!",
+                self._owner_label(player),
+                icon="⚠"
+            )
+            return None
+        # For AI or single-target: destroy the highest power hero
+        # For player UI: would need target selection, but for now auto-target strongest
+        target_card, target_row = max(enemy_heroes, key=lambda x: x[0].displayed_power)
+        opponent.board[target_row].remove(target_card)
+        self.discard_card(opponent, target_card, color_variant='red')
+        self.leader_ability_used[player] = True
+        self.add_history_event(
+            "ability",
+            f"{player.name} (Merlin) Sangraal Protocol destroyed {target_card.name}!",
+            self._owner_label(player),
+            card_ref=target_card,
+            icon="⚔"
+        )
+        self.calculate_scores_and_log()
+        return {"ability": "Sangraal Protocol"}
+
+    def _activate_oma_ascension(self, player):
+        """Oma Desala: Sacrifice weakest non-hero unit to give +3 to all remaining."""
+        all_units = []
+        for row_name, row_cards in player.board.items():
+            for card in row_cards:
+                if not is_hero(card):
+                    all_units.append((card, row_name))
+        if not all_units:
+            self.add_history_event(
+                "ability",
+                f"{player.name} (Oma Desala) Path to Ascension: No units to sacrifice!",
+                self._owner_label(player),
+                icon="⚠"
+            )
+            return None
+        # Find and remove the weakest unit
+        weakest_card, weakest_row = min(all_units, key=lambda x: x[0].power)
+        player.board[weakest_row].remove(weakest_card)
+        self.discard_card(player, weakest_card, color_variant='gold')
+        # Boost all remaining non-hero units by +3
+        boosted = 0
+        for row_cards in player.board.values():
+            for card in row_cards:
+                if not is_hero(card):
+                    card.power += 3
+                    card.displayed_power = card.power
+                    boosted += 1
+        self.leader_ability_used[player] = True
+        self.add_history_event(
+            "ability",
+            f"{player.name} (Oma Desala) sacrificed {weakest_card.name}, +3 to {boosted} units!",
+            self._owner_label(player),
+            card_ref=weakest_card,
+            icon="✦"
+        )
+        self.calculate_scores_and_log()
+        return {"ability": "Path to Ascension"}
+
     def apply_special_effect(self, card, row_name):
         """Applies special card effects."""
         if has_ability(card, Ability.COMMAND_NETWORK):
@@ -2452,6 +2667,26 @@ class Game:
 
         return True
     
+    def _trigger_ascension(self, owner, card):
+        """If a destroyed card has Ascension, give +1 power to all remaining friendly units."""
+        if not is_ascension_card(card):
+            return
+        boosted = 0
+        for row_cards in owner.board.values():
+            for c in row_cards:
+                if not is_hero(c):
+                    c.power += 1
+                    c.displayed_power = c.power
+                    boosted += 1
+        if boosted > 0:
+            self.add_history_event(
+                "ability",
+                f"{card.name} ascended! +1 power to {boosted} remaining units",
+                self._owner_label(owner),
+                card_ref=card,
+                icon="✦"
+            )
+
     def discard_card(self, player, card, animate=True, color_variant='default'):
         """Centralized discard: moves card to discard pile and optionally fires
         the on_discard callback so the UI can spawn a disintegration effect.
@@ -2465,6 +2700,9 @@ class Game:
         player.discard_pile.append(card)
         if animate and self._on_discard:
             self._on_discard(card, color_variant)
+        # Ascension trigger: when a unit is destroyed (scorch/red variant), buff remaining units
+        if color_variant == 'red':
+            self._trigger_ascension(player, card)
 
     # Callbacks set by main.py after game creation (avoids circular deps)
     _on_discard = None
@@ -2689,8 +2927,8 @@ class Game:
 
     def end_round(self):
         """Ends the round, determines winner, and resets for the next."""
-        print(f"[DEBUG] end_round called: round={self.round_number}, p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
-        print(f"[DEBUG] Scores: p1={self.player1.score}, p2={self.player2.score}")
+        logger.debug(f"end_round called: round={self.round_number}, p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
+        logger.debug(f"Scores: p1={self.player1.score}, p2={self.player2.score}")
         # Anubis leader ability: Auto-scorch in rounds 2 & 3 (BEFORE winner determination)
         for player in [self.player1, self.player2]:
             if player.leader and "Anubis" in player.leader.get('name', ''):
@@ -2756,7 +2994,7 @@ class Game:
             )
         
         # Check for game over BEFORE incrementing round number
-        print(f"[DEBUG] After round {self.round_number}: p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
+        logger.debug(f"After round {self.round_number}: p1_rounds_won={self.player1.rounds_won}, p2_rounds_won={self.player2.rounds_won}")
         # If both players have 2+ wins, it's a draw (e.g. 1 win each + 1 draw, or 2 draws)
         if self.player1.rounds_won >= 2 and self.player2.rounds_won >= 2:
             self.game_state = "game_over"

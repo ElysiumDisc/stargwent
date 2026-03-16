@@ -116,6 +116,8 @@ jobs:
             --hidden-import moderngl \
             --hidden-import glcontext \
             --hidden-import PIL \
+            --hidden-import PIL._imaging \
+            --hidden-import PIL.ImageDraw \
             --noconfirm \
             main.py
 
@@ -145,6 +147,8 @@ jobs:
   macos:
     needs: version
     runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     permissions:
       contents: write
     steps:
@@ -182,6 +186,8 @@ jobs:
             --hidden-import moderngl \
             --hidden-import glcontext \
             --hidden-import PIL \
+            --hidden-import PIL._imaging \
+            --hidden-import PIL.ImageDraw \
             --noconfirm \
             main.py
 

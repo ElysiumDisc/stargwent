@@ -67,6 +67,7 @@ def validate_leader_id_prefix(card_id: str, faction: str) -> Optional[str]:
         "Jaffa Rebellion": "jaffa_",
         "Lucian Alliance": "lucian_",
         "Asgard": "asgard_",
+        "Alteran": "alteran_",
         "Neutral": "neutral_",
     }
 

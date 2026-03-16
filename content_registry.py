@@ -9,6 +9,7 @@ from cards import (
     FACTION_JAFFA,
     FACTION_LUCIAN,
     FACTION_ASGARD,
+    FACTION_ALTERAN,
 )
 
 # Base leaders available from the start for each faction.
@@ -37,6 +38,13 @@ BASE_FACTION_LEADERS = {
         {"name": "Freyr", "ability": "Immune to weather effects", "ability_desc": "Immune to all space hazards (weather effects)", "card_id": "asgard_freyr"},
         {"name": "Loki", "ability": "Steal 1 power from opponent's strongest unit", "ability_desc": "Steal 1 power from opponent's strongest unit each turn", "card_id": "asgard_loki"},
         {"name": "Heimdall", "ability": "Your Legendary Commanders get +3 power", "ability_desc": "Your Legendary Commanders get +3 power", "card_id": "asgard_heimdall"},
+    ],
+    FACTION_ALTERAN: [
+        {"name": "Adria, The Orici", "ability": "Crusade: First 2 units each round gain +3 power", "ability_desc": "Your first 2 non-hero units played each round get +3 power from the Ori's blessing", "card_id": "alteran_adria"},
+        {"name": "The Doci", "ability": "Voice of the Ori: Convert enemy spy into +5 unit for you", "ability_desc": "Once per game: When opponent plays a Spy on your side, it becomes a +5 unit for you instead", "card_id": "alteran_doci"},
+        {"name": "Merlin (Moros)", "ability": "Sangraal Protocol: Destroy one enemy hero", "ability_desc": "Once per game: Target and destroy one Legendary Commander on the opponent's board", "card_id": "alteran_merlin"},
+        {"name": "Morgan Le Fay", "ability": "Eternal Watch: Revive 1 unit at rounds 2 and 3", "ability_desc": "Automatically revive 1 random destroyed unit at the start of rounds 2 and 3", "card_id": "alteran_morgan"},
+        {"name": "Oma Desala", "ability": "Path to Ascension: Sacrifice weakest for +3 all", "ability_desc": "Once per game: Sacrifice your weakest non-hero unit to give +3 power to all remaining units on your board", "card_id": "alteran_oma"},
     ],
 }
 
@@ -72,6 +80,7 @@ UNLOCKABLE_LEADERS = {
         {"name": "Penegal", "ability": "Cloning bay: Revive one unit at start of each round", "ability_desc": "Revive 1 random unit from discard at start of rounds 2 and 3", "card_id": "asgard_penegal"},
         {"name": "Aegir", "ability": "Asgard Archives: Draw 1 when playing Siege unit", "ability_desc": "Draw 1 card whenever you play a Siege unit", "card_id": "asgard_aegir"},
     ],
+    FACTION_ALTERAN: [],  # All Alteran leaders are base (faction itself is the unlock gate)
 }
 
 # Leader-specific background colors used in the deck builder when an image is missing.
@@ -116,6 +125,12 @@ LEADER_COLOR_OVERRIDES = {
     "asgard_hermiod": (8, 32, 28),
     "asgard_penegal": (14, 42, 36),
     "asgard_aegir": (10, 35, 30),
+    # Alteran
+    "alteran_adria": (50, 25, 5),
+    "alteran_doci": (45, 20, 0),
+    "alteran_merlin": (30, 30, 40),
+    "alteran_morgan": (25, 25, 45),
+    "alteran_oma": (35, 30, 15),
 }
 
 # Optional shorter display names for leader backgrounds and matchup art.
@@ -155,6 +170,12 @@ LEADER_BANNER_NAMES = {
     "asgard_hermiod": "Hermiod",
     "asgard_penegal": "Penegal",
     "asgard_aegir": "Aegir",
+    # Alteran
+    "alteran_adria": "Adria",
+    "alteran_doci": "The Doci",
+    "alteran_merlin": "Merlin",
+    "alteran_morgan": "Morgan Le Fay",
+    "alteran_oma": "Oma Desala",
 }
 
 

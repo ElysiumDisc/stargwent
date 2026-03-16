@@ -7,7 +7,7 @@ import random
 # Add parent directory to path so we can import from project root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
+from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN, FACTION_NEUTRAL
 from unlocks import UNLOCKABLE_CARDS
 from content_registry import (
     ALL_LEADER_IDS_BY_FACTION,
@@ -45,6 +45,7 @@ FACTION_COLORS = {
     FACTION_JAFFA: (215, 170, 60),  # Golden Jaffa palette
     FACTION_LUCIAN: (220, 80, 170),  # Pink Lucian Alliance hue
     FACTION_ASGARD: (150, 150, 200),
+    FACTION_ALTERAN: (100, 200, 170),  # Seafoam Green for Ancients/Ori
     FACTION_NEUTRAL: (120, 120, 120),
 }
 
@@ -57,6 +58,7 @@ FACTION_BACKGROUND_IDS = {
     FACTION_JAFFA: "jaffa",
     FACTION_LUCIAN: "lucian",
     FACTION_ASGARD: "asgard",
+    FACTION_ALTERAN: "alteran",
 }
 
 # Allow loosely named factions (e.g., "Jaffa" vs "Jaffa Rebellion") to map to the proper palette
@@ -952,11 +954,60 @@ def create_tab_icon(filename, label, color):
         return icon_path
     return None
 
+def create_ability_icon_placeholder(filename, label, color):
+    """Creates a placeholder ability icon for card assembler."""
+    size = 256
+    surface = pygame.Surface((size, size), pygame.SRCALPHA)
+
+    # Background circle with ability color
+    pygame.draw.circle(surface, color, (size // 2, size // 2), size // 2 - 10)
+    pygame.draw.circle(surface, WHITE, (size // 2, size // 2), size // 2 - 10, width=4)
+
+    # Abbreviation text (first 2-3 chars)
+    abbrev = "".join(w[0] for w in label.split()[:3]).upper() if " " in label else label[:3].upper()
+    font = pygame.font.SysFont("Arial", 70, bold=True)
+    text = font.render(abbrev, True, WHITE)
+    rect = text.get_rect(center=(size // 2, size // 2))
+    surface.blit(text, rect)
+
+    assembler_dir = os.path.join(ASSETS_DIR, "card_assembler", "ability_icons")
+    os.makedirs(assembler_dir, exist_ok=True)
+    icon_path = os.path.join(assembler_dir, filename)
+    if should_create_file(icon_path):
+        pygame.image.save(surface, icon_path)
+        return icon_path
+    return None
+
+
+def create_row_icon_placeholder(filename, label, color):
+    """Creates a placeholder row icon for card assembler."""
+    size = 256
+    surface = pygame.Surface((size, size), pygame.SRCALPHA)
+
+    # Background circle with row color
+    pygame.draw.circle(surface, color, (size // 2, size // 2), size // 2 - 10)
+    pygame.draw.circle(surface, (255, 215, 0), (size // 2, size // 2), size // 2 - 10, width=5)
+
+    # Row label
+    font = pygame.font.SysFont("Arial", 60, bold=True)
+    text = font.render(label[:4].upper(), True, WHITE)
+    rect = text.get_rect(center=(size // 2, size // 2))
+    surface.blit(text, rect)
+
+    assembler_dir = os.path.join(ASSETS_DIR, "card_assembler", "row_icons")
+    os.makedirs(assembler_dir, exist_ok=True)
+    icon_path = os.path.join(assembler_dir, filename)
+    if should_create_file(icon_path):
+        pygame.image.save(surface, icon_path)
+        return icon_path
+    return None
+
+
 def main():
     """Generates all placeholder assets."""
     if not os.path.exists(ASSETS_DIR):
         os.makedirs(ASSETS_DIR)
-    
+
     # Create icons folder
     icons_dir = os.path.join(ASSETS_DIR, "icons")
     if not os.path.exists(icons_dir):
@@ -967,7 +1018,47 @@ def main():
     if not os.path.exists(ships_dir):
         os.makedirs(ships_dir)
     
-    print("Generating tab icons...")
+    print("Generating card assembler ability icons...")
+    ability_icons = [
+        ("Legendary commander.png", "Legendary Commander", (255, 215, 0)),
+        ("Tactical formations.png", "Tactical Formation", (100, 150, 200)),
+        ("Gate Reinforcement.png", "Gate Reinforcement", (80, 130, 180)),
+        ("Deep Cover Agent.png", "Deep Cover Agent", (60, 60, 100)),
+        ("Medical Evac.png", "Medical Evac", (200, 80, 80)),
+        ("Command Network.png", "Command Network", (100, 180, 100)),
+        ("Naquadah Overload.png", "Naquadah Overload", (200, 150, 50)),
+        ("Life Force Drain.png", "Life Force Drain", (150, 50, 150)),
+        ("Inspiring Leadership.png", "Inspiring Leadership", (220, 180, 50)),
+        ("Deploy Clones.png", "Deploy Clones", (180, 100, 180)),
+        ("System Lord's Curse.png", "System Lord's Curse", (180, 40, 40)),
+        ("survival instinct.png", "Survival Instinct", (80, 160, 80)),
+        ("Genetic Enhancement.png", "Genetic Enhancement", (50, 180, 180)),
+        ("Prior's Plague.png", "Prior's Plague", (60, 120, 60)),
+        ("Ascension.png", "Ascension", (150, 200, 255)),
+        ("weather.png", "Weather", (100, 100, 150)),
+    ]
+    for filename, label, color in ability_icons:
+        path = create_ability_icon_placeholder(filename, label, color)
+        if path:
+            print(f"  ✓ {path}")
+        else:
+            print(f"  ⊗ Skipped: ability_icons/{filename} (already exists)")
+
+    print("\nGenerating card assembler row icons...")
+    row_icons = [
+        ("close.png", "Close", (200, 50, 50)),
+        ("ranged.png", "Ranged", (50, 150, 200)),
+        ("siege.png", "Siege", (200, 150, 50)),
+        ("agile.png", "Agile", (100, 200, 100)),
+    ]
+    for filename, label, color in row_icons:
+        path = create_row_icon_placeholder(filename, label, color)
+        if path:
+            print(f"  ✓ {path}")
+        else:
+            print(f"  ⊗ Skipped: row_icons/{filename} (already exists)")
+
+    print("\nGenerating tab icons...")
     tab_icons = [
         ("all.png", "ALL", (100, 100, 100)),
         ("close.png", "CLS", (200, 50, 50)),
@@ -1020,6 +1111,7 @@ def main():
         (FACTION_JAFFA, "Jaffa Rebellion"),
         (FACTION_LUCIAN, "Lucian Alliance"),
         (FACTION_ASGARD, "Asgard"),
+        (FACTION_ALTERAN, "Alteran"),
     ]
     
     for faction_id, faction_name in factions_for_ships:
@@ -2272,5 +2364,151 @@ def create_conquest_deck_building_background():
     return path
 
 
+def generate_placeholder_ogg(filepath, base_freq=130.81, duration=2.0, style="neutral"):
+    """Generate a synthesized placeholder OGG audio file.
+
+    Uses only stdlib (wave, math, array) + ffmpeg for OGG conversion.
+    Respects the global SKIP_EXISTING / OVERWRITE_ALL / ASKED_ONCE flags
+    so existing audio is never silently overwritten.
+
+    Args:
+        filepath: Full path for the output .ogg file.
+        base_freq: Fundamental frequency in Hz.
+        duration: Length in seconds.
+        style: 'ori' (dark/ominous), 'ancient' (ethereal/bright), or 'neutral'.
+    Returns:
+        filepath on success, None if skipped or ffmpeg unavailable.
+    """
+    import wave as _wave, array as _array, shutil, tempfile
+
+    if not should_create_file(filepath):
+        return None
+
+    if not shutil.which("ffmpeg"):
+        print("  ⚠ ffmpeg not found — cannot generate OGG audio placeholders")
+        return None
+
+    sr = 48000
+    n = int(sr * duration)
+    samples = _array.array("h")
+    for i in range(n):
+        t = i / sr
+        if style == "ori":
+            s = 0.3 * math.sin(2 * math.pi * base_freq * t)
+            s += 0.2 * math.sin(2 * math.pi * base_freq * 1.5 * t)
+            s += 0.1 * math.sin(2 * math.pi * base_freq * 2 * t) * (0.5 + 0.5 * math.sin(2 * math.pi * 3 * t))
+        elif style == "ancient":
+            s = 0.2 * math.sin(2 * math.pi * base_freq * t)
+            s += 0.15 * math.sin(2 * math.pi * base_freq * 2 * t)
+            s += 0.1 * math.sin(2 * math.pi * base_freq * 3 * t) * (0.5 + 0.5 * math.sin(2 * math.pi * 2 * t))
+        else:
+            s = 0.25 * math.sin(2 * math.pi * base_freq * t)
+            s += 0.15 * math.sin(2 * math.pi * base_freq * 1.5 * t)
+        pulse = 0.5 + 0.5 * math.sin(2 * math.pi * 0.5 * t)
+        s *= pulse * 0.7
+        if t < 0.1:
+            s *= t / 0.1
+        elif t > duration - 0.3:
+            s *= (duration - t) / 0.3
+        pcm = max(-32767, min(32767, int(max(-1.0, min(1.0, s)) * 32767)))
+        samples.append(pcm)
+        samples.append(pcm)  # stereo
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp_path = tmp.name
+    tmp.close()
+    try:
+        with _wave.open(tmp_path, "w") as wf:
+            wf.setnchannels(2)
+            wf.setsampwidth(2)
+            wf.setframerate(sr)
+            wf.writeframes(samples.tobytes())
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        ret = os.system(f'ffmpeg -i "{tmp_path}" -c:a libvorbis -b:a 160k "{filepath}" -y -loglevel quiet')
+        if ret != 0:
+            return None
+    finally:
+        os.unlink(tmp_path)
+    return filepath
+
+
+def generate_audio_placeholders():
+    """Generate placeholder OGG audio for faction themes, leader voices, and commander snippets."""
+    print("\nGenerating audio placeholders...")
+
+    audio_dir = os.path.join(ASSETS_DIR, "audio")
+    voices_dir = os.path.join(audio_dir, "leader_voices")
+    snippets_dir = os.path.join(audio_dir, "commander_snippets")
+    os.makedirs(voices_dir, exist_ok=True)
+    os.makedirs(snippets_dir, exist_ok=True)
+
+    created = 0
+    skipped = 0
+
+    # Faction themes
+    faction_themes = {
+        FACTION_TAURI: ("tauri_theme.ogg", 130.81, 10.0, "neutral"),
+        FACTION_GOAULD: ("goauld_theme.ogg", 82.41, 10.0, "ori"),
+        FACTION_JAFFA: ("jaffa_theme.ogg", 110.0, 10.0, "neutral"),
+        FACTION_LUCIAN: ("lucian_theme.ogg", 98.0, 10.0, "neutral"),
+        FACTION_ASGARD: ("asgard_theme.ogg", 196.0, 10.0, "ancient"),
+        FACTION_ALTERAN: ("alteran_theme.ogg", 65.41, 10.0, "ori"),
+    }
+    for faction, (filename, freq, dur, style) in faction_themes.items():
+        path = os.path.join(audio_dir, filename)
+        result = generate_placeholder_ogg(path, freq, dur, style)
+        if result:
+            print(f"  ✓ {result}")
+            created += 1
+        else:
+            print(f"  ⊗ Skipped: audio/{filename} (already exists)")
+            skipped += 1
+
+    # Leader voices and commander snippets for all leaders
+    leader_audio = []
+    for faction, leaders in ALL_LEADER_IDS_BY_FACTION.items():
+        for lid in leaders:
+            # Determine style based on faction
+            if faction == FACTION_ALTERAN:
+                style = "ori" if lid in ("alteran_adria", "alteran_doci") else "ancient"
+            elif faction == FACTION_GOAULD:
+                style = "ori"
+            elif faction == FACTION_ASGARD:
+                style = "ancient"
+            else:
+                style = "neutral"
+            leader_audio.append((lid, style))
+
+    for lid, style in leader_audio:
+        for target_dir in (voices_dir, snippets_dir):
+            ogg_path = os.path.join(target_dir, f"{lid}.ogg")
+            result = generate_placeholder_ogg(ogg_path, random.uniform(80, 330), 2.0, style)
+            if result:
+                print(f"  ✓ {result}")
+                created += 1
+            else:
+                print(f"  ⊗ Skipped: {os.path.relpath(ogg_path, ASSETS_DIR)} (already exists)")
+                skipped += 1
+
+    # Commander snippets for hero cards (Legendary Commanders)
+    for card_id, card in ALL_CARDS.items():
+        if card.ability and "Legendary Commander" in card.ability:
+            if card_id in [lid for lid, _ in leader_audio]:
+                continue  # Already generated as a leader
+            faction = card.faction
+            style = "ori" if faction == FACTION_GOAULD else ("ancient" if faction in (FACTION_ASGARD, FACTION_ALTERAN) else "neutral")
+            ogg_path = os.path.join(snippets_dir, f"{card_id}.ogg")
+            result = generate_placeholder_ogg(ogg_path, random.uniform(80, 330), 2.0, style)
+            if result:
+                print(f"  ✓ {result}")
+                created += 1
+            else:
+                print(f"  ⊗ Skipped: commander_snippets/{card_id}.ogg (already exists)")
+                skipped += 1
+
+    print(f"  Audio: {created} created, {skipped} skipped")
+
+
 if __name__ == "__main__":
     main()
+    generate_audio_placeholders()

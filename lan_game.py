@@ -84,7 +84,7 @@ async def run_lan_setup(screen, unlock_system, session: LanSession, role: str, t
             selection["deck_ids"] = deck_ids
             print(f"[LAN] Filtered deck to {len(deck_ids)} base game cards")
     except ImportError:
-        pass  # user_content_loader not available
+        print("[LAN] Warning: user_content_loader not available, skipping deck validation")
 
     local_payload = {
         "faction": selection["faction"],
@@ -96,7 +96,15 @@ async def run_lan_setup(screen, unlock_system, session: LanSession, role: str, t
     if not remote_payload:
         session.close()
         return
-    
+
+    # Validate remote deck has no obviously invalid data
+    if remote_payload:
+        remote_deck_ids = remote_payload.get("deck_ids", [])
+        if not remote_deck_ids or not isinstance(remote_deck_ids, list):
+            print("[LAN] Warning: Remote player sent invalid deck data")
+        elif len(remote_deck_ids) < 10:
+            print(f"[LAN] Warning: Remote deck suspiciously small ({len(remote_deck_ids)} cards)")
+
     if role == "host":
         seed = random.randint(0, 2**32 - 1)
         session.send(LanMessageType.SEED.value, {"seed": seed})

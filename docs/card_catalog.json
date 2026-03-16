@@ -1601,6 +1601,328 @@
       "ability": "Remove all Goa'uld units from both boards"
     }
   ],
+  "Alteran": [
+    {
+      "card_id": "alteran_adria",
+      "name": "Adria, The Orici",
+      "faction": "Alteran",
+      "power": 12,
+      "row": "close",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "alteran_merlin",
+      "name": "Merlin (Moros)",
+      "faction": "Alteran",
+      "power": 10,
+      "row": "siege",
+      "ability": "Legendary Commander, Inspiring Leadership"
+    },
+    {
+      "card_id": "alteran_oma",
+      "name": "Oma Desala",
+      "faction": "Alteran",
+      "power": 10,
+      "row": "close",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "alteran_doci",
+      "name": "The Doci",
+      "faction": "Alteran",
+      "power": 10,
+      "row": "ranged",
+      "ability": "Legendary Commander"
+    },
+    {
+      "card_id": "alteran_morgan",
+      "name": "Morgan Le Fay",
+      "faction": "Alteran",
+      "power": 8,
+      "row": "ranged",
+      "ability": "Legendary Commander, Medical Evac"
+    },
+    {
+      "card_id": "alteran_warship_1",
+      "name": "Ori Warship",
+      "faction": "Alteran",
+      "power": 8,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_warship_2",
+      "name": "Ori Warship",
+      "faction": "Alteran",
+      "power": 8,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_warship_3",
+      "name": "Ori Warship",
+      "faction": "Alteran",
+      "power": 8,
+      "row": "siege",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_knight",
+      "name": "Ancient Knight",
+      "faction": "Alteran",
+      "power": 7,
+      "row": "close",
+      "ability": "Ascension"
+    },
+    {
+      "card_id": "alteran_celestis",
+      "name": "City of Celestis",
+      "faction": "Alteran",
+      "power": 7,
+      "row": "siege",
+      "ability": null
+    },
+    {
+      "card_id": "alteran_drone_squad",
+      "name": "Ancient Drone Squad",
+      "faction": "Alteran",
+      "power": 6,
+      "row": "ranged",
+      "ability": "Naquadah Overload"
+    },
+    {
+      "card_id": "alteran_janus",
+      "name": "Janus",
+      "faction": "Alteran",
+      "power": 6,
+      "row": "ranged",
+      "ability": "Ascension"
+    },
+    {
+      "card_id": "alteran_supergate",
+      "name": "Ori Supergate",
+      "faction": "Alteran",
+      "power": 6,
+      "row": "siege",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "alteran_tomin",
+      "name": "Tomin",
+      "faction": "Alteran",
+      "power": 6,
+      "row": "close",
+      "ability": "Inspiring Leadership"
+    },
+    {
+      "card_id": "alteran_ascended_1",
+      "name": "Ascended Ancient",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "agile",
+      "ability": "Ascension"
+    },
+    {
+      "card_id": "alteran_ascended_2",
+      "name": "Ascended Ancient",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "agile",
+      "ability": null
+    },
+    {
+      "card_id": "alteran_chaya",
+      "name": "Chaya Sar",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "ranged",
+      "ability": null
+    },
+    {
+      "card_id": "alteran_satellite",
+      "name": "Ori Satellite Weapon",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "siege",
+      "ability": "Prior's Plague"
+    },
+    {
+      "card_id": "alteran_orlin",
+      "name": "Orlin",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "ranged",
+      "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "alteran_prior_1",
+      "name": "Prior of the Ori",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "close",
+      "ability": "Gate Reinforcement, Prior's Plague"
+    },
+    {
+      "card_id": "alteran_prior_2",
+      "name": "Prior of the Ori",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "close",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "alteran_prior_3",
+      "name": "Prior of the Ori",
+      "faction": "Alteran",
+      "power": 5,
+      "row": "close",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "alteran_flame_keeper",
+      "name": "Flame Keeper",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "agile",
+      "ability": "Survival Instinct"
+    },
+    {
+      "card_id": "alteran_melia",
+      "name": "Melia",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Medical Evac"
+    },
+    {
+      "card_id": "alteran_warrior_1",
+      "name": "Ori Warrior",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "close",
+      "ability": "Prior's Plague"
+    },
+    {
+      "card_id": "alteran_warrior_2",
+      "name": "Ori Warrior",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "close",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "alteran_staff_1",
+      "name": "Prior (Staff of Power)",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Prior's Plague"
+    },
+    {
+      "card_id": "alteran_staff_2",
+      "name": "Prior (Staff of Power)",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "ranged",
+      "ability": "Gate Reinforcement"
+    },
+    {
+      "card_id": "alteran_sangraal",
+      "name": "Sangraal Device",
+      "faction": "Alteran",
+      "power": 4,
+      "row": "siege",
+      "ability": "Naquadah Overload"
+    },
+    {
+      "card_id": "alteran_scientist_1",
+      "name": "Ancient Scientist",
+      "faction": "Alteran",
+      "power": 3,
+      "row": "ranged",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_scientist_2",
+      "name": "Ancient Scientist",
+      "faction": "Alteran",
+      "power": 3,
+      "row": "ranged",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_plague",
+      "name": "Prior (Plague Bearer)",
+      "faction": "Alteran",
+      "power": 3,
+      "row": "agile",
+      "ability": "Life Force Drain"
+    },
+    {
+      "card_id": "alteran_book",
+      "name": "Book of Origin",
+      "faction": "Alteran",
+      "power": 2,
+      "row": "agile",
+      "ability": "Inspiring Leadership"
+    },
+    {
+      "card_id": "alteran_follower_1",
+      "name": "Origin Follower",
+      "faction": "Alteran",
+      "power": 2,
+      "row": "close",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_follower_2",
+      "name": "Origin Follower",
+      "faction": "Alteran",
+      "power": 2,
+      "row": "close",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_follower_3",
+      "name": "Origin Follower",
+      "faction": "Alteran",
+      "power": 2,
+      "row": "close",
+      "ability": "Tactical Formation"
+    },
+    {
+      "card_id": "alteran_hallowed",
+      "name": "Hallowed Disciple",
+      "faction": "Alteran",
+      "power": 1,
+      "row": "ranged",
+      "ability": "Deep Cover Agent"
+    },
+    {
+      "card_id": "alteran_ring_1",
+      "name": "Ori Ring Platform",
+      "faction": "Alteran",
+      "power": 1,
+      "row": "siege",
+      "ability": "Inspiring Leadership"
+    },
+    {
+      "card_id": "alteran_ring_2",
+      "name": "Ori Ring Platform",
+      "faction": "Alteran",
+      "power": 1,
+      "row": "siege",
+      "ability": "Inspiring Leadership"
+    },
+    {
+      "card_id": "alteran_ark",
+      "name": "Ark of Truth",
+      "faction": "Alteran",
+      "power": 0,
+      "row": "siege",
+      "ability": "Command Network"
+    }
+  ],
   "Neutral": [
     {
       "card_id": "destiny_ship",

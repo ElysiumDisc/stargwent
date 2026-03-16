@@ -239,6 +239,16 @@ def build_ability_info():
             "timing": "Instant effect when played. Card is discarded after use.",
             "synergy": "Counter Lord Yu's reveal, escape Communication Device intel, or mulligan a bad hand mid-game.",
         },
+        "Prior's Plague": {
+            "effect": "On play: inflicts -1 power to all enemy units in the same row as this unit (minimum 1).",
+            "timing": "Triggers immediately when the unit is played onto the board.",
+            "synergy": "Softens rows for Flames of Celestis or Naquadah Overload; pairs with Adria's opening buffs to dominate early tempo.",
+        },
+        "Ascension": {
+            "effect": "On destroy: grants +1 power to all remaining friendly units on the board.",
+            "timing": "Triggers when this unit is destroyed or removed from the board.",
+            "synergy": "Turns losses into board-wide buffs; combos with sacrifice effects and Oma Desala's leader ability for cascading power gains.",
+        },
         # Aliases for Quantum Mirror (matches the card ability text after comma-split)
         "Shuffle your hand into deck": {
             "effect": "Shuffle your entire hand into your deck, then draw the same number of cards. Clears any active hand reveal on you.",
@@ -362,6 +372,7 @@ FACTION_ORDER = [
     "Jaffa Rebellion",
     "Lucian Alliance",
     "Asgard",
+    "Alteran",
     "Neutral",
 ]
 
@@ -508,6 +519,26 @@ def build_leader_notes():
             "timing": "All Legendary Commanders gain +2 power.",
             "synergy": "Stacks multiplicatively with Heimdall and Carter for unstoppable hero lines.",
         },
+        "Adria": {
+            "timing": "Passive: the first 2 units you play each round gain +3 power.",
+            "synergy": "Front-load pressure with high-value units; combos with Flames of Enlightenment for massive early-round swings.",
+        },
+        "Doci": {
+            "timing": "Once per game: convert an enemy spy on your board to your side.",
+            "synergy": "Punishes spy-heavy decks like Lucian Alliance; reclaim board presence while denying opponent card advantage.",
+        },
+        "Merlin": {
+            "timing": "Once per game: destroy any Hero unit on the board.",
+            "synergy": "Removes anchor Legendary Commanders that ignore Scorch; devastating against Heimdall/Aegir-buffed heroes.",
+        },
+        "Morgan Le Fay": {
+            "timing": "At the start of rounds 2 and 3, revive one random unit from your discard pile.",
+            "synergy": "Sustains attrition strategies and loops Ascension triggers for cumulative board buffs.",
+        },
+        "Oma Desala": {
+            "timing": "Once per game: sacrifice your weakest unit to grant +3 power to all remaining friendly units.",
+            "synergy": "Massive board-wide buff; best when paired with low-power tokens or units with Ascension for a double payoff.",
+        },
     }
 LEADER_BIOS = {
     "Col. Jack O'Neill": "Career special forces officer who leads SG-1 with sarcasm and bravery; excels at turning sparse intel into decisive plays.",
@@ -545,6 +576,11 @@ LEADER_BIOS = {
     "Hermiod": "Stoic Asgard engineer assigned to Tau'ri ships, famous for dry commentary.",
     "Penegal": "High Council member in charge of Asgard defense logistics.",
     "Aegir": "Fleet commander who orchestrated countless Asgard naval victories.",
+    "Adria": "The Orici, born of the Ori's will and raised to lead their crusade in the Milky Way; channels divine fire into unstoppable opening assaults.",
+    "Doci": "High priest and mouthpiece of the Ori, wielding absolute authority over the Prior order; turns enemy infiltrators into loyal servants.",
+    "Merlin": "Ancient scientist who defied ascended law to build a weapon against the Ori; his knowledge can unmake even the mightiest heroes.",
+    "Morgan Le Fay": "Ascended Ancient who walks the line between interference and observation; her guidance returns fallen allies to the battlefield.",
+    "Oma Desala": "Compassionate Ancient devoted to helping others ascend; transforms sacrifice into transcendent power for the entire army.",
 }
 
 FACTION_LORE = {
@@ -567,6 +603,10 @@ FACTION_LORE = {
     "Asgard": {
         "lore": "Ancient protectors wielding holograms, cloning vats, and superior battleships.",
         "strategies": "Control the board with weather immunity, clone swarms, and precise shield tricks while powering up Legendary commanders.",
+    },
+    "Alteran": {
+        "lore": "Descendants of the Ancients and heralds of the Ori, blending ascended wisdom with zealous crusade—Priors spread plague while the enlightened ascend beyond mortal limits.",
+        "strategies": "Build wide boards to maximize Flames of Enlightenment stacking, use Prior's Plague to weaken enemy rows, and leverage Ascension triggers to turn attrition into board-wide buffs. Flames of Celestis punishes opponents who concentrate power in a single row.",
     },
     "Neutral": {
         "lore": "Ancient technology, Ori zealotry, Wraith bio-ships, and other forces any faction can recruit.",
@@ -785,6 +825,11 @@ def build_spec(ability_info: dict | None = None) -> str:
             "passive": "Superior Shielding – immune to the first enemy weather each round.",
             "power": "Holographic Decoy – swap the opponent's close and ranged rows once per game.",
             "unique": "Clone vats (Deploy Clones), Genetic Enhancement, beam transports, weather immunity stacks with Freyr/Hermiod.",
+        },
+        "Alteran": {
+            "passive": "Flames of Enlightenment – the first 3 non-hero units each round gain +1 power per Alteran card on board (max +3).",
+            "power": "Flames of Celestis – set all non-hero units on the opponent's weakest row to power 1 (once per game).",
+            "unique": "Prior's Plague (on play: -1 to enemy units in same row), Ascension (on destroy: +1 to all remaining friendly units), and leaders that manipulate heroes, spies, and sacrifice mechanics.",
         },
         "Neutral": {
             "passive": "Varies – see card entries.",

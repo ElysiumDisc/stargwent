@@ -33,6 +33,11 @@ if [[ ! -x "$APPIMAGETOOL" ]]; then
     echo "Downloading appimagetool..."
     wget -q -O "$APPIMAGETOOL" "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
     chmod +x "$APPIMAGETOOL"
+    # Sanity check: downloaded file should be at least 1MB
+    if [ $(stat -c%s "$APPIMAGETOOL") -lt 1000000 ]; then
+        echo "ERROR: Downloaded appimagetool is suspiciously small"
+        exit 1
+    fi
 fi
 
 # Create AppDir structure
@@ -89,6 +94,11 @@ if [[ ! -d "$PYTHON_APPIMAGE_DIR/python" ]]; then
         echo "Downloading Python ${PYTHON_VERSION} AppImage..."
         wget -q -O "$PYTHON_APPIMAGE" "https://github.com/niess/python-appimage/releases/download/python3.13/python3.13.9-cp313-cp313-manylinux2014_x86_64.AppImage"
         chmod +x "$PYTHON_APPIMAGE"
+        # Sanity check: downloaded file should be at least 10MB
+        if [ $(stat -c%s "$PYTHON_APPIMAGE") -lt 10000000 ]; then
+            echo "ERROR: Downloaded Python AppImage is suspiciously small"
+            exit 1
+        fi
     fi
 
     # Extract Python AppImage

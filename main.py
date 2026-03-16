@@ -25,6 +25,7 @@ from cards import (
     FACTION_JAFFA,
     FACTION_LUCIAN,
     FACTION_ASGARD,
+    FACTION_ALTERAN,
 )
 from ai_opponent import AIController
 from enum import Enum, auto
@@ -1019,6 +1020,9 @@ async def main(lan_game_data=None):
             if pygame.time.get_ticks() - state._mulligan_start_time > cfg.MULLIGAN_TIMEOUT:
                 print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
                 state.mulligan_remote_done = True
+                # Force state transition if still stuck in mulligan
+                if game.game_state == "mulligan":
+                    game.end_mulligan_phase()
             else:
                 # Non-blocking: check one message per frame
                 msg = LAN_CONTEXT.session.receive()
@@ -1038,7 +1042,10 @@ async def main(lan_game_data=None):
                             state.mulligan_remote_done = True
                         else:
                             # Not a mulligan message — put back for game logic
-                            LAN_CONTEXT.session.inbox.put(parsed)
+                            try:
+                                LAN_CONTEXT.session.inbox.put_nowait(parsed)
+                            except Exception:
+                                print("[LAN] Warning: inbox full, dropping non-mulligan message during mulligan phase")
                     except ValueError:
                         pass  # Skip malformed messages
 
@@ -1178,7 +1185,11 @@ async def main(lan_game_data=None):
                             state.anim_manager.add_effect(StargateActivationEffect(rect.centerx, rect.centery, duration=cfg.ANIM_STARGATE, faction=game.player2_faction))
                             # Add row weather visual effect (meteorites, nebula, etc.)
                             state.anim_manager.add_row_weather(weather_type, rect, SCREEN_WIDTH)
-    
+                # AI leader ability consumes the turn — skip normal card play
+                game.last_turn_actor = game.player2
+                game.switch_turn()
+                state.ai_turn_in_progress = False
+
         # Update animations
         state.anim_manager.update(dt)
     

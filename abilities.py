@@ -63,6 +63,10 @@ class Ability(Enum):
     VAMPIRE = "Vampire"
     CRONE = "Crone"
 
+    # Alteran Faction Abilities
+    PRIORS_PLAGUE = "Prior's Plague"
+    ASCENSION = "Ascension"
+
 
 def has_ability(card: "Card", *abilities: Ability) -> bool:
     """
@@ -156,6 +160,16 @@ def is_special_card(card: "Card") -> bool:
 def has_synergy(card: "Card") -> bool:
     """Check if a card has any synergy ability (Tactical Formation or Gate Reinforcement)."""
     return has_ability(card, Ability.TACTICAL_FORMATION, Ability.GATE_REINFORCEMENT)
+
+
+def is_plague_card(card: "Card") -> bool:
+    """Check if a card has Prior's Plague ability."""
+    return has_ability(card, Ability.PRIORS_PLAGUE)
+
+
+def is_ascension_card(card: "Card") -> bool:
+    """Check if a card has Ascension ability."""
+    return has_ability(card, Ability.ASCENSION)
 
 
 def can_be_targeted(card: "Card") -> bool:

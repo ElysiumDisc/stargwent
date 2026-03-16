@@ -11,12 +11,12 @@ def get_existing_factions() -> List[str]:
     try:
         from cards import (
             FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
-            FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL
+            FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN, FACTION_NEUTRAL
         )
         return [FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA,
-                FACTION_LUCIAN, FACTION_ASGARD, FACTION_NEUTRAL]
+                FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN, FACTION_NEUTRAL]
     except ImportError:
-        return ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard", "Neutral"]
+        return ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard", "Alteran", "Neutral"]
 
 
 def get_existing_faction_constants() -> Dict[str, str]:

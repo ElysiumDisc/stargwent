@@ -159,7 +159,7 @@ def ip_to_room_code(ip: str, port: int = 4765) -> str:
 
         # Encode last two octets (most likely to vary on LAN)
         # Using a simple base conversion with our character set
-        value = parts[2] * 256 + parts[3]  # 0-65535 range
+        value = (parts[2] * 256 + parts[3]) ^ (port & 0xFFFF)  # XOR port for uniqueness
 
         code_chars = []
         base = len(ROOM_CODE_CHARS)
@@ -198,6 +198,8 @@ def room_code_to_ip(code: str, network_prefix: str = None) -> tuple:
                 return (None, None)
             value = value * base + idx
 
+        # Reverse the port XOR (default port)
+        value ^= 4765
         # Extract octets
         octet3 = value // 256
         octet4 = value % 256

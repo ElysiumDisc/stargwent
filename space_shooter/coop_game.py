@@ -83,12 +83,16 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
     def update(self):
         """Override to handle two-player logic."""
+        # Always increment heartbeat timer even during pauses so the host
+        # loop (which sends snapshots unconditionally) keeps the client's
+        # disconnect detector satisfied.
+        self._heartbeat_timer += 1
+
         if self.showing_level_up:
             return
 
         self.survival_frames += 1
         self._snapshot_frame += 1
-        self._heartbeat_timer += 1
 
         # Kill streak timer
         if self.kill_streak > 0:
@@ -1223,5 +1227,5 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         self._last_partner_msg_frame = self.survival_frames
 
     def is_partner_connected(self):
-        """Check if partner has sent input recently (within 5 seconds)."""
-        return (self.survival_frames - self._last_partner_msg_frame) < 300
+        """Check if partner has sent input recently (within 3 seconds)."""
+        return (self.survival_frames - self._last_partner_msg_frame) < 180

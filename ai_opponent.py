@@ -918,7 +918,29 @@ class AIStrategy:
                 score += 5 # Play weak cards
             if is_spy(card):
                 score += 50 # ALWAYS spy here
-        
+
+        # --- ALTERAN FACTION STRATEGY ---
+        if self.ai_player.faction == "Alteran":
+            # Prioritize cheap units early to build board presence for Faith Snowball
+            alteran_on_board = sum(
+                1 for r in self.ai_player.board.values()
+                for c in r if c.faction == "Alteran"
+            )
+            if alteran_on_board < 3 and card.power <= 5 and not is_hero(card):
+                score += 8  # Play cheap units first to build presence
+            elif alteran_on_board >= 3 and not is_hero(card):
+                score += 3  # Bonus for benefiting from passive
+
+            # Prior's Plague bonus: more valuable against packed rows
+            if has_ability(card, Ability.PRIORS_PLAGUE):
+                opp_row = self.opponent.board.get(row, [])
+                non_heroes_in_row = [c for c in opp_row if not is_hero(c)]
+                score += len(non_heroes_in_row) * 1.5
+
+            # Ascension units: play earlier so they benefit from dying
+            if has_ability(card, Ability.ASCENSION):
+                score += 2  # Slight bonus for playing early
+
         return score
     
     def evaluate_weather_play(self, card, context: dict):

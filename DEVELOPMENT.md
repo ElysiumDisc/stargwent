@@ -22,14 +22,21 @@
 5. **`docs/leader_catalog.json`** — Add entry
 
 ### Adding a Faction
-Major change across many files:
-1. `cards.py` — Add `FACTION_NEW` constant
-2. `assets/` — Add `faction_bg_new.png`, `card_back_new.png`, `deck_shield_new.png`
-3. `content_registry.py` — Add to leader dicts + `LEADER_COLOR_OVERRIDES`
-4. `deck_persistence.py` — Update `_get_default_deck_data()` + `_get_default_unlock_data()`
-5. `deck_builder.py`, `stats_menu.py`, `rules_menu.py` — Add faction to UI iterations
-6. `game.py` — Implement faction passive if applicable
-7. `scripts/create_placeholders.py` — Add `FACTION_COLORS`, `FACTION_BACKGROUND_IDS`, imports
+Major change across many files (see Alteran faction added in v10.0 for a complete example):
+1. `cards.py` — Add `FACTION_NEW` constant + card definitions
+2. `abilities.py` — Add new ability enums if needed (e.g., `PRIORS_PLAGUE`, `ASCENSION`)
+3. `content_registry.py` — Add to leader dicts + `LEADER_COLOR_OVERRIDES` + `LEADER_BANNER_NAMES`
+4. `game.py` — Implement faction passive class + register in `FACTION_ABILITIES` + leader ability handlers
+5. `power.py` — Implement faction power class + register in `FACTION_POWERS`
+6. `game_config.py` — Add to `FACTION_GLOW_COLORS`
+7. `deck_builder.py` — Add to `AVAILABLE_FACTIONS`, colors, descriptions, theme music
+8. `game_setup.py` — Add to AI opponent faction pool
+9. `unlocks.py` — Add unlock conditions if faction is unlockable
+10. `assets/data/default_faction_decks.json` — Add default AI deck
+11. `scripts/create_placeholders.py` — Add `FACTION_COLORS`, `FACTION_BACKGROUND_IDS`, imports
+12. `scripts/card_quotes.json` — Add character quotes
+
+Current factions: Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, **Alteran** (unlockable)
 
 ---
 
