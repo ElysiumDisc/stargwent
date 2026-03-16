@@ -34,9 +34,12 @@ class LanSession:
         # Prevent duplicate disconnect messages from reader + keepalive threads
         self._disconnect_sent = False
 
-        # JSON error recovery (10 consecutive strikes = disconnect)
+        # JSON error recovery (consecutive strikes = disconnect)
         self.parse_error_count = 0
         self.max_parse_errors = 20
+
+        # Buffer size limit to prevent OOM from malicious peers (1 MB)
+        self.max_buffer_size = 1024 * 1024
 
         # Ping/latency tracking
         self.current_rtt = 0  # milliseconds
@@ -130,6 +133,11 @@ class LanSession:
                     break
                 self.last_received = time.time()
                 buffer += data
+                # Prevent OOM: drop connection if buffer grows beyond limit
+                # (peer sending data without newline delimiters)
+                if len(buffer) > self.max_buffer_size:
+                    print(f"[LanSession] Buffer overflow ({len(buffer)} bytes) — disconnecting")
+                    break
             except socket.timeout:
                 # Check if we've timed out waiting for any message
                 if time.time() - self.last_received > self.connection_timeout:
@@ -177,7 +185,18 @@ class LanSession:
                         except queue.Full:
                             pass  # Discard overflow — stale chat messages are acceptable to drop
                     else:
-                        self.inbox.put(payload)
+                        try:
+                            self.inbox.put_nowait(payload)
+                        except queue.Full:
+                            # Drop oldest message to make room (prevents reader thread blocking)
+                            try:
+                                self.inbox.get_nowait()
+                            except queue.Empty:
+                                pass
+                            try:
+                                self.inbox.put_nowait(payload)
+                            except queue.Full:
+                                pass
                 except json.JSONDecodeError as e:
                     with self._sock_lock:
                         self.parse_error_count += 1

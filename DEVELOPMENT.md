@@ -36,7 +36,7 @@ Major change across many files (see Alteran faction added in v10.0 for a complet
 11. `scripts/create_placeholders.py` — Add `FACTION_COLORS`, `FACTION_BACKGROUND_IDS`, imports
 12. `scripts/card_quotes.json` — Add character quotes
 
-Current factions: Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, **Alteran** (unlockable)
+Current factions (6): Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, **Alteran** (unlockable — win 1 game with each base faction)
 
 ---
 
@@ -207,7 +207,7 @@ Version is read from the README.md badge.
 ./build_release.sh "" exe           # Windows .exe only
 ./build_release.sh "" dmg           # macOS .dmg only
 ./build_release.sh "" linux         # .deb + AppImage
-./build_release.sh 6.9.0            # Override version
+./build_release.sh 10.0.0            # Override version
 ```
 
 Output: `builds/releases/`. Staging: `builds/staging/` (auto-cleaned).
@@ -283,20 +283,21 @@ Call `clear_render_caches()` on resolution change.
 
 ---
 
-## Galactic Conquest Architecture (v9.7.0)
+## Galactic Conquest Architecture (v10.0.0)
 
-Roguelite card-battle campaign. Package: `galactic_conquest/`
+Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules, ~11,470 lines)
 
 | File | Description |
 |------|-------------|
 | `__init__.py` | Entry point, campaign routing |
 | `conquest_menu.py` | CRT submenu + CustomizeRunScreen + unlocks |
-| `campaign_state.py` | CampaignState dataclass (~30 fields) |
+| `campaign_state.py` | CampaignState dataclass (~45 fields) |
 | `campaign_persistence.py` | Save/load JSON via XDG paths |
 | `campaign_controller.py` | Turn loop, attacks, AI, diplomacy, buildings, crisis, scoring, minor world/doctrine/espionage hooks |
 | `galaxy_map.py` | Planets, adjacency, supply lines, Ring Platform 2-hop |
-| `map_renderer.py` | Pulsing lanes, tooltips, building/fort icons, network HUD, wisdom counter, type rings, operative icons |
-| `faction_setup.py` | Faction/leader/deck selection |
+| `map_renderer.py` | Side info panel, pulsing lanes, building/fort icons, simplified HUD, 8-button bar, non-SRCALPHA surfaces |
+| `wisdom_actions.py` | 4 repeatable wisdom actions (Ascended Insight, Temporal Shift, Ancient Knowledge, Enlightened Trade) |
+| `faction_setup.py` | Faction/leader/deck selection (6 factions including Alteran) |
 | `card_battle.py` | Weather injection, elite params, relic modifiers, doctrine power bonuses, sabotage effects |
 | `reward_screen.py` | Post-victory card picks with tier scaling |
 | `neutral_events.py` | 20 events with choices |
@@ -307,15 +308,15 @@ Roguelite card-battle campaign. Package: `galactic_conquest/`
 | `difficulty.py` | 4 levels (Easy/Normal/Hard/Insane) |
 | `stargate_network.py` | Network tiers (Outpost→Galactic) based on BFS connectivity |
 | `conquest_abilities.py` | 35 leader abilities, L1-L4 scaling with network tier |
-| `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray, espionage incident handling |
-| `buildings.py` | 5 building types, 1 per planet, doctrine cost reduction |
-| `crisis_events.py` | 5 galaxy-wide events (10%/turn after turn 5) |
+| `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray, AI proposals (4 types), strain warnings, incident handling |
+| `buildings.py` | 5 building types with Lv 1-3 upgrades, level-scaled effects, doctrine cost reduction |
+| `crisis_events.py` | 5 galaxy-wide events with 2-choice player agency (10%/turn after turn 5) |
 | `meta_progression.py` | Conquest Points, 5 perks, high scores, victory type multipliers |
 | `minor_worlds.py` | 9 minor worlds: influence, quests, type bonuses, AI competition |
 | `minor_world_screen.py` | CRT-styled minor world interaction panel |
 | `doctrines.py` | 5 doctrine trees (20 policies), Wisdom economy, `get_active_effects()` |
 | `doctrine_screen.py` | CRT-styled doctrine tree selection UI |
-| `espionage.py` | Operative lifecycle, 6 missions, rank system, diplomatic incidents |
+| `espionage.py` | Operative lifecycle, 6 missions, rank system, AI espionage events, incident choices |
 | `espionage_screen.py` | CRT-styled operative management UI |
 | `victory_conditions.py` | 4 victory paths + score fallback, progress tracking |
 
@@ -326,8 +327,13 @@ Roguelite card-battle campaign. Package: `galactic_conquest/`
 - **Post-Battle Refresh**: `_refresh_after_battle()` — rebuild screen + `pygame.event.clear()`
 - **Minor Worlds**: 9 neutral planets with influence (0-100), quests, ally exclusivity, 5 world types with Friend/Ally bonuses
 - **Doctrine Trees**: Wisdom resource → 5 trees × 4 policies + completion bonus; escalating cross-tree cost forces 2-3 tree completions per campaign
-- **Espionage**: Tok'ra operatives with IDLE→MOVING→ESTABLISHING→ACTIVE lifecycle, 6 mission types, rank 1-3, diplomatic incident risk
+- **Wisdom Actions**: After completing any doctrine tree, 4 repeatable wisdom sinks (card upgrade, cooldown reset, deck reveal, naq conversion)
+- **Building Upgrades**: Lv 1→2→3 with `BUILDING_LEVEL_EFFECTS` lookup and `UPGRADE_COST_MULTIPLIERS` (1.5x/2.0x)
+- **Espionage**: Tok'ra operatives with IDLE→MOVING→ESTABLISHING→ACTIVE lifecycle, 6 mission types, rank 1-3; AI espionage against player (3 mission types); diplomatic incident choices (deny/recall/double-down)
+- **AI Diplomacy**: `generate_ai_proposals()` creates trade offers, joint attacks, ceasefires, tribute demands; `check_potential_strain()` warns before attacking near allies
+- **Crisis Choices**: `CRISIS_CHOICES` dict provides 2 options per crisis; `apply_crisis(choice=)` branches on player decision
 - **Victory Conditions**: Domination (always), Ascension/Alliance/Supremacy (require doctrine completion), Score (turn 30 fallback)
+- **Side Panel UI**: `_draw_side_panel()` replaces tooltips — planet details with build/upgrade buttons when selected, victory/faction overview when not
 - **Cross-system integration**: `get_active_effects(state)` is the central doctrine query — called by card_battle, buildings, diplomacy, espionage, minor_worlds, campaign_controller
 
 ---
@@ -411,12 +417,31 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 
 ### GitHub Actions CI/CD
 
-```bash
-# Tag-triggered release (builds .deb, AppImage, .exe, .dmg in parallel):
-git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z
-```
+The `Build Releases` workflow (`.github/workflows/build.yml`) builds `.deb`, `.AppImage`, `.exe`, and `.dmg` in parallel. Two trigger methods:
 
-Creates draft GitHub Release with all artifacts. Web build triggers on any push to `main` that touches `.py`, `assets/`, `shaders/`, or `build/web/` files.
+#### Method 1: Tag Push (creates draft GitHub Release)
+```bash
+# Tag the current commit and push both code + tag:
+git tag v10.0.0
+git push origin main
+git push origin v10.0.0
+```
+This creates a **draft** GitHub Release with all 4 platform artifacts attached. Go to Releases to review and publish.
+
+#### Method 2: Manual Dispatch (downloads as artifacts)
+1. Go to the repository on GitHub
+2. Click **Actions** tab → **Build Releases** workflow (left sidebar)
+3. Click **Run workflow** (top-right dropdown)
+4. Optionally enter a version override (leave empty to read from README.md badge)
+5. Click **Run workflow**
+
+Artifacts are uploaded with 1-day retention. Download from the workflow run summary page.
+
+#### Version Detection
+The workflow reads the version from the README.md badge (`![Version](https://img.shields.io/badge/version-X.Y.Z-blue)`). Priority: manual input > git tag > README badge.
+
+#### Web Build
+Web build (Pygbag → WASM) triggers on any push to `main` that touches `.py`, `assets/`, `shaders/`, or `build/web/` files.
 
 ### Development Prerequisites
 - **Python 3.8+**, **Pygame CE 2.5.6+**

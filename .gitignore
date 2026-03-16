@@ -55,6 +55,8 @@ Desktop.ini
 # Game-Specific
 *.log
 *.tmp
+raw_art/
+backup/
 
 # User Data Files (player progress, settings - not committed)
 game_settings.json

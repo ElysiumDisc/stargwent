@@ -172,6 +172,160 @@ def check_ai_trade_proposals(state, galaxy, rng):
     return proposals
 
 
+def generate_ai_proposals(state, galaxy, rng):
+    """Generate AI diplomatic proposals at turn start.
+
+    Returns list of proposal dicts:
+    {type, faction, description, accept_label, reject_label, accept_fn_key, reject_fn_key}
+    """
+    proposals = []
+    for faction in galaxy.get_active_factions():
+        if faction == state.player_faction:
+            continue
+        rel = get_relation(state, faction)
+        planet_count = galaxy.get_faction_planet_count(faction)
+
+        if rel == HOSTILE:
+            # Trade offer from weakened faction
+            if planet_count <= 3 and rng.random() < 0.25:
+                proposals.append({
+                    "type": "trade_offer",
+                    "faction": faction,
+                    "description": f"{faction} offers a trade agreement and a 20 naquadah signing bonus.",
+                    "accept_label": "Accept Trade",
+                    "reject_label": "Decline",
+                })
+            # Ceasefire from very weak faction
+            elif planet_count <= 2 and rng.random() < 0.20:
+                proposals.append({
+                    "type": "ceasefire",
+                    "faction": faction,
+                    "description": f"{faction} requests a ceasefire. They will stop counterattacking.",
+                    "accept_label": "Accept Ceasefire",
+                    "reject_label": "Refuse",
+                })
+            # Tribute demand from strong faction
+            elif planet_count >= 6 and rng.random() < 0.15:
+                proposals.append({
+                    "type": "tribute_demand",
+                    "faction": faction,
+                    "description": f"{faction} demands 40 naquadah tribute — or face increased aggression.",
+                    "accept_label": "Pay Tribute (-40 naq)",
+                    "reject_label": "Refuse",
+                })
+
+        elif rel == TRADING:
+            # Joint attack proposal
+            # Find mutual enemy (hostile to player AND borders this trading partner)
+            mutual_enemies = []
+            for other_faction in galaxy.get_active_factions():
+                if other_faction == state.player_faction or other_faction == faction:
+                    continue
+                if get_relation(state, other_faction) == HOSTILE:
+                    if _has_shared_border(state, other_faction, galaxy):
+                        mutual_enemies.append(other_faction)
+            if mutual_enemies and rng.random() < 0.15:
+                target = rng.choice(mutual_enemies)
+                proposals.append({
+                    "type": "joint_attack",
+                    "faction": faction,
+                    "target": target,
+                    "description": f"{faction} proposes a joint offensive against {target}. Accept for -1 attack cooldown vs {target}.",
+                    "accept_label": "Coordinate Attack",
+                    "reject_label": "Decline",
+                })
+
+    return proposals
+
+
+def apply_proposal(state, proposal, accepted, galaxy, rng):
+    """Apply the result of an AI diplomatic proposal.
+
+    Returns result message string.
+    """
+    p_type = proposal["type"]
+    faction = proposal["faction"]
+
+    if p_type == "trade_offer":
+        if accepted:
+            set_relation(state, faction, TRADING)
+            state.add_naquadah(20)
+            _track_conquest_stat("ai_trades_accepted")
+            return f"Trade with {faction}! +20 naq signing bonus."
+        return f"Declined {faction}'s trade offer."
+
+    elif p_type == "ceasefire":
+        if accepted:
+            set_relation(state, faction, NEUTRAL_REL)
+            _track_conquest_stat("ceasefires_accepted")
+            return f"Ceasefire with {faction}. They won't counterattack."
+        return f"Refused {faction}'s ceasefire."
+
+    elif p_type == "tribute_demand":
+        if accepted:
+            state.add_naquadah(-40)
+            return f"Paid 40 naquadah tribute to {faction}."
+        else:
+            # Store rejection: +10% counterattack for 3 turns
+            key = f"tribute_rejected_{faction}"
+            state.conquest_ability_data[key] = 3
+            return f"Refused {faction}'s demand! They're +10% more aggressive for 3 turns."
+
+    elif p_type == "joint_attack":
+        if accepted:
+            target = proposal.get("target", "unknown")
+            key = f"joint_attack_cooldown_{target}"
+            state.conquest_ability_data[key] = 1  # -1 cooldown on next attack
+            return f"Joint offensive with {faction} against {target}! -1 cooldown on next attack."
+        else:
+            # Small chance of relation downgrade
+            if rng.random() < 0.10:
+                set_relation(state, faction, HOSTILE)
+                return f"Declined {faction}'s joint attack. They feel slighted — now Hostile!"
+            return f"Declined {faction}'s joint attack proposal."
+
+    return ""
+
+
+def get_tribute_reject_bonus(state, faction):
+    """Get extra counterattack chance from tribute rejection (0.10 if active, else 0.0)."""
+    key = f"tribute_rejected_{faction}"
+    if state.conquest_ability_data.get(key, 0) > 0:
+        return 0.10
+    return 0.0
+
+
+def tick_tribute_rejections(state):
+    """Decrement tribute rejection timers each turn."""
+    keys_to_remove = []
+    for key in list(state.conquest_ability_data):
+        if key.startswith("tribute_rejected_"):
+            state.conquest_ability_data[key] -= 1
+            if state.conquest_ability_data[key] <= 0:
+                keys_to_remove.append(key)
+    for key in keys_to_remove:
+        del state.conquest_ability_data[key]
+
+
+def check_potential_strain(state, planet_id, galaxy):
+    """Check if attacking a planet might strain an alliance.
+
+    Returns warning string or None.
+    """
+    planet = galaxy.planets.get(planet_id)
+    if not planet:
+        return None
+    allied_factions = get_adjacency_bonus_factions(state)
+    if not allied_factions:
+        return None
+    for neighbor_id in planet.connections:
+        neighbor = galaxy.planets.get(neighbor_id)
+        if neighbor and neighbor.owner in allied_factions:
+            return (f"Attacking {planet.name} may strain your alliance "
+                    f"with {neighbor.owner} (30% chance of downgrade).")
+    return None
+
+
 def is_faction_friendly(state, faction):
     """Check if a faction is trading or allied (won't counterattack)."""
     rel = get_relation(state, faction)

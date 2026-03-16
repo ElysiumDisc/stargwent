@@ -29,7 +29,7 @@
   ],
   "channels": {
     "linux-deb": {
-      "upload": "builds/releases/stargwent-*-linux-amd64.deb",
+      "upload": "builds/releases/Stargwent-*-linux-amd64.deb",
       "platform": "linux"
     },
     "linux-appimage": {
@@ -37,7 +37,7 @@
       "platform": "linux"
     },
     "windows": {
-      "upload": "builds/releases/Stargwent-*-windows.zip",
+      "upload": "builds/releases/Stargwent-*-windows-x64.zip",
       "platform": "windows"
     },
     "macos": {

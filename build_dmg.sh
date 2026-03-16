@@ -128,6 +128,8 @@ python3 -m PyInstaller \
     --hidden-import moderngl \
     --hidden-import glcontext \
     --hidden-import PIL \
+    --hidden-import PIL._imaging \
+    --hidden-import PIL.ImageDraw \
     --distpath "$WORK_DIR/dist" \
     --workpath "$WORK_DIR/work" \
     --specpath "$WORK_DIR" \

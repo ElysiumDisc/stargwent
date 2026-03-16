@@ -30,6 +30,92 @@
 - Prior's Plague and Ascension evaluation in card scoring
 - Strategic leader ability timing consideration
 
+#### Galactic Conquest — Strategic Depth & UI Overhaul
+
+##### Building Upgrades
+- **Lv 1→2→3 building upgrades** — all 5 building types now upgradeable with escalating costs (1.5x/2.0x base) and scaling effects
+- Naquadah Refinery: +10/+18/+25 naq/turn | Training Ground: +1/+2/+3 defense | Shipyard: +1/+1/+2 extra cards | Shield Generator: -20/-30/-40 fortify cost
+- Upgrade button appears in the new side panel when a player-owned building planet is selected
+
+##### Wisdom Sink
+- **4 repeatable wisdom actions** unlocked after completing any doctrine tree — solves the late-game dead-resource problem
+- Ascended Insight (15 wisdom): +1 power to random card permanently
+- Temporal Shift (20 wisdom): Reset 1 planet cooldown immediately
+- Ancient Knowledge (25 wisdom): Reveal full enemy deck for next battle
+- Enlightened Trade (10 wisdom): Convert to +30 naquadah
+- Actions appear as "WISDOM POWERS" section at the bottom of the Doctrine screen
+
+##### AI Diplomatic Proposals
+- **4 AI-initiated proposal types** make the galaxy feel alive — AI factions now propose deals at turn end
+- Trade Offer: Weakened factions (≤3 planets) offer trade + 20 naq signing bonus
+- Joint Attack: Trading partners propose coordinated offensives against shared enemies (-1 attack cooldown)
+- Ceasefire: Very weak factions (≤2 planets) request neutral status
+- Tribute Demand: Strong factions (6+ planets) demand 40 naq — refuse and face +10% counterattack for 3 turns
+- **Conquest strain warnings** — pre-attack popup warns when attacking adjacent to allied territory (30% alliance downgrade risk)
+
+##### AI Espionage & Incident Choices
+- **AI espionage events** — hostile factions with 4+ planets can target player planets (15%/turn) with resource theft, sabotage, or influence rigging
+- Player choices: IGNORE (free, 70% enemy success), CAPTURE (-20 naq, 60% success), or auto-blocked by Counter-Intel operative
+- **Diplomatic incident choices** — when operatives are discovered, choose: DENY (50/50 bluff), RECALL (safe retreat), or DOUBLE DOWN (guaranteed relations hit but +20% next mission success)
+
+##### Crisis Event Choices
+- **All 5 crisis events now present 2 strategic options** instead of auto-resolving:
+  - Replicator Outbreak: sacrifice weakest card (safe) vs. gamble for enemy losing 2 cards (risky)
+  - Ori Crusade: pay 60 naq for shields (costly safe) vs. endure -40 naq but AI loses planet
+  - Galactic Plague: quarantine -30 naq (keep upgrades) vs. endure -20 naq (lose upgrades)
+  - Ascension Wave: channel +2 power to strongest cards vs. store +20 wisdom
+  - Wraith Invasion: stand and fight -50 naq (keep planet) vs. evacuate -20 naq (lose planet)
+
+##### Map UI Overhaul
+- **Right-side info panel** (~20% screen width) replaces cramped hover tooltips
+  - Planet selected: name, owner, type, weather, building with level + UPGRADE button, BUILD buttons, fortification, passive, operatives, minor world influence bar, cooldown
+  - No planet selected: victory progress bars, faction overview with relations, deck/relic/upgrade/operative stats
+- **Simplified top HUD** — Turn, Naquadah, Wisdom (left) | Network tier, Planet count (right) — secondary stats moved to panel
+- **8 bottom buttons** (from 10) — removed SAVE & QUIT (ESC) and RUN INFO (merged into panel); wider buttons
+- **Non-SRCALPHA HUD/panel surfaces** — performance improvement for web builds (uses `set_alpha()` fast path)
+
+##### New File
+| File | Description |
+|------|-------------|
+| `galactic_conquest/wisdom_actions.py` | 4 repeatable wisdom actions, gated behind doctrine completion |
+
+##### Key Modified Files
+| File | Changes |
+|------|---------|
+| `galactic_conquest/campaign_state.py` | +3 fields: building_levels, pending_crisis, wisdom_actions_this_turn |
+| `galactic_conquest/buildings.py` | Level-scaled effects, upgrade cost/can/do functions |
+| `galactic_conquest/diplomacy.py` | AI proposals (4 types), strain warning, tribute rejection tracking |
+| `galactic_conquest/espionage.py` | AI espionage events, incident choices, resolve functions |
+| `galactic_conquest/crisis_events.py` | CRISIS_CHOICES data, choice parameter in apply/show |
+| `galactic_conquest/campaign_controller.py` | All new popup flows, action handlers, turn-phase hooks |
+| `galactic_conquest/map_renderer.py` | Side panel, HUD cleanup, 8 buttons, non-SRCALPHA surfaces |
+| `galactic_conquest/doctrine_screen.py` | Wisdom powers button section |
+
+#### LAN Security & Bug Fixes
+- **Fixed buffer overflow vulnerability** — `LanSession` reader now enforces 1 MB buffer limit; peers sending data without newline delimiters are disconnected instead of causing OOM (`lan_session.py`)
+- **Fixed reader thread deadlock** — `inbox.put()` replaced with non-blocking `put_nowait()` with overflow eviction; prevents the reader thread from blocking indefinitely when the game loop falls behind on message consumption (`lan_session.py`)
+- **Fixed async-blocking `wait_for_message`** — replaced `pygame.time.wait(50)` (blocks entire thread) with `await asyncio.sleep(0.05)` for proper async cooperation (`lan_game.py`)
+- **Fixed async-blocking disconnect overlay** — `_show_disconnect_message` converted to async with `await asyncio.sleep` in its wait loop; no longer freezes the browser event loop on web (`lan_lobby.py`)
+- **Fixed SRCALPHA disconnect overlay** — replaced full-screen SRCALPHA surface with non-SRCALPHA + `set_alpha()` fast path (`lan_lobby.py`)
+- **Fixed "Connection lost!" spam in rematch** — status message now only added once instead of every frame when connection drops (`lan_menu.py`)
+- **Fixed bare `except:` in lobby background loader** — narrowed to `except Exception:` to avoid swallowing `SystemExit`/`KeyboardInterrupt` (`lan_lobby.py`)
+- **Added join IP input length limit** — capped at 45 characters to prevent unbounded string growth (`lan_menu.py`)
+
+#### LAN Performance
+- **Cached gradient backgrounds** — lobby, LAN menu, and rematch screens now pre-build gradient surfaces once instead of drawing 1080 lines per frame (`lan_lobby.py`, `lan_menu.py`)
+- **Cached lobby panel surface** — SRCALPHA panel background replaced with non-SRCALPHA + `set_alpha()`, built once in constructor (`lan_lobby.py`)
+- **Fixed per-frame font allocation in chat badge** — `draw_unread_badge()` now uses cached `font_small` instead of creating `SysFont("Arial", 14)` every frame (`lan_chat.py`)
+
+#### Build System Fixes
+- **Fixed dev files leaking into packages** — `.github/`, `.claude/`, `scripts/`, `build_web.sh`, `metadata.json` excluded from deb/AppImage builds (`build_deb.sh`, `build_appimage.sh`)
+- **Fixed AppImage env var security** — `LD_LIBRARY_PATH` and `PYTHONPATH` no longer get trailing colon when unset (which adds `.` to search path) (`build_appimage.sh`)
+- **Fixed hidden import mismatch** — local `build_exe.sh` and `build_dmg.sh` now include `PIL._imaging` and `PIL.ImageDraw` matching CI config
+- **Fixed empty version crash in CI** — version detection job now fails with clear error instead of producing broken filenames (`build.yml`)
+- **Fixed release body race condition** — release description moved to dedicated job that runs after all platform builds complete (`build.yml`)
+- **Fixed deb missing SDL2_ttf dependency** — added `libsdl2-ttf-2.0-0` to `Depends` (`build_deb.sh`)
+- **Fixed metadata.json channel paths** — deb and Windows glob patterns now match actual build output filenames
+- **Added `raw_art/` and `backup/` to .gitignore**
+
 #### Bug Fixes & Polish
 - Fixed 3 debug print statements in `game.py` (now use proper logging)
 - Deck builder shows locked factions with progress indicator

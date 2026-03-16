@@ -56,6 +56,17 @@ BUILDINGS = {
     ),
 }
 
+# Level-scaled effects per building type
+BUILDING_LEVEL_EFFECTS = {
+    "naquadah_refinery": {1: 10, 2: 18, 3: 25},    # naq/turn
+    "training_ground":   {1: 1,  2: 2,  3: 3},      # defense power bonus
+    "shipyard":          {1: 1,  2: 1,  3: 2},      # extra cards when attacking from neighbors
+    "sensor_array":      {1: 1,  2: 2,  3: 3},      # info tiers
+    "shield_generator":  {1: 20, 2: 30, 3: 40},     # fortify cost discount
+}
+
+UPGRADE_COST_MULTIPLIERS = {2: 1.5, 3: 2.0}
+
 
 def get_building(building_id):
     """Get a Building by ID."""
@@ -107,6 +118,58 @@ def construct_building(state, planet_id, building_id):
     return f"Built {building.name}! (-{cost} naq)"
 
 
+def get_building_level(state, planet_id):
+    """Get current building level (1-3). Defaults to 1 for existing buildings."""
+    return state.building_levels.get(planet_id, 1)
+
+
+def get_upgrade_cost(state, planet_id):
+    """Get cost to upgrade building to next level. Returns None if maxed or no building."""
+    bid = state.buildings.get(planet_id)
+    if not bid:
+        return None
+    building = BUILDINGS.get(bid)
+    if not building:
+        return None
+    level = get_building_level(state, planet_id)
+    if level >= 3:
+        return None
+    next_level = level + 1
+    base_cost = _get_building_cost(building, state)
+    return max(10, int(base_cost * UPGRADE_COST_MULTIPLIERS[next_level]))
+
+
+def can_upgrade(state, planet_id, galaxy):
+    """Check if player can upgrade the building on a planet."""
+    planet = galaxy.planets.get(planet_id)
+    if not planet or planet.owner != "player":
+        return False
+    cost = get_upgrade_cost(state, planet_id)
+    if cost is None:
+        return False
+    return state.naquadah >= cost
+
+
+def upgrade_building(state, planet_id):
+    """Upgrade building to next level. Returns message or None."""
+    cost = get_upgrade_cost(state, planet_id)
+    if cost is None:
+        return None
+    bid = state.buildings.get(planet_id)
+    building = BUILDINGS.get(bid)
+    if not building:
+        return None
+    state.add_naquadah(-cost)
+    new_level = get_building_level(state, planet_id) + 1
+    state.building_levels[planet_id] = new_level
+    from deck_persistence import get_persistence
+    p = get_persistence()
+    cs = p.unlock_data.setdefault("conquest_stats", {})
+    cs["buildings_upgraded"] = cs.get("buildings_upgraded", 0) + 1
+    p.save_unlocks()
+    return f"Upgraded {building.name} to Lv{new_level}! (-{cost} naq)"
+
+
 def get_building_naq_income(state, galaxy):
     """Total naquadah income from Naquadah Refineries on player planets."""
     total = 0
@@ -114,14 +177,14 @@ def get_building_naq_income(state, galaxy):
         if bid == "naquadah_refinery":
             planet = galaxy.planets.get(pid)
             if planet and planet.owner == "player":
-                total += 10
+                total += BUILDING_LEVEL_EFFECTS["naquadah_refinery"][get_building_level(state, pid)]
     return total
 
 
 def get_defense_bonus(state, planet_id):
     """Get defense power bonus from Training Ground on this planet."""
     if state.buildings.get(planet_id) == "training_ground":
-        return 1
+        return BUILDING_LEVEL_EFFECTS["training_ground"][get_building_level(state, planet_id)]
     return 0
 
 
@@ -134,7 +197,7 @@ def get_attack_extra_cards(state, planet_id, galaxy):
             neighbor = galaxy.planets.get(neighbor_id)
             if neighbor and neighbor.owner == "player":
                 if state.buildings.get(neighbor_id) == "shipyard":
-                    extra += 1
+                    extra += BUILDING_LEVEL_EFFECTS["shipyard"][get_building_level(state, neighbor_id)]
     return extra
 
 
@@ -149,4 +212,19 @@ def get_planet_building_display(state, planet_id):
     building = BUILDINGS.get(bid)
     if not building:
         return None
-    return (building.name, building.icon_char, building.description)
+    level = get_building_level(state, planet_id)
+    name = f"{building.name} Lv{level}"
+    effects = BUILDING_LEVEL_EFFECTS.get(bid)
+    if effects:
+        val = effects[level]
+        descs = {
+            "naquadah_refinery": f"+{val} naquadah per turn from this planet",
+            "training_ground": f"+{val} power to all cards when defending this planet",
+            "shipyard": f"+{val} card{'s' if val > 1 else ''} when attacking FROM this planet's neighbors",
+            "sensor_array": f"Reveal enemy info (tier {val}) when attacking neighbors",
+            "shield_generator": f"Fortify cost -{val} for this planet",
+        }
+        desc = descs.get(bid, building.description)
+    else:
+        desc = building.description
+    return (name, building.icon_char, desc)

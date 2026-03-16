@@ -56,6 +56,29 @@ CRISIS_EVENTS = [
     },
 ]
 
+CRISIS_CHOICES = {
+    "replicator_outbreak": {
+        "a": {"label": "Sacrifice weakest card", "desc": "Lose your weakest card. Outbreak contained."},
+        "b": {"label": "Risk containment", "desc": "40% chance enemy loses 2 cards. 60% you lose 2 cards."},
+    },
+    "ori_crusade": {
+        "a": {"label": "Pay for shields (-60 naq)", "desc": "Heavy cost but no other damage."},
+        "b": {"label": "Endure the crusade", "desc": "-40 naq, but an AI faction loses a planet."},
+    },
+    "galactic_plague": {
+        "a": {"label": "Quarantine (-30 naq)", "desc": "Pay more but keep all card upgrades intact."},
+        "b": {"label": "Endure the plague", "desc": "-20 naq, all card upgrades reduced by 1."},
+    },
+    "ascension_wave": {
+        "a": {"label": "Channel into power", "desc": "+2 power to 2 strongest cards. Reset cooldowns."},
+        "b": {"label": "Store as wisdom", "desc": "+20 wisdom. Reset cooldowns."},
+    },
+    "wraith_invasion": {
+        "a": {"label": "Stand and fight", "desc": "Keep the planet but lose 50 naquadah."},
+        "b": {"label": "Evacuate", "desc": "Lose the planet but only -20 naquadah."},
+    },
+}
+
 
 def should_trigger_crisis(campaign_state):
     """Check if a crisis should trigger this turn.
@@ -79,7 +102,7 @@ def pick_crisis(campaign_state):
     return random.choice(CRISIS_EVENTS)
 
 
-def apply_crisis(campaign_state, galaxy, crisis, rng=None):
+def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
     """Apply a crisis event's effects.
 
     Args:
@@ -87,6 +110,7 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None):
         galaxy: GalaxyMap instance
         crisis: Crisis event dict
         rng: Optional Random instance
+        choice: "a" (safe/costly) or "b" (risky/cheap)
 
     Returns:
         Result message string.
@@ -98,128 +122,186 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None):
 
     if effect == "replicator_outbreak":
         from cards import ALL_CARDS
-        # Remove weakest card from player deck
-        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
-                      for cid in campaign_state.current_deck]
-        deck_power.sort(key=lambda x: x[1])
-        removed_name = "none"
-        if deck_power and len(campaign_state.current_deck) > 10:
-            removed_cid = deck_power[0][0]
-            campaign_state.remove_card(removed_cid)
-            removed_name = getattr(ALL_CARDS.get(removed_cid), 'name', removed_cid)
-        return f"Replicators consumed your weakest card: {removed_name}"
+        if choice == "a":
+            # Safe: remove weakest card (original behavior)
+            deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                          for cid in campaign_state.current_deck]
+            deck_power.sort(key=lambda x: x[1])
+            removed_name = "none"
+            if deck_power and len(campaign_state.current_deck) > 10:
+                removed_cid = deck_power[0][0]
+                campaign_state.remove_card(removed_cid)
+                removed_name = getattr(ALL_CARDS.get(removed_cid), 'name', removed_cid)
+            return f"Replicators consumed your weakest card: {removed_name}. Outbreak contained."
+        else:
+            # Risky: 40% reward, 60% lose 2 cards
+            if rng.random() < 0.40:
+                campaign_state.add_naquadah(10)
+                return "Containment gamble paid off! Replicators destroyed. +10 naq."
+            else:
+                deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                              for cid in campaign_state.current_deck]
+                deck_power.sort(key=lambda x: x[1])
+                removed = []
+                for cid, _pw in deck_power:
+                    if len(campaign_state.current_deck) > 10 and len(removed) < 2:
+                        campaign_state.remove_card(cid)
+                        removed.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+                names = ", ".join(removed) if removed else "none"
+                return f"Containment failed! Replicators consumed 2 cards: {names}."
 
     elif effect == "ori_crusade":
-        campaign_state.add_naquadah(-40)
-        # A random AI faction loses a planet to neutral
-        ai_planets = [(pid, p) for pid, p in galaxy.planets.items()
-                      if p.owner not in ("player", "neutral")]
-        flipped_name = "none"
-        if ai_planets:
-            pid, planet = rng.choice(ai_planets)
-            flipped_name = planet.name
-            galaxy.transfer_ownership(pid, "neutral")
-            campaign_state.planet_ownership[pid] = "neutral"
-        return f"-40 Naquadah. Ori crusade destabilized {flipped_name}."
+        if choice == "a":
+            # Safe: pay 60 naq, no planet damage
+            campaign_state.add_naquadah(-60)
+            return "-60 Naquadah. Shields held — no planetary damage."
+        else:
+            # Risky: original behavior
+            campaign_state.add_naquadah(-40)
+            ai_planets = [(pid, p) for pid, p in galaxy.planets.items()
+                          if p.owner not in ("player", "neutral")]
+            flipped_name = "none"
+            if ai_planets:
+                pid, planet = rng.choice(ai_planets)
+                flipped_name = planet.name
+                galaxy.transfer_ownership(pid, "neutral")
+                campaign_state.planet_ownership[pid] = "neutral"
+            return f"-40 Naquadah. Ori crusade destabilized {flipped_name}."
 
     elif effect == "galactic_plague":
-        campaign_state.add_naquadah(-20)
-        # Reduce all upgrades by 1
-        downgraded = 0
-        for cid in list(campaign_state.upgraded_cards):
-            if campaign_state.upgraded_cards[cid] > 0:
-                campaign_state.upgraded_cards[cid] -= 1
-                downgraded += 1
-            if campaign_state.upgraded_cards[cid] <= 0:
-                del campaign_state.upgraded_cards[cid]
-        return f"-20 Naquadah. Plague weakened {downgraded} card upgrade(s)."
+        if choice == "a":
+            # Safe: pay 30 naq, keep upgrades
+            campaign_state.add_naquadah(-30)
+            return "-30 Naquadah. Quarantine successful — card upgrades intact."
+        else:
+            # Risky: original behavior
+            campaign_state.add_naquadah(-20)
+            downgraded = 0
+            for cid in list(campaign_state.upgraded_cards):
+                if campaign_state.upgraded_cards[cid] > 0:
+                    campaign_state.upgraded_cards[cid] -= 1
+                    downgraded += 1
+                if campaign_state.upgraded_cards[cid] <= 0:
+                    del campaign_state.upgraded_cards[cid]
+            return f"-20 Naquadah. Plague weakened {downgraded} card upgrade(s)."
 
     elif effect == "ascension_wave":
         from cards import ALL_CARDS
-        # Upgrade 2 strongest cards by +2
-        deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
-                      for cid in campaign_state.current_deck]
-        deck_power.sort(key=lambda x: -x[1])
-        upgraded = []
-        seen = set()
-        for cid, pw in deck_power:
-            if cid in seen or pw <= 0:
-                continue
-            campaign_state.upgrade_card(cid, 2)
-            upgraded.append(getattr(ALL_CARDS.get(cid), 'name', cid))
-            seen.add(cid)
-            if len(upgraded) >= 2:
-                break
-        # Reset all cooldowns
-        campaign_state.cooldowns.clear()
-        parts = []
-        if upgraded:
-            parts.append(f"Ascended: {', '.join(upgraded)} (+2)")
-        parts.append("All cooldowns reset!")
-        return " | ".join(parts)
+        if choice == "a":
+            # Channel into power: +2 to 2 strongest + reset cooldowns (original)
+            deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                          for cid in campaign_state.current_deck]
+            deck_power.sort(key=lambda x: -x[1])
+            upgraded = []
+            seen = set()
+            for cid, pw in deck_power:
+                if cid in seen or pw <= 0:
+                    continue
+                campaign_state.upgrade_card(cid, 2)
+                upgraded.append(getattr(ALL_CARDS.get(cid), 'name', cid))
+                seen.add(cid)
+                if len(upgraded) >= 2:
+                    break
+            campaign_state.cooldowns.clear()
+            parts = []
+            if upgraded:
+                parts.append(f"Ascended: {', '.join(upgraded)} (+2)")
+            parts.append("All cooldowns reset!")
+            return " | ".join(parts)
+        else:
+            # Store as wisdom: +20 wisdom + reset cooldowns
+            campaign_state.wisdom = getattr(campaign_state, 'wisdom', 0) + 20
+            campaign_state.cooldowns.clear()
+            return "+20 Wisdom. All cooldowns reset!"
 
     elif effect == "wraith_invasion":
-        campaign_state.add_naquadah(-30)
-        # Convert a random player non-homeworld planet to hostile
-        player_non_hw = [(pid, p) for pid, p in galaxy.planets.items()
-                         if p.owner == "player" and p.planet_type != "homeworld"]
-        lost_name = "none"
-        if player_non_hw:
-            pid, planet = rng.choice(player_non_hw)
-            lost_name = planet.name
-            # Give to a random existing AI faction
-            ai_factions = list(set(p.owner for p in galaxy.planets.values()
-                                   if p.owner not in ("player", "neutral")))
-            new_owner = rng.choice(ai_factions) if ai_factions else "neutral"
-            galaxy.transfer_ownership(pid, new_owner)
-            campaign_state.planet_ownership[pid] = new_owner
-        return f"-30 Naquadah. Wraith overran {lost_name}!"
+        if choice == "a":
+            # Stand and fight: pay 50 naq, keep planet
+            campaign_state.add_naquadah(-50)
+            return "-50 Naquadah. Wraith repelled — all planets secure!"
+        else:
+            # Evacuate: lose planet but only -20 naq
+            campaign_state.add_naquadah(-20)
+            player_non_hw = [(pid, p) for pid, p in galaxy.planets.items()
+                             if p.owner == "player" and p.planet_type != "homeworld"]
+            lost_name = "none"
+            if player_non_hw:
+                pid, planet = rng.choice(player_non_hw)
+                lost_name = planet.name
+                ai_factions = list(set(p.owner for p in galaxy.planets.values()
+                                       if p.owner not in ("player", "neutral")))
+                new_owner = rng.choice(ai_factions) if ai_factions else "neutral"
+                galaxy.transfer_ownership(pid, new_owner)
+                campaign_state.planet_ownership[pid] = new_owner
+            return f"-20 Naquadah. Evacuated {lost_name} — Wraith took control."
 
     return "The crisis passes without incident."
 
 
-async def show_crisis_screen(screen, crisis, result_text):
-    """Show a dramatic crisis event screen.
+async def show_crisis_screen(screen, crisis, choices=None):
+    """Show a dramatic crisis event screen with choice buttons.
 
     Args:
         screen: Pygame display surface
         crisis: Crisis event dict
-        result_text: Result message from apply_crisis()
+        choices: Optional dict with "a" and "b" keys, each having
+                 "label" and "desc".  If None, falls back to legacy
+                 "press any key" behavior and returns "b".
+
+    Returns:
+        "a" or "b" depending on which button the player clicks.
     """
     sw, sh = screen.get_width(), screen.get_height()
     clock = pygame.time.Clock()
 
     title_font = pygame.font.SysFont("Impact, Arial", max(48, sh // 18), bold=True)
     text_font = pygame.font.SysFont("Arial", max(22, sh // 40))
-    result_font = pygame.font.SysFont("Arial", max(20, sh // 45), bold=True)
+    btn_font = pygame.font.SysFont("Arial", max(18, sh // 50), bold=True)
+    desc_font = pygame.font.SysFont("Arial", max(14, sh // 65))
     hint_font = pygame.font.SysFont("Arial", max(16, sh // 60))
 
     crisis_color = tuple(crisis.get("color", (255, 200, 100)))
 
-    running = True
+    # Button layout
+    btn_w = int(sw * 0.30)
+    btn_h = int(sh * 0.10)
+    gap = int(sw * 0.04)
+    btn_y = int(sh * 0.68)
+    btn_a_rect = pygame.Rect(sw // 2 - btn_w - gap // 2, btn_y, btn_w, btn_h)
+    btn_b_rect = pygame.Rect(sw // 2 + gap // 2, btn_y, btn_w, btn_h)
+
     frame = 0
-    while running:
+    while True:
         clock.tick(60)
         await asyncio.sleep(0)
         frame += 1
 
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                return
-            elif ev.type == pygame.KEYDOWN or ev.type == pygame.MOUSEBUTTONDOWN:
-                if frame > 30:  # Require at least 0.5s before dismissing
-                    running = False
+                return "b"
+            if choices is None:
+                # Legacy: press any key to dismiss
+                if (ev.type == pygame.KEYDOWN or ev.type == pygame.MOUSEBUTTONDOWN) and frame > 30:
+                    return "b"
+            else:
+                if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1 and frame > 30:
+                    if btn_a_rect.collidepoint(ev.pos):
+                        return "a"
+                    if btn_b_rect.collidepoint(ev.pos):
+                        return "b"
 
         # Dark background with crisis-colored vignette
         screen.fill((10, 10, 15))
-        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        overlay.fill((*crisis_color, 30))
+        overlay = pygame.Surface((sw, sh))
+        overlay.fill(crisis_color)
+        overlay.set_alpha(30)
         screen.blit(overlay, (0, 0))
 
         # Warning flash effect (first second)
         if frame < 60 and frame % 20 < 10:
-            flash = pygame.Surface((sw, sh), pygame.SRCALPHA)
-            flash.fill((*crisis_color, 40))
+            flash = pygame.Surface((sw, sh))
+            flash.fill(crisis_color)
+            flash.set_alpha(40)
             screen.blit(flash, (0, 0))
 
         # Crisis warning header
@@ -240,12 +322,28 @@ async def show_crisis_screen(screen, crisis, result_text):
             screen.blit(line_surf, (sw // 2 - line_surf.get_width() // 2,
                                     int(sh * 0.42) + i * int(sh * 0.05)))
 
-        # Result
-        res_surf = result_font.render(result_text, True, (255, 220, 100))
-        screen.blit(res_surf, (sw // 2 - res_surf.get_width() // 2, int(sh * 0.65)))
-
-        # Continue hint
-        if frame > 30:
+        if choices is not None and frame > 30:
+            # Draw choice buttons
+            mx, my = pygame.mouse.get_pos()
+            for rect, key, base_color in [
+                (btn_a_rect, "a", (40, 100, 60)),
+                (btn_b_rect, "b", (100, 60, 40)),
+            ]:
+                choice_data = choices[key]
+                hovered = rect.collidepoint(mx, my)
+                color = tuple(min(255, c + 40) for c in base_color) if hovered else base_color
+                pygame.draw.rect(screen, color, rect)
+                pygame.draw.rect(screen, (200, 200, 200) if hovered else (120, 120, 120), rect, 2)
+                # Label
+                lbl = btn_font.render(choice_data["label"], True, (255, 255, 255))
+                screen.blit(lbl, (rect.centerx - lbl.get_width() // 2,
+                                  rect.y + int(btn_h * 0.20)))
+                # Description
+                dsc = desc_font.render(choice_data["desc"], True, (200, 200, 200))
+                screen.blit(dsc, (rect.centerx - dsc.get_width() // 2,
+                                  rect.y + int(btn_h * 0.60)))
+        elif choices is None and frame > 30:
+            # Legacy hint
             hint = hint_font.render("Press any key to continue", True, (150, 150, 150))
             screen.blit(hint, (sw // 2 - hint.get_width() // 2, int(sh * 0.82)))
 

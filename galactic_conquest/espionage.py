@@ -277,11 +277,10 @@ def tick_operatives(state, galaxy, rng):
                 result = _resolve_mission(state, op, galaxy, rng, effects)
                 messages.append(result)
 
-        # Diplomatic incident check for operatives on enemy faction planets
-        if op.state == ACTIVE and op.target_planet:
-            incident = _check_diplomatic_incident(state, op, galaxy, rng, effects)
-            if incident:
-                messages.append(incident)
+        # NOTE: Diplomatic incidents are now generated separately via
+        # generate_incident_choices() and resolved interactively in the
+        # campaign controller.  The old auto-resolve is kept as a fallback
+        # only when called directly (not the normal path).
 
     _save_operatives(state, ops)
     return messages
@@ -412,3 +411,192 @@ def get_operative_summary(state):
     return [(op.name, RANK_NAMES.get(op.rank, "?"), op.state,
              op.target_planet, op.mission, op.turns_remaining,
              op.death_countdown, op.id) for op in ops]
+
+
+# ─── AI Espionage Against Player ────────────────────────────────
+
+AI_ESPIONAGE_MISSIONS = {
+    "steal_naq": {"name": "Resource Theft", "desc": "Steal 20-40 naquadah", "chance": 0.70},
+    "sabotage": {"name": "Sabotage", "desc": "Remove 1 card from your next battle", "chance": 0.60},
+    "rig_minor": {"name": "Rig Influence", "desc": "Reduce your minor world influence", "chance": 0.70},
+}
+
+
+def generate_ai_espionage_events(state, galaxy, rng):
+    """Generate AI espionage events targeting player planets.
+
+    Hostile factions with 4+ planets have 15% chance/turn.
+    Returns list of event dicts.
+    """
+    events = []
+    for faction in galaxy.get_active_factions():
+        if faction == state.player_faction:
+            continue
+        from .diplomacy import get_relation, HOSTILE
+        if get_relation(state, faction) != HOSTILE:
+            continue
+        if galaxy.get_faction_planet_count(faction) < 4:
+            continue
+        if rng.random() >= 0.15:
+            continue
+        # Pick a random player planet as target
+        player_planets = [pid for pid, p in galaxy.planets.items() if p.owner == "player"]
+        if not player_planets:
+            continue
+        target_pid = rng.choice(player_planets)
+        target_planet = galaxy.planets[target_pid]
+        mission_type = rng.choice(list(AI_ESPIONAGE_MISSIONS.keys()))
+        mission = AI_ESPIONAGE_MISSIONS[mission_type]
+
+        # Check if player has counter-intel operative here
+        has_counter = any(
+            op.get("target_planet") == target_pid
+            and op.get("current_mission") == "counter_intel"
+            and op.get("state") == "active"
+            for op in state.operatives
+        )
+
+        events.append({
+            "faction": faction,
+            "planet_id": target_pid,
+            "planet_name": target_planet.name,
+            "mission_type": mission_type,
+            "mission_name": mission["name"],
+            "mission_desc": mission["desc"],
+            "success_chance": mission["chance"],
+            "has_counter_intel": has_counter,
+        })
+    return events
+
+
+def resolve_ai_espionage(state, galaxy, event, choice, rng):
+    """Resolve an AI espionage event based on player choice.
+
+    choice: "ignore", "capture", or "counter"
+    Returns result message string.
+    """
+    faction = event["faction"]
+    planet_name = event["planet_name"]
+    mission_type = event["mission_type"]
+
+    if choice == "counter":
+        return f"Counter-intel operative blocked {faction}'s {event['mission_name']} on {planet_name}!"
+
+    if choice == "capture":
+        state.add_naquadah(-20)
+        if rng.random() < 0.60:
+            return f"Captured {faction} operative on {planet_name}! (-20 naq)"
+        else:
+            # Capture failed, mission proceeds
+            pass  # Fall through to mission resolution
+
+    # Ignore or failed capture — mission may succeed
+    if rng.random() < event["success_chance"]:
+        # Mission succeeds
+        if mission_type == "steal_naq":
+            stolen = rng.randint(20, 40)
+            state.add_naquadah(-stolen)
+            return f"{faction} stole {stolen} naquadah from {planet_name}!"
+        elif mission_type == "sabotage":
+            state.conquest_ability_data["ai_sabotage_active"] = True
+            return f"{faction} sabotaged {planet_name}! -1 card in your next battle."
+        elif mission_type == "rig_minor":
+            # Reduce influence on a random minor world
+            from .minor_worlds import MinorWorldState
+            for pid, mw_data in list(state.minor_world_states.items()):
+                mw = MinorWorldState.from_dict(mw_data)
+                if mw.influence > 10:
+                    mw.influence = max(0, mw.influence - 15)
+                    state.minor_world_states[pid] = mw.to_dict()
+                    return f"{faction} rigged influence on a minor world! -15 influence."
+            return f"{faction}'s influence operation found no viable targets."
+    else:
+        if choice == "ignore":
+            return f"{faction}'s espionage on {planet_name} failed."
+        return f"Failed to capture {faction} operative, but their mission also failed. (-20 naq)"
+
+
+# ─── Diplomatic Incident Choices ────────────────────────────────
+
+def generate_incident_choices(state, galaxy, rng):
+    """Check for diplomatic incidents and generate choice events.
+
+    Returns list of incident choice dicts instead of auto-resolving.
+    """
+    incidents = []
+    for op in state.operatives:
+        if op.get("state") != "active":
+            continue
+        target_pid = op.get("target_planet")
+        if not target_pid:
+            continue
+        target = galaxy.planets.get(target_pid)
+        if not target or target.owner in ("player", "neutral"):
+            continue
+        # 10% chance of detection
+        if rng.random() >= 0.10:
+            continue
+        # Shadow Mastery eliminates incidents
+        from .doctrines import get_active_effects
+        effects = get_active_effects(state)
+        if effects.get("shadow_mastery"):
+            continue
+        incidents.append({
+            "operative_id": op.get("id"),
+            "operative_name": op.get("name", "Operative"),
+            "planet_name": target.name,
+            "faction": target.owner,
+        })
+    return incidents
+
+
+def resolve_incident_choice(state, incident, choice, rng):
+    """Resolve a diplomatic incident choice.
+
+    choice: "deny", "recall", or "double_down"
+    Returns result message string.
+    """
+    faction = incident["faction"]
+    op_name = incident["operative_name"]
+    planet_name = incident["planet_name"]
+
+    if choice == "deny":
+        if rng.random() < 0.50:
+            return f"Denied involvement — {faction} bought it. {op_name} is safe on {planet_name}."
+        else:
+            from .diplomacy import get_relation, set_relation, TRADING, HOSTILE, ALLIED
+            rel = get_relation(state, faction)
+            if rel == ALLIED:
+                set_relation(state, faction, TRADING)
+                return f"Cover blown! {faction} caught {op_name}. Alliance downgraded to Trading."
+            elif rel == TRADING:
+                set_relation(state, faction, HOSTILE)
+                return f"Cover blown! {faction} caught {op_name}. Now Hostile!"
+            return f"Cover blown! {faction} caught {op_name} on {planet_name}."
+
+    elif choice == "recall":
+        # Find and recall the operative
+        for op in state.operatives:
+            if op.get("id") == incident["operative_id"]:
+                op["state"] = "idle"
+                op["target_planet"] = None
+                op["current_mission"] = None
+                break
+        return f"Recalled {op_name} from {planet_name}. No diplomatic damage."
+
+    elif choice == "double_down":
+        # Guaranteed incident but operative gets mission bonus
+        from .diplomacy import get_relation, set_relation, TRADING, HOSTILE, ALLIED
+        rel = get_relation(state, faction)
+        if rel == ALLIED:
+            set_relation(state, faction, TRADING)
+        elif rel == TRADING:
+            set_relation(state, faction, HOSTILE)
+        # Give operative bonus
+        for op in state.operatives:
+            if op.get("id") == incident["operative_id"]:
+                op["mission_bonus"] = op.get("mission_bonus", 0) + 20
+                break
+        return f"Doubled down! {op_name} gets +20% next mission, but {faction} relations damaged."
+
+    return ""

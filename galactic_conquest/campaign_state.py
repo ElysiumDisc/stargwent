@@ -42,6 +42,9 @@ class CampaignState:
     operatives: list = field(default_factory=list)                # Operative dicts
     operative_next_id: int = 0
     operative_earn_turns: list = field(default_factory=lambda: [5, 10, 16])
+    building_levels: dict = field(default_factory=dict)                   # planet_id -> 1/2/3
+    pending_crisis: dict = field(default_factory=dict)                    # crisis dict with choices (empty = none)
+    wisdom_actions_this_turn: int = 0                                     # reset each turn
 
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
@@ -78,6 +81,9 @@ class CampaignState:
             "operatives": list(self.operatives),
             "operative_next_id": self.operative_next_id,
             "operative_earn_turns": list(self.operative_earn_turns),
+            "building_levels": dict(self.building_levels),
+            "pending_crisis": dict(self.pending_crisis),
+            "wisdom_actions_this_turn": self.wisdom_actions_this_turn,
         }
 
     @classmethod
@@ -116,6 +122,9 @@ class CampaignState:
             operatives=data.get("operatives", []),
             operative_next_id=data.get("operative_next_id", 0),
             operative_earn_turns=data.get("operative_earn_turns", [5, 10, 16]),
+            building_levels=data.get("building_levels", {}),
+            pending_crisis=data.get("pending_crisis", {}),
+            wisdom_actions_this_turn=data.get("wisdom_actions_this_turn", 0),
         )
 
     def tick_cooldowns(self):

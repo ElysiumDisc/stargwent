@@ -26,13 +26,17 @@ jobs:
       - id: get_version
         run: |
           if [[ -n "${{ github.event.inputs.version }}" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            VER="${{ github.event.inputs.version }}"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+            VER="${GITHUB_REF#refs/tags/v}"
           else
             VER=$(sed -n 's/.*badge\/version-\([0-9.]\+\)-.*/\1/p' README.md | head -n1)
-            echo "version=$VER" >> "$GITHUB_OUTPUT"
           fi
+          if [[ -z "$VER" ]]; then
+            echo "::error::Could not determine version from tag, input, or README.md badge"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
       - run: echo "Building version ${{ steps.get_version.outputs.version }}"
 
   # ── Linux: .deb + AppImage ────────────────────────────────────
@@ -232,6 +236,20 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          files: builds/releases/*macos*.dmg
+
+  # ── Create / update GitHub Release with description ─────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, linux, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Set release description
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
           name: Stargwent v${{ needs.version.outputs.version }}
           body: |
             ## Stargwent v${{ needs.version.outputs.version }}
@@ -245,4 +263,3 @@ jobs:
             | macOS | `.dmg` | Open and drag to Applications |
 
             All builds support LAN multiplayer cross-play between platforms.
-          files: builds/releases/*macos*.dmg

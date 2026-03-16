@@ -28,9 +28,12 @@ from .stargate_network import get_network_bonuses, get_disconnected_planets
 from .difficulty import get_counterattack_chance, get_ai_power_bonus, get_loss_penalty
 from .conquest_abilities import trigger_ability, get_ability_display
 from .buildings import (get_building_naq_income, get_defense_bonus,
-                         get_attack_extra_cards, construct_building, BUILDINGS, can_build)
-from .crisis_events import should_trigger_crisis, pick_crisis, apply_crisis, show_crisis_screen
-from .diplomacy import (check_ai_trade_proposals, get_adjacency_bonus_factions,
+                         get_attack_extra_cards, construct_building, BUILDINGS, can_build,
+                         get_building_level, can_upgrade as can_upgrade_building,
+                         upgrade_building, get_upgrade_cost)
+from .crisis_events import (should_trigger_crisis, pick_crisis, apply_crisis,
+                             show_crisis_screen, CRISIS_CHOICES)
+from .diplomacy import (get_adjacency_bonus_factions,
                          get_trade_income, get_alliance_upkeep, set_relation,
                          TRADING, check_conquest_strain)
 from .minor_worlds import (init_minor_worlds, ensure_minor_world,
@@ -39,7 +42,9 @@ from .minor_worlds import (init_minor_worlds, ensure_minor_world,
                             get_minor_world_bonuses)
 from .doctrines import (get_active_effects, apply_wisdom_income, get_wisdom_per_turn)
 from .espionage import (tick_operatives, check_earn_operative, get_sabotage_effect,
-                         get_operative_summary)
+                         get_operative_summary, generate_ai_espionage_events,
+                         resolve_ai_espionage, generate_incident_choices,
+                         resolve_incident_choice)
 from .victory_conditions import (check_any_victory, tick_supergate, VICTORY_INFO,
                                    VICTORY_SCORE_MULTIPLIERS)
 
@@ -170,6 +175,12 @@ class CampaignController:
                         # Minor world quest: build event
                         for _qpid, _qmsg in notify_quest_event(self.state, "build"):
                             self._flash_message(_qmsg, 1200)
+            elif action and action.startswith("upgrade_"):
+                planet_id = action[8:]
+                if planet_id and can_upgrade_building(self.state, planet_id, self.galaxy):
+                    msg = upgrade_building(self.state, planet_id)
+                    if msg:
+                        self.message = msg
             elif action == "fortify":
                 planet_id = self.map_screen.selected_planet
                 if planet_id and planet_id in self.galaxy.planets:
@@ -181,9 +192,24 @@ class CampaignController:
                         self.state.add_naquadah(-fort_cost)
                         self.state.fortification_levels[planet_id] = cur_level + 1
                         self.message = f"Fortified {planet.name}! (Level {cur_level + 1}/3) -{fort_cost} naq"
+            elif action and action.startswith("wisdom_"):
+                action_id = action[7:]
+                from .wisdom_actions import use_wisdom_action
+                msg = use_wisdom_action(self.state, action_id, self.galaxy, self.rng)
+                if msg:
+                    self.message = msg
             elif action == "attack":
                 planet_id = self.map_screen.selected_planet
                 if planet_id:
+                    # Check conquest strain warning
+                    from .diplomacy import check_potential_strain
+                    strain_msg = check_potential_strain(self.state, planet_id, self.galaxy)
+                    if strain_msg:
+                        proceed = await self._show_trade_proposal(
+                            "Warning", strain_msg,
+                            accept_label="Attack Anyway", reject_label="Cancel")
+                        if not proceed:
+                            continue
                     result = await self._attack_planet(planet_id)
                     if result == "quit":
                         return "quit"
@@ -250,6 +276,7 @@ class CampaignController:
                     self.state.add_naquadah(naq_income)
                 # Reset attacks counter for new turn
                 self.state.attacks_this_turn = 0
+                self.state.wisdom_actions_this_turn = 0
                 # Tick crisis cooldown
                 if self.state.crisis_cooldown > 0:
                     self.state.crisis_cooldown -= 1
@@ -291,17 +318,18 @@ class CampaignController:
                 if isinstance(turn_ability_result, str) and turn_ability_result:
                     turn_msg += f" | {turn_ability_result}"
 
-                # AI trade proposals (weakened factions offer deals)
-                proposals = check_ai_trade_proposals(self.state, self.galaxy, self.rng)
-                for prop_faction, prop_msg in proposals:
-                    accepted = await self._show_trade_proposal(prop_faction, prop_msg)
-                    if accepted:
-                        set_relation(self.state, prop_faction, TRADING)
-                        from .diplomacy import _track_conquest_stat
-                        _track_conquest_stat("ai_trades_accepted")
-                        turn_msg += f" | {prop_faction} trade accepted!"
-                    else:
-                        turn_msg += f" | {prop_faction} trade declined."
+                # AI diplomatic proposals
+                from .diplomacy import generate_ai_proposals, apply_proposal, tick_tribute_rejections
+                ai_proposals = generate_ai_proposals(self.state, self.galaxy, self.rng)
+                for proposal in ai_proposals:
+                    accepted = await self._show_trade_proposal(
+                        proposal["faction"], proposal["description"],
+                        accept_label=proposal.get("accept_label", "Accept"),
+                        reject_label=proposal.get("reject_label", "Decline"))
+                    result_msg = apply_proposal(self.state, proposal, accepted, self.galaxy, self.rng)
+                    if result_msg:
+                        turn_msg += f" | {result_msg}"
+                tick_tribute_rejections(self.state)
 
                 # Ancient Repository relic: +30 naq/turn if player controls Atlantis
                 if self.state.has_relic("ancient_repository"):
@@ -316,8 +344,11 @@ class CampaignController:
                 if should_trigger_crisis(self.state):
                     crisis = pick_crisis(self.state)
                     if crisis:
-                        crisis_result = apply_crisis(self.state, self.galaxy, crisis, self.rng)
-                        await show_crisis_screen(self.screen, crisis, crisis_result)
+                        choices = CRISIS_CHOICES.get(crisis["effect"])
+                        player_choice = await show_crisis_screen(self.screen, crisis, choices)
+                        crisis_result = apply_crisis(
+                            self.state, self.galaxy, crisis, self.rng, choice=player_choice)
+                        self._flash_message(crisis_result, 2000)
                         self._refresh_after_battle()
                         self.state.crisis_cooldown = 3  # 3-turn cooldown between crises
                         turn_msg += f" | CRISIS: {crisis['title']}"
@@ -332,6 +363,19 @@ class CampaignController:
                             unique_crises.append(crisis["title"])
                         _p.save_unlocks()
 
+                # AI espionage events
+                ai_esp_events = generate_ai_espionage_events(self.state, self.galaxy, self.rng)
+                for esp_event in ai_esp_events:
+                    if esp_event["has_counter_intel"]:
+                        result = resolve_ai_espionage(
+                            self.state, self.galaxy, esp_event, "counter", self.rng)
+                        turn_msg += f" | {result}"
+                    else:
+                        choice = await self._show_espionage_alert(esp_event)
+                        result = resolve_ai_espionage(
+                            self.state, self.galaxy, esp_event, choice, self.rng)
+                        turn_msg += f" | {result}"
+
                 # Espionage: tick operatives + check earn
                 esp_messages = tick_operatives(self.state, self.galaxy, self.rng)
                 for esp_msg in esp_messages:
@@ -339,6 +383,13 @@ class CampaignController:
                 earn_msg = check_earn_operative(self.state, self.rng)
                 if earn_msg:
                     turn_msg += f" | {earn_msg}"
+
+                # Diplomatic incident choices
+                incidents = generate_incident_choices(self.state, self.galaxy, self.rng)
+                for incident in incidents:
+                    choice = await self._show_incident_choice(incident)
+                    result = resolve_incident_choice(self.state, incident, choice, self.rng)
+                    turn_msg += f" | {result}"
 
                 # Supergate victory: tick progress
                 sg_msg = tick_supergate(self.state, self.galaxy)
@@ -1512,8 +1563,9 @@ class CampaignController:
         self.state.planet_ownership[target_id] = "player"
         return target.name
 
-    async def _show_trade_proposal(self, faction, message):
-        """Show an AI trade proposal with ACCEPT/DECLINE buttons.
+    async def _show_trade_proposal(self, faction, message,
+                                     accept_label="Accept", reject_label="Decline"):
+        """Show an AI trade/diplomatic proposal with customizable buttons.
 
         Returns True if accepted, False if declined.
         """
@@ -1563,8 +1615,8 @@ class CampaignController:
             # Buttons
             mx, my = pygame.mouse.get_pos()
             for rect, label, base_color in [
-                (accept_rect, "ACCEPT", (40, 100, 40)),
-                (decline_rect, "DECLINE", (100, 40, 40)),
+                (accept_rect, accept_label.upper(), (40, 100, 40)),
+                (decline_rect, reject_label.upper(), (100, 40, 40)),
             ]:
                 hovered = rect.collidepoint(mx, my)
                 color = tuple(min(255, c + 40) for c in base_color) if hovered else base_color
@@ -1573,6 +1625,163 @@ class CampaignController:
                 lbl = btn_font.render(label, True, (255, 255, 255))
                 self.screen.blit(lbl, (rect.centerx - lbl.get_width() // 2,
                                        rect.centery - lbl.get_height() // 2))
+
+            display_manager.gpu_flip()
+            pygame.time.Clock().tick(60)
+
+    async def _show_espionage_alert(self, event):
+        """Show an AI espionage alert with IGNORE/CAPTURE buttons.
+
+        Returns "ignore" or "capture".
+        """
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        font = pygame.font.SysFont("Impact, Arial", max(30, sh // 30), bold=True)
+        info_font = pygame.font.SysFont("Arial", max(18, sh // 50))
+        btn_font = pygame.font.SysFont("Arial", max(16, sh // 55), bold=True)
+        desc_font = pygame.font.SysFont("Arial", max(14, sh // 65))
+
+        btn_w = int(sw * 0.14)
+        btn_h = int(sh * 0.06)
+        gap = int(sw * 0.03)
+        btn_y = int(sh * 0.62)
+        ignore_rect = pygame.Rect(sw // 2 - btn_w - gap // 2, btn_y, btn_w, btn_h)
+        capture_rect = pygame.Rect(sw // 2 + gap // 2, btn_y, btn_w, btn_h)
+
+        while True:
+            await asyncio.sleep(0)
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    return "ignore"
+                elif ev.type == pygame.KEYDOWN:
+                    if ev.key == pygame.K_ESCAPE:
+                        return "ignore"
+                elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    if ignore_rect.collidepoint(ev.pos):
+                        return "ignore"
+                    if capture_rect.collidepoint(ev.pos):
+                        return "capture"
+
+            # Draw overlay
+            overlay = pygame.Surface((sw, sh))
+            overlay.fill((0, 0, 0))
+            overlay.set_alpha(180)
+            self.screen.blit(overlay, (0, 0))
+
+            # Title
+            title_surf = font.render("ESPIONAGE DETECTED!", True, (255, 80, 80))
+            self.screen.blit(title_surf, (sw // 2 - title_surf.get_width() // 2, int(sh * 0.32)))
+
+            # Details
+            detail = info_font.render(
+                f"{event['faction']} operative spotted on {event['planet_name']}!",
+                True, (200, 220, 255))
+            self.screen.blit(detail, (sw // 2 - detail.get_width() // 2, int(sh * 0.42)))
+
+            mission = info_font.render(
+                f"Mission: {event['mission_name']} — {event['mission_desc']}",
+                True, (255, 200, 100))
+            self.screen.blit(mission, (sw // 2 - mission.get_width() // 2, int(sh * 0.48)))
+
+            chance = info_font.render(
+                f"Success chance if ignored: {int(event['success_chance'] * 100)}%",
+                True, (200, 200, 200))
+            self.screen.blit(chance, (sw // 2 - chance.get_width() // 2, int(sh * 0.54)))
+
+            # Buttons
+            mx, my = pygame.mouse.get_pos()
+            for rect, label, sub, base_color in [
+                (ignore_rect, "IGNORE", "Free — hope it fails", (80, 80, 80)),
+                (capture_rect, "CAPTURE", "-20 naq, 60% success", (100, 40, 40)),
+            ]:
+                hovered = rect.collidepoint(mx, my)
+                color = tuple(min(255, c + 40) for c in base_color) if hovered else base_color
+                pygame.draw.rect(self.screen, color, rect)
+                pygame.draw.rect(self.screen, (200, 200, 200) if hovered else (120, 120, 120), rect, 2)
+                lbl = btn_font.render(label, True, (255, 255, 255))
+                self.screen.blit(lbl, (rect.centerx - lbl.get_width() // 2,
+                                       rect.y + int(btn_h * 0.18)))
+                sub_surf = desc_font.render(sub, True, (180, 180, 180))
+                self.screen.blit(sub_surf, (rect.centerx - sub_surf.get_width() // 2,
+                                             rect.y + int(btn_h * 0.58)))
+
+            display_manager.gpu_flip()
+            pygame.time.Clock().tick(60)
+
+    async def _show_incident_choice(self, incident):
+        """Show a diplomatic incident choice with DENY/RECALL/DOUBLE DOWN buttons.
+
+        Returns "deny", "recall", or "double_down".
+        """
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        font = pygame.font.SysFont("Impact, Arial", max(30, sh // 30), bold=True)
+        info_font = pygame.font.SysFont("Arial", max(18, sh // 50))
+        btn_font = pygame.font.SysFont("Arial", max(16, sh // 55), bold=True)
+        desc_font = pygame.font.SysFont("Arial", max(14, sh // 65))
+
+        btn_w = int(sw * 0.16)
+        btn_h = int(sh * 0.07)
+        gap = int(sw * 0.02)
+        total_w = btn_w * 3 + gap * 2
+        start_x = sw // 2 - total_w // 2
+        btn_y = int(sh * 0.62)
+        deny_rect = pygame.Rect(start_x, btn_y, btn_w, btn_h)
+        recall_rect = pygame.Rect(start_x + btn_w + gap, btn_y, btn_w, btn_h)
+        double_rect = pygame.Rect(start_x + 2 * (btn_w + gap), btn_y, btn_w, btn_h)
+
+        while True:
+            await asyncio.sleep(0)
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    return "deny"
+                elif ev.type == pygame.KEYDOWN:
+                    if ev.key == pygame.K_ESCAPE:
+                        return "deny"
+                elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    if deny_rect.collidepoint(ev.pos):
+                        return "deny"
+                    if recall_rect.collidepoint(ev.pos):
+                        return "recall"
+                    if double_rect.collidepoint(ev.pos):
+                        return "double_down"
+
+            # Draw overlay
+            overlay = pygame.Surface((sw, sh))
+            overlay.fill((0, 0, 0))
+            overlay.set_alpha(180)
+            self.screen.blit(overlay, (0, 0))
+
+            # Title
+            title_surf = font.render("OPERATIVE DISCOVERED!", True, (255, 180, 60))
+            self.screen.blit(title_surf, (sw // 2 - title_surf.get_width() // 2, int(sh * 0.32)))
+
+            # Details
+            detail = info_font.render(
+                f"{incident['operative_name']} was spotted on {incident['planet_name']}!",
+                True, (200, 220, 255))
+            self.screen.blit(detail, (sw // 2 - detail.get_width() // 2, int(sh * 0.42)))
+
+            faction_info = info_font.render(
+                f"{incident['faction']} demands an explanation.",
+                True, (255, 200, 100))
+            self.screen.blit(faction_info, (sw // 2 - faction_info.get_width() // 2, int(sh * 0.48)))
+
+            # Buttons
+            mx, my = pygame.mouse.get_pos()
+            for rect, label, sub, base_color in [
+                (deny_rect, "DENY", "50/50 cover holds", (60, 60, 100)),
+                (recall_rect, "RECALL", "Safe — no damage", (40, 100, 40)),
+                (double_rect, "DOUBLE DOWN", "+20% mission, relations hit", (100, 40, 40)),
+            ]:
+                hovered = rect.collidepoint(mx, my)
+                color = tuple(min(255, c + 40) for c in base_color) if hovered else base_color
+                pygame.draw.rect(self.screen, color, rect)
+                pygame.draw.rect(self.screen, (200, 200, 200) if hovered else (120, 120, 120), rect, 2)
+                lbl = btn_font.render(label, True, (255, 255, 255))
+                self.screen.blit(lbl, (rect.centerx - lbl.get_width() // 2,
+                                       rect.y + int(btn_h * 0.20)))
+                sub_surf = desc_font.render(sub, True, (180, 180, 180))
+                self.screen.blit(sub_surf, (rect.centerx - sub_surf.get_width() // 2,
+                                             rect.y + int(btn_h * 0.60)))
 
             display_manager.gpu_flip()
             pygame.time.Clock().tick(60)

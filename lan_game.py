@@ -37,7 +37,6 @@ def find_leader(faction, leader_id):
 
 async def wait_for_message(session, expected_type):
     while True:
-        await asyncio.sleep(0)
         msg = session.receive()
         if msg:
             parsed = parse_message(msg)
@@ -45,7 +44,7 @@ async def wait_for_message(session, expected_type):
                 return msg.get("payload")
             elif msg.get("type") == "disconnect":
                 return None
-        pygame.time.wait(50)
+        await asyncio.sleep(0.05)
 
 
 async def run_lan_setup(screen, unlock_system, session: LanSession, role: str, toggle_fullscreen_callback=None) -> Optional[LanContext]:

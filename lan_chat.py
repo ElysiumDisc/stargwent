@@ -556,8 +556,7 @@ class LanChatPanel:
         if self.unread_count > 99:
             badge_text = "99+"
 
-        font = pygame.font.SysFont("Arial", 14, bold=True)
-        text_surf = font.render(badge_text, True, (255, 255, 255))
+        text_surf = self.font_small.render(badge_text, True, (255, 255, 255))
 
         padding = 4
         badge_width = max(20, text_surf.get_width() + padding * 2)

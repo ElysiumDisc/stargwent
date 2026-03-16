@@ -18,6 +18,7 @@ from .conquest_menu import (_get_scanline_overlay, CRT_AMBER, CRT_CYAN,
 from .doctrines import (DOCTRINE_TREES, get_policy_cost, can_adopt,
                           adopt_policy, is_tree_complete, get_next_policy,
                           get_active_effects, get_wisdom_per_turn)
+from .wisdom_actions import get_available_actions, use_wisdom_action
 
 
 async def run_doctrine_screen(screen, state, galaxy):
@@ -82,6 +83,22 @@ async def run_doctrine_screen(screen, state, galaxy):
                                            col_w - 10, int(sh * 0.03))
                     adopt_rects.append((btn_rect, policy["id"], True))
 
+        # Build wisdom action rects
+        wisdom_rects = []  # (rect, action_id, can_afford)
+        wa_actions = get_available_actions(state)
+        if wa_actions:
+            wa_count = len(wa_actions)
+            wa_btn_w = int(sw * 0.18)
+            wa_btn_h = int(sh * 0.055)
+            wa_gap = int(sw * 0.015)
+            wa_total_w = wa_count * wa_btn_w + (wa_count - 1) * wa_gap
+            wa_start_x = sw // 2 - wa_total_w // 2
+            wa_y = int(sh * 0.82)
+            for idx, (action_id, info, can_afford) in enumerate(wa_actions):
+                wa_x = wa_start_x + idx * (wa_btn_w + wa_gap)
+                wa_rect = pygame.Rect(wa_x, wa_y, wa_btn_w, wa_btn_h)
+                wisdom_rects.append((wa_rect, action_id, can_afford))
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return
@@ -95,6 +112,12 @@ async def run_doctrine_screen(screen, state, galaxy):
                 for rect, pid, adoptable in adopt_rects:
                     if rect.collidepoint(mx, my) and adoptable:
                         msg = adopt_policy(state, pid)
+                        if msg:
+                            message = msg
+                            message_timer = 150
+                for rect, action_id, can_afford in wisdom_rects:
+                    if rect.collidepoint(mx, my) and can_afford:
+                        msg = use_wisdom_action(state, action_id, galaxy)
                         if msg:
                             message = msg
                             message_timer = 150
@@ -238,6 +261,46 @@ async def run_doctrine_screen(screen, state, galaxy):
             b_desc = small_font.render(bonus["desc"], True, b_color)
             screen.blit(b_desc, (col_x + col_w // 2 - b_desc.get_width() // 2,
                                   bonus_y + b_name.get_height() + 2))
+
+        # Wisdom Powers section (below doctrine trees, above close button)
+        if wa_actions:
+            wp_label_y = int(sh * 0.775)
+            wp_label = tree_font.render("WISDOM POWERS", True,
+                                         tuple(int(c * pulse) for c in (200, 150, 255)))
+            screen.blit(wp_label, (sw // 2 - wp_label.get_width() // 2, wp_label_y))
+
+            for wa_rect, action_id, can_afford in wisdom_rects:
+                info = None
+                for aid, ainf, _ in wa_actions:
+                    if aid == action_id:
+                        info = ainf
+                        break
+                if not info:
+                    continue
+
+                hovered = wa_rect.collidepoint(mx, my)
+                if can_afford:
+                    bg = CRT_BTN_HOVER if hovered else CRT_BTN_BG
+                    border = CRT_BTN_BORDER_HOVER if hovered else CRT_BTN_BORDER
+                    text_color = (255, 255, 255) if hovered else CRT_TEXT
+                else:
+                    bg = (20, 20, 20)
+                    border = (50, 50, 50)
+                    text_color = CRT_TEXT_DIM
+
+                pygame.draw.rect(screen, bg, wa_rect)
+                pygame.draw.rect(screen, border, wa_rect, 1)
+
+                # Icon + name line
+                line1 = f"{info['icon']} {info['name']} ({info['cost']}W)"
+                line1_surf = btn_font.render(line1, True, text_color)
+                screen.blit(line1_surf, (wa_rect.x + wa_rect.w // 2 - line1_surf.get_width() // 2,
+                                          wa_rect.y + 3))
+                # Description line
+                line2_surf = small_font.render(info["desc"], True,
+                                                text_color if can_afford else CRT_TEXT_DIM)
+                screen.blit(line2_surf, (wa_rect.x + wa_rect.w // 2 - line2_surf.get_width() // 2,
+                                          wa_rect.y + 3 + line1_surf.get_height()))
 
         # Close button
         close_hovered = close_rect.collidepoint(mx, my)

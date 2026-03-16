@@ -239,6 +239,18 @@ def draw_button(surface, rect, text, font_size=32, hover=False, color_normal=(50
     surface.blit(text_surf, (text_x, text_y))
 
 
+def _build_gradient_bg(width, height):
+    """Build a cached gradient background surface."""
+    surf = pygame.Surface((width, height))
+    for y in range(height):
+        ratio = y / height
+        r = int(10 + ratio * 15)
+        g = int(15 + ratio * 20)
+        b = int(30 + ratio * 40)
+        pygame.draw.line(surf, (r, g, b), (0, y), (width, y))
+    return surf
+
+
 async def run_lan_menu(screen):
     # Preload lobby background if available
     lobby_background = None
@@ -265,6 +277,9 @@ async def run_lan_menu(screen):
     screen_w, screen_h = screen.get_size()
     center_x = screen_w // 2
 
+    # Cached gradient background (avoids per-pixel line drawing every frame)
+    gradient_bg = _build_gradient_bg(screen_w, screen_h) if not lobby_background else None
+
     # Define button dimensions - MUCH LARGER
     button_width = 400
     button_height = 70
@@ -285,16 +300,11 @@ async def run_lan_menu(screen):
 
     running = True
     while running:
-        # Draw background (image if available, fallback gradient)
+        # Draw background (image if available, fallback cached gradient)
         if lobby_background:
             screen.blit(lobby_background, (0, 0))
         else:
-            for y in range(screen_h):
-                ratio = y / screen_h
-                r = int(10 + ratio * 15)
-                g = int(15 + ratio * 20)
-                b = int(30 + ratio * 40)
-                pygame.draw.line(screen, (r, g, b), (0, y), (screen_w, y))
+            screen.blit(gradient_bg, (0, 0))
 
         mx, my = pygame.mouse.get_pos()
 
@@ -344,7 +354,8 @@ async def run_lan_menu(screen):
                             add_status(f"Connection failed: {exc}")
                             session = None
                     elif event.unicode and event.unicode.isprintable():
-                        join_ip += event.unicode
+                        if len(join_ip) < 45:  # Max length for IP/room code
+                            join_ip += event.unicode
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if state == "menu":
                     if host_btn.collidepoint(mx, my):
@@ -586,10 +597,14 @@ async def run_lan_rematch(screen, session, role):
     clock = pygame.time.Clock()
     screen_w, screen_h = screen.get_size()
     center_x = screen_w // 2
-    
+
+    # Cached gradient background
+    rematch_gradient = _build_gradient_bg(screen_w, screen_h)
+
     status_lines = ["Game Over - Rematch?", "Waiting for opponent's decision..."]
     peer_ready = False
     local_ready = False
+    connection_lost_notified = False
     
     # Button definitions
     button_width = 350
@@ -606,13 +621,8 @@ async def run_lan_rematch(screen, session, role):
     
     running = True
     while running:
-        # Draw gradient background
-        for y in range(screen_h):
-            ratio = y / screen_h
-            r = int(15 + ratio * 20)
-            g = int(20 + ratio * 25)
-            b = int(40 + ratio * 50)
-            pygame.draw.line(screen, (r, g, b), (0, y), (screen_w, y))
+        # Draw cached gradient background
+        screen.blit(rematch_gradient, (0, 0))
         
         mx, my = pygame.mouse.get_pos()
         
@@ -637,7 +647,9 @@ async def run_lan_rematch(screen, session, role):
                     running = False
                     return None
         else:
-            add_status("Connection lost!")
+            if not connection_lost_notified:
+                add_status("Connection lost!")
+                connection_lost_notified = True
             running = False
             return None
         

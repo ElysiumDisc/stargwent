@@ -48,9 +48,10 @@ src = Path(sys.argv[1]).resolve()
 dst = Path(sys.argv[2]).resolve()
 
 skip_names = {
-    '.git', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
-    'build', 'dist', 'builds', 'raw_art', 'backup',
-    'build_deb.sh', 'build_appimage.sh', 'build_exe.sh', 'build_dmg.sh', 'build_release.sh',
+    '.git', '.github', '.claude', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
+    'build', 'dist', 'builds', 'raw_art', 'backup', 'scripts',
+    'build_deb.sh', 'build_appimage.sh', 'build_exe.sh', 'build_dmg.sh',
+    'build_release.sh', 'build_web.sh', 'metadata.json',
 }
 ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo', '.DS_Store', '*.swp')
 
@@ -92,7 +93,7 @@ Version: $VERSION
 Section: games
 Priority: optional
 Architecture: amd64
-Depends: python3 (>= 3.8), libgl1, libsdl2-2.0-0, libsdl2-image-2.0-0, libsdl2-mixer-2.0-0
+Depends: python3 (>= 3.8), libgl1, libsdl2-2.0-0, libsdl2-image-2.0-0, libsdl2-mixer-2.0-0, libsdl2-ttf-2.0-0
 Description: Stargwent - A Stargate-themed card game
  A strategic card game inspired by Gwent from The Witcher 3,
  set in the Stargate universe. Features 5 factions, 247 cards,

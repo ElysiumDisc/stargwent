@@ -56,9 +56,10 @@ src = Path(sys.argv[1]).resolve()
 dst = Path(sys.argv[2]).resolve()
 
 skip_names = {
-    '.git', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
-    'build', 'dist', 'builds', 'raw_art', 'backup',
-    'build_deb.sh', 'build_appimage.sh', 'build_exe.sh', 'build_dmg.sh', 'build_release.sh',
+    '.git', '.github', '.claude', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
+    'build', 'dist', 'builds', 'raw_art', 'backup', 'scripts',
+    'build_deb.sh', 'build_appimage.sh', 'build_exe.sh', 'build_dmg.sh',
+    'build_release.sh', 'build_web.sh', 'metadata.json',
 }
 ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo', '.DS_Store', '*.swp')
 
@@ -125,8 +126,8 @@ cat <<LAUNCHER > "$APPDIR/AppRun"
 SELF=\$(readlink -f "\$0")
 HERE=\${SELF%/*}
 export PATH="\${HERE}/usr/bin:\${PATH}"
-export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${LD_LIBRARY_PATH}"
-export PYTHONPATH="\${HERE}/usr/lib/python3/site-packages:\${PYTHONPATH}"
+export LD_LIBRARY_PATH="\${HERE}/usr/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+export PYTHONPATH="\${HERE}/usr/lib/python3/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
 export PYTHONHOME="\${HERE}/opt/python${PYTHON_VERSION}"
 
 cd "\${HERE}/usr/share/stargwent"

@@ -138,13 +138,16 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Tok'ra Operatives**: Espionage system with operative lifecycle (deploy → establish → active), 6 mission types (Infiltrate, Sabotage, Steal Intel, Rig Influence, Coup, Counter-Intel), rank progression, and diplomatic incident risk
 - **Stargate Network**: Connected planet count determines network tier (Outpost → Regional → Sector → Quadrant → Galactic) with scaling bonuses — naquadah income, cooldown reduction, attack range, and leader ability level
 - **35 Conquest Leader Abilities**: Every leader has a unique conquest ability (L1-L4) that scales with network tier — O'Neill's MacGyver Protocol, Carter's Naquadah Generator, Ba'al's Clone Network, Thor's Asgard Fleet, and 31 more
-- **Diplomacy System**: Faction relations from HOSTILE to ALLIED — trade agreements (50 naq), alliances (100 naq + shared adjacency), betrayals (+80 naq, permanent hostility)
-- **5 Planet Buildings**: Naquadah Refinery, Training Ground, Shipyard, Sensor Array, Shield Generator — 1 per planet
+- **Diplomacy System**: Faction relations from HOSTILE to ALLIED — trade agreements (50 naq), alliances (100 naq + shared adjacency), betrayals (+80 naq, permanent hostility). AI factions propose trades, joint attacks, ceasefires, and tribute demands. Conquest strain warnings before attacking near allies
+- **5 Planet Buildings (Lv 1-3)**: Naquadah Refinery, Training Ground, Shipyard, Sensor Array, Shield Generator — upgradeable with escalating costs and scaling effects
 - **Supply Lines**: Planets disconnected from homeworld are unsupplied (-50% income, +20% counterattack, no fortification)
 - **18 Stargate Relics**: Combat, Economy, and Exploration relics — homeworlds award guaranteed faction relics
 - **18 Planet Passives**: Owned planets grant bonuses — Earth +15 naq/turn, Atlantis +1 card choice, and more
 - **20 Neutral Events**: Trader caravans, Nox Sanctuary, Tollan Ion Cannons, Ori Supergates, Pegasus Expeditions, and more
-- **5 Crisis Events**: Galaxy-wide disruptions after turn 5 — Replicator Outbreak, Ori Crusade, Galactic Plague, Ascension Wave, Wraith Invasion
+- **Wisdom Powers**: After completing a doctrine tree, spend wisdom on repeatable actions — upgrade cards, reset cooldowns, reveal enemy decks, or convert to naquadah
+- **AI Espionage**: Hostile factions send operatives against your planets — detect, capture, or counter with your own intel network. Diplomatic incidents offer deny/recall/double-down choices
+- **5 Crisis Events with Strategic Choices**: Galaxy-wide disruptions after turn 5 — Replicator Outbreak, Ori Crusade, Galactic Plague, Ascension Wave, Wraith Invasion — each with 2 options (safe vs. risky)
+- **Galaxy Map Side Panel**: Right-side info panel shows planet details, build/upgrade buttons, victory progress, and faction overview — replacing hover tooltips
 - **6 Narrative Arcs**: Story chains tracking conquest sequences for relic and naquadah rewards
 - **Fortification System**: Spend naquadah to fortify planets (max level 3) — fortified planets grant defense bonuses in battle
 - **Elite Homeworld Defenders**: Homeworld attacks trigger dramatic elite screen; AI gets +2 power and +2 extra cards

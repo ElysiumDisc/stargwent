@@ -80,6 +80,27 @@ class LanLobby:
             screen_height - self.chat_y - 80
         )
 
+        # Pre-cached surfaces to avoid per-frame allocation
+        self._panel_bg = pygame.Surface((self.panel_width, self.panel_height))
+        self._panel_bg.fill((15, 20, 35))
+        self._panel_bg.set_alpha(240)
+
+        self._gradient_bg = self._build_gradient(screen_width, screen_height)
+
+    @staticmethod
+    def _build_gradient(width, height):
+        """Build a cached gradient background surface."""
+        surf = pygame.Surface((width, height))
+        for y in range(height):
+            progress = y / height
+            color = (
+                int(10 + progress * 20),
+                int(15 + progress * 25),
+                int(35 + progress * 45)
+            )
+            pygame.draw.line(surf, color, (0, y), (width, y))
+        return surf
+
     def _load_background(self):
         """Load lobby background image if it exists."""
         bg_path = "assets/lobby_background.png"
@@ -87,7 +108,7 @@ class LanLobby:
             try:
                 bg = pygame.image.load(bg_path)
                 return pygame.transform.scale(bg, (self.screen_width, self.screen_height))
-            except:
+            except Exception:
                 pass
         return None
 
@@ -161,15 +182,7 @@ class LanLobby:
         if self.background:
             surface.blit(self.background, (0, 0))
         else:
-            # Gradient background
-            for y in range(self.screen_height):
-                progress = y / self.screen_height
-                color = (
-                    int(10 + progress * 20),
-                    int(15 + progress * 25),
-                    int(35 + progress * 45)
-                )
-                pygame.draw.line(surface, color, (0, y), (self.screen_width, y))
+            surface.blit(self._gradient_bg, (0, 0))
 
         # Title with shadow effect
         title_text = "⚡ LAN MULTIPLAYER LOBBY ⚡"
@@ -188,11 +201,8 @@ class LanLobby:
         role_rect = role_surf.get_rect(center=(self.screen_width // 2, self.role_y))
         surface.blit(role_surf, role_rect)
 
-        # Main status panel with rounded effect (simulated)
-        # Dark panel background
-        panel_bg = pygame.Surface((self.panel_width, self.panel_height), pygame.SRCALPHA)
-        panel_bg.fill((15, 20, 35, 240))
-        surface.blit(panel_bg, (self.panel_rect.x, self.panel_rect.y))
+        # Main status panel (cached non-SRCALPHA surface)
+        surface.blit(self._panel_bg, (self.panel_rect.x, self.panel_rect.y))
 
         # Panel border with glow
         pygame.draw.rect(surface, (60, 140, 220), self.panel_rect, 4)
@@ -309,7 +319,7 @@ async def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
         update_result = lobby.update()
         if update_result == "disconnect":
             # Show disconnect message
-            _show_disconnect_message(screen)
+            await _show_disconnect_message(screen)
             return False
 
         lobby.draw(screen)
@@ -321,14 +331,15 @@ async def run_lan_lobby(screen, session: LanSession, role: str) -> bool:
     return False
 
 
-def _show_disconnect_message(screen):
+async def _show_disconnect_message(screen):
     """Show disconnect overlay message."""
     screen_width = screen.get_width()
     screen_height = screen.get_height()
 
-    # Dark overlay
-    overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    # Dark overlay (non-SRCALPHA + set_alpha for performance)
+    overlay = pygame.Surface((screen_width, screen_height))
+    overlay.fill((0, 0, 0))
+    overlay.set_alpha(200)
     screen.blit(overlay, (0, 0))
 
     # Fonts
@@ -346,7 +357,7 @@ def _show_disconnect_message(screen):
 
     display_manager.gpu_flip()
 
-    # Wait for key press
+    # Wait for key press (async-compatible)
     waiting = True
     while waiting:
         for event in pygame.event.get():
@@ -356,3 +367,4 @@ def _show_disconnect_message(screen):
                 sys.exit()
             elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
                 waiting = False
+        await asyncio.sleep(0.05)
