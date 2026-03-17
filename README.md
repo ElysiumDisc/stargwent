@@ -189,7 +189,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Touch (Mobile/Tablet)** - Tap, long-press, drag, and two-finger scroll with automatic gesture recognition
 
 ### 💾 Progression & Customization
-- **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop
+- **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop, faction/neutral filter tabs
 - **Card Unlock System** - Win games to unlock 20+ powerful cards
 - **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
 - **Tabbed Stats Menu** - 6-tab layout (Overview, Factions, Leaders, Records, Draft, Conquest) with score records, win rate bars, achievements, and hover preview

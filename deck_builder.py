@@ -170,6 +170,7 @@ class DeckBuilderUI:
         self.filter_rects = {}  # Clickable areas for filter buttons
         self.tab_rects = {}
         self.return_to_menu = False  # Flag for when user clicks MAIN MENU button
+
         self.leader_scroll_offset = 0
         self.leader_scroll_limit = 0
         self.leader_area_rect = None
@@ -286,7 +287,8 @@ class DeckBuilderUI:
             "weather": "icons/weather.png",
             "legendary": "icons/Legendary commander.png",
             "neutral": "icons/neutral.png",
-            "special": "icons/special.png"
+            "special": "icons/special.png",
+            "faction": "icons/faction.png"
         }
         
         for tab_type, filename in icon_mappings.items():
@@ -965,7 +967,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = max(0, self.keyboard_deck_cursor - 1) if self.keyboard_deck_cursor > 0 else unique_count - 1
                         else:
-                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "faction", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx - 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -977,7 +979,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = (self.keyboard_deck_cursor + 1) % unique_count
                         else:
-                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "faction", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx + 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -1153,7 +1155,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = max(0, self.keyboard_deck_cursor - 1) if self.keyboard_deck_cursor > 0 else unique_count - 1
                         else:
-                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "faction", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx - 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -1165,7 +1167,7 @@ class DeckBuilderUI:
                             if unique_count > 0:
                                 self.keyboard_deck_cursor = (self.keyboard_deck_cursor + 1) % unique_count
                         else:
-                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "neutral"]
+                            tabs = ["all", "close", "ranged", "siege", "agile", "legendary", "special", "weather", "faction", "neutral"]
                             idx = tabs.index(self.current_tab) if self.current_tab in tabs else 0
                             self.current_tab = tabs[(idx + 1) % len(tabs)]
                             self.pool_scroll_offset = 0
@@ -2374,6 +2376,7 @@ class DeckBuilderUI:
             ("Legendary", "legendary"),
             ("Special", "special"),
             ("Weather", "weather"),
+            ("Faction", "faction"),
             ("Neutral", "neutral")
         ]
         
@@ -2719,6 +2722,8 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     if card_type and card_type != "all":
         if card_type == "neutral":
             filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].faction == FACTION_NEUTRAL]
+        elif card_type == "faction":
+            filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].faction != FACTION_NEUTRAL]
         elif card_type == "legendary":
             filtered_ids = [
                 id for id in filtered_ids 
@@ -2863,7 +2868,7 @@ async def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, 
         # Draw
         deck_builder.draw(screen)
         display_manager.gpu_flip()
-        clock.tick(144)  # Higher FPS for buttery smooth card movement
+        dt = clock.tick(144)  # Higher FPS for buttery smooth card movement
         await asyncio.sleep(0)
 
     return None

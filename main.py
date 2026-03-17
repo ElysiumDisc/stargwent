@@ -30,7 +30,7 @@ from cards import (
 from ai_opponent import AIController
 from enum import Enum, auto
 from draft_mode import DraftRun
-from abilities import Ability, has_ability, is_hero, is_spy, is_medic
+from abilities import Ability, has_ability, is_hero, is_spy, is_medic, is_ascension_card
 from game_loop_state import GameLoopState
 from event_handler import handle_events
 from frame_renderer import render_frame
@@ -96,6 +96,8 @@ from animations import (
     RowScoreAnimation,
     CardDisintegrationEffect,
     CardMaterializationEffect,
+    PriorsPlagueEffect,
+    AscensionEffect,
 )
 from deck_builder import run_deck_builder, build_faction_deck
 from unlocks import CardUnlockSystem, show_card_reward_screen, show_leader_reward_screen, UNLOCKABLE_CARDS
@@ -364,6 +366,14 @@ def add_special_card_effect(card, effect_x, effect_y, anim_manager, screen_width
         # Play symbiote sound effect
         from sound_manager import get_sound_manager
         get_sound_manager().play_symbiote_sound()
+        return True
+    # Prior's Plague — toxic green miasma with GPU distortion
+    if "prior's plague" in ability_lower:
+        anim_manager.add_effect(PriorsPlagueEffect(effect_x, effect_y, screen_width, screen_height))
+        return True
+    # Ascension — golden light ascending skyward with GPU energy surge
+    if "ascension" in ability_lower and "path to ascension" not in ability_lower:
+        anim_manager.add_effect(AscensionEffect(effect_x, effect_y, screen_width, screen_height))
         return True
     return False
 
@@ -930,6 +940,12 @@ async def main(lan_game_data=None):
                 CardDisintegrationEffect(card_img, card_rect.x, card_rect.y,
                                          color_variant=color_variant)
             )
+            # Ascension: golden light ascending when an Ascension card is destroyed
+            if color_variant == 'red' and is_ascension_card(card):
+                anim_manager.add_effect(
+                    AscensionEffect(card_rect.centerx, card_rect.centery,
+                                    SCREEN_WIDTH, SCREEN_HEIGHT)
+                )
     game._on_discard = _discard_callback
 
     # Wire card-play → materialization effect callback

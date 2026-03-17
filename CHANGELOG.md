@@ -35,6 +35,13 @@
   - **Ascension**: Up to 3 Ascension cards valued at +2 (death buff synergy), bonus if deck has expendable low-power units
 - **Unlock-gated everywhere** — Alteran only appears as leader choice or AI opponent when unlocked (win with all 5 base factions or unlock override toggle)
 
+#### Deck Builder — Faction Filter
+- **Faction filter tab** — new circular tab with Stargate icon filters card pool to show only faction-specific cards (excludes neutrals), complementing the existing Neutral tab
+
+#### GPU Card Ability Animations
+- **Prior's Plague** — toxic green miasma cloud with horizontal spread, dripping tendrils, and GPU distortion ripple when plague cards debuff an enemy row
+- **Ascension** — golden light column ascending skyward with rising motes, expanding rings, and GPU energy surge when an Ascension card is destroyed and buffs remaining allies
+
 #### AI Improvements
 - Alteran-specific strategy: prioritizes cheap units first for snowball passive
 - Prior's Plague and Ascension evaluation in card scoring

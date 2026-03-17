@@ -5007,6 +5007,263 @@ class QuantumMirrorEffect(Animation):
         surface.blit(overlay, (0, 0))
 
 
+class PriorsPlagueEffect:
+    """Toxic green plague cloud with GPU distortion — Prior's Plague debuffs a row."""
+    def __init__(self, x, y, screen_width, screen_height, duration=1200):
+        self.x = x
+        self.y = y
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+
+        # Sickly green plague particles spreading horizontally across the row
+        self.particles = []
+        plague_colors = [
+            (60, 180, 40),   # sickly green
+            (80, 200, 60),   # bright toxic
+            (40, 140, 30),   # dark plague
+            (100, 220, 80),  # lime
+            (30, 100, 20),   # murky
+        ]
+        for _ in range(80):
+            angle = random.uniform(0, math.tau)
+            speed = random.uniform(1.0, 5.0)
+            # Bias horizontal spread (row-wide plague)
+            vx = math.cos(angle) * speed * 2.0
+            vy = math.sin(angle) * speed * 0.5
+            self.particles.append({
+                'x': float(x), 'y': float(y),
+                'vx': vx, 'vy': vy,
+                'size': random.randint(4, 12),
+                'life': 1.0,
+                'color': random.choice(plague_colors),
+            })
+
+        # Dripping tendrils (downward wisps)
+        self.tendrils = []
+        for i in range(6):
+            tx = x + random.uniform(-200, 200)
+            self.tendrils.append({
+                'x': tx, 'y': float(y),
+                'length': random.uniform(40, 100),
+                'speed': random.uniform(1.5, 3.0),
+                'life': 1.0,
+            })
+
+    def update(self, dt):
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+        progress = self.elapsed / self.duration
+        dt_factor = dt / 16.0
+
+        for p in self.particles:
+            p['x'] += p['vx'] * dt_factor
+            p['y'] += p['vy'] * dt_factor
+            p['vy'] += 0.05 * dt_factor  # slight gravity — plague settles
+            p['life'] = max(0, 1.0 - progress * 1.2)
+
+        for t in self.tendrils:
+            t['y'] += t['speed'] * dt_factor
+            t['length'] += 0.3 * dt_factor
+            t['life'] = max(0, 1.0 - progress * 1.5)
+
+        return True
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.elapsed / self.duration
+
+        # Green toxic flash at start
+        if progress < 0.1:
+            flash_alpha = int(80 * (1 - progress / 0.1))
+            flash_surf = pygame.Surface(surface.get_size())
+            flash_surf.fill((40, 160, 30))
+            flash_surf.set_alpha(flash_alpha)
+            surface.blit(flash_surf, (0, 0))
+
+        # Plague cloud core — expanding green miasma
+        if progress < 0.8:
+            cloud_radius = int(60 + 200 * min(progress * 1.5, 1.0))
+            cloud_alpha = int(120 * (1 - progress / 0.8))
+            cloud_surf = pygame.Surface((cloud_radius * 4, cloud_radius * 2), pygame.SRCALPHA)
+            # Stretched ellipse for row-wide effect
+            pygame.draw.ellipse(cloud_surf, (50, 170, 40, cloud_alpha),
+                                (0, 0, cloud_radius * 4, cloud_radius * 2))
+            pygame.draw.ellipse(cloud_surf, (80, 220, 60, cloud_alpha // 2),
+                                (cloud_radius, cloud_radius // 2, cloud_radius * 2, cloud_radius))
+            surface.blit(cloud_surf, (int(self.x - cloud_radius * 2), int(self.y - cloud_radius)))
+
+        # Draw tendrils (dripping plague wisps)
+        for t in self.tendrils:
+            if t['life'] > 0:
+                a = int(150 * t['life'])
+                for seg in range(int(t['length'] // 8)):
+                    sy = int(t['y'] + seg * 8)
+                    sx = int(t['x'] + math.sin(seg * 0.5 + self.elapsed * 0.005) * 6)
+                    size = max(1, int(4 * t['life'] * (1 - seg / max(1, t['length'] // 8))))
+                    pygame.draw.circle(surface, (50, 160, 35, a), (sx, sy), size)
+
+        # Draw plague particles
+        for p in self.particles:
+            if p['life'] > 0:
+                pa = int(220 * p['life'])
+                ps = max(1, int(p['size'] * p['life']))
+                px, py = int(p['x']), int(p['y'])
+                # Glow
+                glow_surf = pygame.Surface((ps * 4, ps * 4), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (*p['color'], pa // 3), (ps * 2, ps * 2), ps * 2)
+                pygame.draw.circle(glow_surf, (*p['color'], pa), (ps * 2, ps * 2), ps)
+                surface.blit(glow_surf, (px - ps * 2, py - ps * 2))
+
+    def get_gpu_params(self):
+        """Return distortion for plague miasma ripple."""
+        if self.finished:
+            return None
+        progress = self.elapsed / self.duration
+        strength = max(0.0, 0.6 * (1 - progress * 1.5))
+        if strength <= 0:
+            return None
+        return {
+            'type': 'distortion',
+            'center': (self.x, self.y),
+            'strength': strength,
+            'radius': min(progress * 1.8, 1.0) * 0.3,
+        }
+
+
+class AscensionEffect:
+    """Golden light ascending skyward with GPU energy surge — Ascension buffs allies."""
+    def __init__(self, x, y, screen_width, screen_height, duration=1400):
+        self.x = x
+        self.y = y
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.duration = duration
+        self.elapsed = 0
+        self.finished = False
+
+        # Rising golden light motes
+        self.motes = []
+        ascension_colors = [
+            (255, 220, 100),  # warm gold
+            (255, 240, 180),  # white-gold
+            (200, 180, 255),  # ethereal violet
+            (180, 220, 255),  # ascension blue
+            (255, 200, 60),   # deep gold
+        ]
+        for _ in range(60):
+            self.motes.append({
+                'x': x + random.uniform(-80, 80),
+                'y': y + random.uniform(-30, 30),
+                'vx': random.uniform(-0.5, 0.5),
+                'vy': random.uniform(-3.0, -8.0),  # rise upward
+                'size': random.randint(3, 8),
+                'life': 1.0,
+                'color': random.choice(ascension_colors),
+                'wobble': random.uniform(0, math.tau),
+            })
+
+        # Energy rings expanding outward then rising
+        self.rings = []
+        for i in range(4):
+            self.rings.append({
+                'radius': 20 + i * 15,
+                'y_offset': 0,
+                'alpha': 200 - i * 30,
+                'speed': 1.5 + i * 0.3,
+            })
+
+    def update(self, dt):
+        self.elapsed += dt
+        if self.elapsed >= self.duration:
+            self.finished = True
+            return False
+        progress = self.elapsed / self.duration
+        dt_factor = dt / 16.0
+
+        for m in self.motes:
+            m['x'] += m['vx'] * dt_factor + math.sin(m['wobble'] + self.elapsed * 0.004) * 0.3
+            m['y'] += m['vy'] * dt_factor
+            m['vy'] -= 0.02 * dt_factor  # accelerate upward
+            m['life'] = max(0, 1.0 - progress * 1.1)
+
+        for r in self.rings:
+            r['radius'] += r['speed'] * dt_factor
+            r['y_offset'] -= 1.5 * dt_factor  # rings rise
+            r['alpha'] = max(0, r['alpha'] - 0.3 * dt_factor)
+
+        return True
+
+    def draw(self, surface):
+        if self.finished:
+            return
+        progress = self.elapsed / self.duration
+
+        # Bright golden flash at start
+        if progress < 0.12:
+            flash_alpha = int(100 * (1 - progress / 0.12))
+            flash_surf = pygame.Surface(surface.get_size())
+            flash_surf.fill((255, 220, 100))
+            flash_surf.set_alpha(flash_alpha)
+            surface.blit(flash_surf, (0, 0))
+
+        # Ascending light column
+        if progress < 0.8:
+            col_alpha = int(100 * (1 - progress / 0.8))
+            col_width = int(60 + 30 * math.sin(self.elapsed * 0.006))
+            col_height = int(200 + 300 * min(progress * 2, 1.0))
+            col_surf = pygame.Surface((col_width, col_height), pygame.SRCALPHA)
+            # Gradient from gold at bottom to transparent at top
+            for row in range(col_height):
+                row_alpha = int(col_alpha * (1 - row / col_height))
+                if row_alpha > 0:
+                    pygame.draw.line(col_surf, (255, 220, 120, row_alpha),
+                                    (0, row), (col_width, row))
+            surface.blit(col_surf, (int(self.x - col_width // 2), int(self.y - col_height)))
+
+        # Ascending rings
+        for r in self.rings:
+            if r['alpha'] > 0:
+                ring_y = int(self.y + r['y_offset'])
+                ring_r = int(r['radius'])
+                ring_surf = pygame.Surface((ring_r * 2 + 4, ring_r * 2 + 4), pygame.SRCALPHA)
+                center = ring_r + 2
+                pygame.draw.circle(ring_surf, (255, 220, 100, int(r['alpha'])),
+                                   (center, center), ring_r, width=3)
+                surface.blit(ring_surf, (int(self.x - center), int(ring_y - center)))
+
+        # Rising golden motes
+        for m in self.motes:
+            if m['life'] > 0:
+                ma = int(255 * m['life'])
+                ms = max(1, int(m['size'] * m['life']))
+                mx, my = int(m['x']), int(m['y'])
+                glow_surf = pygame.Surface((ms * 4, ms * 4), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (*m['color'], ma // 3), (ms * 2, ms * 2), ms * 2)
+                pygame.draw.circle(glow_surf, (*m['color'], ma), (ms * 2, ms * 2), ms)
+                surface.blit(glow_surf, (mx - ms * 2, my - ms * 2))
+
+    def get_gpu_params(self):
+        """Return GPU parameters for ascension energy surge."""
+        if self.finished:
+            return None
+        progress = self.elapsed / self.duration
+        intensity = max(0.0, 1.0 - progress)
+        if intensity <= 0:
+            return None
+        return {
+            'type': 'zpm_surge',
+            'center': (self.x, self.y),
+            'intensity': intensity * 0.7,
+            'surge_radius': 200 * min(progress * 2, 1.0),
+        }
+
+
 def create_ability_animation(ability_name, x, y):
     """Factory function to create ability-specific animations."""
     if "Inspiring Leadership" in ability_name:
