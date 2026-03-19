@@ -267,9 +267,9 @@ class DeckBuilderUI:
         self.setup_layout()
 
         # Apply presets (for conquest mode deck viewing)
-        if self._preset_faction and self._preset_leader and self._preset_deck_ids is not None:
+        if self._preset_faction and self._preset_deck_ids is not None:
             self.selected_faction = self._preset_faction
-            self.selected_leader = self._preset_leader
+            self.selected_leader = self._preset_leader  # May be None in conquest (leaders chosen per-battle)
             self.deck_preview_ids = list(self._preset_deck_ids)
             # Same card pool as normal: player's faction + weather + neutral
             self.card_pool_ids = get_faction_card_pool(

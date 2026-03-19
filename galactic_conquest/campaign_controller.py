@@ -216,7 +216,7 @@ class CampaignController:
                         return "quit"
             elif action == "end_turn":
                 # AI counterattack phase
-                ai_result = self._ai_counterattack_phase()
+                ai_result = await self._ai_counterattack_phase()
                 if ai_result == "quit":
                     self._music_stop()
                     return "quit"
@@ -464,8 +464,19 @@ class CampaignController:
         if preview_result == "quit":
             return "quit"
 
-        card_result = self._run_card_battle(planet, ai_elite_bonus=ai_elite_bonus,
-                                             ai_extra_cards=ai_extra_cards)
+        # Leader selection for this battle
+        from .leader_select import run_leader_select
+        battle_leader = await run_leader_select(
+            self.screen, self.state.player_faction, self.state.player_leader)
+        if battle_leader is None:
+            # Player backed out
+            self._refresh_after_battle()
+            self.message = f"Retreated from {planet.name}."
+            return "done"
+
+        card_result = await self._run_card_battle(planet, ai_elite_bonus=ai_elite_bonus,
+                                                   ai_extra_cards=ai_extra_cards,
+                                                   override_leader=battle_leader)
         self._refresh_after_battle()
         if card_result == "quit":
             return "quit"
@@ -566,7 +577,12 @@ class CampaignController:
 
             # Check narrative arc progress
             await self._check_narrative_arcs(planet.name)
-        else:
+        elif card_result == "draw":
+            # Draw — no penalty, no reward, no cooldown
+            self.message = f"Draw at {planet.name}! No penalty."
+            self._flash_message(f"Draw at {planet.name}!", 1500)
+            self.state.attacks_this_turn += 1
+        elif card_result == "player_loss":
             # Track battle loss
             from deck_persistence import get_persistence
             _p = get_persistence()
@@ -603,7 +619,8 @@ class CampaignController:
 
         return "done"
 
-    def _run_card_battle(self, planet, ai_elite_bonus=0, ai_extra_cards=0):
+    async def _run_card_battle(self, planet, ai_elite_bonus=0, ai_extra_cards=0,
+                               override_leader=None):
         """Run a card battle against a planet's defender. Returns battle outcome."""
         ai_faction = planet.faction
         ai_leader = planet.defender_leader
@@ -613,10 +630,10 @@ class CampaignController:
         sabotage_cards = get_sabotage_effect(self.state, planet.id)
         weaken_amount += sabotage_cards
 
-        result = run_card_battle(
+        result = await run_card_battle(
             self.screen,
             player_faction=self.state.player_faction,
-            player_leader=self.state.player_leader,
+            player_leader=override_leader or self.state.player_leader,
             player_deck_ids=list(self.state.current_deck),
             ai_faction=ai_faction,
             ai_leader=ai_leader,
@@ -633,11 +650,14 @@ class CampaignController:
     def _refresh_after_battle(self):
         """Refresh screen and clear events after returning from a battle/event screen."""
         self.screen = display_manager.screen
-        self.map_screen = MapScreen(self.screen.get_width(), self.screen.get_height())
+        # Preserve panel toggle state across refresh
+        panel_visible = getattr(self.map_screen, 'panel_visible', True)
+        self.map_screen = MapScreen(self.screen.get_width(), self.screen.get_height(),
+                                     panel_visible=panel_visible)
         pygame.event.clear()
         self._music_start()
 
-    def _ai_counterattack_phase(self):
+    async def _ai_counterattack_phase(self):
         """Process AI counterattacks. Returns 'done', 'defeat', or 'quit'."""
         # Meta perk: Diplomatic Immunity — first counterattack auto-fails
         from .meta_progression import has_perk
@@ -721,6 +741,16 @@ class CampaignController:
             if ai_leader:
                 ai_leader.setdefault("faction", faction)
 
+            # Leader selection for defense battle
+            from .leader_select import run_leader_select
+            defense_leader = await run_leader_select(
+                self.screen, self.state.player_faction, self.state.player_leader)
+            if defense_leader is None:
+                # Can't back out of defense — auto-pick first available leader
+                defense_leader = dict(leaders[0]) if leaders else None
+                if defense_leader:
+                    defense_leader.setdefault("faction", self.state.player_faction)
+
             self._music_stop()
             # Defense battles use the target planet's weather
             fort_level = getattr(self.state, 'fortification_levels', {}).get(target_id, 0)
@@ -737,10 +767,10 @@ class CampaignController:
             if isinstance(defense_result, dict):
                 defense_bonus_power = defense_result.get("defense_power_bonus", 0)
                 extra_defense += defense_result.get("defense_extra_cards", 0)
-            result = run_card_battle(
+            result = await run_card_battle(
                 self.screen,
                 player_faction=self.state.player_faction,
-                player_leader=self.state.player_leader,
+                player_leader=defense_leader,
                 player_deck_ids=list(self.state.current_deck),
                 ai_faction=faction,
                 ai_leader=ai_leader,
@@ -1002,7 +1032,7 @@ class CampaignController:
             content_lines.append(("section", "Campaign Status"))
             faction_color = FACTION_DISPLAY_COLORS.get(self.state.player_faction, CRT_TEXT)
             content_lines.append(("info", f"Faction: {self.state.player_faction}", faction_color))
-            leader_name = self.state.player_leader.get("name", "Unknown") if self.state.player_leader else "Unknown"
+            leader_name = self.state.player_leader.get("name", "Unknown") if self.state.player_leader else "Chosen per battle"
             content_lines.append(("info", f"Leader: {leader_name}", CRT_TEXT))
             content_lines.append(("info", f"Turn: {self.state.turn_number}", CRT_AMBER))
             content_lines.append(("info", f"Naquadah: {self.state.naquadah}", CRT_CYAN))
@@ -1289,7 +1319,7 @@ class CampaignController:
 
         # Compute intel
         leader_name = planet.defender_leader.get("name", "?") if planet.defender_leader else "Unknown"
-        player_leader = self.state.player_leader.get("name", "?") if self.state.player_leader else "?"
+        player_leader = self.state.player_leader.get("name", "?") if self.state.player_leader else "Selected per battle"
         weather_name = "None"
         if planet.weather_preset:
             weather_name = planet.weather_preset.get('type', 'none').replace('_', ' ').title()

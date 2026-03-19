@@ -2,6 +2,7 @@ import pygame
 import math
 import random
 import sys
+from collections import deque
 import display_manager
 
 _IS_WEB = sys.platform == "emscripten"
@@ -104,6 +105,19 @@ class AnimationPool:
                 anim.card_image = None
             if hasattr(anim, 'on_complete'):
                 anim.on_complete = None
+            if hasattr(anim, 'trail'):
+                if hasattr(anim.trail, 'clear'):
+                    anim.trail.clear()
+                anim.trail = None
+            if hasattr(anim, 'hearts'):
+                if hasattr(anim.hearts, 'clear'):
+                    anim.hearts.clear()
+                anim.hearts = None
+            if hasattr(anim, 'on_finish'):
+                anim.on_finish = None
+            if hasattr(anim, '_cached_scaled_card'):
+                anim._cached_scaled_card = None
+                anim._cached_scaled_size = None
 
             self._pools[type_name].append(anim)
 
@@ -175,7 +189,9 @@ class CardStealAnimation(Animation):
         self.scale = 1.0
         self.alpha = 255
         self.on_complete = on_complete
-        self.trail = []
+        self.trail = deque(maxlen=MAX_TRAIL_PARTICLES)
+        self._cached_scaled_card = None
+        self._cached_scaled_size = None
     
     def update(self, dt):
         if not self.card_image:
@@ -201,15 +217,10 @@ class CardStealAnimation(Animation):
             'age': 0
         })
 
-        # Enforce max trail particles limit
-        if len(self.trail) > MAX_TRAIL_PARTICLES:
-            self.trail = self.trail[-MAX_TRAIL_PARTICLES:]
-
-        for particle in self.trail[:]:
+        for particle in self.trail:
             particle['age'] += dt
             particle['alpha'] = max(0, particle['alpha'] - dt * 0.4)
-            if particle['alpha'] <= 0:
-                self.trail.remove(particle)
+        self.trail = deque((p for p in self.trail if p['alpha'] > 0), maxlen=MAX_TRAIL_PARTICLES)
         
         if self.finished and self.on_complete:
             self.on_complete()
@@ -226,13 +237,16 @@ class CardStealAnimation(Animation):
             if alpha > 0 and radius > 0:
                 trail_surf = _get_circle_sprite(radius, (80, 200, 255), alpha)
                 surface.blit(trail_surf, (int(particle['x'] - radius), int(particle['y'] - radius)))
-        
+
         width, height = self.card_image.get_size()
         scaled_size = (
             max(1, int(width * self.scale)),
             max(1, int(height * self.scale))
         )
-        scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
+        if scaled_size != self._cached_scaled_size:
+            self._cached_scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
+            self._cached_scaled_size = scaled_size
+        scaled_card = self._cached_scaled_card
         scaled_card.set_alpha(self.alpha)
         rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
         surface.blit(scaled_card, rect)
@@ -247,12 +261,12 @@ class HathorStealAnimation(Animation):
         self.end_x, self.end_y = end_pos
         self.current_x = self.start_x
         self.current_y = self.start_y
-        self.hearts = []
+        self.hearts = deque(maxlen=MAX_HEARTS_PARTICLES)
         self.scale = 1.0
         self.alpha = 255
         self.rotation = 0
         self.on_finish = on_finish
-        
+
         # Create heart particles
         for _ in range(15):
             self.hearts.append({
@@ -303,7 +317,7 @@ class HathorStealAnimation(Animation):
                 heart['y'] += dy * 0.02
         
         # Remove dead hearts
-        self.hearts = [h for h in self.hearts if h['life'] > 0]
+        self.hearts = deque((h for h in self.hearts if h['life'] > 0), maxlen=MAX_HEARTS_PARTICLES)
 
         # Add new hearts during the animation (with max limit)
         if progress < 0.7 and random.random() < 0.2 and len(self.hearts) < MAX_HEARTS_PARTICLES:
@@ -317,10 +331,6 @@ class HathorStealAnimation(Animation):
                 'color': (255, random.randint(100, 200), random.randint(150, 200))
             })
 
-        # Enforce max hearts limit (safety check)
-        if len(self.hearts) > MAX_HEARTS_PARTICLES:
-            self.hearts = self.hearts[-MAX_HEARTS_PARTICLES:]
-            
         if self.finished and self.on_finish:
             self.on_finish()
             self.on_finish = None

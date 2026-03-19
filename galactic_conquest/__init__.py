@@ -203,9 +203,10 @@ async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=
     cs["campaigns_started"] = cs.get("campaigns_started", 0) + 1
     factions_used = cs.setdefault("conquest_factions_used", {})
     factions_used[player_faction] = factions_used.get(player_faction, 0) + 1
-    leader_name = player_leader.get("name", "Unknown") if player_leader else "Unknown"
-    leaders_used = cs.setdefault("conquest_leaders_used", {})
-    leaders_used[leader_name] = leaders_used.get(leader_name, 0) + 1
+    if player_leader:
+        leader_name = player_leader.get("name", "Unknown")
+        leaders_used = cs.setdefault("conquest_leaders_used", {})
+        leaders_used[leader_name] = leaders_used.get(leader_name, 0) + 1
     p.save_unlocks()
 
     # Handle relic choice perk (Repository of Knowledge)

@@ -379,7 +379,7 @@ async def run_neutral_event(screen, campaign_state):
             screen.blit(portrait, (portrait_x, portrait_y))
 
             # Leader name below portrait
-            leader_name = campaign_state.player_leader.get("name", "")
+            leader_name = campaign_state.player_leader.get("name", "") if campaign_state.player_leader else ""
             if leader_name:
                 name_surf = leader_font.render(leader_name, True, (180, 255, 200))
                 screen.blit(name_surf, (portrait_x + portrait.get_width() // 2 - name_surf.get_width() // 2,
@@ -458,6 +458,8 @@ def _apply_choice(campaign_state, choice, rng):
         all_ids = [cid for cid, c in ALL_CARDS.items()
                    if getattr(c, 'card_type', '') != "Legendary Commander"
                    and getattr(c, 'row', '') != "weather"]
+        if not all_ids:
+            return "No cards available."
         picked = rng.sample(all_ids, min(value, len(all_ids)))
         for cid in picked:
             campaign_state.add_card(cid)

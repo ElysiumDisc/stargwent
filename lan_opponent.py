@@ -164,6 +164,7 @@ class NetworkController:
         self.desync_message = None  # (text, expire_tick) for HUD flash
         self.card_not_found_count = 0  # Track consecutive card-not-found errors
         self._expected_remote_token = 0  # For turn token sequence validation
+        self._token_gap_count = 0  # Accumulated turn token gaps for desync detection
 
     def _find_card_in_discard(self, player, card_id):
         if not card_id:
@@ -254,8 +255,15 @@ class NetworkController:
                     token_num = int(remote_token.rsplit("-", 1)[-1])
                     self._expected_remote_token += 1
                     if token_num != self._expected_remote_token:
-                        print(f"[Network] Turn token gap: expected {self._expected_remote_token}, got {token_num}")
+                        gap_size = abs(token_num - self._expected_remote_token)
+                        self._token_gap_count += gap_size
+                        print(f"[Network] Turn token gap: expected {self._expected_remote_token}, got {token_num} (total gaps: {self._token_gap_count})")
                         self._expected_remote_token = token_num  # Resync
+                        if self._token_gap_count >= 3:
+                            self.desync_message = (
+                                f"Warning: {self._token_gap_count} network actions lost",
+                                pygame.time.get_ticks() + 5000
+                            )
                 except (ValueError, IndexError):
                     pass
 
@@ -347,6 +355,22 @@ class NetworkController:
             # ACK for an action we sent — no game logic needed, just informational
             return (None, None)
 
+        elif msg_type == "desync_warning":
+            reason = payload.get("reason", "unknown")
+            count = payload.get("count", 0)
+            print(f"[NetworkController] Received desync_warning: {reason} (count={count})")
+            self.desync_message = (
+                f"Opponent reports sync error: {reason}",
+                pygame.time.get_ticks() + 5000
+            )
+            self.game.add_history_event(
+                "system",
+                f"Remote desync warning: {reason} ({count})",
+                "ai",
+                icon="!"
+            )
+            return (None, None)
+
         elif msg_type == "disconnect":
             print("[NetworkController] Remote player disconnected!")
             return (None, None)
@@ -377,7 +401,9 @@ class NetworkPlayerProxy:
         self.game = game
         self.turn_token_counter = 0
         self._msg_id_counter = 0
-        self._pending_acks = {}  # msg_id -> send_time
+        self._pending_acks = {}  # msg_id -> send_time (monotonic)
+        self._retry_counts = {}  # msg_id -> retry count
+        self._pending_messages = {}  # msg_id -> original message for retry
         self.desync_warnings = []  # Stale ACK warnings for UI display
 
     def next_turn_token(self) -> str:
@@ -409,15 +435,28 @@ class NetworkPlayerProxy:
         )
         # Inject msg_id into payload for ACK tracking
         msg["payload"]["msg_id"] = msg_id
-        self._pending_acks[msg_id] = time.time()
+        self._pending_acks[msg_id] = time.monotonic()
+        self._pending_messages[msg_id] = msg
         self.session.send(msg["type"], msg["payload"])
 
-        # Check for stale unacked messages (>3s) — warn but don't disconnect
-        stale = [mid for mid, t in self._pending_acks.items() if time.time() - t > 3.0]
-        for mid in stale:
-            print(f"[NetworkProxy] Warning: action {mid} unacked after 3s")
-            self.desync_warnings.append(f"Action {mid} unacked after 3s")
-            del self._pending_acks[mid]
+        # Check for stale unacked messages (>3s) — retry once, then give up
+        now = time.monotonic()
+        stale = [(mid, t) for mid, t in self._pending_acks.items() if now - t > 3.0]
+        for mid, _t in stale:
+            retries = self._retry_counts.get(mid, 0)
+            if retries < 1 and mid in self._pending_messages:
+                # Retry once
+                print(f"[NetworkProxy] Retrying unacked action {mid}")
+                self._retry_counts[mid] = retries + 1
+                self._pending_acks[mid] = now
+                retry_msg = self._pending_messages[mid]
+                self.session.send(retry_msg["type"], retry_msg["payload"])
+            else:
+                print(f"[NetworkProxy] WARNING: action {mid} unacked after retry — dropping")
+                self.desync_warnings.append(f"Action {mid} unacked after retry")
+                del self._pending_acks[mid]
+                self._retry_counts.pop(mid, None)
+                self._pending_messages.pop(mid, None)
 
     def send_play_card(self, card_id: str, row: str):
         """

@@ -95,7 +95,7 @@ def _scaled_mouse_get_pos():
     x, y = _original_mouse_get_pos()
     sx, sy = _get_mouse_scale()
     if sx != 1.0 or sy != 1.0:
-        return (int(x * sx), int(y * sy))
+        return (round(x * sx), round(y * sy))
     return (x, y)
 
 
@@ -127,12 +127,12 @@ def _scaled_event_get(*args, **kwargs):
         for event in events:
             if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
                 ox, oy = event.pos
-                event.pos = (int(ox * sx), int(oy * sy))
+                event.pos = (round(ox * sx), round(oy * sy))
             elif event.type == pygame.MOUSEMOTION:
                 ox, oy = event.pos
-                event.pos = (int(ox * sx), int(oy * sy))
+                event.pos = (round(ox * sx), round(oy * sy))
                 rx, ry = event.rel
-                event.rel = (int(rx * sx), int(ry * sy))
+                event.rel = (round(rx * sx), round(ry * sy))
     return events
 
 

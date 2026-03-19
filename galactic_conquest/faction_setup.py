@@ -1,8 +1,8 @@
 """
-STARGWENT - GALACTIC CONQUEST - Faction & Leader Setup
+STARGWENT - GALACTIC CONQUEST - Faction Setup
 
-Faction and leader selection for starting a new campaign.
-Supports both default faction decks and custom player-built decks.
+Faction and deck selection for starting a new campaign.
+Leaders are chosen per-battle, not at campaign start.
 """
 
 import pygame
@@ -27,14 +27,16 @@ FACTION_COLORS = {
 
 async def run_faction_setup(screen, unlock_system, toggle_fullscreen_callback=None):
     """
-    Run faction + leader selection for a new campaign.
-    Uses the existing deck builder UI which handles faction, leader, and deck selection.
+    Run faction + deck selection for a new campaign.
+    Uses the existing deck builder UI for faction and deck selection.
+    Leaders are NOT chosen here — they are selected per-battle.
 
     Returns:
-        dict with {faction, leader, deck_ids} or None if cancelled.
+        dict with {faction, leader (None), deck_ids} or None if cancelled.
     """
     # Use the existing deck builder in "for_new_game" mode
-    # This gives the player full control: pick faction, pick leader, optionally use custom deck
+    # Player picks faction and optionally customizes their deck
+    # The leader selected in deck builder is ignored — leaders are chosen per-battle
     deck_result = await run_deck_builder(
         screen,
         for_new_game=True,
@@ -47,8 +49,7 @@ async def run_faction_setup(screen, unlock_system, toggle_fullscreen_callback=No
         return None
 
     player_faction = deck_result['faction']
-    player_leader = dict(deck_result['leader'])
-    player_leader.setdefault('faction', player_faction)
+    # Leader is NOT locked at campaign start — chosen per-battle instead
     player_deck_ids = list(deck_result['deck_ids'])
 
     # Check if player has a custom deck for this faction
@@ -62,6 +63,6 @@ async def run_faction_setup(screen, unlock_system, toggle_fullscreen_callback=No
 
     return {
         "faction": player_faction,
-        "leader": player_leader,
+        "leader": None,
         "deck_ids": player_deck_ids,
     }

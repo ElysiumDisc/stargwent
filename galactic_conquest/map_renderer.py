@@ -59,7 +59,7 @@ FACTION_COLORS = {
 class MapScreen:
     """Renders and handles interaction for the galaxy map."""
 
-    def __init__(self, screen_width, screen_height):
+    def __init__(self, screen_width, screen_height, panel_visible=True):
         self.sw = screen_width
         self.sh = screen_height
 
@@ -81,22 +81,11 @@ class MapScreen:
         self.font_info = pygame.font.SysFont("Arial", max(13, screen_height // 90))
         self.font_panel = pygame.font.SysFont("Arial", max(15, screen_height // 72))
         self.font_panel_title = pygame.font.SysFont("Arial", max(17, screen_height // 60), bold=True)
+        self.font_section = pygame.font.SysFont("Arial", max(14, screen_height // 68), bold=True)
 
-        margin_x = int(self.sw * 0.04)
-
-        # Side panel (right side, ~20% width)
-        self.panel_w = int(self.sw * 0.20)
-        self.panel_x = self.sw - self.panel_w
-
-        # Bottom HUD — single button row (no info row, panel handles that)
-        self.bottom_hud_h = int(self.sh * 0.07)
-        self.btn_row_y = self.sh - int(self.sh * 0.055)
-
-        # Map area (narrower to accommodate panel)
-        margin_top = int(self.sh * 0.07)
-        self.map_rect = pygame.Rect(margin_x, margin_top,
-                                     self.panel_x - 2 * margin_x,
-                                     self.sh - margin_top - self.bottom_hud_h)
+        # Panel toggle state
+        self.panel_visible = panel_visible
+        self.panel_toggle_btn_rect = None
 
         # State
         self.hovered_planet = None
@@ -110,10 +99,34 @@ class MapScreen:
         # Side panel cache
         self._panel_cache = None  # (cache_key, surface)
 
+        # Calculate layout
+        self._recalculate_layout()
+
+    def _recalculate_layout(self):
+        """Recalculate all layout rects based on panel visibility."""
+        margin_x = int(self.sw * 0.04)
+
+        if self.panel_visible:
+            self.panel_w = int(self.sw * 0.20)
+            self.panel_x = self.sw - self.panel_w
+        else:
+            self.panel_w = 0
+            self.panel_x = self.sw
+
+        # Bottom HUD
+        self.bottom_hud_h = int(self.sh * 0.07)
+        self.btn_row_y = self.sh - int(self.sh * 0.055)
+
+        # Map area
+        margin_top = int(self.sh * 0.07)
+        self.map_rect = pygame.Rect(margin_x, margin_top,
+                                     self.panel_x - 2 * margin_x,
+                                     self.sh - margin_top - self.bottom_hud_h)
+
         # Buttons — 8 buttons evenly spaced along bottom row
         btn_count = 8
         btn_h = int(self.sh * 0.045)
-        available_w = self.panel_x - 2 * margin_x  # buttons span below map, not panel
+        available_w = self.panel_x - 2 * margin_x
         btn_gap = max(4, int(self.sw * 0.006))
         btn_w = (available_w - (btn_count - 1) * btn_gap) // btn_count
 
@@ -317,11 +330,27 @@ class MapScreen:
             screen.blit(surf, (rx, y_center))
             rx -= int(self.sw * 0.02)
 
+        # ===== PANEL TOGGLE BUTTON =====
+        toggle_text = "\u25C0" if self.panel_visible else "\u25B6"
+        toggle_w, toggle_h = 32, 24
+        toggle_x = self.panel_x - toggle_w - 8 if self.panel_visible else self.sw - toggle_w - 8
+        toggle_y = int(self.sh * 0.015)
+        self.panel_toggle_btn_rect = pygame.Rect(toggle_x, toggle_y, toggle_w, toggle_h)
+        toggle_surf = pygame.Surface((toggle_w, toggle_h), pygame.SRCALPHA)
+        toggle_surf.fill((40, 60, 90, 180))
+        screen.blit(toggle_surf, (toggle_x, toggle_y))
+        pygame.draw.rect(screen, (80, 110, 150), self.panel_toggle_btn_rect, 1)
+        toggle_label = self.font_info.render(toggle_text, True, (180, 200, 220))
+        screen.blit(toggle_label, (toggle_x + toggle_w // 2 - toggle_label.get_width() // 2,
+                                   toggle_y + toggle_h // 2 - toggle_label.get_height() // 2))
+
         # ===== SIDE PANEL =====
-        self._draw_side_panel(screen, galaxy_map, campaign_state, attackable_ids, network)
+        if self.panel_visible:
+            self._draw_side_panel(screen, galaxy_map, campaign_state, attackable_ids, network)
 
         # ===== BOTTOM HUD =====
-        bottom_bg = _get_dim_overlay(self.panel_x, self.bottom_hud_h, COLOR_HUD_BG_ALPHA)
+        hud_w = self.panel_x if self.panel_visible else self.sw
+        bottom_bg = _get_dim_overlay(hud_w, self.bottom_hud_h, COLOR_HUD_BG_ALPHA)
         screen.blit(bottom_bg, (0, self.sh - self.bottom_hud_h))
 
         # ===== BUTTONS (8 buttons) =====
@@ -366,15 +395,16 @@ class MapScreen:
                           enabled=can_attack)
 
         # ESC hint (bottom-left corner)
-        hint = self.font_info.render("ESC = Save & Quit  |  D = Deck  |  I = Run Info",
+        hint = self.font_info.render("ESC = Save & Quit  |  D = Deck  |  I = Info  |  TAB = Panel",
                                      True, (80, 90, 120))
         screen.blit(hint, (int(self.sw * 0.03),
                            self.sh - self.bottom_hud_h + int(self.sh * 0.005)))
 
         # Status message (above bottom HUD)
         if message:
+            msg_center = self.panel_x // 2 if self.panel_visible else self.sw // 2
             msg_surf = self.font_hud.render(message, True, (255, 220, 100))
-            screen.blit(msg_surf, (self.panel_x // 2 - msg_surf.get_width() // 2,
+            screen.blit(msg_surf, (msg_center - msg_surf.get_width() // 2,
                                     self.sh - self.bottom_hud_h - int(self.sh * 0.03)))
 
     def _draw_side_panel(self, screen, galaxy_map, campaign_state, attackable_ids, network):
@@ -406,60 +436,143 @@ class MapScreen:
             self._draw_panel_overview(screen, galaxy_map, campaign_state, network,
                                        x, y, inner_w, line_h, small_h, panel_top + panel_h)
 
+    def _draw_section_header(self, screen, text, x, y, inner_w, color=(200, 220, 255)):
+        """Draw a section header with separator line. Returns new y position."""
+        y += 4
+        pygame.draw.line(screen, COLOR_PANEL_BORDER, (x, y), (x + inner_w, y), 1)
+        y += 6
+        header = self.font_section.render(text, True, color)
+        screen.blit(header, (x, y))
+        y += header.get_height() + 4
+        return y
+
     def _draw_panel_planet(self, screen, galaxy_map, campaign_state, attackable_ids,
                            x, y, inner_w, line_h, small_h, panel_bottom):
         """Draw planet details in side panel."""
         sp = galaxy_map.planets[self.selected_planet]
         owner_color = self._get_planet_color(sp)
+        is_enemy = sp.owner not in ("player", "neutral")
+        is_player = sp.owner == "player"
 
+        # ===== PLANET IDENTITY =====
         # Planet name
-        name_surf = self.font_panel_title.render(sp.name, True, owner_color)
+        type_icon = "\u2605" if sp.planet_type == "homeworld" else (
+            "\u25C6" if sp.planet_type == "territory" else "\u25CB")
+        name_surf = self.font_panel_title.render(f"{type_icon} {sp.name}", True, owner_color)
         screen.blit(name_surf, (x, y))
         y += line_h + 2
 
-        # Owner
-        owner_surf = self.font_panel.render(f"Owner: {sp.owner}", True, owner_color)
-        screen.blit(owner_surf, (x, y))
+        # Owner with colored dot
+        pygame.draw.circle(screen, owner_color, (x + 6, y + self.font_panel.get_height() // 2), 4)
+        owner_label = sp.owner.title() if sp.owner != "player" else "You"
+        owner_surf = self.font_panel.render(f"  {owner_label}", True, owner_color)
+        screen.blit(owner_surf, (x + 12, y))
         y += line_h
 
         # Type
-        type_surf = self.font_panel.render(f"Type: {sp.planet_type.title()}", True, COLOR_HUD_TEXT)
+        type_surf = self.font_info.render(f"{sp.planet_type.title()}", True, (160, 170, 190))
         screen.blit(type_surf, (x, y))
-        y += line_h
+        y += small_h
 
         # Weather
         if sp.weather_preset:
             wname = sp.weather_preset.get('type', 'none').replace('_', ' ').title()
-            w_surf = self.font_info.render(f"Weather: {wname}", True, (180, 180, 220))
+            w_color = (255, 200, 100)
+            w_surf = self.font_info.render(f"\u26A0 Weather: {wname}", True, w_color)
             screen.blit(w_surf, (x, y))
             y += small_h
 
-        # Defender leader
-        if sp.defender_leader and sp.owner not in ("player", "neutral"):
-            leader_name = sp.defender_leader.get('name', '?')
-            dl_surf = self.font_info.render(f"Defender: {leader_name}", True, (220, 180, 140))
-            screen.blit(dl_surf, (x, y))
+        # Cooldown
+        if self.selected_planet in campaign_state.cooldowns:
+            cd = campaign_state.cooldowns[self.selected_planet]
+            cd_surf = self.font_info.render(f"\u23F1 Cooldown: {cd} turns", True, (255, 100, 100))
+            screen.blit(cd_surf, (x, y))
             y += small_h
 
-        # Separator
-        y += 4
-        pygame.draw.line(screen, COLOR_PANEL_BORDER, (x, y), (x + inner_w, y), 1)
-        y += 8
+        # ===== ENEMY INTELLIGENCE (for enemy planets) =====
+        if is_enemy and y < panel_bottom - 80:
+            y = self._draw_section_header(screen, "ENEMY INTELLIGENCE", x, y, inner_w,
+                                          color=(255, 200, 140))
 
-        # Building
-        from .buildings import get_planet_building_display, get_upgrade_cost, can_upgrade, BUILDINGS
-        binfo = get_planet_building_display(campaign_state, self.selected_planet)
-        if binfo:
-            bname, bicon, bdesc = binfo
-            b_surf = self.font_panel.render(f"{bicon} {bname}", True, (200, 180, 100))
-            screen.blit(b_surf, (x, y))
-            y += line_h
-            desc_surf = self.font_info.render(bdesc, True, (160, 160, 170))
-            screen.blit(desc_surf, (x, y))
+            if sp.defender_leader:
+                leader_name = sp.defender_leader.get('name', '?')
+                dl_surf = self.font_panel.render(f"Cmdr: {leader_name}", True, (220, 180, 140))
+                screen.blit(dl_surf, (x, y))
+                y += line_h
+
+                # Leader ability
+                ability = sp.defender_leader.get('ability', '')
+                if ability and y < panel_bottom - 60:
+                    # Word-wrap ability text
+                    y = self._draw_wrapped_panel_text(screen, ability, self.font_info,
+                                                      (200, 180, 140), x, y, inner_w)
+
+                # Leader ability description (detailed)
+                ability_desc = sp.defender_leader.get('ability_desc', '')
+                if ability_desc and ability_desc != ability and y < panel_bottom - 40:
+                    y = self._draw_wrapped_panel_text(screen, ability_desc, self.font_info,
+                                                      (160, 150, 130), x, y, inner_w)
+
+            # Faction info
+            faction_color = FACTION_COLORS.get(sp.faction, (150, 150, 150))
+            f_surf = self.font_info.render(f"Faction: {sp.faction}", True, faction_color)
+            screen.blit(f_surf, (x, y))
             y += small_h
 
-            # Upgrade button (if player-owned and not maxed)
-            if sp.owner == "player":
+            if sp.planet_type == "homeworld":
+                elite_surf = self.font_info.render("\u26A0 ELITE DEFENDERS", True, (255, 100, 80))
+                screen.blit(elite_surf, (x, y))
+                y += small_h
+
+        # ===== YOUR FORCES (shown for attackable enemy planets) =====
+        if is_enemy and y < panel_bottom - 60:
+            y = self._draw_section_header(screen, "YOUR FORCES", x, y, inner_w,
+                                          color=(140, 255, 180))
+
+            if campaign_state.player_leader and isinstance(campaign_state.player_leader, dict):
+                pl_name = campaign_state.player_leader.get('name', '?')
+                pl_surf = self.font_panel.render(f"Cmdr: {pl_name}", True, (140, 220, 160))
+                screen.blit(pl_surf, (x, y))
+                y += line_h
+
+                pl_ability = campaign_state.player_leader.get('ability', '')
+                if pl_ability and y < panel_bottom - 40:
+                    y = self._draw_wrapped_panel_text(screen, pl_ability, self.font_info,
+                                                      (130, 200, 150), x, y, inner_w)
+            else:
+                pl_surf = self.font_info.render("Cmdr: Chosen per battle", True, (130, 200, 150))
+                screen.blit(pl_surf, (x, y))
+                y += small_h
+
+            deck_surf = self.font_info.render(
+                f"Deck: {len(campaign_state.current_deck)} cards", True, COLOR_DECK)
+            screen.blit(deck_surf, (x, y))
+            y += small_h
+
+            upgraded = sum(1 for v in campaign_state.upgraded_cards.values() if v > 0)
+            if upgraded:
+                upg_surf = self.font_info.render(f"Upgrades: {upgraded}", True, (100, 255, 150))
+                screen.blit(upg_surf, (x, y))
+                y += small_h
+
+        # ===== INFRASTRUCTURE (player-owned planets) =====
+        if is_player and y < panel_bottom - 40:
+            y = self._draw_section_header(screen, "INFRASTRUCTURE", x, y, inner_w,
+                                          color=(200, 200, 255))
+
+            # Building
+            from .buildings import get_planet_building_display, get_upgrade_cost, can_upgrade, BUILDINGS
+            binfo = get_planet_building_display(campaign_state, self.selected_planet)
+            if binfo:
+                bname, bicon, bdesc = binfo
+                b_surf = self.font_panel.render(f"{bicon} {bname}", True, (200, 180, 100))
+                screen.blit(b_surf, (x, y))
+                y += line_h
+                desc_surf = self.font_info.render(bdesc, True, (160, 160, 170))
+                screen.blit(desc_surf, (x, y))
+                y += small_h
+
+                # Upgrade button
                 upg_cost = get_upgrade_cost(campaign_state, self.selected_planet)
                 if upg_cost is not None:
                     can_upg = can_upgrade(campaign_state, self.selected_planet, type('G', (), {'planets': galaxy_map.planets})())
@@ -471,41 +584,49 @@ class MapScreen:
                                       (80, 120, 60) if can_upg else (50, 50, 50),
                                       enabled=can_upg)
                     y += btn_h + 6
-        elif sp.owner == "player":
-            # No building — show build options
-            b_label = self.font_panel.render("No Building", True, (120, 120, 130))
-            screen.blit(b_label, (x, y))
-            y += line_h
-            btn_h = int(self.sh * 0.030)
-            btn_w = min(inner_w, int(self.panel_w * 0.85))
-            from .buildings import _get_building_cost, can_build
-            for bid, building in BUILDINGS.items():
-                if y + btn_h > panel_bottom - 10:
-                    break
-                cost = _get_building_cost(building, campaign_state)
-                can_b = can_build(campaign_state, self.selected_planet, bid, type('G', (), {'planets': galaxy_map.planets})())
-                btn_rect = pygame.Rect(x, y, btn_w, btn_h)
-                self.build_button_rects.append((btn_rect, bid))
-                label = f"{building.icon_char} {building.name} (-{cost})"
-                self._draw_button(screen, btn_rect, label,
-                                  (60, 80, 100) if can_b else (40, 40, 40),
-                                  enabled=can_b)
-                y += btn_h + 3
+            else:
+                # No building — show build options
+                b_label = self.font_panel.render("No Building", True, (120, 120, 130))
+                screen.blit(b_label, (x, y))
+                y += line_h
+                btn_h = int(self.sh * 0.030)
+                btn_w = min(inner_w, int(self.panel_w * 0.85))
+                from .buildings import _get_building_cost, can_build
+                for bid, building in BUILDINGS.items():
+                    if y + btn_h > panel_bottom - 10:
+                        break
+                    cost = _get_building_cost(building, campaign_state)
+                    can_b = can_build(campaign_state, self.selected_planet, bid, type('G', (), {'planets': galaxy_map.planets})())
+                    btn_rect = pygame.Rect(x, y, btn_w, btn_h)
+                    self.build_button_rects.append((btn_rect, bid))
+                    label = f"{building.icon_char} {building.name} (-{cost})"
+                    self._draw_button(screen, btn_rect, label,
+                                      (60, 80, 100) if can_b else (40, 40, 40),
+                                      enabled=can_b)
+                    y += btn_h + 3
 
-        # Fortification
-        fort_level = campaign_state.fortification_levels.get(self.selected_planet, 0)
-        if sp.owner == "player":
+            # Fortification — visual bars
+            fort_level = campaign_state.fortification_levels.get(self.selected_planet, 0)
             y += 4
-            fort_surf = self.font_panel.render(
-                f"Fortification: {'Lv' + str(fort_level) + '/3' if fort_level > 0 else 'None'}",
-                True, (100, 200, 255) if fort_level > 0 else (120, 120, 130))
-            screen.blit(fort_surf, (x, y))
+            fort_label = self.font_info.render("Fort:", True,
+                                               (100, 200, 255) if fort_level > 0 else (120, 120, 130))
+            screen.blit(fort_label, (x, y))
+            bar_x = x + fort_label.get_width() + 6
+            bar_w_each = int(inner_w * 0.12)
+            bar_h = 10
+            for i in range(3):
+                bx = bar_x + i * (bar_w_each + 3)
+                if i < fort_level:
+                    pygame.draw.rect(screen, (80, 180, 255), (bx, y + 2, bar_w_each, bar_h))
+                else:
+                    pygame.draw.rect(screen, (40, 50, 60), (bx, y + 2, bar_w_each, bar_h))
+                pygame.draw.rect(screen, (70, 90, 120), (bx, y + 2, bar_w_each, bar_h), 1)
             y += line_h
 
         # Planet passive
         from .planet_passives import get_planet_passive
         passive = get_planet_passive(self.selected_planet, galaxy_map)
-        if passive and sp.owner == "player":
+        if passive and is_player and y < panel_bottom - 20:
             p_surf = self.font_info.render(f"Passive: {passive['desc']}", True, (150, 200, 150))
             screen.blit(p_surf, (x, y))
             y += small_h
@@ -514,26 +635,21 @@ class MapScreen:
         from .espionage import get_operative_summary
         ops = get_operative_summary(campaign_state)
         ops_here = [o for o in ops if o[3] == self.selected_planet and o[2] not in ("idle", "dead")]
-        if ops_here:
+        if ops_here and y < panel_bottom - 20:
             op_surf = self.font_info.render(f"Operatives: {len(ops_here)}", True, (200, 150, 255))
             screen.blit(op_surf, (x, y))
             y += small_h
 
         # Minor world info
-        if sp.planet_type == "neutral":
+        if sp.planet_type == "neutral" and y < panel_bottom - 40:
             from .minor_worlds import ensure_minor_world, MINOR_WORLD_TYPE_INFO, get_tier_label
             _mw = ensure_minor_world(campaign_state, self.selected_planet, galaxy_map)
             if _mw:
-                y += 4
-                pygame.draw.line(screen, COLOR_PANEL_BORDER, (x, y), (x + inner_w, y), 1)
-                y += 6
                 _mw_info = MINOR_WORLD_TYPE_INFO.get(_mw.world_type, {})
                 mw_icon = _mw_info.get('icon', '')
                 mw_color = _mw_info.get('color', (150, 150, 150))
-                type_surf = self.font_panel.render(
-                    f"{mw_icon} {_mw.world_type.title()} World", True, mw_color)
-                screen.blit(type_surf, (x, y))
-                y += line_h
+                y = self._draw_section_header(screen, f"{mw_icon} {_mw.world_type.title()} World",
+                                               x, y, inner_w, color=mw_color)
 
                 # Influence bar
                 tier_label = get_tier_label(_mw.influence)
@@ -541,7 +657,6 @@ class MapScreen:
                     f"Influence: {_mw.influence} [{tier_label}]", True, COLOR_HUD_TEXT)
                 screen.blit(inf_surf, (x, y))
                 y += small_h
-                # Draw bar
                 bar_w = min(inner_w, int(self.panel_w * 0.80))
                 bar_h = 8
                 pygame.draw.rect(screen, (40, 40, 50), (x, y, bar_w, bar_h))
@@ -552,18 +667,31 @@ class MapScreen:
                     pygame.draw.rect(screen, bar_color, (x, y, fill_w, bar_h))
                 y += bar_h + 4
 
-                if _mw.active_quest:
+                if _mw.active_quest and y < panel_bottom - 20:
                     q_surf = self.font_info.render(
                         f"Quest: {_mw.active_quest.get('description', '?')}", True, (200, 200, 150))
                     screen.blit(q_surf, (x, y))
                     y += small_h
 
-        # Cooldown
-        if self.selected_planet in campaign_state.cooldowns:
-            cd = campaign_state.cooldowns[self.selected_planet]
-            cd_surf = self.font_panel.render(f"Cooldown: {cd} turns", True, (255, 100, 100))
-            screen.blit(cd_surf, (x, y))
+    def _draw_wrapped_panel_text(self, screen, text, font, color, x, y, max_width):
+        """Draw word-wrapped text in the side panel. Returns new y position."""
+        words = text.split()
+        line = ""
+        line_h = font.get_height() + 2
+        for word in words:
+            test = line + " " + word if line else word
+            if font.size(test)[0] > max_width and line:
+                surf = font.render(line, True, color)
+                screen.blit(surf, (x, y))
+                y += line_h
+                line = word
+            else:
+                line = test
+        if line:
+            surf = font.render(line, True, color)
+            screen.blit(surf, (x, y))
             y += line_h
+        return y
 
     def _draw_panel_overview(self, screen, galaxy_map, campaign_state, network,
                              x, y, inner_w, line_h, small_h, panel_bottom):
@@ -606,6 +734,7 @@ class MapScreen:
 
         from .galaxy_map import ALL_FACTIONS
         from .diplomacy import get_relation, RELATION_DISPLAY
+        row_h = small_h + 4
         for faction in ALL_FACTIONS:
             if faction == campaign_state.player_faction:
                 continue
@@ -619,13 +748,18 @@ class MapScreen:
             rel_color = rel_info.get("color", (150, 150, 150))
             faction_color = FACTION_COLORS.get(faction, (150, 150, 150))
 
+            # Subtle background box for each faction row
+            row_bg = pygame.Surface((inner_w, row_h), pygame.SRCALPHA)
+            row_bg.fill((faction_color[0] // 10, faction_color[1] // 10, faction_color[2] // 10, 60))
+            screen.blit(row_bg, (x, y))
+
             # Faction name + planet count
             f_surf = self.font_info.render(f"{faction} ({pcount})", True, faction_color)
-            screen.blit(f_surf, (x, y))
+            screen.blit(f_surf, (x + 4, y + 2))
             # Relation tag
             rel_tag = self.font_info.render(rel_info.get("name", rel), True, rel_color)
-            screen.blit(rel_tag, (x + inner_w - rel_tag.get_width(), y))
-            y += small_h
+            screen.blit(rel_tag, (x + inner_w - rel_tag.get_width() - 4, y + 2))
+            y += row_h
 
         # Separator
         y += 6
@@ -701,6 +835,13 @@ class MapScreen:
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos
 
+            # Check panel toggle button
+            if self.panel_toggle_btn_rect and self.panel_toggle_btn_rect.collidepoint(mx, my):
+                self.panel_visible = not self.panel_visible
+                self._recalculate_layout()
+                self._panel_cache = None
+                return None
+
             # Check side panel build buttons
             for btn_rect, building_id in self.build_button_rects:
                 if btn_rect.collidepoint(mx, my):
@@ -759,5 +900,10 @@ class MapScreen:
                 return "view_deck"
             elif event.key == pygame.K_i:
                 return "run_info"
+            elif event.key == pygame.K_TAB:
+                self.panel_visible = not self.panel_visible
+                self._recalculate_layout()
+                self._panel_cache = None
+                return None
 
         return None

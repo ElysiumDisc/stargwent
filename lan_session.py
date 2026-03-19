@@ -1,5 +1,6 @@
 import json
 import time
+from collections import deque
 
 from touch_support import is_web_platform
 
@@ -22,7 +23,9 @@ class LanSession:
         self.sock = None
         self.thread = None
         self.keepalive_thread = None
-        self.inbox = queue.Queue(maxsize=1000)
+        # deque with maxlen auto-drops oldest on overflow; append/popleft are
+        # atomic under CPython's GIL (single-producer reader thread pattern).
+        self.inbox = deque(maxlen=1000)
         self.chat_inbox = queue.Queue(maxsize=100)  # Bounded to prevent memory growth
         self.stop_event = threading.Event()
         self.last_received = 0
@@ -36,7 +39,7 @@ class LanSession:
 
         # JSON error recovery (consecutive strikes = disconnect)
         self.parse_error_count = 0
-        self.max_parse_errors = 20
+        self.max_parse_errors = 5
 
         # Buffer size limit to prevent OOM from malicious peers (1 MB)
         self.max_buffer_size = 1024 * 1024
@@ -110,7 +113,7 @@ class LanSession:
         self.sock.settimeout(1.0)  # 1 second timeout for recv
 
         self.stop_event.clear()
-        self.last_received = time.time()
+        self.last_received = time.monotonic()
 
         self.thread = threading.Thread(target=self._reader, daemon=True)
         self.thread.start()
@@ -131,7 +134,7 @@ class LanSession:
                 if not data:
                     # Connection closed cleanly
                     break
-                self.last_received = time.time()
+                self.last_received = time.monotonic()
                 buffer += data
                 # Prevent OOM: drop connection if buffer grows beyond limit
                 # (peer sending data without newline delimiters)
@@ -140,7 +143,7 @@ class LanSession:
                     break
             except socket.timeout:
                 # Check if we've timed out waiting for any message
-                if time.time() - self.last_received > self.connection_timeout:
+                if time.monotonic() - self.last_received > self.connection_timeout:
                     print(f"[LanSession] Connection timeout - no data for {self.connection_timeout}s")
                     break
                 continue
@@ -175,7 +178,7 @@ class LanSession:
                         if pong_payload.get("id") == self._ping_id:
                             timestamp = pong_payload.get("timestamp", 0)
                             if timestamp:
-                                self.current_rtt = int((time.time() - timestamp) * 1000)
+                                self.current_rtt = int((time.monotonic() - timestamp) * 1000)
                         continue
 
                     # Route chat-related messages to dedicated queue
@@ -185,18 +188,7 @@ class LanSession:
                         except queue.Full:
                             pass  # Discard overflow — stale chat messages are acceptable to drop
                     else:
-                        try:
-                            self.inbox.put_nowait(payload)
-                        except queue.Full:
-                            # Drop oldest message to make room (prevents reader thread blocking)
-                            try:
-                                self.inbox.get_nowait()
-                            except queue.Empty:
-                                pass
-                            try:
-                                self.inbox.put_nowait(payload)
-                            except queue.Full:
-                                pass
+                        self.inbox.append(payload)
                 except json.JSONDecodeError as e:
                     with self._sock_lock:
                         self.parse_error_count += 1
@@ -217,7 +209,7 @@ class LanSession:
         with self._sock_lock:
             if not self._disconnect_sent:
                 self._disconnect_sent = True
-                self.inbox.put({"type": "disconnect"})
+                self.inbox.append({"type": "disconnect"})
                 self.chat_inbox.put({"type": "disconnect"})
 
     def _keepalive_sender(self):
@@ -232,7 +224,7 @@ class LanSession:
                 try:
                     # Ping doubles as keepalive — pong response keeps connection alive
                     self._ping_id += 1
-                    self.last_ping_time = time.time()
+                    self.last_ping_time = time.monotonic()
                     ping_packet = json.dumps({
                         "type": "ping",
                         "payload": {"timestamp": self.last_ping_time, "id": self._ping_id}
@@ -246,7 +238,7 @@ class LanSession:
                     with self._sock_lock:
                         if not self._disconnect_sent:
                             self._disconnect_sent = True
-                            self.inbox.put({"type": "disconnect"})
+                            self.inbox.append({"type": "disconnect"})
                             self.chat_inbox.put({"type": "disconnect"})
                     break
 
@@ -283,8 +275,8 @@ class LanSession:
             Message dict if available, None otherwise
         """
         try:
-            return self.inbox.get_nowait()
-        except queue.Empty:
+            return self.inbox.popleft()
+        except IndexError:
             return None
 
     def send(self, message_type, payload=None):

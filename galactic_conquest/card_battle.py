@@ -47,7 +47,7 @@ def _apply_relic_combat_modifiers(relics, player_deck, ai_deck, player_faction):
     # Weaken enemy passive: handled in campaign_controller before calling run_card_battle
 
 
-def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
+async def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
                     ai_faction, ai_leader, exempt_penalties=True,
                     starting_weather=None, upgraded_cards=None,
                     ai_elite_bonus=0, ai_extra_cards=0, relics=None,
@@ -87,6 +87,13 @@ def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
                     card.power += bonus
             player_deck.append(card)
     random.shuffle(player_deck)
+
+    # Pick player leader if not provided (per-battle selection may have been skipped)
+    if player_leader is None:
+        leaders = FACTION_LEADERS.get(player_faction, [])
+        if leaders:
+            player_leader = dict(random.choice(leaders))
+            player_leader.setdefault('faction', player_faction)
 
     # Pick AI leader if not provided
     if ai_leader is None:
@@ -154,6 +161,15 @@ def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
             if hasattr(card, 'power') and card.power is not None:
                 card.power += fort_defense_bonus
 
+    # Validate minimum deck sizes before creating game
+    MIN_DECK_SIZE = 10
+    if len(player_deck) < MIN_DECK_SIZE:
+        print(f"[CardBattle] WARNING: Player deck too small ({len(player_deck)} cards), aborting battle")
+        return "draw"
+    if len(ai_deck) < MIN_DECK_SIZE:
+        print(f"[CardBattle] WARNING: AI deck too small ({len(ai_deck)} cards), defaulting to player win")
+        return "player_win"
+
     # Create Game object
     game = Game(
         player1_faction=player_faction,
@@ -187,7 +203,7 @@ def run_card_battle(screen, player_faction, player_leader, player_deck_ids,
     # Use main.py's game loop by passing the game object through lan_game_data
     # This reuses 100% of the existing battle code (mulligan, events, rendering, AI)
     import main as _main
-    result = _main.main(lan_game_data={
+    result = await _main.main(lan_game_data={
         'game': game,
         'ai_controller': ai_controller,
     })
