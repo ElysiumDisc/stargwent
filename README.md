@@ -168,8 +168,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Integrated Chat** - Press 'T' to chat, quick chat keys 1-0 (Stargate quotes!), message bubbles, opponent name display
 - **Connection Quality** - Real-time latency indicator (green/yellow/red) in HUD
 - **Thread-Safe Networking** - Socket lock protects all concurrent send/recv/close operations across reader, keepalive, and main threads; clean thread shutdown with join on disconnect
-- **Game Action ACKs** - Every card play, pass, and ability sends a message ID; receiver confirms receipt with an acknowledgment
-- **Reliable Connections** - JSON error recovery (10 consecutive), keepalive-aware disconnect detection, duplicate disconnect prevention, graceful shutdown
+- **Game Action ACKs** - Every card play, pass, and ability sends a message ID; receiver confirms receipt with an acknowledgment. Unacked actions automatically retry once before warning
+- **Reliable Connections** - JSON error recovery (5 consecutive), monotonic clock timing, lock-free `deque` inbox, keepalive-aware disconnect detection, duplicate disconnect prevention, turn token gap tracking, desync warnings, graceful shutdown
 
 ### 🌐 Play in Browser (PWA)
 - **No Install Needed** - Play directly in your browser via Pygbag (Pygame→WASM)

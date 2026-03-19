@@ -136,6 +136,37 @@
 | `galactic_conquest/map_renderer.py` | Side panel, HUD cleanup, 8 buttons, non-SRCALPHA surfaces |
 | `galactic_conquest/doctrine_screen.py` | Wisdom powers button section |
 
+#### Pre-Release Audit — Bug Fixes, Performance, LAN Hardening
+
+##### Critical Game Logic Fixes
+- **Fixed draw games treated as defeats** — card battle draws now return neutral outcome (no cooldown, no naquadah penalty, no "battles_lost" stat). Previously the `else` block caught both `"player_loss"` and `"draw"`, unfairly penalizing tied battles (`campaign_controller.py`)
+- **Fixed empty deck crash in card battles** — added MIN_DECK_SIZE (10) validation before creating Game object. Returns `"draw"` for broken player deck, `"player_win"` for broken AI deck, preventing undefined behavior when all card IDs are invalid (`card_battle.py`)
+- **Added defensive guard for empty card pool in neutral events** — `"cards"` effect now returns early message when `all_ids` list is empty instead of passing empty list to `rng.sample()` (`neutral_events.py`)
+- **Changed loss handler to explicit `elif`** — `else:` → `elif card_result == "player_loss":` prevents future result types from silently falling into the loss path (`campaign_controller.py`)
+
+##### Animation Performance
+- **Fixed O(n²) particle removal** — replaced `list.remove(particle)` inside iteration (O(n) per removal) with single-pass list comprehension filter in `CardStealAnimation.update()` (`animations.py`)
+- **Switched particle lists to `deque(maxlen=N)`** — trail and hearts lists now use `collections.deque` with `maxlen`, auto-dropping oldest elements on append. Eliminates per-frame list slicing (`self.trail = self.trail[-MAX:]`) that allocated new list objects every frame (`animations.py`)
+- **Cached `smoothscale` in `CardStealAnimation.draw()`** — scale factor is constant (1.05), so the scaled card surface is now cached and reused instead of re-scaling every frame (`animations.py`)
+- **Fixed animation pool memory leak** — `return_animation()` now clears `trail`, `hearts`, `on_finish`, and `_cached_scaled_card` fields in addition to `card_image` and `on_complete`, preventing stale particle/surface references from accumulating in pooled instances (`animations.py`)
+
+##### LAN Networking Hardening
+- **Fixed race condition in inbox queue drop** — replaced `queue.Queue(maxsize=1000)` with `collections.deque(maxlen=1000)` for game message inbox. The old get-then-put overflow pattern had a window where another thread could steal the freed slot, silently dropping the message. `deque.append()` is atomic under CPython's GIL (`lan_session.py`)
+- **Lowered parse error threshold** — `max_parse_errors` reduced from 20 to 5. 20 consecutive JSON parse errors was far too lenient; 5 consecutive failures is sufficient to detect a corrupt connection while tolerating transient TCP fragmentation (`lan_session.py`)
+- **Switched to monotonic clock for all network timing** — all `time.time()` calls in `lan_session.py` and `lan_opponent.py` replaced with `time.monotonic()`. Wall clock jumps from NTP sync could corrupt RTT calculations and trigger false connection timeouts (`lan_session.py`, `lan_opponent.py`)
+- **Added single-retry for unacked game actions** — previously, actions unacknowledged after 3 seconds were silently deleted. Now retries once (re-sends the original message) before giving up, with stored `_pending_messages` for re-transmission (`lan_opponent.py`)
+- **Added turn token gap tracking** — token sequence gaps now accumulate in `_token_gap_count` and display a HUD warning when 3+ actions have been lost, instead of silently resyncing (`lan_opponent.py`)
+- **Added `desync_warning` handler on receive side** — the `desync_warning` message (sent after 3 consecutive card-not-found auto-passes) is now handled by the remote player with a HUD flash and game history entry, instead of being silently ignored (`lan_opponent.py`)
+
+##### UI Polish
+- **Fixed mouse coordinate truncation** — replaced `int(x * sx)` with `round(x * sx)` at all mouse scaling points (`_scaled_mouse_get_pos`, `_scaled_event_get`). Eliminates 1-pixel offset that could cause missed clicks on card edges in GPU fullscreen mode (`display_manager.py`)
+- **Added ellipsis truncation for long leader names** — leader selection cards now truncate overflowing names with "..." after trying a smaller font, preventing text from clipping outside the card boundary (`leader_select.py`)
+
+##### New File
+| File | Description |
+|------|-------------|
+| `galactic_conquest/leader_select.py` | Per-battle leader selection screen for Galactic Conquest |
+
 #### LAN Security & Bug Fixes
 - **Fixed buffer overflow vulnerability** — `LanSession` reader now enforces 1 MB buffer limit; peers sending data without newline delimiters are disconnected instead of causing OOM (`lan_session.py`)
 - **Fixed reader thread deadlock** — `inbox.put()` replaced with non-blocking `put_nowait()` with overflow eviction; prevents the reader thread from blocking indefinitely when the game loop falls behind on message consumption (`lan_session.py`)

@@ -274,6 +274,7 @@ pygbag --build main.py      # Production build → build/web/
 | `_dim_overlay_cache` | `map_renderer.py` | Full-screen SRCALPHA overlay (8MB/frame) |
 | `_tooltip_cache` | `map_renderer.py` | 15+ `font.render()` calls/frame on hover |
 | `_get_circle_sprite()` | `animations.py` | Per-particle SRCALPHA in steal/trail effects |
+| `_cached_scaled_card` | `animations.py` | Per-frame `smoothscale` in CardStealAnimation |
 | `_get_network_cached()` | `campaign_controller.py` | BFS traversal called 4+ times/turn |
 | `_flash_surf_cache` (bounded) | `space_shooter/game.py` | Unbounded cache growth (capped at 50) |
 
@@ -300,6 +301,7 @@ Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules, ~11,
 | `map_renderer.py` | Side info panel, pulsing lanes, building/fort icons, simplified HUD, 8-button bar, non-SRCALPHA surfaces |
 | `wisdom_actions.py` | 4 repeatable wisdom actions (Ascended Insight, Temporal Shift, Ancient Knowledge, Enlightened Trade) |
 | `faction_setup.py` | Faction/leader/deck selection (6 factions including Alteran) |
+| `leader_select.py` | Per-battle leader selection screen with portraits and ability descriptions |
 | `card_battle.py` | Weather injection, elite params, relic modifiers, doctrine power bonuses, sabotage effects |
 | `reward_screen.py` | Post-victory card picks with tier scaling |
 | `neutral_events.py` | 20 events with choices |
@@ -383,7 +385,7 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 - **Quick Chat**: Keys 1-5 ("Good game!", "Nice play!", etc.)
 - **Unread Badge**: Count badge when chat minimized
 - **Delivery Confirmation**: Unique message IDs + ACK protocol, checkmark on confirmed
-- **Thread Safety**: Socket lock, duplicate disconnect prevention, parse error tolerance (10), game action ACKs
+- **Thread Safety**: Socket lock, duplicate disconnect prevention, parse error tolerance (5 consecutive), `deque(maxlen=1000)` inbox (atomic under CPython GIL), `time.monotonic()` for all timing, game action ACKs with single-retry
 
 ---
 
