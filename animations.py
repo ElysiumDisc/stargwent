@@ -19,10 +19,13 @@ def _get_circle_sprite(size, color, alpha=255):
     s = _particle_sprite_cache.get(key)
     if s is None:
         if len(_particle_sprite_cache) >= _MAX_PARTICLE_CACHE:
-            _particle_sprite_cache.clear()
+            # LRU eviction: remove oldest 60 entries instead of clearing all
+            keys_to_remove = list(_particle_sprite_cache.keys())[:60]
+            for k in keys_to_remove:
+                del _particle_sprite_cache[k]
         s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
         pygame.draw.circle(s, (*color, alpha) if len(color) == 3 else color, (size, size), size)
-        _particle_sprite_cache[key] = s
+    _particle_sprite_cache[key] = s
     return s
 
 
@@ -5121,18 +5124,18 @@ class PriorsPlagueEffect:
                 surface.blit(glow_surf, (px - ps * 2, py - ps * 2))
 
     def get_gpu_params(self):
-        """Return distortion for plague miasma ripple."""
+        """Return GPU parameters for toxic plague miasma effect."""
         if self.finished:
             return None
         progress = self.elapsed / self.duration
-        strength = max(0.0, 0.6 * (1 - progress * 1.5))
-        if strength <= 0:
+        intensity = max(0.0, 1.0 - progress * 1.2)
+        if intensity <= 0:
             return None
         return {
-            'type': 'distortion',
+            'type': 'priors_plague',
             'center': (self.x, self.y),
-            'strength': strength,
-            'radius': min(progress * 1.8, 1.0) * 0.3,
+            'intensity': intensity,
+            'spread': min(progress * 2.0, 1.0),
         }
 
 
@@ -5249,7 +5252,7 @@ class AscensionEffect:
                 surface.blit(glow_surf, (mx - ms * 2, my - ms * 2))
 
     def get_gpu_params(self):
-        """Return GPU parameters for ascension energy surge."""
+        """Return GPU parameters for ascension light column effect."""
         if self.finished:
             return None
         progress = self.elapsed / self.duration
@@ -5257,10 +5260,10 @@ class AscensionEffect:
         if intensity <= 0:
             return None
         return {
-            'type': 'zpm_surge',
+            'type': 'ascension',
             'center': (self.x, self.y),
-            'intensity': intensity * 0.7,
-            'surge_radius': 200 * min(progress * 2, 1.0),
+            'intensity': intensity,
+            'column_height': min(progress * 2.5, 1.0) * 0.4,
         }
 
 
@@ -6288,30 +6291,29 @@ class AnimationManager:
     
     def update(self, dt):
         """Update all animations and effects with pooling (v4.3.1)."""
-        # Update animations and return finished ones to pool
-        active_animations = []
-        for anim in self.animations:
-            if anim.update(dt):
-                active_animations.append(anim)
+        # Update animations — filter in-place to avoid list allocation
+        i = 0
+        while i < len(self.animations):
+            if self.animations[i].update(dt):
+                i += 1
             else:
-                # Animation finished, return to pool
-                self.pool.return_animation(anim)
-        self.animations = active_animations
+                self.pool.return_animation(self.animations[i])
+                self.animations[i] = self.animations[-1]
+                self.animations.pop()
 
-        # Update effects and return finished ones to pool
-        active_effects = []
-        for effect in self.effects:
-            if effect.update(dt):
-                active_effects.append(effect)
+        # Update effects — filter in-place
+        i = 0
+        while i < len(self.effects):
+            if self.effects[i].update(dt):
+                i += 1
             else:
-                # Effect finished, return to pool
-                self.pool.return_animation(effect)
-        self.effects = active_effects
+                self.pool.return_animation(self.effects[i])
+                self.effects[i] = self.effects[-1]
+                self.effects.pop()
 
         # Update score animations
         for player_id in list(self.score_animations.keys()):
             if not self.score_animations[player_id].update(dt):
-                # Return to pool before deleting
                 self.pool.return_animation(self.score_animations[player_id])
                 del self.score_animations[player_id]
 
@@ -6319,15 +6321,15 @@ class AnimationManager:
         if self.weather_effect:
             self.weather_effect.update(dt)
 
-        # Update row weather effects
-        active_row_weather = []
-        for effect in self.row_weather_effects:
-            if effect.update(dt):
-                active_row_weather.append(effect)
+        # Update row weather effects — filter in-place
+        i = 0
+        while i < len(self.row_weather_effects):
+            if self.row_weather_effects[i].update(dt):
+                i += 1
             else:
-                # Return to pool
-                self.pool.return_animation(effect)
-        self.row_weather_effects = active_row_weather
+                self.pool.return_animation(self.row_weather_effects[i])
+                self.row_weather_effects[i] = self.row_weather_effects[-1]
+                self.row_weather_effects.pop()
     
     def collect_gpu_params(self):
         """Collect GPU shader parameters from all active effects and animations."""

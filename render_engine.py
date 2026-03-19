@@ -35,11 +35,14 @@ def _get_cached_scaled_image(base_img, target_size, card_id=None):
 
     if key not in _scaled_image_cache:
         if len(_scaled_image_cache) >= _MAX_SCALED_CACHE_SIZE:
-            # Clear half the cache when full
-            keys_to_remove = list(_scaled_image_cache.keys())[:_MAX_SCALED_CACHE_SIZE // 2]
+            # LRU eviction: remove oldest 30 entries instead of clearing half
+            keys_to_remove = list(_scaled_image_cache.keys())[:30]
             for k in keys_to_remove:
                 del _scaled_image_cache[k]
         _scaled_image_cache[key] = pygame.transform.scale(base_img, target_size)
+    else:
+        # Move to end (most recently used) for LRU ordering
+        _scaled_image_cache[key] = _scaled_image_cache.pop(key)
     return _scaled_image_cache[key]
 
 
@@ -55,9 +58,12 @@ def _render_text(font, text, color):
     surf = _text_render_cache.get(key)
     if surf is None:
         if len(_text_render_cache) >= _MAX_TEXT_CACHE:
-            _text_render_cache.clear()
+            # LRU eviction: remove oldest 50 entries instead of clearing all
+            keys_to_remove = list(_text_render_cache.keys())[:50]
+            for k in keys_to_remove:
+                del _text_render_cache[k]
         surf = font.render(str(text), True, color)
-        _text_render_cache[key] = surf
+    _text_render_cache[key] = surf
     return surf
 
 

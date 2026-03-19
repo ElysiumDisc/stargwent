@@ -80,7 +80,12 @@ class FBOPool:
         key = (tex.width, tex.height)
         if key not in self._pool:
             self._pool[key] = []
-        self._pool[key].append((fbo, tex))
+        if len(self._pool[key]) < 3:
+            self._pool[key].append((fbo, tex))
+        else:
+            # Pool full for this resolution — release immediately to prevent GPU memory leak
+            fbo.release()
+            tex.release()
 
     def cleanup(self):
         for key, items in self._pool.items():

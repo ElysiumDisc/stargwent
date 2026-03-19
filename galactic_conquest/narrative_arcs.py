@@ -61,6 +61,14 @@ NARRATIVE_ARCS = {
         rewards={"type": "naquadah_and_purge", "value": 200},
         completion_message="The Lucian Alliance is crushed! +200 Naquadah, 5 weak cards purged.",
     ),
+    "ori_crusade": NarrativeArc(
+        id="ori_crusade",
+        name="The Ori Crusade",
+        description="Seize the holy sites of the Ori and uncover the truth hidden at Ortus Mallum.",
+        required_planets=["Celestis", "Ver Eger", "Ortus Mallum"],
+        rewards={"type": "relic_and_naquadah", "value": {"relic": "ori_prior_staff", "naquadah": 120}},
+        completion_message="The flames of Celestis are extinguished! The Ark of Truth reveals all. Prior Staff + 120 Naquadah.",
+    ),
     "alliance_of_four_races": NarrativeArc(
         id="alliance_of_four_races",
         name="Alliance of Four Races",

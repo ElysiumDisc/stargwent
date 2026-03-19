@@ -100,6 +100,23 @@ PLANET_PASSIVES = {
         "desc": "-7% counterattack chance",
     },
 
+    # Alteran planets
+    "Celestis": {
+        "type": "naquadah_per_turn",
+        "value": 15,
+        "desc": "+15 Naquadah/turn (Flames of Enlightenment)",
+    },
+    "Ver Eger": {
+        "type": "upgrade_on_victory",
+        "value": 0.35,
+        "desc": "35% auto-upgrade after victory (Conversion)",
+    },
+    "Ortus Mallum": {
+        "type": "card_choice_bonus",
+        "value": 1,
+        "desc": "+1 card choice (Ark of Truth knowledge)",
+    },
+
     # Neutral planets (only active once claimed)
     "Atlantis": {
         "type": "card_choice_bonus",

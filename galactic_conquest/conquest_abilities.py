@@ -621,6 +621,125 @@ def _aegir_handler(state, galaxy, level, context):
     return None
 
 
+# ============================= ALTERAN =====================================
+
+def _adria_handler(state, galaxy, level, context):
+    """Orici's Crusade: bonus naquadah + upgrades on victory."""
+    trigger = context.get("trigger")
+    if trigger == "on_victory":
+        naq = {1: 10, 2: 20, 3: 25, 4: 30}.get(level, 10)
+        state.naquadah += naq
+        msg = f"Orici's Crusade: +{naq} naquadah"
+        if level >= 3:
+            rng = context.get("rng", random)
+            upgradeable = _upgradeable(state)
+            count = 2 if level >= 4 else 1
+            upgraded = []
+            for _ in range(min(count, len(upgradeable))):
+                target = rng.choice(upgradeable)
+                state.upgrade_card(target, 1)
+                upgraded.append(_card_name(target))
+                upgradeable = [c for c in upgradeable if c != target]
+            if upgraded:
+                msg += f", upgraded {', '.join(upgraded)}"
+        return msg
+    return None
+
+
+def _doci_handler(state, galaxy, level, context):
+    """Flames of Enlightenment: naquadah per owned planet each turn."""
+    trigger = context.get("trigger")
+    if trigger == "on_turn_end":
+        naq_per_planet = {1: 2, 2: 3, 3: 4, 4: 5}.get(level, 2)
+        owned_count = sum(1 for pid, owner in state.planet_ownership.items()
+                         if owner == "player")
+        bonus = naq_per_planet * owned_count
+        state.naquadah += bonus
+        return f"Flames of Enlightenment: +{bonus} naq ({naq_per_planet}/planet x {owned_count})"
+    return None
+
+
+def _merlin_handler(state, galaxy, level, context):
+    """Sangraal Protocol: weaken enemy heroes, strengthen yours."""
+    trigger = context.get("trigger")
+    if trigger == "pre_battle":
+        enemy_penalty = {1: 1, 2: 2, 3: 2, 4: 3}.get(level, 1)
+        hero_bonus = {1: 0, 2: 0, 3: 1, 4: 2}.get(level, 0)
+        state.conquest_ability_data["merlin_enemy_hero_penalty"] = enemy_penalty
+        state.conquest_ability_data["merlin_hero_bonus"] = hero_bonus
+        return None  # Applied silently in battle
+    return None
+
+
+def _morgan_handler(state, galaxy, level, context):
+    """Eternal Vigil: preserve cards on defeat."""
+    trigger = context.get("trigger")
+    if trigger == "on_defeat":
+        rng = context.get("rng", random)
+        chance = {1: 0.30, 2: 0.40, 3: 0.50, 4: 0.60}.get(level, 0.30)
+        if rng.random() < chance:
+            msg = "Eternal Vigil: cards preserved!"
+            state.conquest_ability_data["morgan_preserved"] = True
+            if level >= 4:
+                state.naquadah += 15
+                msg += " +15 naq refund"
+            return msg
+        if level >= 3:
+            # Auto-replace: add random cards if deck gets too small
+            cards_added = 0
+            while len(state.current_deck) < 15:
+                faction_cards = [cid for cid, c in ALL_CARDS.items()
+                                 if getattr(c, 'faction', '') == state.player_faction
+                                 and cid not in state.current_deck
+                                 and not getattr(c, 'is_leader', False)]
+                if not faction_cards:
+                    break
+                state.current_deck.append(rng.choice(faction_cards))
+                cards_added += 1
+            if cards_added:
+                return f"Eternal Vigil: +{cards_added} cards to maintain deck"
+    return None
+
+
+def _oma_handler(state, galaxy, level, context):
+    """Path to Ascension: sacrifice weakest, upgrade strongest."""
+    trigger = context.get("trigger")
+    if trigger == "on_victory":
+        rng = context.get("rng", random)
+        upgradeable = _upgradeable(state)
+        if not upgradeable:
+            return None
+        # Find weakest and strongest
+        cards_with_power = [(cid, ALL_CARDS[cid].power) for cid in upgradeable
+                            if ALL_CARDS.get(cid)]
+        if len(cards_with_power) < 2:
+            return None
+        cards_with_power.sort(key=lambda x: x[1])
+        weakest = cards_with_power[0][0]
+        strongest = [c[0] for c in cards_with_power[-2:]]  # top 2
+        # Remove weakest
+        if weakest in state.current_deck:
+            state.current_deck.remove(weakest)
+        # Upgrade strongest
+        bonus = {1: 2, 2: 3, 3: 3, 4: 4}.get(level, 2)
+        count = 2 if level >= 3 else 1
+        upgraded = []
+        for target in strongest[:count]:
+            state.upgrade_card(target, bonus)
+            upgraded.append(_card_name(target))
+        msg = f"Path to Ascension: sacrificed {_card_name(weakest)}, upgraded {', '.join(upgraded)} +{bonus}"
+        # Relic chance at L4
+        if level >= 4 and rng.random() < 0.15:
+            from .relics import RELICS
+            available = [rid for rid in RELICS if rid not in state.relics]
+            if available:
+                relic = rng.choice(available)
+                state.relics.append(relic)
+                msg += f", found {RELICS[relic].name}!"
+        return msg
+    return None
+
+
 # ===========================================================================
 # REGISTRY — maps leader card_id to ability definition
 # ===========================================================================
@@ -1019,6 +1138,63 @@ CONQUEST_ABILITIES = {
         ],
         "triggers": ["on_turn_end"],
         "handler": _aegir_handler,
+    },
+
+    # --- Alteran ---
+    "alteran_adria": {
+        "name": "Orici's Crusade",
+        "descriptions": [
+            "Conquest: +10 bonus naquadah per victory",
+            "+20 bonus naquadah per victory",
+            "+25 naq/victory + upgrade a card",
+            "+30 naq/victory + upgrade 2 cards",
+        ],
+        "triggers": ["on_victory"],
+        "handler": _adria_handler,
+    },
+    "alteran_doci": {
+        "name": "Flames of Enlightenment",
+        "descriptions": [
+            "+2 naquadah per owned planet each turn",
+            "+3 naq per planet/turn",
+            "+4 naq per planet/turn",
+            "+5 naq per planet/turn",
+        ],
+        "triggers": ["on_turn_end"],
+        "handler": _doci_handler,
+    },
+    "alteran_merlin": {
+        "name": "Sangraal Protocol",
+        "descriptions": [
+            "Pre-battle: enemy heroes -1 power",
+            "Enemy heroes -2 power",
+            "Enemy heroes -2, your heroes +1",
+            "Enemy heroes -3, your heroes +2",
+        ],
+        "triggers": ["pre_battle"],
+        "handler": _merlin_handler,
+    },
+    "alteran_morgan": {
+        "name": "Eternal Vigil",
+        "descriptions": [
+            "30% chance to preserve cards on loss",
+            "40% card preservation",
+            "50% preservation + auto-replace lost cards",
+            "60% preservation + 15 naq refund",
+        ],
+        "triggers": ["on_defeat"],
+        "handler": _morgan_handler,
+    },
+    "alteran_oma": {
+        "name": "Path to Ascension",
+        "descriptions": [
+            "Victory: remove weakest card, upgrade strongest +2",
+            "Remove weakest, upgrade strongest +3",
+            "Remove weakest, upgrade 2 strongest +3",
+            "Remove weakest, upgrade 2 strongest +4, 15% relic chance",
+        ],
+        "triggers": ["on_victory"],
+        "handler": _oma_handler,
     },
 }
 

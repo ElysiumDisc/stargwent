@@ -144,6 +144,13 @@ RELICS = {
         icon_char="\u231B",  # hourglass
         category="exploration",
     ),
+    "flames_of_celestis": Relic(
+        id="flames_of_celestis",
+        name="Flames of Celestis",
+        description="+2 power to first card played each round",
+        icon_char="\U0001F525",  # fire
+        category="combat",
+    ),
 }
 
 

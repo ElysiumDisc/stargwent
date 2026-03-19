@@ -26,6 +26,13 @@ if sys.platform != "emscripten":
 
 screen = None
 gpu_renderer = None  # GPURenderer instance (None if unavailable)
+
+
+def is_gpu_available():
+    """Check if GPU renderer is initialized and enabled."""
+    return gpu_renderer is not None and gpu_renderer.enabled
+
+
 FULLSCREEN = False
 VSYNC_ENABLED = True  # VSync enabled by default for tear-free rendering
 COMPETITIVE_MODE = False  # Uses tick_busy_loop for precise timing in LAN games

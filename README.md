@@ -130,7 +130,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Per-Session Leaderboard** - Scores accumulate across restarts, reset on exit
 
 ### 🌌 Galactic Conquest (Roguelite Campaign)
-- **Territory Conquest**: Conquer a galaxy of 20+ planets through card battles across 5 faction territories
+- **Territory Conquest**: Conquer a galaxy of 20+ planets through card battles across 6 faction territories (including Alteran)
 - **Roguelite Deck Progression**: Draft cards from defeated factions, upgrade card power, trim weak cards
 - **Customize Your Run**: Choose friendly factions, neutral event count, enemy leaders, and difficulty before starting
 - **4 Difficulty Levels**: Easy / Normal / Hard / Insane — scaling counterattack chance, starting naquadah, AI power, and loss penalties
@@ -139,18 +139,18 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Doctrine Trees**: Wisdom resource funds 5 policy trees (Ascension, Conquest, Alliance, Shadow Operations, Tech Innovation) — 4 sequential policies + completion bonus per tree, forcing strategic identity per run
 - **Tok'ra Operatives**: Espionage system with operative lifecycle (deploy → establish → active), 6 mission types (Infiltrate, Sabotage, Steal Intel, Rig Influence, Coup, Counter-Intel), rank progression, and diplomatic incident risk
 - **Stargate Network**: Connected planet count determines network tier (Outpost → Regional → Sector → Quadrant → Galactic) with scaling bonuses — naquadah income, cooldown reduction, attack range, and leader ability level
-- **35 Conquest Leader Abilities**: Every leader has a unique conquest ability (L1-L4) that scales with network tier — O'Neill's MacGyver Protocol, Carter's Naquadah Generator, Ba'al's Clone Network, Thor's Asgard Fleet, and 31 more
+- **40 Conquest Leader Abilities**: Every leader has a unique conquest ability (L1-L4) that scales with network tier — O'Neill's MacGyver Protocol, Carter's Naquadah Generator, Ba'al's Clone Network, Thor's Asgard Fleet, Adria's Orici's Crusade, Merlin's Sangraal Protocol, and 34 more
 - **Diplomacy System**: Faction relations from HOSTILE to ALLIED — trade agreements (50 naq), alliances (100 naq + shared adjacency), betrayals (+80 naq, permanent hostility). AI factions propose trades, joint attacks, ceasefires, and tribute demands. Conquest strain warnings before attacking near allies
 - **5 Planet Buildings (Lv 1-3)**: Naquadah Refinery, Training Ground, Shipyard, Sensor Array, Shield Generator — upgradeable with escalating costs and scaling effects
 - **Supply Lines**: Planets disconnected from homeworld are unsupplied (-50% income, +20% counterattack, no fortification)
-- **18 Stargate Relics**: Combat, Economy, and Exploration relics — homeworlds award guaranteed faction relics
-- **18 Planet Passives**: Owned planets grant bonuses — Earth +15 naq/turn, Atlantis +1 card choice, and more
+- **19 Stargate Relics**: Combat, Economy, and Exploration relics — homeworlds award guaranteed faction relics (including Flames of Celestis for Alteran)
+- **21 Planet Passives**: Owned planets grant bonuses — Earth +15 naq/turn, Celestis +15 naq/turn, Atlantis +1 card choice, and more
 - **20 Neutral Events**: Trader caravans, Nox Sanctuary, Tollan Ion Cannons, Ori Supergates, Pegasus Expeditions, and more
 - **Wisdom Powers**: After completing a doctrine tree, spend wisdom on repeatable actions — upgrade cards, reset cooldowns, reveal enemy decks, or convert to naquadah
 - **AI Espionage**: Hostile factions send operatives against your planets — detect, capture, or counter with your own intel network. Diplomatic incidents offer deny/recall/double-down choices
 - **5 Crisis Events with Strategic Choices**: Galaxy-wide disruptions after turn 5 — Replicator Outbreak, Ori Crusade, Galactic Plague, Ascension Wave, Wraith Invasion — each with 2 options (safe vs. risky)
 - **Galaxy Map Side Panel**: Right-side info panel shows planet details, build/upgrade buttons, victory progress, and faction overview — replacing hover tooltips
-- **6 Narrative Arcs**: Story chains tracking conquest sequences for relic and naquadah rewards
+- **7 Narrative Arcs**: Story chains tracking conquest sequences for relic and naquadah rewards (including The Ori Crusade)
 - **Fortification System**: Spend naquadah to fortify planets (max level 3) — fortified planets grant defense bonuses in battle
 - **Elite Homeworld Defenders**: Homeworld attacks trigger dramatic elite screen; AI gets +2 power and +2 extra cards
 - **AI Faction Wars**: AI factions attack each other's territory, creating a dynamic shifting galaxy
@@ -177,7 +177,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **iOS Home Screen App** - Add to Home Screen in Safari for fullscreen landscape gameplay
 - **Touch Controls** - Tap to select cards, long-press to inspect, drag to play, two-finger scroll
 - **Virtual Joystick** - Space shooter plays with on-screen joystick + action buttons
-- **WebGL 2.0 Shaders** - All 12 GPU effects (bloom, vignette, event horizon, etc.) ported to GLSL ES 3.0
+- **WebGL 2.0 Shaders** - All 14 GPU effects (bloom, vignette, event horizon, ascension, priors plague, etc.) ported to GLSL ES 3.0
 - **Offline Play** - Service worker caches everything for offline use after first load
 - **Persistent Saves** - Progress saved to IndexedDB, persists across browser sessions
 - **Web-Safe Audio** - Battle music transitions use instant stop instead of fadeout to prevent Emscripten audio crashes
@@ -305,7 +305,7 @@ All abilities renamed and themed around Stargate lore:
 - **Unlock**: Win at least one game with each of the 5 base factions
 - **Passive**: "Flames of Enlightenment" — First 3 non-hero units each round gain +1 power per Alteran card on board (max +3)
 - **Leaders**: Adria (The Orici), The Doci, Merlin (Moros), Morgan Le Fay, Oma Desala
-- **Unique Abilities**: Prior's Plague (debuff enemy row), Ascension (buff allies on death)
+- **Unique Abilities**: Prior's Plague (debuff enemy row — toxic green miasma GPU shader), Ascension (buff allies on death — golden ascending light GPU shader)
 - **40 cards** spanning both Ori crusaders (Priors, Warships, Supergate) and Ancient scientists (Janus, Orlin, Chaya Sar)
 
 ---

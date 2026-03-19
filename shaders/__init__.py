@@ -141,3 +141,21 @@ def register_all_effects(gpu_renderer):
         print("[GPU] Black hole effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register black hole: {e}")
+
+    try:
+        from shaders.ascension import create_ascension_pass
+        asc_pass = create_ascension_pass(ctx)
+        gpu_renderer.add_effect("ascension", asc_pass)
+        gpu_renderer.set_effect_enabled("ascension", False)  # Driven by animation
+        print("[GPU] Ascension effect registered")
+    except Exception as e:
+        print(f"[GPU] Failed to register ascension: {e}")
+
+    try:
+        from shaders.priors_plague import create_priors_plague_pass
+        pp_pass = create_priors_plague_pass(ctx)
+        gpu_renderer.add_effect("priors_plague", pp_pass)
+        gpu_renderer.set_effect_enabled("priors_plague", False)  # Driven by animation
+        print("[GPU] Prior's Plague effect registered")
+    except Exception as e:
+        print(f"[GPU] Failed to register Prior's Plague: {e}")

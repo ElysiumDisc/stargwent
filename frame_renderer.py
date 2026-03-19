@@ -102,6 +102,8 @@ def _apply_gpu_params(state, screen):
         gpu.set_effect_enabled("asgard_beam", False)
         gpu.set_effect_enabled("zpm_surge", False)
         gpu.set_effect_enabled("replicator_swarm", False)
+        gpu.set_effect_enabled("ascension", False)
+        gpu.set_effect_enabled("priors_plague", False)
         # Clear distortion points
         distortion = gpu.get_effect("distortion")
         if distortion and hasattr(distortion, 'clear_points'):
@@ -182,6 +184,26 @@ def _apply_gpu_params(state, screen):
                 rep_pass.set_uniform('intensity', params['intensity'])
                 rep_pass.set_uniform('density', params['density'])
                 rep_pass.set_uniform('screen_size', (float(w), float(h)))
+
+        elif ptype == 'ascension':
+            asc_pass = gpu.get_effect("ascension")
+            if asc_pass:
+                gpu.set_effect_enabled("ascension", True)
+                cx, cy = params['center']
+                asc_pass.set_uniform('time', gpu.time)
+                asc_pass.set_uniform('ascension_center', (cx / w, 1.0 - cy / h))
+                asc_pass.set_uniform('intensity', params['intensity'])
+                asc_pass.set_uniform('column_height', params['column_height'])
+
+        elif ptype == 'priors_plague':
+            pp_pass = gpu.get_effect("priors_plague")
+            if pp_pass:
+                gpu.set_effect_enabled("priors_plague", True)
+                cx, cy = params['center']
+                pp_pass.set_uniform('time', gpu.time)
+                pp_pass.set_uniform('plague_center', (cx / w, 1.0 - cy / h))
+                pp_pass.set_uniform('intensity', params['intensity'])
+                pp_pass.set_uniform('spread', params['spread'])
 
     # Apply distortion points
     distortion = gpu.get_effect("distortion")
@@ -430,8 +452,8 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                         "opponent_score": game.player2.score,
                     }
                     get_persistence().record_game_summary(summary)
-                except Exception:
-                    pass  # Silently handle stats recording failures
+                except Exception as e:
+                    print(f"[WARN] Game summary recording failed: {e}")
 
                 if player_won:
                     record_victory(game.player1_faction, mode_label)

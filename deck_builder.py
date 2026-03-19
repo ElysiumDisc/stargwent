@@ -174,6 +174,9 @@ class DeckBuilderUI:
         self.leader_scroll_offset = 0
         self.leader_scroll_limit = 0
         self.leader_area_rect = None
+        self.faction_scroll_offset = 0
+        self.faction_scroll_limit = 0
+        self.faction_area_rect = None
         self.last_save_message = ""
         self.last_save_time = 0
 
@@ -325,6 +328,25 @@ class DeckBuilderUI:
                     leaders.append(unlockable_leader)
         return leaders
 
+    def _faction_button_display_rect(self, base_rect):
+        rect = base_rect.copy()
+        rect.y -= self.faction_scroll_offset
+        return rect
+
+    def _ensure_faction_visible(self, index):
+        if not self.faction_area_rect or index < 0 or index >= len(self.faction_buttons):
+            return
+        base_rect = self.faction_buttons[index]['rect']
+        display_rect = self._faction_button_display_rect(base_rect)
+        area_top = self.faction_area_rect.top
+        area_bottom = self.faction_area_rect.bottom
+        if display_rect.top < area_top:
+            delta = area_top - display_rect.top
+            self.faction_scroll_offset = max(0, self.faction_scroll_offset - delta)
+        elif display_rect.bottom > area_bottom:
+            delta = display_rect.bottom - area_bottom
+            self.faction_scroll_offset = min(self.faction_scroll_limit, self.faction_scroll_offset + delta)
+
     def _leader_button_display_rect(self, base_rect):
         rect = base_rect.copy()
         rect.y -= self.leader_scroll_offset
@@ -371,7 +393,14 @@ class DeckBuilderUI:
                 'faction': faction,
                 'hovered': False
             })
-        
+
+        # Faction scrolling bounds (for small screens where buttons overflow)
+        total_faction_height = len(AVAILABLE_FACTIONS) * (button_height + spacing) - spacing
+        available_height = self.screen_height - start_y - 20
+        self.faction_area_rect = pygame.Rect(0, start_y, self.screen_width, available_height)
+        self.faction_scroll_limit = max(0, total_faction_height - available_height)
+        self.faction_scroll_offset = 0
+
         # Leader selection buttons
         self.leader_buttons = []
         
@@ -681,7 +710,9 @@ class DeckBuilderUI:
             if self.state == "faction_select":
                 hovered_faction = None
                 for button in self.faction_buttons:
-                    is_hovered = button['rect'].collidepoint(mouse_pos)
+                    display_rect = self._faction_button_display_rect(button['rect'])
+                    is_hovered = display_rect.collidepoint(mouse_pos) and (
+                        not self.faction_area_rect or self.faction_area_rect.collidepoint(mouse_pos))
                     button['hovered'] = is_hovered
                     if is_hovered:
                         hovered_faction = button['faction']
@@ -749,6 +780,12 @@ class DeckBuilderUI:
         
         elif event.type == pygame.MOUSEWHEEL:
             # Modern pygame mouse wheel handling
+            if self.state == "faction_select" and self.faction_scroll_limit > 0:
+                self.faction_scroll_offset = max(
+                    0,
+                    min(self.faction_scroll_limit, self.faction_scroll_offset - event.y * 40)
+                )
+                return
             if self.state == "leader_select" and self.leader_scroll_limit > 0:
                 if not self.leader_area_rect or self.leader_area_rect.collidepoint(pygame.mouse.get_pos()):
                     self.leader_scroll_offset = max(
@@ -791,6 +828,13 @@ class DeckBuilderUI:
             mouse_pos = event.pos
             # Legacy mouse wheel support (for older pygame versions)
             if event.button in [4, 5]:  # Mouse wheel up/down
+                if self.state == "faction_select" and self.faction_scroll_limit > 0:
+                    delta = 40 if event.button == 4 else -40
+                    self.faction_scroll_offset = max(
+                        0,
+                        min(self.faction_scroll_limit, self.faction_scroll_offset - delta)
+                    )
+                    return
                 if self.state == "leader_select" and self.leader_scroll_limit > 0:
                     if not self.leader_area_rect or self.leader_area_rect.collidepoint(mouse_pos):
                         delta = 40 if event.button == 4 else -40
@@ -837,7 +881,9 @@ class DeckBuilderUI:
 
             if self.state == "faction_select":
                 for button in self.faction_buttons:
-                    if button['rect'].collidepoint(mouse_pos):
+                    display_rect = self._faction_button_display_rect(button['rect'])
+                    if display_rect.collidepoint(mouse_pos) and (
+                            not self.faction_area_rect or self.faction_area_rect.collidepoint(mouse_pos)):
                         # Check if faction is unlocked
                         if not self.unlock_system.is_faction_unlocked(button['faction']):
                             continue  # Skip locked factions
@@ -1060,10 +1106,12 @@ class DeckBuilderUI:
                 if event.key in [pygame.K_UP, pygame.K_w]:
                     new_idx = max(0, current_idx - 1) if current_idx > 0 else len(self.faction_buttons) - 1
                     self.selected_faction = self.faction_buttons[new_idx]['faction']
-                
+                    self._ensure_faction_visible(new_idx)
+
                 elif event.key in [pygame.K_DOWN, pygame.K_s]:
                     new_idx = (current_idx + 1) % len(self.faction_buttons) if current_idx >= 0 else 0
                     self.selected_faction = self.faction_buttons[new_idx]['faction']
+                    self._ensure_faction_visible(new_idx)
                 
                 elif event.key == pygame.K_RETURN and self.selected_faction:
                     # Enter to confirm faction
@@ -1248,10 +1296,12 @@ class DeckBuilderUI:
                 if event.key in [pygame.K_UP, pygame.K_w]:
                     new_idx = max(0, current_idx - 1) if current_idx > 0 else len(self.faction_buttons) - 1
                     self.selected_faction = self.faction_buttons[new_idx]['faction']
-                
+                    self._ensure_faction_visible(new_idx)
+
                 elif event.key in [pygame.K_DOWN, pygame.K_s]:
                     new_idx = (current_idx + 1) % len(self.faction_buttons) if current_idx >= 0 else 0
                     self.selected_faction = self.faction_buttons[new_idx]['faction']
+                    self._ensure_faction_visible(new_idx)
                 
                 elif event.key == pygame.K_RETURN and self.selected_faction:
                     # Enter to confirm faction
@@ -1616,8 +1666,16 @@ class DeckBuilderUI:
         subtitle_rect = subtitle.get_rect(center=(self.screen_width // 2, 160))
         surface.blit(subtitle, subtitle_rect)
         
-        # Faction buttons
+        # Faction buttons (scrollable)
+        if self.faction_area_rect:
+            surface.set_clip(self.faction_area_rect)
         for button in self.faction_buttons:
+            draw_rect = self._faction_button_display_rect(button['rect'])
+            # Skip buttons fully outside visible area
+            if self.faction_area_rect:
+                if draw_rect.bottom < self.faction_area_rect.top or draw_rect.top > self.faction_area_rect.bottom:
+                    continue
+
             faction = button['faction']
             is_locked = not self.unlock_system.is_faction_unlocked(faction)
 
@@ -1630,16 +1688,16 @@ class DeckBuilderUI:
                 color = self.button_color
 
             # Draw button with faction color accent
-            pygame.draw.rect(surface, color, button['rect'], border_radius=10)
+            pygame.draw.rect(surface, color, draw_rect, border_radius=10)
             faction_color = self.faction_colors.get(faction, (100, 100, 100))
             if is_locked:
                 faction_color = (80, 80, 80)  # Gray border for locked
-            pygame.draw.rect(surface, faction_color, button['rect'], width=4, border_radius=10)
+            pygame.draw.rect(surface, faction_color, draw_rect, width=4, border_radius=10)
 
             # Draw faction name
             name_color = (100, 100, 100) if is_locked else self.text_color
             text = self.button_font.render(faction, True, name_color)
-            text_rect = text.get_rect(midleft=(button['rect'].left + 20, button['rect'].centery - 10))
+            text_rect = text.get_rect(midleft=(draw_rect.left + 20, draw_rect.centery - 10))
             surface.blit(text, text_rect)
 
             # Draw faction description or lock progress
@@ -1651,8 +1709,17 @@ class DeckBuilderUI:
             else:
                 desc = self.get_faction_description(faction)
                 desc_text = self.small_font.render(desc, True, (180, 180, 180))
-            desc_rect = desc_text.get_rect(midleft=(button['rect'].left + 20, button['rect'].centery + 15))
+            desc_rect = desc_text.get_rect(midleft=(draw_rect.left + 20, draw_rect.centery + 15))
             surface.blit(desc_text, desc_rect)
+        if self.faction_area_rect:
+            surface.set_clip(None)
+
+        # Scroll indicator if content overflows
+        if self.faction_scroll_limit > 0:
+            if self.faction_scroll_offset < self.faction_scroll_limit:
+                arrow_text = self.small_font.render("▼ Scroll for more ▼", True, (180, 180, 180))
+                arrow_rect = arrow_text.get_rect(center=(self.screen_width // 2, self.screen_height - 15))
+                surface.blit(arrow_text, arrow_rect)
     
     def draw_leader_select(self, surface):
         """Draw leader selection screen."""

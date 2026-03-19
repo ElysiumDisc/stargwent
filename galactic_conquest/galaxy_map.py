@@ -47,6 +47,13 @@ FACTION_PLANETS = {
             {"name": "Hala", "weather": {"row": "close", "type": "ice_planet_hazard"}},
         ],
     },
+    "Alteran": {
+        "homeworld": {"name": "Celestis", "weather": {"row": "ranged", "type": "nebula_interference"}},
+        "territory": [
+            {"name": "Ver Eger", "weather": None},
+            {"name": "Ortus Mallum", "weather": {"row": "siege", "type": "asteroid_storm"}},
+        ],
+    },
 }
 
 NEUTRAL_PLANETS = [
@@ -68,11 +75,12 @@ FACTION_COLORS = {
     "Jaffa Rebellion": (200, 180, 50),
     "Lucian Alliance": (200, 80, 180),
     "Asgard": (100, 180, 220),
+    "Alteran": (100, 200, 170),
     "neutral": (150, 150, 150),
     "player": (80, 220, 120),
 }
 
-ALL_FACTIONS = ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard"]
+ALL_FACTIONS = ["Tau'ri", "Goa'uld", "Jaffa Rebellion", "Lucian Alliance", "Asgard", "Alteran"]
 
 
 @dataclass
@@ -148,7 +156,7 @@ class GalaxyMap:
         faction_order.insert(0, player_faction)  # player at index 0 = bottom
 
         # Assign angular positions for each faction's sector
-        angle_step = 2 * math.pi / 5
+        angle_step = 2 * math.pi / len(faction_order)
         faction_angles = {}
         for i, faction in enumerate(faction_order):
             # Start from bottom (270° = 3π/2), go clockwise

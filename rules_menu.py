@@ -48,6 +48,7 @@ FACTION_DISPLAY = [
     "Jaffa Rebellion",
     "Lucian Alliance",
     "Asgard",
+    "Alteran",
     "Neutral",
 ]
 
@@ -785,6 +786,7 @@ class RulesMenuScreen:
             "FACTION_JAFFA": "Jaffa Rebellion",
             "FACTION_LUCIAN": "Lucian Alliance",
             "FACTION_ASGARD": "Asgard",
+            "FACTION_ALTERAN": "Alteran",
         }
         return mapping.get(fac_key, fac_key)
 
@@ -1094,7 +1096,8 @@ class RulesMenuScreen:
         elif action == "leader_scroll":
             leaders = self.leader_data.get(self.leader_faction, {}).get(self.leader_category, [])
             if leaders:
-                max_offset = max(0, len(leaders) - len(self.right_slots))
+                merged_count = len(self.right_slots) // 2
+                max_offset = max(0, len(leaders) - merged_count)
                 self.leader_page_offset = max(0, min(max_offset, self.leader_page_offset + hit["delta"]))
         elif action == "ability_letter":
             self.ability_letter = hit["letter"]
@@ -1683,21 +1686,24 @@ class RulesMenuScreen:
             self.hit_regions.append({"type": "card_scroll", "delta": 1, "page": visible_count, "rect": down})
 
     def _draw_leader_thumbnails(self, surface: pygame.Surface):
-        if not self.right_slots:
+        if not self.right_slots or len(self.right_slots) < 2:
             return
         leaders = self.leader_data.get(self.leader_faction, {}).get(self.leader_category, [])
-        slots = self.right_slots
-        visible = leaders[self.leader_page_offset : self.leader_page_offset + len(slots)]
-        for idx, slot in enumerate(slots):
+        # Merge pairs of right_slots into larger display areas for bigger portraits
+        merged_slots = []
+        for i in range(0, len(self.right_slots) - 1, 2):
+            s0 = self.right_slots[i]
+            s1 = self.right_slots[i + 1]
+            merged_slots.append(pygame.Rect(s0.x, s0.y, s0.width, s1.bottom - s0.y))
+        visible = leaders[self.leader_page_offset : self.leader_page_offset + len(merged_slots)]
+        for idx, slot in enumerate(merged_slots):
             pygame.draw.rect(surface, self.deep_accent, slot, 2)
             if idx >= len(visible):
                 continue
             leader = visible[idx]
             portrait = self.leader_images.get(leader.get("card_id"))
-            # Reserve space for name at bottom (scaled)
             name_height = self.small_font.get_linesize() + 8
             if portrait:
-                # Fill the slot with portrait, leaving small padding and name space
                 max_w = max(20, slot.width - 8)
                 max_h = max(20, slot.height - name_height - 8)
                 pw, ph = portrait.get_size()
@@ -1710,37 +1716,39 @@ class RulesMenuScreen:
             surface.blit(name, (slot.x + 4, slot.bottom - name.get_height() - 4))
             self.hit_regions.append({"type": "leader_select", "entry": leader, "rect": slot})
         if leaders:
-            max_offset = max(0, len(leaders) - len(slots))
+            max_offset = max(0, len(leaders) - len(merged_slots))
             if self.leader_page_offset > 0:
-                up = pygame.Rect(slots[0].centerx - 12, slots[0].y - 30, 24, 18)
+                up = pygame.Rect(merged_slots[0].centerx - 12, merged_slots[0].y - 30, 24, 18)
                 pygame.draw.polygon(surface, self.accent_color, [(up.centerx, up.y), (up.left, up.bottom), (up.right, up.bottom)], 2)
                 self.hit_regions.append({"type": "leader_scroll", "delta": -1, "rect": up})
             if self.leader_page_offset < max_offset:
-                down = pygame.Rect(slots[-1].centerx - 12, slots[-1].bottom + 12, 24, 18)
+                down = pygame.Rect(merged_slots[-1].centerx - 12, merged_slots[-1].bottom + 12, 24, 18)
                 pygame.draw.polygon(surface, self.accent_color, [(down.left, down.y), (down.right, down.y), (down.centerx, down.bottom)], 2)
                 self.hit_regions.append({"type": "leader_scroll", "delta": 1, "rect": down})
 
     def _draw_card_art_panel(self, surface: pygame.Surface):
-        if not self.card_selected or not self.right_slots:
+        if not self.card_selected or not self.right_slots or len(self.right_slots) < 3:
             return
-        art_slot = self.right_slots[0]
+        # Merge slots 0 and 1 into a larger art area for bigger card preview
+        s0 = self.right_slots[0]
+        s1 = self.right_slots[1]
+        art_slot = pygame.Rect(s0.x, s0.y, s0.width, s1.bottom - s0.y)
         pygame.draw.rect(surface, self.deep_accent, art_slot, 2)
-        # Fill the slot with card art, leaving small padding
         art = self._get_card_art(self.card_selected.get("card_id"), (art_slot.width - 8, art_slot.height - 8))
         if art:
             art_pos = art.get_rect(center=art_slot.center)
             surface.blit(art, art_pos.topleft)
-        text_slot = self.right_slots[1] if len(self.right_slots) > 1 else None
-        if text_slot:
-            pygame.draw.rect(surface, self.deep_accent, text_slot, 2)
-            lines = [
-                f"ID: {self.card_selected.get('card_id') or 'unknown'}",
-                f"Section: {self.card_section}",
-                f"Faction: {self.card_faction}",
-            ]
-            y = text_slot.y + 4
-            for line in lines:
-                y = self._render_wrapped(surface, line, (text_slot.x + 4, y), text_slot.width - 8, self.small_font, self.text_color) + 2
+        # Use slot 2 for metadata text
+        text_slot = self.right_slots[2]
+        pygame.draw.rect(surface, self.deep_accent, text_slot, 2)
+        lines = [
+            f"ID: {self.card_selected.get('card_id') or 'unknown'}",
+            f"Section: {self.card_section}",
+            f"Faction: {self.card_faction}",
+        ]
+        y = text_slot.y + 4
+        for line in lines:
+            y = self._render_wrapped(surface, line, (text_slot.x + 4, y), text_slot.width - 8, self.small_font, self.text_color) + 2
 
     def _filter_abilities(self) -> List[Dict[str, str]]:
         results = self.ability_entries

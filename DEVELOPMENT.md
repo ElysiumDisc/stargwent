@@ -38,7 +38,7 @@ Major change across many files (see Alteran faction added in v10.0 for a complet
 13. `scripts/create_placeholders.py` — Add `FACTION_COLORS`, `FACTION_BACKGROUND_IDS`, imports
 14. `scripts/card_quotes.json` — Add character quotes
 
-Current factions (6): Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, **Alteran** (unlockable — win 1 game with each base faction)
+Current factions (6): Tau'ri, Goa'uld, Jaffa Rebellion, Lucian Alliance, Asgard, **Alteran** (unlockable — win 1 game with each base faction). All 6 factions are playable in both standard card game and Galactic Conquest mode.
 
 ---
 
@@ -174,11 +174,11 @@ Hybrid rendering: Pygame draws to offscreen surface → uploaded to ModernGL for
 | `gpu_renderer.py` | `GPURenderer`, `ShaderPass`, `FBOPool` — ModernGL backend (GLSL 330) |
 | `webgl_renderer.py` | PyOpenGL/raw GL ES backend for web (GLSL 300 es) |
 | `shaders/__init__.py` | Effect registry, `glsl_version_header()` for desktop/web |
-| `shaders/*.py` | 12 effects: bloom, vignette, CRT, distortion, event_horizon, kawoosh, hyperspace, shockwave, asgard_beam, zpm_surge, shield_bubble, black_hole |
+| `shaders/*.py` | 14 effects: bloom, vignette, CRT, distortion, event_horizon, kawoosh, hyperspace, shockwave, asgard_beam, zpm_surge, shield_bubble, black_hole, ascension, priors_plague |
 
 **Rendering flow:** Game → `display_manager.screen` → `gpu_flip()` → `tobytes()` → texture upload → shader chain → `ctx.screen` → `pygame.display.flip()`
 
-**Adding a shader:** Create `shaders/my_effect.py` with `ShaderPass` → register in `register_all_effects()` → if animation-driven, add `get_gpu_params()` to animation class + handle in `frame_renderer._apply_gpu_params()`
+**Adding a shader:** Create `shaders/my_effect.py` with `ShaderPass` → register in `register_all_effects()` → if animation-driven, add `get_gpu_params()` to animation class + handle in `frame_renderer._apply_gpu_params()`. Use `display_manager.is_gpu_available()` for consistent GPU null checks.
 
 **Fallback chain:** `moderngl` missing → pure Pygame | OpenGL creation fails → `pygame.SCALED` | shader compile fails → effect skipped | runtime GPU error → auto-revert | `gpu_enabled: false` → skip init | Web → `webgl_renderer.py`
 
@@ -303,13 +303,13 @@ Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules, ~11,
 | `card_battle.py` | Weather injection, elite params, relic modifiers, doctrine power bonuses, sabotage effects |
 | `reward_screen.py` | Post-victory card picks with tier scaling |
 | `neutral_events.py` | 20 events with choices |
-| `planet_passives.py` | 18 planet passives |
-| `relics.py` | 18 relics (combat/economy/exploration) |
+| `planet_passives.py` | 21 planet passives (6 factions + neutrals) |
+| `relics.py` | 19 relics (combat/economy/exploration) |
 | `relic_screen.py` | CRT acquisition screen |
-| `narrative_arcs.py` | 6 story chains |
+| `narrative_arcs.py` | 7 story chains (including The Ori Crusade) |
 | `difficulty.py` | 4 levels (Easy/Normal/Hard/Insane) |
 | `stargate_network.py` | Network tiers (Outpost→Galactic) based on BFS connectivity |
-| `conquest_abilities.py` | 35 leader abilities, L1-L4 scaling with network tier |
+| `conquest_abilities.py` | 40 leader abilities (6 factions), L1-L4 scaling with network tier |
 | `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray, AI proposals (4 types), strain warnings, incident handling |
 | `buildings.py` | 5 building types with Lv 1-3 upgrades, level-scaled effects, doctrine cost reduction |
 | `crisis_events.py` | 5 galaxy-wide events with 2-choice player agency (10%/turn after turn 5) |

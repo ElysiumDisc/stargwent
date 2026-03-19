@@ -1147,7 +1147,7 @@ async def main(lan_game_data=None):
                 if middle_row_rect:
                     state.anim_manager.add_row_weather("Wormhole Stabilization", middle_row_rect, SCREEN_WIDTH)
             
-            state.previous_weather = game.weather_active.copy()
+            state.previous_weather = dict(game.weather_active)
     
         # Reset AI ability flag when it becomes player1's turn
         if game.current_player == game.player1:
@@ -1237,13 +1237,15 @@ async def main(lan_game_data=None):
         state.drag_trail = [b for b in state.drag_trail if b["alpha"] > 0]
         if state.dragging_card:
             if state.drag_trail_emit_ms <= 0:
-                state.drag_trail.append({
-                    "pos": state.dragging_card.rect.center,
-                    "alpha": 130,
-                    "width_scale": 1.0 + min(0.25, abs(state.drag_velocity.x) * 0.04),
-                    "height_scale": 1.0 + min(0.2, abs(state.drag_velocity.y) * 0.03),
-                    "color": get_row_color(state.dragging_card.row)
-                })
+                # Cap trail length to prevent unbounded growth
+                if len(state.drag_trail) < 50:
+                    state.drag_trail.append({
+                        "pos": state.dragging_card.rect.center,
+                        "alpha": 130,
+                        "width_scale": 1.0 + min(0.25, abs(state.drag_velocity.x) * 0.04),
+                        "height_scale": 1.0 + min(0.2, abs(state.drag_velocity.y) * 0.03),
+                        "color": get_row_color(state.dragging_card.row)
+                    })
                 state.drag_trail_emit_ms = 45
     
         # Update card hover scale (instant snap for 1440p performance)

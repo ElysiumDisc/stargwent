@@ -61,6 +61,7 @@ FACTION_CONQUEST_BONUSES = {
     "Jaffa Rebellion": {"type": "remove_weak", "desc": "Training: removed weakest card"},
     "Lucian Alliance": {"type": "naquadah", "value": 50, "desc": "Trade: +50 naquadah"},
     "Asgard": {"type": "upgrade_multi", "desc": "Tech: +1 power to 2 random cards"},
+    "Alteran": {"type": "upgrade_multi", "desc": "Ascension: +1 power to 2 random cards"},
 }
 
 

@@ -38,9 +38,37 @@
 #### Deck Builder — Faction Filter
 - **Faction filter tab** — new circular tab with Stargate icon filters card pool to show only faction-specific cards (excludes neutrals), complementing the existing Neutral tab
 
-#### GPU Card Ability Animations
-- **Prior's Plague** — toxic green miasma cloud with horizontal spread, dripping tendrils, and GPU distortion ripple when plague cards debuff an enemy row
-- **Ascension** — golden light column ascending skyward with rising motes, expanding rings, and GPU energy surge when an Ascension card is destroyed and buffs remaining allies
+#### GPU Card Ability Animations — Dedicated Shaders
+- **Ascension** — NEW dedicated `ascension` GLSL shader: ethereal golden-white light column ascending skyward with radial energy rays, rising wisps, shimmer noise, and gold→ethereal color gradient. Replaces reused `zpm_surge` shader with a thematic ascending light effect
+- **Prior's Plague** — NEW dedicated `priors_plague` GLSL shader: toxic green miasma spreading horizontally with fbm noise turbulence, dripping tendrils, corruption veins, and scene desaturation in the plague area. Replaces reused `distortion` shader with a thematic pestilence effect
+- Both abilities retain their full particle animation systems (motes, rings, clouds, tendrils) alongside the new GPU post-processing shaders
+- GPU shader count: 12 → 14 (added `shaders/ascension.py`, `shaders/priors_plague.py`)
+
+#### Faction Selection Scrolling Fix
+- **Fixed Alteran faction unreachable on small screens** — faction selection now supports mouse wheel scrolling, legacy scroll, and keyboard auto-scroll-into-view, matching leader selection behavior
+- On 768p screens, faction buttons overflow below the screen edge; scroll indicator ("Scroll for more") appears when content overflows
+- Clipping viewport prevents buttons from drawing outside the scroll area
+
+#### Galactic Conquest — Alteran Faction Integration
+- **Alteran fully playable in Galactic Conquest** — select Alteran as your faction for a new campaign with lore-accurate Ori/Ancient planets
+- **Fixed crash** when selecting Alteran in conquest (`galaxy_map.py` — `ALL_FACTIONS` and `FACTION_PLANETS` now include Alteran; fixed hardcoded 5-faction angle calculation to be dynamic)
+- **3 lore-accurate planets**: Celestis (Ori holy capital, homeworld), Ver Eger (first contact village), Ortus Mallum (ruined Alteran settlement where the Ark of Truth was hidden)
+- **Planet passives**: Celestis +15 naq/turn (Flames of Enlightenment), Ver Eger 35% auto-upgrade (Conversion), Ortus Mallum +1 card choice (Ark of Truth knowledge)
+- **5 conquest leader abilities** (L1-L4 scaling with network tier):
+  - **Adria — Orici's Crusade**: Bonus naquadah on victory, card upgrades at higher levels (worship generates power)
+  - **Doci — Flames of Enlightenment**: Passive naquadah per owned planet/turn (faith energy from followers)
+  - **Merlin — Sangraal Protocol**: Weaken enemy heroes in battle, buff your heroes (anti-ascended weapon)
+  - **Morgan — Eternal Vigil**: Preserve cards on defeat, auto-replace lost cards (eternal guardian)
+  - **Oma — Path to Ascension**: Sacrifice weakest card, upgrade strongest (ascension through sacrifice)
+- **Narrative arc**: "The Ori Crusade" — conquer Celestis + Ver Eger + Ortus Mallum → Prior Staff relic + 120 Naquadah
+- **New relic**: "Flames of Celestis" — +2 power to first card played each round (Alteran homeworld reward)
+- **Conquest bonus**: Conquering Alteran planets grants "Ascension: +1 power to 2 random cards"
+- **Alteran AI opponent**: Alteran appears as enemy faction on the galaxy map with seafoam green territory
+
+#### Rule Compendium — Alteran & UI Fixes
+- **Alteran faction added to Rule Compendium** — "Alteran" now appears in Leader Faction (Tab 5), Card Faction (Tab 9), and Faction Selection/Lore (Tab 10) filter panels; faction name mapping added for leader catalog display
+- **Larger card art preview** — card preview panel merges two right-side slots for ~2x taller card image display, metadata text moved to dedicated slot below (`rules_menu.py`)
+- **Larger leader portraits** — leader thumbnail panel merges slot pairs for taller display areas with bigger, more readable portraits; pagination arrows support scrolling through rosters (`rules_menu.py`)
 
 #### AI Improvements
 - Alteran-specific strategy: prioritizes cheap units first for snowball passive
@@ -133,7 +161,18 @@
 - **Fixed metadata.json channel paths** — deb and Windows glob patterns now match actual build output filenames
 - **Added `raw_art/` and `backup/` to .gitignore**
 
+#### Performance Improvements
+- **LRU cache eviction for text render cache** — evicts oldest 50 entries when full instead of clearing all 400, preventing cache thrashing during gameplay (`render_engine.py`)
+- **LRU cache eviction for scaled image cache** — evicts oldest 30 entries instead of clearing half, with move-to-end on access for proper LRU ordering (`render_engine.py`)
+- **LRU cache eviction for particle sprite cache** — evicts oldest 60 entries instead of clearing all 300 (`animations.py`)
+- **Animation list filter-in-place** — `AnimationManager.update()` uses swap-and-pop instead of creating new lists every frame, eliminating per-frame list allocation for animations, effects, and row weather (`animations.py`)
+- **FBO pool bounded per resolution** — GPU framebuffer pool capped at 3 FBOs per resolution key; excess released immediately to prevent GPU memory leak on fullscreen toggle (`gpu_renderer.py`)
+- **Drag trail bounded** — card drag trail capped at 50 entries to prevent unbounded list growth during long drag sessions (`main.py`)
+
 #### Bug Fixes & Polish
+- **Fixed silent game summary recording failures** — bare `except Exception: pass` replaced with warning log so stats persistence issues are diagnosable (`frame_renderer.py`)
+- **Fixed weather state tracking** — `previous_weather` now uses `dict()` copy instead of `.copy()` to prevent stale reference when dict values mutate (`main.py`)
+- **Added `is_gpu_available()` helper** — centralized GPU renderer null+enabled check in `display_manager.py` for consistent GPU availability checks across modules
 - Fixed 3 debug print statements in `game.py` (now use proper logging)
 - Deck builder shows locked factions with progress indicator
 
