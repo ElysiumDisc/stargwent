@@ -73,7 +73,7 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           draft: true
           files: |
@@ -142,7 +142,7 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           draft: true
           files: builds/releases/*windows*.zip
@@ -233,7 +233,7 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           draft: true
           files: builds/releases/*macos*.dmg
@@ -247,7 +247,7 @@ jobs:
       contents: write
     steps:
       - name: Set release description
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           draft: true
           name: Stargwent v${{ needs.version.outputs.version }}
