@@ -32,7 +32,8 @@ from .buildings import (get_building_naq_income, get_defense_bonus,
                          get_building_level, can_upgrade as can_upgrade_building,
                          upgrade_building, get_upgrade_cost)
 from .crisis_events import (should_trigger_crisis, pick_crisis, apply_crisis,
-                             show_crisis_screen, CRISIS_CHOICES)
+                             show_crisis_screen, CRISIS_CHOICES,
+                             check_crisis_option_c)
 from .diplomacy import (get_adjacency_bonus_factions,
                          get_trade_income, get_alliance_upkeep, set_relation,
                          TRADING, check_conquest_strain)
@@ -45,6 +46,9 @@ from .espionage import (tick_operatives, check_earn_operative, get_sabotage_effe
                          get_operative_summary, generate_ai_espionage_events,
                          resolve_ai_espionage, generate_incident_choices,
                          resolve_incident_choice)
+from .relics import get_combo_effects
+from .buildings import get_synergy_effects
+from .planet_passives import tick_turns_held, get_development_counterattack_mod
 from .victory_conditions import (check_any_victory, tick_supergate, VICTORY_INFO,
                                    VICTORY_SCORE_MULTIPLIERS)
 
@@ -53,6 +57,61 @@ from .victory_conditions import (check_any_victory, tick_supergate, VICTORY_INFO
 AI_COUNTERATTACK_CHANCE = 0.30
 # Cooldown turns after failed attack
 ATTACK_COOLDOWN = 3
+
+# AI Faction Personalities — shape counterattack, expansion, and diplomacy behavior
+FACTION_PERSONALITIES = {
+    "Goa'uld": {
+        "name": "Aggressive",
+        "counterattack_mult": 1.5,    # 50% more likely to counterattack
+        "expansion_mult": 1.4,        # more likely to attack in faction wars
+        "success_bonus": 0.05,        # slightly better at conquering
+        "desc": "Relentless conquerors — high counterattack, aggressive expansion",
+    },
+    "Asgard": {
+        "name": "Diplomatic",
+        "counterattack_mult": 0.5,    # much less likely to counterattack
+        "expansion_mult": 0.6,        # rarely attacks others
+        "success_bonus": 0.0,
+        "desc": "Prefer trade and protection — low aggression",
+    },
+    "Jaffa Rebellion": {
+        "name": "Vengeful",
+        "counterattack_mult": 1.0,    # normal base, but see below
+        "expansion_mult": 1.0,
+        "success_bonus": 0.0,
+        "vengeful": True,             # 2x counterattack if lost planet last turn
+        "desc": "Strike back hard when wronged — vengeful counterattacks",
+    },
+    "Lucian Alliance": {
+        "name": "Opportunistic",
+        "counterattack_mult": 1.0,
+        "expansion_mult": 1.2,
+        "success_bonus": 0.10,        # better at winning battles
+        "target_weakest": True,       # targets faction with fewest planets
+        "desc": "Strike the weak, exploit the strong",
+    },
+    "Alteran": {
+        "name": "Ascendant",
+        "counterattack_mult": 0.4,    # passive early
+        "expansion_mult": 0.5,
+        "success_bonus": 0.0,
+        "late_game_mult": 2.5,        # multiplier after turn 15
+        "desc": "Passive early, overwhelming after turn 15",
+    },
+    "Tau'ri": {
+        "name": "Balanced",
+        "counterattack_mult": 1.0,
+        "expansion_mult": 1.0,
+        "success_bonus": 0.0,
+        "desc": "Standard behavior — no special modifiers",
+    },
+}
+
+
+def _get_personality(faction):
+    """Get faction personality, defaulting to Balanced."""
+    return FACTION_PERSONALITIES.get(faction, FACTION_PERSONALITIES["Tau'ri"])
+
 
 # Faction-specific bonuses when conquering a faction's planet
 FACTION_CONQUEST_BONUSES = {
@@ -251,11 +310,27 @@ class CampaignController:
                     naq_income += 10
                 network = self._get_network_cached(allied)
                 naq_income += network["naq_bonus"]
-                naq_income += get_building_naq_income(self.state, self.galaxy)
+                building_income = get_building_naq_income(self.state, self.galaxy)
+                # Building synergy: Naquadria Cascade (+50% refinery income)
+                syn_effects = get_synergy_effects(self.state, self.galaxy)
+                refinery_bonus = syn_effects.get("refinery_income_bonus", 0)
+                if refinery_bonus > 0:
+                    building_income = int(building_income * (1.0 + refinery_bonus))
+                naq_income += building_income
+                # Relic combo: victory_naq_bonus handled in attack flow
+                # Relic combo: extra naq from combos (passive income handled elsewhere)
                 # Diplomacy: trade income and alliance upkeep
                 trade_income = get_trade_income(self.state)
                 alliance_upkeep = get_alliance_upkeep(self.state)
-                naq_income += trade_income
+                # Doctrine penalty: trade_income_penalty
+                doctrine_effects_income = get_active_effects(self.state)
+                trade_penalty = doctrine_effects_income.get("trade_income_penalty", 0)
+                naq_income += max(0, trade_income - trade_penalty)
+                # Doctrine penalty: naquadah_per_turn_penalty
+                naq_penalty = doctrine_effects_income.get("naquadah_per_turn_penalty", 0)
+                naq_income -= naq_penalty
+                # Doctrine penalty: alliance_upkeep_increase
+                alliance_upkeep += doctrine_effects_income.get("alliance_upkeep_increase", 0)
                 # Meta perk: Naquadria Synthesis gives +15% income
                 from .meta_progression import has_perk
                 if has_perk("naquadah_income_bonus") and naq_income > 0:
@@ -290,8 +365,15 @@ class CampaignController:
                 if mw_naq > 0:
                     self.state.add_naquadah(mw_naq)
 
+                # Planet development track — tick turns held
+                tick_turns_held(self.state, self.galaxy)
+
                 # Wisdom income from doctrines + ancient planets + minor worlds
                 wisdom_gained = apply_wisdom_income(self.state, self.galaxy)
+                # Doctrine penalty: wisdom_per_turn_penalty
+                wisdom_penalty = get_active_effects(self.state).get("wisdom_per_turn_penalty", 0)
+                if wisdom_penalty > 0:
+                    self.state.wisdom = max(0, self.state.wisdom - wisdom_penalty)
 
                 # Doctrine: alliance influence per turn (+5 from Diplomatic Mastery)
                 doctrine_effects = get_active_effects(self.state)
@@ -346,7 +428,9 @@ class CampaignController:
                     crisis = pick_crisis(self.state)
                     if crisis:
                         choices = CRISIS_CHOICES.get(crisis["effect"])
-                        player_choice = await show_crisis_screen(self.screen, crisis, choices)
+                        has_c = check_crisis_option_c(self.state, self.galaxy, crisis["effect"])
+                        player_choice = await show_crisis_screen(
+                            self.screen, crisis, choices, has_option_c=has_c)
                         crisis_result = apply_crisis(
                             self.state, self.galaxy, crisis, self.rng, choice=player_choice)
                         self._flash_message(crisis_result, 2000)
@@ -517,11 +601,21 @@ class CampaignController:
                     name = getattr(ALL_CARDS[target], 'name', target)
                     bonus_msg += f" | Passive: {name} +1"
 
+            # Doctrine penalty: conquest_naq_penalty
+            c_effects = get_active_effects(self.state)
+            conquest_penalty = c_effects.get("conquest_naq_penalty", 0)
+            if conquest_penalty > 0:
+                self.state.add_naquadah(-conquest_penalty)
+                bonus_msg += f" | Doctrine penalty: -{conquest_penalty} naq"
+
             # Reward screen — quality scales with planets controlled
             extra_choices = get_card_choice_bonus(self.galaxy)
             # Relic: Alteran Database gives +1 card choice
             if hasattr(self.state, 'relics') and "alteran_database" in self.state.relics:
                 extra_choices += 1
+            # Relic combo: Temporal Archives gives +2 card choices
+            combo_effects = get_combo_effects(self.state)
+            extra_choices += combo_effects.get("extra_card_choices", 0)
             # Meta perk: Tok'ra Intelligence gives +1 card choice
             from .meta_progression import has_perk
             if has_perk("expanded_rewards"):
@@ -529,13 +623,23 @@ class CampaignController:
             # Trading partners: include their faction cards in reward pool
             trading_factions = [f for f, rel in self.state.faction_relations.items()
                                 if rel == "trading"]
+            # Conquest streak: count consecutive attacks this turn
+            streak = self.state.attacks_this_turn
+            # Narrative context: check if planet is part of a story arc
+            narr_faction = None
+            from .narrative_arcs import get_arc_for_planet
+            arc_info = get_arc_for_planet(planet.name)
+            if arc_info:
+                narr_faction = arc_info.get("reward_faction", planet.faction)
             reward_result = await run_reward_screen(
                 self.screen, self.state, planet.faction,
                 planet_type=planet.planet_type,
                 galaxy_map=self.galaxy,
                 bonus_message=bonus_msg,
                 extra_card_choices=extra_choices,
-                trading_factions=trading_factions)
+                trading_factions=trading_factions,
+                conquest_streak=streak,
+                narrative_faction=narr_faction)
             self._refresh_after_battle()
             if reward_result == "quit":
                 return "quit"
@@ -543,6 +647,11 @@ class CampaignController:
             # Relic: Asgard Core bonus naquadah on victory
             if self.state.has_relic("asgard_core"):
                 self.state.add_naquadah(20)
+
+            # Relic combo: Ascended Arsenal (+15 naq per victory)
+            victory_combo_naq = combo_effects.get("victory_naq_bonus", 0)
+            if victory_combo_naq > 0:
+                self.state.add_naquadah(victory_combo_naq)
 
             # Conquest leader ability: on_victory
             ability_result = trigger_ability(
@@ -688,6 +797,29 @@ class CampaignController:
                                 - get_counterattack_reduction(self.galaxy, allied)
                                 - network["counterattack_reduction"])
 
+            # AI Personality modifier
+            personality = _get_personality(faction)
+            ca_mult = personality["counterattack_mult"]
+            # Alteran: late-game escalation after turn 15
+            if personality.get("late_game_mult") and self.state.turn_number >= 15:
+                ca_mult = personality["late_game_mult"]
+            # Jaffa Rebellion: vengeful — 2x if lost a planet last turn
+            if personality.get("vengeful"):
+                lost_last_turn = self.state.conquest_ability_data.get("_ai_lost_planet_last_turn", {})
+                if lost_last_turn.get(faction):
+                    ca_mult *= 2.0
+            effective_chance *= ca_mult
+
+            # Doctrine penalty: counterattack_chance_increase
+            doctrine_effects = get_active_effects(self.state)
+            effective_chance += doctrine_effects.get("counterattack_chance_increase", 0)
+
+            # Planet development track modifier
+            effective_chance += get_development_counterattack_mod(self.state, self.galaxy)
+
+            # Sleeper agent: enemy attacks from this planet start -1 card
+            # (applied later during battle setup)
+
             # Conquest leader ability: on_counterattack (reduce chance or skip)
             counter_result = trigger_ability(
                 self.state, self.galaxy, "on_counterattack",
@@ -759,14 +891,31 @@ class CampaignController:
             # Building: Training Ground defense bonus
             building_defense = get_defense_bonus(self.state, target_id)
             fort_level += building_defense
+            # Doctrine penalty: defense_power_penalty
+            doctrine_defense_penalty = doctrine_effects.get("defense_power_penalty", 0)
+
+            # Building synergy: Integrated Defense Grid (+1 fort)
+            synergy_effects = get_synergy_effects(self.state, self.galaxy)
+            fort_level += synergy_effects.get("fortify_bonus", 0)
+
             # Conquest leader ability: on_defense (pre-battle bonuses)
-            defense_bonus_power = 0
+            defense_bonus_power = 0 - doctrine_defense_penalty
             defense_result = trigger_ability(
                 self.state, self.galaxy, "on_defense",
                 {"rng": self.rng, "planet_id": target_id})
             if isinstance(defense_result, dict):
-                defense_bonus_power = defense_result.get("defense_power_bonus", 0)
+                defense_bonus_power = defense_result.get("defense_power_bonus", 0) - doctrine_defense_penalty
                 extra_defense += defense_result.get("defense_extra_cards", 0)
+
+            # Sleeper agent: find if enemy has a planet adjacent to target with sleeper
+            sleeper_reduction = 0
+            for neighbor_id in target.connections:
+                neighbor = self.galaxy.planets.get(neighbor_id)
+                if neighbor and neighbor.owner == faction:
+                    if self.state.conquest_ability_data.get(f"sleeper_{neighbor_id}"):
+                        sleeper_reduction = 1
+                        break
+
             result = await run_card_battle(
                 self.screen,
                 player_faction=self.state.player_faction,
@@ -780,6 +929,7 @@ class CampaignController:
                 relics=getattr(self.state, 'relics', []),
                 extra_player_cards=extra_defense,
                 fort_defense_bonus=fort_level + defense_bonus_power,
+                ai_weaken_amount=sleeper_reduction,
             )
             self._refresh_after_battle()
 
@@ -842,14 +992,33 @@ class CampaignController:
         war_factions = [f for f in active_factions
                         if f != self.state.friendly_faction]
 
+        # Track planet losses for Jaffa Rebellion vengeful personality
+        lost_planets = {}
+
         for faction in war_factions:
+            personality = _get_personality(faction)
             targets = self.galaxy.get_ai_vs_ai_targets(faction)
             if not targets:
                 continue
 
-            # Attack chance scales with planet count
+            # Lucian: target the weakest faction's planets
+            if personality.get("target_weakest") and targets:
+                # Group targets by defender faction, pick weakest
+                defender_counts = {}
+                for tid in targets:
+                    df = self.galaxy.planets[tid].owner
+                    defender_counts.setdefault(df, []).append(tid)
+                weakest_faction = min(defender_counts.keys(),
+                                      key=lambda f: self.galaxy.get_faction_planet_count(f))
+                targets = defender_counts[weakest_faction]
+
+            # Attack chance scales with planet count + personality
             planet_count = self.galaxy.get_faction_planet_count(faction)
             attack_chance = min(0.40, 0.15 + 0.05 * planet_count)
+            attack_chance *= personality["expansion_mult"]
+            # Alteran: late-game escalation
+            if personality.get("late_game_mult") and self.state.turn_number >= 15:
+                attack_chance *= personality["late_game_mult"]
             if self.rng.random() > attack_chance:
                 continue
 
@@ -857,24 +1026,29 @@ class CampaignController:
             target = self.galaxy.planets[target_id]
             defender_faction = target.owner
 
-            # Success weighted by relative strength
+            # Success weighted by relative strength + personality bonus
             attacker_strength = self.galaxy.get_faction_planet_count(faction)
             defender_strength = self.galaxy.get_faction_planet_count(defender_faction)
             total = attacker_strength + defender_strength
             if total == 0:
                 continue
             success_chance = 0.25 + 0.30 * (attacker_strength / total)
-            success_chance = max(0.25, min(0.55, success_chance))
+            success_chance += personality.get("success_bonus", 0)
+            success_chance = max(0.25, min(0.60, success_chance))
 
             if self.rng.random() < success_chance:
                 # Capture!
                 self.galaxy.transfer_ownership(target_id, faction)
                 self.state.planet_ownership[target_id] = faction
                 self._flash_message(f"{faction} captured {target.name} from {defender_faction}!", 1500)
+                lost_planets.setdefault(defender_faction, True)
 
                 # Check if a faction was eliminated
                 if self.galaxy.get_faction_planet_count(defender_faction) == 0:
                     self._flash_message(f"{defender_faction} has been ELIMINATED!", 2000)
+
+        # Store lost-planet info for Jaffa vengeful personality next turn
+        self.state.conquest_ability_data["_ai_lost_planet_last_turn"] = lost_planets
 
     async def _check_narrative_arcs(self, planet_name):
         """Check narrative arc progress after conquering a planet."""

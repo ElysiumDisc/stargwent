@@ -18,6 +18,7 @@ from rules_menu import run_rules_menu
 from lan_menu import run_lan_menu
 from stats_menu import run_stats_menu
 from dhd_button import DHDButtonManager
+from game_config import GAME_VERSION, GAME_LICENSE
 import board_renderer
 from save_paths import get_deck_save_path
 
@@ -747,6 +748,13 @@ class MainMenu:
             fps_status_surface = status_font.render(fps_state_text, True, fps_state_color)
             fps_status_rect = fps_status_surface.get_rect(center=(fps_gate_rect.centerx, fps_gate_rect.bottom + int(25 * scale)))
             surface.blit(fps_status_surface, fps_status_rect)
+
+            # Version & license at bottom
+            info_font = pygame.font.SysFont("Arial", max(14, int(18 * scale)))
+            version_text = f"v{GAME_VERSION}  \u2022  {GAME_LICENSE}"
+            version_surface = info_font.render(version_text, True, (100, 115, 135))
+            version_rect = version_surface.get_rect(center=(center_x, panel_top + panel_height - int(75 * scale)))
+            surface.blit(version_surface, version_rect)
 
             # Instructions at bottom
             hint_text = "Click Stargates to toggle  |  Drag sliders to adjust volume"

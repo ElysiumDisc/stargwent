@@ -53,6 +53,12 @@ def hex_color_alpha(hex_str: str, alpha: int = 255) -> tuple:
     return (r, g, b, alpha)
 
 # ============================================================================
+# GAME IDENTITY
+# ============================================================================
+GAME_VERSION = "10.1.0"
+GAME_LICENSE = "CC BY-NC 4.0"
+
+# ============================================================================
 # ANIMATION DURATIONS (milliseconds)
 # ============================================================================
 ANIM_INSTANT = 300           # Quick movements, basic transitions

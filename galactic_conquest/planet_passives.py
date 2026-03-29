@@ -217,3 +217,64 @@ def get_card_choice_bonus(galaxy_map):
 def get_cooldown_reduction(galaxy_map):
     """Get total cooldown reduction from passives."""
     return int(get_total_passive(galaxy_map, "cooldown_reduction"))
+
+
+# --- Planet Development Track (v10.1) ---
+
+# Development levels based on turns held
+DEVELOPMENT_LEVELS = {
+    1: {"name": "Unstable", "counterattack_penalty": 0.10, "passive_mult": 0.5},
+    3: {"name": "Stabilized", "counterattack_penalty": 0.0, "passive_mult": 1.0},
+    5: {"name": "Developed", "counterattack_penalty": 0.0, "passive_mult": 1.5},
+    8: {"name": "Integrated", "counterattack_penalty": -0.05, "passive_mult": 2.0},
+}
+
+
+def get_development_level(turns_held):
+    """Get the development level dict for a given number of turns held."""
+    level = DEVELOPMENT_LEVELS[1]  # default: Unstable
+    for threshold in sorted(DEVELOPMENT_LEVELS.keys()):
+        if turns_held >= threshold:
+            level = DEVELOPMENT_LEVELS[threshold]
+    return level
+
+
+def get_development_name(turns_held):
+    """Get the development stage name for display."""
+    return get_development_level(turns_held)["name"]
+
+
+def tick_turns_held(state, galaxy):
+    """Increment turns_held for all player planets. Called each end-of-turn.
+
+    Also resets turns_held for planets the player no longer owns.
+    """
+    # Increment for currently-owned planets
+    for pid, planet in galaxy.planets.items():
+        if planet.owner == "player":
+            state.turns_held[pid] = state.turns_held.get(pid, 0) + 1
+        else:
+            # Lost this planet — reset counter
+            if pid in state.turns_held:
+                del state.turns_held[pid]
+
+
+def get_development_passive_multiplier(state, planet_id):
+    """Get the passive bonus multiplier for a planet based on development level."""
+    turns = state.turns_held.get(planet_id, 0)
+    return get_development_level(turns)["passive_mult"]
+
+
+def get_development_counterattack_mod(state, galaxy):
+    """Get total counterattack chance modifier from development levels.
+
+    Newly captured planets increase counterattack risk.
+    Integrated planets reduce it.
+    """
+    total = 0.0
+    for pid, planet in galaxy.planets.items():
+        if planet.owner == "player":
+            turns = state.turns_held.get(pid, 0)
+            level = get_development_level(turns)
+            total += level["counterattack_penalty"]
+    return total

@@ -60,24 +60,74 @@ CRISIS_CHOICES = {
     "replicator_outbreak": {
         "a": {"label": "Sacrifice weakest card", "desc": "Lose your weakest card. Outbreak contained."},
         "b": {"label": "Risk containment", "desc": "40% chance enemy loses 2 cards. 60% you lose 2 cards."},
+        "c": {"label": "Isolate & study", "desc": "Gain Replicator Nanites relic, no cards lost.",
+               "requires": "sensor_array_2"},
     },
     "ori_crusade": {
         "a": {"label": "Pay for shields (-60 naq)", "desc": "Heavy cost but no other damage."},
         "b": {"label": "Endure the crusade", "desc": "-40 naq, but an AI faction loses a planet."},
+        "c": {"label": "Allied defense", "desc": "Split cost with ally. Only -30 naq.",
+               "requires": "has_ally"},
     },
     "galactic_plague": {
         "a": {"label": "Quarantine (-30 naq)", "desc": "Pay more but keep all card upgrades intact."},
         "b": {"label": "Endure the plague", "desc": "-20 naq, all card upgrades reduced by 1."},
+        "c": {"label": "Ancient cure", "desc": "No losses. Upgrades intact. Free.",
+               "requires": "ascension_complete"},
     },
     "ascension_wave": {
         "a": {"label": "Channel into power", "desc": "+2 power to 2 strongest cards. Reset cooldowns."},
         "b": {"label": "Store as wisdom", "desc": "+20 wisdom. Reset cooldowns."},
+        "c": {"label": "Harmonic resonance", "desc": "+1 power to ALL cards. Reset cooldowns.",
+               "requires": "3_ancient_planets"},
     },
     "wraith_invasion": {
         "a": {"label": "Stand and fight", "desc": "Keep the planet but lose 50 naquadah."},
         "b": {"label": "Evacuate", "desc": "Lose the planet but only -20 naquadah."},
+        "c": {"label": "Covert counterattack", "desc": "60% keep planet. Only -10 naq.",
+               "requires": "3_operatives"},
     },
 }
+
+
+def check_crisis_option_c(campaign_state, galaxy, crisis_effect):
+    """Check if the conditional 3rd crisis option is available.
+
+    Returns True if the player meets the requirements for option C.
+    """
+    choices = CRISIS_CHOICES.get(crisis_effect, {})
+    option_c = choices.get("c")
+    if not option_c:
+        return False
+
+    req = option_c.get("requires", "")
+
+    if req == "sensor_array_2":
+        # Need 2+ Sensor Arrays on player planets
+        count = sum(1 for pid, bid in campaign_state.buildings.items()
+                    if bid == "sensor_array"
+                    and galaxy.planets.get(pid)
+                    and galaxy.planets[pid].owner == "player")
+        return count >= 2
+
+    elif req == "has_ally":
+        return any(rel == "allied" for rel in campaign_state.faction_relations.values())
+
+    elif req == "ascension_complete":
+        return "ascension" in campaign_state.completed_doctrines
+
+    elif req == "3_ancient_planets":
+        from .doctrines import ANCIENT_PLANETS
+        count = sum(1 for pid, p in galaxy.planets.items()
+                    if p.name in ANCIENT_PLANETS and p.owner == "player")
+        return count >= 3
+
+    elif req == "3_operatives":
+        active_ops = sum(1 for op in campaign_state.operatives
+                         if op.get("state") in ("active", "idle", "moving", "establishing"))
+        return active_ops >= 3
+
+    return False
 
 
 def should_trigger_crisis(campaign_state):
@@ -110,7 +160,7 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
         galaxy: GalaxyMap instance
         crisis: Crisis event dict
         rng: Optional Random instance
-        choice: "a" (safe/costly) or "b" (risky/cheap)
+        choice: "a" (safe/costly), "b" (risky/cheap), or "c" (conditional)
 
     Returns:
         Result message string.
@@ -122,7 +172,11 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
 
     if effect == "replicator_outbreak":
         from cards import ALL_CARDS
-        if choice == "a":
+        if choice == "c":
+            # Conditional: Sensor Arrays isolate and study — gain relic, no losses
+            campaign_state.add_relic("replicator_nanites")
+            return "Sensor Arrays isolated the Replicators! Gained Replicator Nanites relic."
+        elif choice == "a":
             # Safe: remove weakest card (original behavior)
             deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
                           for cid in campaign_state.current_deck]
@@ -151,7 +205,11 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
                 return f"Containment failed! Replicators consumed 2 cards: {names}."
 
     elif effect == "ori_crusade":
-        if choice == "a":
+        if choice == "c":
+            # Conditional: Allied defense — split cost
+            campaign_state.add_naquadah(-30)
+            return "-30 Naquadah. Allied forces shared the burden — shields held!"
+        elif choice == "a":
             # Safe: pay 60 naq, no planet damage
             campaign_state.add_naquadah(-60)
             return "-60 Naquadah. Shields held — no planetary damage."
@@ -169,7 +227,10 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
             return f"-40 Naquadah. Ori crusade destabilized {flipped_name}."
 
     elif effect == "galactic_plague":
-        if choice == "a":
+        if choice == "c":
+            # Conditional: Ancient cure — no losses at all
+            return "Ancient knowledge neutralized the plague. No losses!"
+        elif choice == "a":
             # Safe: pay 30 naq, keep upgrades
             campaign_state.add_naquadah(-30)
             return "-30 Naquadah. Quarantine successful — card upgrades intact."
@@ -187,7 +248,17 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
 
     elif effect == "ascension_wave":
         from cards import ALL_CARDS
-        if choice == "a":
+        if choice == "c":
+            # Conditional: Harmonic resonance — +1 power to ALL cards
+            upgraded_count = 0
+            for cid in campaign_state.current_deck:
+                card = ALL_CARDS.get(cid)
+                if card and getattr(card, 'power', 0) and getattr(card, 'power', 0) > 0:
+                    campaign_state.upgrade_card(cid, 1)
+                    upgraded_count += 1
+            campaign_state.cooldowns.clear()
+            return f"Harmonic resonance! {upgraded_count} cards gained +1 power. Cooldowns reset!"
+        elif choice == "a":
             # Channel into power: +2 to 2 strongest + reset cooldowns (original)
             deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
                           for cid in campaign_state.current_deck]
@@ -215,7 +286,25 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
             return "+20 Wisdom. All cooldowns reset!"
 
     elif effect == "wraith_invasion":
-        if choice == "a":
+        if choice == "c":
+            # Conditional: Covert counterattack — 60% keep planet, only -10 naq
+            campaign_state.add_naquadah(-10)
+            if rng.random() < 0.60:
+                return "-10 Naquadah. Operatives repelled the Wraith! All planets secure."
+            else:
+                player_non_hw = [(pid, p) for pid, p in galaxy.planets.items()
+                                 if p.owner == "player" and p.planet_type != "homeworld"]
+                lost_name = "none"
+                if player_non_hw:
+                    pid, planet = rng.choice(player_non_hw)
+                    lost_name = planet.name
+                    ai_factions = list(set(p.owner for p in galaxy.planets.values()
+                                           if p.owner not in ("player", "neutral")))
+                    new_owner = rng.choice(ai_factions) if ai_factions else "neutral"
+                    galaxy.transfer_ownership(pid, new_owner)
+                    campaign_state.planet_ownership[pid] = new_owner
+                return f"-10 Naquadah. Counterattack failed — Wraith took {lost_name}."
+        elif choice == "a":
             # Stand and fight: pay 50 naq, keep planet
             campaign_state.add_naquadah(-50)
             return "-50 Naquadah. Wraith repelled — all planets secure!"
@@ -238,18 +327,19 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
     return "The crisis passes without incident."
 
 
-async def show_crisis_screen(screen, crisis, choices=None):
+async def show_crisis_screen(screen, crisis, choices=None, has_option_c=False):
     """Show a dramatic crisis event screen with choice buttons.
 
     Args:
         screen: Pygame display surface
         crisis: Crisis event dict
-        choices: Optional dict with "a" and "b" keys, each having
-                 "label" and "desc".  If None, falls back to legacy
+        choices: Optional dict with "a" and "b" keys (and optionally "c"),
+                 each having "label" and "desc".  If None, falls back to legacy
                  "press any key" behavior and returns "b".
+        has_option_c: If True and choices has "c", show the third button.
 
     Returns:
-        "a" or "b" depending on which button the player clicks.
+        "a", "b", or "c" depending on which button the player clicks.
     """
     sw, sh = screen.get_width(), screen.get_height()
     clock = pygame.time.Clock()
@@ -262,13 +352,26 @@ async def show_crisis_screen(screen, crisis, choices=None):
 
     crisis_color = tuple(crisis.get("color", (255, 200, 100)))
 
-    # Button layout
-    btn_w = int(sw * 0.30)
-    btn_h = int(sh * 0.10)
-    gap = int(sw * 0.04)
-    btn_y = int(sh * 0.68)
-    btn_a_rect = pygame.Rect(sw // 2 - btn_w - gap // 2, btn_y, btn_w, btn_h)
-    btn_b_rect = pygame.Rect(sw // 2 + gap // 2, btn_y, btn_w, btn_h)
+    # Button layout — adapts to 2 or 3 buttons
+    show_c = has_option_c and choices and "c" in choices
+    if show_c:
+        btn_w = int(sw * 0.26)
+        btn_h = int(sh * 0.10)
+        gap = int(sw * 0.02)
+        total_w = btn_w * 3 + gap * 2
+        btn_y = int(sh * 0.65)
+        start_x = sw // 2 - total_w // 2
+        btn_a_rect = pygame.Rect(start_x, btn_y, btn_w, btn_h)
+        btn_b_rect = pygame.Rect(start_x + btn_w + gap, btn_y, btn_w, btn_h)
+        btn_c_rect = pygame.Rect(start_x + 2 * (btn_w + gap), btn_y, btn_w, btn_h)
+    else:
+        btn_w = int(sw * 0.30)
+        btn_h = int(sh * 0.10)
+        gap = int(sw * 0.04)
+        btn_y = int(sh * 0.68)
+        btn_a_rect = pygame.Rect(sw // 2 - btn_w - gap // 2, btn_y, btn_w, btn_h)
+        btn_b_rect = pygame.Rect(sw // 2 + gap // 2, btn_y, btn_w, btn_h)
+        btn_c_rect = None
 
     frame = 0
     while True:
@@ -289,6 +392,8 @@ async def show_crisis_screen(screen, crisis, choices=None):
                         return "a"
                     if btn_b_rect.collidepoint(ev.pos):
                         return "b"
+                    if btn_c_rect and btn_c_rect.collidepoint(ev.pos):
+                        return "c"
 
         # Dark background with crisis-colored vignette
         screen.fill((10, 10, 15))
@@ -325,15 +430,19 @@ async def show_crisis_screen(screen, crisis, choices=None):
         if choices is not None and frame > 30:
             # Draw choice buttons
             mx, my = pygame.mouse.get_pos()
-            for rect, key, base_color in [
+            buttons = [
                 (btn_a_rect, "a", (40, 100, 60)),
                 (btn_b_rect, "b", (100, 60, 40)),
-            ]:
+            ]
+            if show_c:
+                buttons.append((btn_c_rect, "c", (60, 60, 120)))
+            for rect, key, base_color in buttons:
                 choice_data = choices[key]
                 hovered = rect.collidepoint(mx, my)
                 color = tuple(min(255, c + 40) for c in base_color) if hovered else base_color
                 pygame.draw.rect(screen, color, rect)
-                pygame.draw.rect(screen, (200, 200, 200) if hovered else (120, 120, 120), rect, 2)
+                border_color = (255, 220, 100) if key == "c" else ((200, 200, 200) if hovered else (120, 120, 120))
+                pygame.draw.rect(screen, border_color, rect, 2)
                 # Label
                 lbl = btn_font.render(choice_data["label"], True, (255, 255, 255))
                 screen.blit(lbl, (rect.centerx - lbl.get_width() // 2,

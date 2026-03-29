@@ -55,7 +55,7 @@ def _get_reward_tier(player_planet_count, total_planets):
 
 async def run_reward_screen(screen, campaign_state, defeated_faction, planet_type="territory",
                       galaxy_map=None, bonus_message="", extra_card_choices=0,
-                      trading_factions=None):
+                      trading_factions=None, conquest_streak=0, narrative_faction=None):
     """
     Show post-victory rewards: naquadah + pick 1 of N cards (scales with territory).
 
@@ -113,6 +113,26 @@ async def run_reward_screen(screen, campaign_state, defeated_faction, planet_typ
             if trade_pool:
                 additions = rng.sample(trade_pool, min(2, len(trade_pool)))
                 pool.extend(additions)
+
+    # Contextual rewards (v10.1): weight pool based on campaign context
+    # Narrative faction: guarantee one thematic card from story arc faction
+    if narrative_faction and narrative_faction != defeated_faction:
+        narr_pool = get_faction_card_pool(narrative_faction, include_powerful=True)
+        if narr_pool:
+            pool.extend(rng.sample(narr_pool, min(2, len(narr_pool))))
+
+    # Conquest streak bonus: 3+ consecutive victories adds a hero card to pool
+    if conquest_streak >= 3:
+        hero_cards = [cid for cid, card in ALL_CARDS.items()
+                      if getattr(card, 'is_hero', False) and getattr(card, 'faction', '') == defeated_faction]
+        if hero_cards:
+            pool.append(rng.choice(hero_cards))
+
+    # Homeworld conquest: double weight the defeated faction (more faction-specific cards)
+    if planet_type == "homeworld":
+        faction_cards = get_faction_card_pool(defeated_faction, include_powerful=True)
+        if faction_cards:
+            pool.extend(rng.sample(faction_cards, min(3, len(faction_cards))))
 
     choices = []
     if len(pool) >= num_choices:

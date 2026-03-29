@@ -201,6 +201,97 @@ def get_attack_extra_cards(state, planet_id, galaxy):
     return extra
 
 
+# --- Building Synergies: connected planet combos grant bonuses ---
+
+BUILDING_SYNERGIES = {
+    "prometheus_protocol": {
+        "name": "Prometheus Protocol",
+        "buildings": ("shipyard", "training_ground"),
+        "description": "+1 attack power from connected Shipyard + Training Ground",
+        "effect": {"attack_power_bonus": 1},
+    },
+    "deep_space_telemetry": {
+        "name": "Deep Space Telemetry",
+        "buildings": ("sensor_array", "sensor_array"),
+        "description": "Two Sensor Arrays reveal full enemy deck",
+        "effect": {"full_deck_reveal": True},
+    },
+    "naquadria_cascade": {
+        "name": "Naquadria Cascade",
+        "buildings": ("naquadah_refinery", "shield_generator"),
+        "description": "Connected Refinery + Shield boosts refinery income +50%",
+        "effect": {"refinery_income_bonus": 0.50},
+    },
+    "integrated_defense_grid": {
+        "name": "Integrated Defense Grid",
+        "buildings": ("shield_generator", "training_ground"),
+        "description": "Connected shields + training grants +1 fortification",
+        "effect": {"fortify_bonus": 1},
+    },
+}
+
+
+def get_active_synergies(state, galaxy):
+    """Check which building synergies are active across the player's network.
+
+    Returns list of active synergy dicts.
+    """
+    active = []
+    player_buildings = {}
+    for pid, bid in state.buildings.items():
+        planet = galaxy.planets.get(pid)
+        if planet and planet.owner == "player":
+            player_buildings[pid] = bid
+
+    for syn_id, synergy in BUILDING_SYNERGIES.items():
+        b1, b2 = synergy["buildings"]
+        if b1 == b2:
+            # Same building type: need 2+ on connected planets
+            pids_with = [pid for pid, bid in player_buildings.items() if bid == b1]
+            if len(pids_with) >= 2:
+                # Check if any pair is connected
+                for i, p1 in enumerate(pids_with):
+                    for p2 in pids_with[i + 1:]:
+                        planet1 = galaxy.planets.get(p1)
+                        if planet1 and p2 in planet1.connections:
+                            active.append(synergy)
+                            break
+                    else:
+                        continue
+                    break
+        else:
+            # Different buildings: need them on connected planets
+            pids_b1 = [pid for pid, bid in player_buildings.items() if bid == b1]
+            pids_b2 = [pid for pid, bid in player_buildings.items() if bid == b2]
+            found = False
+            for p1 in pids_b1:
+                planet1 = galaxy.planets.get(p1)
+                if planet1:
+                    for p2 in pids_b2:
+                        if p2 in planet1.connections:
+                            found = True
+                            break
+                if found:
+                    break
+            if found:
+                active.append(synergy)
+    return active
+
+
+def get_synergy_effects(state, galaxy):
+    """Aggregate all active building synergy effects into a single dict."""
+    effects = {}
+    for synergy in get_active_synergies(state, galaxy):
+        for key, val in synergy["effect"].items():
+            if isinstance(val, bool):
+                effects[key] = True
+            elif isinstance(val, (int, float)):
+                effects[key] = effects.get(key, 0) + val
+            else:
+                effects[key] = val
+    return effects
+
+
 def get_planet_building_display(state, planet_id):
     """Get display info for a planet's building.
 

@@ -4,6 +4,81 @@
 
 ---
 
+### Version 10.1.0 (March 2026)
+**Galactic Conquest Overhaul — Deep Strategy Update**
+
+#### In-Game Version & License Display
+- **Options menu** now shows `v10.1.0 • CC BY-NC 4.0` at the bottom (both main menu and pause menu)
+- Central `GAME_VERSION` and `GAME_LICENSE` constants in `game_config.py`
+
+#### AI Faction Personalities (Conquest)
+- **6 distinct AI behaviors** shape counterattack, expansion, and faction wars:
+  - **Goa'uld** — Aggressive: 1.5x counterattack, 1.4x expansion
+  - **Asgard** — Diplomatic: 0.5x counterattack, prefers trade
+  - **Jaffa Rebellion** — Vengeful: 2x counterattack if lost a planet last turn
+  - **Lucian Alliance** — Opportunistic: targets weakest faction, +10% battle success
+  - **Alteran** — Ascendant: passive early, 2.5x multiplier after turn 15
+  - **Tau'ri** — Balanced: standard behavior
+
+#### Crisis Third Options (Conquest)
+- **Conditional 3rd choices** unlock based on campaign investments:
+  - Replicator Outbreak + 2 Sensor Arrays → "Isolate & study" (gain relic)
+  - Ori Crusade + any Allied faction → "Allied defense" (-30 naq instead of -60)
+  - Galactic Plague + completed Ascension tree → "Ancient cure" (no losses)
+  - Ascension Wave + 3 Ancient planets → "Harmonic resonance" (+1 power to ALL cards)
+  - Wraith Invasion + 3 operatives → "Covert counterattack" (60% success, -10 naq)
+- Third option button highlighted with gold border
+
+#### Relic Combos (Conquest)
+- **6 relic pair combos** trigger bonus effects:
+  - Staff of Ra + Thor's Hammer → "Weapon of the Ancients": Hero +1 power
+  - Ancient ZPM + Naquadah Reactor → "Unlimited Power": +2 starting cards
+  - Ring Platform + Replicator Nanites → "Self-Replicating Network": remote fortify
+  - Iris Shield + Kull Armor → "Impenetrable Defense": enhanced -2 enemy power
+  - Flames of Celestis + Ori Prior Staff → "Ascended Arsenal": +15 naq per victory
+  - Asgard Time Machine + Alteran Database → "Temporal Archives": +2 card choices
+
+#### Building Synergies (Conquest)
+- **4 connected-planet building combos**:
+  - Shipyard + Training Ground → "Prometheus Protocol": +1 attack power
+  - 2x Sensor Array → "Deep Space Telemetry": full enemy deck reveal
+  - Naquadah Refinery + Shield Generator → "Naquadria Cascade": +50% refinery income
+  - Shield Generator + Training Ground → "Integrated Defense Grid": +1 fortification
+
+#### Contextual Card Rewards (Conquest)
+- **Faction-weighted rewards** — homeworld conquests offer more faction-specific cards
+- **Narrative arc themed cards** — planets in story arcs add thematic faction cards to pool
+- **Conquest streak bonus** — 3+ consecutive victories add a hero card to reward pool
+
+#### Deep Cover Espionage Missions (Conquest)
+- **4 new Tok'ra operative mission types**:
+  - **Forge Alliance** — shift faction relation one level toward friendly (3 turns, 15% death risk)
+  - **Relic Hunt** — 50% chance to discover a relic at neutral planet (3 turns, 25% death risk)
+  - **Doctrine Theft** — steal 15 Wisdom from enemy archives (2 turns, 30% death risk)
+  - **Sleeper Agent** — persistent: enemy counterattacks from that planet start -1 card (5% death risk/turn)
+
+#### Planet Development Track (Conquest)
+- **Planets evolve** the longer you hold them:
+  - **Unstable** (turns 1-2): +10% counterattack risk, 50% passive bonus
+  - **Stabilized** (turns 3-4): normal behavior, full passive
+  - **Developed** (turns 5-7): 150% passive bonus
+  - **Integrated** (turn 8+): -5% counterattack, 200% passive bonus
+- Tracked per-planet via `turns_held` in campaign state
+
+#### Doctrine Trade-offs (Conquest)
+- **Policies now have meaningful penalties** alongside buffs:
+  - Ancient Meditation: +3 Wisdom/turn BUT -5 naq/turn
+  - Blitzkrieg Tactics: -1 cooldown BUT -1 defense power
+  - Enlightened Warfare: +1 battle power BUT +5% counterattack chance
+  - War Logistics: +1 attack/turn BUT +5 alliance upkeep
+  - Diplomatic Mastery: +5 influence/turn BUT +5% counterattack chance
+  - Intelligence Networks: -1 mission turn BUT +5% incident chance
+  - Shadow Government: free operative every 8 turns BUT -8 naq/turn
+  - Advanced Engineering: buildings -25 naq BUT -2 Wisdom/turn
+  - Supergate Project: enables Supergate BUT +8% counterattack chance
+
+---
+
 ### Version 10.0.0 (March 2026)
 **Alteran Faction — Ori & Ancients Unite**
 

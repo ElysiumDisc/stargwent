@@ -17,16 +17,20 @@ DOCTRINE_TREES = {
         "policies": [
             {"id": "asc_1", "name": "Ancient Meditation", "base_cost": 10,
              "effect": {"wisdom_per_turn": 3},
-             "desc": "+3 Wisdom/turn"},
+             "penalty": {"naquadah_per_turn_penalty": 5},
+             "desc": "+3 Wisdom/turn | -5 naq/turn"},
             {"id": "asc_2", "name": "Repository Access", "base_cost": 20,
              "effect": {"extra_card_choices": 1},
+             "penalty": {},
              "desc": "+1 reward card choice"},
             {"id": "asc_3", "name": "Enlightened Warfare", "base_cost": 30,
              "effect": {"battle_power_bonus": 1},
-             "desc": "+1 power to all cards in battle"},
+             "penalty": {"counterattack_chance_increase": 0.05},
+             "desc": "+1 power to all cards | +5% counterattack chance"},
             {"id": "asc_4", "name": "Near-Ascension", "base_cost": 40,
              "effect": {"wisdom_income_doubled": True},
-             "desc": "Wisdom income doubled"},
+             "penalty": {"naquadah_per_turn_penalty": 10},
+             "desc": "Wisdom income doubled | -10 naq/turn"},
         ],
         "completion_bonus": {
             "name": "Ascension Mastery",
@@ -41,16 +45,20 @@ DOCTRINE_TREES = {
         "policies": [
             {"id": "con_1", "name": "Blitzkrieg Tactics", "base_cost": 10,
              "effect": {"attack_cooldown_reduction": 1},
-             "desc": "-1 turn attack cooldown"},
+             "penalty": {"defense_power_penalty": 1},
+             "desc": "-1 turn cooldown | -1 defense power"},
             {"id": "con_2", "name": "Veteran Troops", "base_cost": 20,
              "effect": {"attack_power_bonus": 1},
+             "penalty": {},
              "desc": "+1 power when attacking"},
             {"id": "con_3", "name": "War Logistics", "base_cost": 30,
              "effect": {"extra_attacks_per_turn": 1},
-             "desc": "+1 attack per turn"},
+             "penalty": {"alliance_upkeep_increase": 5},
+             "desc": "+1 attack per turn | +5 alliance upkeep"},
             {"id": "con_4", "name": "Total Supremacy", "base_cost": 40,
              "effect": {"conquest_naq_bonus": 30},
-             "desc": "+30 naq per conquered planet"},
+             "penalty": {"trade_income_penalty": 5},
+             "desc": "+30 naq per conquest | -5 trade income"},
         ],
         "completion_bonus": {
             "name": "Military Mastery",
@@ -65,16 +73,20 @@ DOCTRINE_TREES = {
         "policies": [
             {"id": "all_1", "name": "Diplomatic Mastery", "base_cost": 10,
              "effect": {"minor_world_influence_per_turn": 5},
-             "desc": "+5 influence/turn to all minor worlds"},
+             "penalty": {"counterattack_chance_increase": 0.05},
+             "desc": "+5 influence/turn | +5% counterattack chance"},
             {"id": "all_2", "name": "Free Trade Zone", "base_cost": 20,
              "effect": {"trade_cost_discount": 20},
+             "penalty": {},
              "desc": "Trade agreements cost -20 naq"},
             {"id": "all_3", "name": "Deep Alliance", "base_cost": 30,
              "effect": {"alliance_upkeep_reduction": 5},
+             "penalty": {},
              "desc": "Alliance upkeep -5/turn"},
             {"id": "all_4", "name": "Galactic Federation", "base_cost": 40,
              "effect": {"passive_sharing_boost": True},
-             "desc": "Allied passive sharing 50% -> 75%"},
+             "penalty": {"conquest_naq_penalty": 15},
+             "desc": "Allied sharing 75% | -15 naq per conquest"},
         ],
         "completion_bonus": {
             "name": "Diplomacy Mastery",
@@ -89,16 +101,20 @@ DOCTRINE_TREES = {
         "policies": [
             {"id": "shd_1", "name": "Tok'ra Training", "base_cost": 10,
              "effect": {"operative_death_risk_reduction": 0.10},
+             "penalty": {},
              "desc": "Operative death risk -10%"},
             {"id": "shd_2", "name": "Intelligence Networks", "base_cost": 20,
              "effect": {"mission_time_reduction": 1},
-             "desc": "Mission times -1 turn (min 1)"},
+             "penalty": {"incident_chance_increase": 0.05},
+             "desc": "Mission times -1 turn | +5% incident chance"},
             {"id": "shd_3", "name": "Advanced Sabotage", "base_cost": 30,
              "effect": {"sabotage_extra_cards": 1},
+             "penalty": {},
              "desc": "Sabotage removes 2 cards (was 1)"},
             {"id": "shd_4", "name": "Shadow Government", "base_cost": 40,
              "effect": {"free_operative_interval": 8},
-             "desc": "Free operative every 8 turns"},
+             "penalty": {"naquadah_per_turn_penalty": 8},
+             "desc": "Free operative every 8 turns | -8 naq/turn"},
         ],
         "completion_bonus": {
             "name": "Shadow Mastery",
@@ -113,16 +129,20 @@ DOCTRINE_TREES = {
         "policies": [
             {"id": "inn_1", "name": "Accelerated Research", "base_cost": 10,
              "effect": {"building_naq_bonus": 10},
+             "penalty": {},
              "desc": "+10 naq/turn from buildings"},
             {"id": "inn_2", "name": "Advanced Engineering", "base_cost": 20,
              "effect": {"building_cost_reduction": 25},
-             "desc": "All buildings cost -25 naq"},
+             "penalty": {"wisdom_per_turn_penalty": 2},
+             "desc": "Buildings -25 naq | -2 Wisdom/turn"},
             {"id": "inn_3", "name": "Network Optimization", "base_cost": 30,
              "effect": {"network_tier_reduction": 1},
+             "penalty": {},
              "desc": "Network tier thresholds -1 planet each"},
             {"id": "inn_4", "name": "Supergate Project", "base_cost": 40,
              "effect": {"enable_supergate": True},
-             "desc": "Enables Supergate wonder construction"},
+             "penalty": {"counterattack_chance_increase": 0.08},
+             "desc": "Enables Supergate | +8% counterattack chance"},
         ],
         "completion_bonus": {
             "name": "Tech Mastery",
@@ -215,6 +235,7 @@ def get_active_effects(state):
     """Aggregate all effects from adopted policies + completed tree bonuses.
 
     Returns dict of effect_key -> value (aggregated).
+    Penalties are included with their own keys (e.g. defense_power_penalty).
     """
     effects = {}
     for pid in state.adopted_policies:
@@ -223,6 +244,14 @@ def get_active_effects(state):
             continue
         policy = DOCTRINE_TREES[tree_id]["policies"][idx]
         for key, val in policy["effect"].items():
+            if isinstance(val, bool):
+                effects[key] = True
+            elif isinstance(val, (int, float)):
+                effects[key] = effects.get(key, 0) + val
+            else:
+                effects[key] = val
+        # Aggregate penalties alongside effects
+        for key, val in policy.get("penalty", {}).items():
             if isinstance(val, bool):
                 effects[key] = True
             elif isinstance(val, (int, float)):

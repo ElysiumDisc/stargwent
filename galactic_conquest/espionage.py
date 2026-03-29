@@ -70,6 +70,35 @@ MISSIONS = {
         "death_risk": 0.0,
         "desc": "Block next enemy espionage on this planet",
     },
+    # --- Deep Cover Missions (v10.1) ---
+    "forge_alliance": {
+        "name": "Forge Alliance",
+        "target": "enemy",
+        "turns": 3,
+        "death_risk": 0.15,
+        "desc": "Shift faction relation one level toward friendly",
+    },
+    "relic_hunt": {
+        "name": "Relic Hunt",
+        "target": "neutral",  # neutral planet
+        "turns": 3,
+        "death_risk": 0.25,
+        "desc": "Chance to discover a relic from ancient ruins",
+    },
+    "doctrine_theft": {
+        "name": "Doctrine Theft",
+        "target": "enemy",
+        "turns": 2,
+        "death_risk": 0.30,
+        "desc": "Steal knowledge: gain 15 Wisdom",
+    },
+    "sleeper_agent": {
+        "name": "Sleeper Agent",
+        "target": "enemy",
+        "turns": 0,           # persistent
+        "death_risk": 0.05,
+        "desc": "Enemy counterattacks from this planet start -1 card",
+    },
 }
 
 # Diplomatic incident chance (per turn, per operative on enemy faction planet)
@@ -355,6 +384,52 @@ def _resolve_mission(state, op, galaxy, rng, effects):
     elif mission_type == "counter_intel":
         state.conquest_ability_data[f"counter_intel_{op.target_planet}"] = True
         msg += " Counter-intelligence active."
+        # Don't reset mission — persistent
+        return msg
+
+    elif mission_type == "forge_alliance":
+        from .diplomacy import get_relation, set_relation, HOSTILE, NEUTRAL_REL, TRADING, ALLIED
+        faction = galaxy.planets[op.target_planet].owner if op.target_planet else None
+        if faction and faction not in ("player", "neutral"):
+            rel = get_relation(state, faction)
+            if rel == HOSTILE:
+                set_relation(state, faction, NEUTRAL_REL)
+                msg += f" {faction} relations improved to Neutral!"
+            elif rel == NEUTRAL:
+                set_relation(state, faction, TRADING)
+                msg += f" {faction} relations improved to Trading!"
+            elif rel == TRADING:
+                set_relation(state, faction, ALLIED)
+                msg += f" {faction} relations improved to Allied!"
+            else:
+                msg += " Relations already at maximum."
+        else:
+            msg += " No valid faction to influence."
+
+    elif mission_type == "relic_hunt":
+        from .relics import RELICS
+        # 50% chance to find a relic the player doesn't own
+        owned = set(state.relics)
+        available = [rid for rid in RELICS if rid not in owned]
+        if available and rng.random() < 0.50:
+            found_id = rng.choice(available)
+            state.add_relic(found_id)
+            found_name = RELICS[found_id].name
+            msg += f" Discovered {found_name}!"
+        elif available:
+            naq = rng.randint(15, 30)
+            state.add_naquadah(naq)
+            msg += f" No relic found, but recovered +{naq} naquadah."
+        else:
+            msg += " All relics already discovered."
+
+    elif mission_type == "doctrine_theft":
+        state.wisdom += 15
+        msg += " +15 Wisdom stolen from enemy archives."
+
+    elif mission_type == "sleeper_agent":
+        state.conquest_ability_data[f"sleeper_{op.target_planet}"] = True
+        msg += " Sleeper agent embedded. Enemy attacks from here start -1 card."
         # Don't reset mission — persistent
         return msg
 

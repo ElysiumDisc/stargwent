@@ -7,6 +7,7 @@ import os
 import pygame
 import board_renderer
 from save_paths import get_settings_path, ensure_migration, sync_saves
+from game_config import GAME_VERSION, GAME_LICENSE
 
 # Ensure legacy saves are migrated to XDG directory on first access
 ensure_migration()
@@ -347,6 +348,12 @@ def run_settings_menu(screen):
         hint_font = pygame.font.SysFont("Arial", 20)
         hint = hint_font.render("Press ESC or click BACK to return", True, (120, 140, 160))
         screen.blit(hint, (screen_width // 2 - hint.get_width() // 2, screen_height - 60))
+
+        # Version & license
+        version_font = pygame.font.SysFont("Arial", 16)
+        version_text = f"v{GAME_VERSION}  \u2022  {GAME_LICENSE}"
+        version_surf = version_font.render(version_text, True, (90, 105, 125))
+        screen.blit(version_surf, (screen_width // 2 - version_surf.get_width() // 2, screen_height - 30))
 
         import display_manager
         display_manager.gpu_flip()

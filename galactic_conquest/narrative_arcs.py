@@ -175,3 +175,28 @@ def get_arc_progress_display(campaign_state):
         display.append((arc.name, progress_str, is_complete))
 
     return display
+
+
+def get_arc_for_planet(planet_name):
+    """Get narrative arc info if a planet is part of any arc.
+
+    Returns dict with arc info or None.
+    """
+    # Map planet names to their arc's thematic faction for contextual rewards
+    ARC_FACTIONS = {
+        "path_of_the_ancients": "Alteran",
+        "fall_of_the_system_lords": "Goa'uld",
+        "jaffa_liberation": "Jaffa Rebellion",
+        "asgard_exodus": "Asgard",
+        "lucian_underworld": "Lucian Alliance",
+        "ori_crusade": "Goa'uld",
+        "alliance_of_four_races": "Tau'ri",
+    }
+    for arc_id, arc in NARRATIVE_ARCS.items():
+        if planet_name in arc.required_planets:
+            return {
+                "arc_id": arc_id,
+                "arc_name": arc.name,
+                "reward_faction": ARC_FACTIONS.get(arc_id, None),
+            }
+    return None

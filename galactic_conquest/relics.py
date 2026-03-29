@@ -172,3 +172,69 @@ def get_relic(relic_id):
 def get_homeworld_relic(faction):
     """Get the relic ID awarded for conquering a faction's homeworld."""
     return HOMEWORLD_RELICS.get(faction)
+
+
+# --- Relic Combos: specific pairs trigger bonus effects ---
+
+RELIC_COMBOS = {
+    "weapon_of_the_ancients": {
+        "name": "Weapon of the Ancients",
+        "relics": ("staff_of_ra", "thors_hammer"),
+        "description": "Hero cards gain +1 power",
+        "effect": {"hero_power_bonus": 1},
+    },
+    "unlimited_power": {
+        "name": "Unlimited Power",
+        "relics": ("ancient_zpm", "naquadah_reactor"),
+        "description": "+2 starting cards in battles",
+        "effect": {"extra_starting_cards": 2},
+    },
+    "self_replicating_network": {
+        "name": "Self-Replicating Network",
+        "relics": ("ring_platform", "replicator_nanites"),
+        "description": "Fortify remote planets (2-hop range)",
+        "effect": {"remote_fortify": True},
+    },
+    "impenetrable_defense": {
+        "name": "Impenetrable Defense",
+        "relics": ("iris_shield", "kull_armor"),
+        "description": "-2 power to enemy cards (instead of -1)",
+        "effect": {"enhanced_kull_armor": True},
+    },
+    "ascended_arsenal": {
+        "name": "Ascended Arsenal",
+        "relics": ("flames_of_celestis", "ori_prior_staff"),
+        "description": "+15 naquadah per victory",
+        "effect": {"victory_naq_bonus": 15},
+    },
+    "temporal_archives": {
+        "name": "Temporal Archives",
+        "relics": ("asgard_time_machine", "alteran_database"),
+        "description": "+2 card choices on reward screens",
+        "effect": {"extra_card_choices": 2},
+    },
+}
+
+
+def get_active_combos(state):
+    """Return list of active relic combo dicts for the player's current relics."""
+    active = []
+    for combo_id, combo in RELIC_COMBOS.items():
+        r1, r2 = combo["relics"]
+        if state.has_relic(r1) and state.has_relic(r2):
+            active.append(combo)
+    return active
+
+
+def get_combo_effects(state):
+    """Aggregate all active relic combo effects into a single dict."""
+    effects = {}
+    for combo in get_active_combos(state):
+        for key, val in combo["effect"].items():
+            if isinstance(val, bool):
+                effects[key] = True
+            elif isinstance(val, (int, float)):
+                effects[key] = effects.get(key, 0) + val
+            else:
+                effects[key] = val
+    return effects

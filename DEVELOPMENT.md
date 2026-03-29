@@ -209,7 +209,7 @@ Version is read from the README.md badge.
 ./build_release.sh "" exe           # Windows .exe only
 ./build_release.sh "" dmg           # macOS .dmg only
 ./build_release.sh "" linux         # .deb + AppImage
-./build_release.sh 10.0.0            # Override version
+./build_release.sh 10.1.0            # Override version
 ```
 
 Output: `builds/releases/`. Staging: `builds/staging/` (auto-cleaned).
