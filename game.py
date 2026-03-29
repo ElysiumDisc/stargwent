@@ -578,6 +578,7 @@ class Player:
             FACTION_JAFFA: JaffaAbility,
             FACTION_ASGARD: AsgardAbility,
             FACTION_LUCIAN: LucianAbility,
+            FACTION_ALTERAN: AlteranAbility,
         }
         self.faction_ability = _ability_classes[faction]() if faction in _ability_classes else None
         self.dhd_mechanic = DHDMechanic()
