@@ -119,15 +119,30 @@ class AsgardAbility(FactionAbility):
             "Immune to the first weather card played each round"
         )
         self.weather_immunity_used = False
-    
+
     def reset_round(self):
         """Called at round start."""
         self.weather_immunity_used = False
-    
+
     def can_block_weather(self):
         """Check if can block weather this round."""
         if not self.weather_immunity_used:
             self.weather_immunity_used = True
+            return True
+        return False
+
+
+class FreyrWeatherShield:
+    """Tracks Freyr's limited weather immunity (2 blocks per game)."""
+    def __init__(self):
+        self.blocks_remaining = 2
+
+    def can_block(self):
+        return self.blocks_remaining > 0
+
+    def use_block(self):
+        if self.blocks_remaining > 0:
+            self.blocks_remaining -= 1
             return True
         return False
 
@@ -1910,8 +1925,11 @@ class Game:
                     )
                     return affected_rows
 
-        # Freyr leader: completely immune to weather
+        # Freyr leader: limited weather immunity (2 blocks per game)
         freyr_owner = next((p for p in [self.player1, self.player2] if has_leader(p, "Freyr")), None)
+        # Initialize Freyr shield tracker on first use
+        if freyr_owner and not hasattr(freyr_owner, '_freyr_shield'):
+            freyr_owner._freyr_shield = FreyrWeatherShield()
 
         # Hermiod leader: weather affects only the opponent
         hermiod_targets_opponent_only = has_leader(acting_player, "Hermiod")
@@ -1935,7 +1953,8 @@ class Game:
 
             actual_targets = []
             for target in desired_targets:
-                if target == freyr_owner:
+                if target == freyr_owner and hasattr(freyr_owner, '_freyr_shield') and freyr_owner._freyr_shield.can_block():
+                    freyr_owner._freyr_shield.use_block()
                     continue
                 target.weather_effects[row_key] = True
                 actual_targets.append(target)
@@ -1995,10 +2014,12 @@ class Game:
                                   .replace("Nebula Interference", "Nebula") \
                                   .replace("Asteroid Storm", "Meteor Shower") \
                                   .replace("Electromagnetic Pulse", "EMP")
-            if freyr_owner:
+            if freyr_owner and hasattr(freyr_owner, '_freyr_shield') and freyr_owner._freyr_shield.blocks_remaining < 2:
+                blocks_left = freyr_owner._freyr_shield.blocks_remaining
+                suffix = f" ({blocks_left} block{'s' if blocks_left != 1 else ''} remaining)" if blocks_left > 0 else " (shield exhausted)"
                 self.add_history_event(
                     "blocked",
-                    f"{weather_name} blocked! {freyr_owner.name} has weather immunity (Freyr)",
+                    f"{weather_name} blocked! {freyr_owner.name}'s Freyr shield absorbed it{suffix}",
                     self._owner_label(acting_player),
                     icon="🛡"
                 )

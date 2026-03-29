@@ -209,7 +209,7 @@ Version is read from the README.md badge.
 ./build_release.sh "" exe           # Windows .exe only
 ./build_release.sh "" dmg           # macOS .dmg only
 ./build_release.sh "" linux         # .deb + AppImage
-./build_release.sh 10.1.0            # Override version
+./build_release.sh 10.1.5            # Override version
 ```
 
 Output: `builds/releases/`. Staging: `builds/staging/` (auto-cleaned).
@@ -426,9 +426,9 @@ The `Build Releases` workflow (`.github/workflows/build.yml`) builds `.deb`, `.A
 #### Method 1: Tag Push (creates draft GitHub Release)
 ```bash
 # Tag the current commit and push both code + tag:
-git tag v10.0.0
+git tag v10.1.5
 git push origin main
-git push origin v10.0.0
+git push origin v10.1.5
 ```
 This creates a **draft** GitHub Release with all 4 platform artifacts attached. Go to Releases to review and publish.
 

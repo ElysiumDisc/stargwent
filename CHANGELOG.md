@@ -4,6 +4,18 @@
 
 ---
 
+### Version 10.1.5 (March 2026)
+**Balance Patch — Faction & Leader Tuning**
+
+#### Bug Fix
+- **Fixed Alteran faction passive not applying** — `AlteranAbility` was defined but missing from the per-player ability dict in `Player.__init__`. Alteran players now correctly receive "Flames of Enlightenment" (+1 per Alteran on board to first 3 non-heroes/round, max +3)
+
+#### Balance Changes
+- **Asgard default deck**: Removed Heimdall (8p hero) from starter deck, replaced with Asgard Mothership (10p non-hero, Draw 2). Reduces untouchable hero power from 40 to 32, making the deck less resilient to weather and scorch
+- **Freyr leader nerfed**: Changed from total weather immunity to blocking the first 2 weather effects per game. After both blocks are consumed, weather affects Freyr's side normally. Prevents Freyr + Superior Shielding from completely nullifying weather as a game mechanic
+
+---
+
 ### Version 10.1.0 (March 2026)
 **Galactic Conquest Overhaul — Deep Strategy Update**
 

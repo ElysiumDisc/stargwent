@@ -35,7 +35,7 @@ BASE_FACTION_LEADERS = {
         {"name": "Ba'al Clone", "ability": "+2 power to all Ranged units", "ability_desc": "+2 power to all Ranged units", "card_id": "lucian_baal_clone"},
     ],
     FACTION_ASGARD: [
-        {"name": "Freyr", "ability": "Immune to weather effects", "ability_desc": "Immune to all space hazards (weather effects)", "card_id": "asgard_freyr"},
+        {"name": "Freyr", "ability": "Block the first 2 weather effects per game", "ability_desc": "Freyr's shield absorbs the first 2 weather effects targeting you (per game)", "card_id": "asgard_freyr"},
         {"name": "Loki", "ability": "Steal 1 power from opponent's strongest unit", "ability_desc": "Steal 1 power from opponent's strongest unit each turn", "card_id": "asgard_loki"},
         {"name": "Heimdall", "ability": "Your Legendary Commanders get +3 power", "ability_desc": "Your Legendary Commanders get +3 power", "card_id": "asgard_heimdall"},
     ],

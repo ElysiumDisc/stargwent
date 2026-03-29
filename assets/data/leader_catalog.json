@@ -224,8 +224,8 @@
     "base": [
       {
         "name": "Freyr",
-        "ability": "Immune to weather effects",
-        "ability_desc": "Immune to all space hazards (weather effects)",
+        "ability": "Block the first 2 weather effects per game",
+        "ability_desc": "Freyr's shield absorbs the first 2 weather effects targeting you (per game)",
         "card_id": "asgard_freyr",
         "faction": "Asgard"
       },

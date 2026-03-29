@@ -166,8 +166,8 @@ LEADER_NOTES = {
         "synergy": "Great for early horn setups or double-spy gambits.",
     },
     "Freyr": {
-        "timing": "Your side is completely immune to weather effects.",
-        "synergy": "Weaponize hazards guilt-free while enemy lanes crumble.",
+        "timing": "Freyr's shield blocks the first 2 weather effects targeting you per game.",
+        "synergy": "Absorbs early hazards so you can play aggressively, but plan for late-game weather exposure.",
     },
     "Loki": {
         "timing": "Every time you play a unit, steal 1 power from the opponent's strongest non-Hero.",

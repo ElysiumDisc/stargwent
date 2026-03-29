@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-10.1.0-blue)
+![Version](https://img.shields.io/badge/version-10.1.5-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -297,7 +297,7 @@ All abilities renamed and themed around Stargate lore:
 
 #### **Asgard** (Ancient Allies) 👽
 *Advanced technology and wisdom*
-- **Leaders**: Thor, Freyr, Penegal, Aegir, Heimdall
+- **Leaders**: Thor, Freyr (2 weather blocks/game), Penegal, Aegir, Heimdall
 - **Unlockable**: Thor (Supreme Commander), Hermiod, Loki
 
 #### **Alteran** (Ori & Ancients) 🔥 — UNLOCKABLE
