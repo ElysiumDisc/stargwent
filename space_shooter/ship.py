@@ -6,7 +6,8 @@ import random
 import os
 
 from .projectiles import (ContinuousBeam, Laser, Missile, EnergyBall,
-                          JaffaStaffBlast, RailgunShot, ProximityMine)
+                          JaffaStaffBlast, RailgunShot, ProximityMine,
+                          AncientDrone)
 
 
 # --- Ship variant definitions ---
@@ -78,6 +79,18 @@ SHIP_VARIANTS = {
             "passive_state": {},
             "description": "Rapid fire, marked kills = double XP",
         },
+        {
+            "name": "Loki's Lab Ship",
+            "image_file": "asgard_ship_alt_3.png",
+            "image_orientation": "down",
+            "weapon_type": "nanite_swarm",
+            "fire_rate": 25,
+            "secondary_type": "sensor_sweep",
+            "secondary_fire_rate": 420,
+            "passive": "analyzer",
+            "passive_state": {},
+            "description": "Nanite swarm replicates on kill",
+        },
     ],
     "goa'uld": [
         {
@@ -143,6 +156,18 @@ SHIP_VARIANTS = {
             "passive_state": {"regen_rate": 0.3},
             "description": "Ancient battleship, rapid drones, powerful shield regen",
         },
+        {
+            "name": "Tok'ra Tunneler",
+            "image_file": "jaffa_rebellion_ship.png",
+            "image_orientation": "left",
+            "weapon_type": "tunnel_crystal",
+            "fire_rate": 35,
+            "secondary_type": "railgun",
+            "secondary_fire_rate": 180,
+            "passive": "ancient_shields",
+            "passive_state": {"regen_rate": 0.2},
+            "description": "Gravity trap crystals, pulls enemies in",
+        },
     ],
     "jaffa rebellion": [
         {
@@ -182,6 +207,20 @@ SHIP_VARIANTS = {
             "passive": "splash_damage",
             "passive_state": {},
             "description": "Energy balls deal 40% AoE splash",
+        },
+    ],
+    "wraith": [
+        {
+            "name": "Wraith Hive Cruiser",
+            "image_file": "wraith_ship.png",
+            "image_orientation": "down",
+            "weapon_type": "wraith_culling",
+            "fire_rate": 120,
+            "secondary_type": "ribbon_blast",
+            "secondary_fire_rate": 240,
+            "passive": "sarcophagus_regen",
+            "passive_state": {},
+            "description": "Life-steal beam, heals 25% damage dealt",
         },
     ],
 }
@@ -284,6 +323,7 @@ class Ship:
         self.image_up = None
         self.image_down = None
         self.facing = (1, 0) if is_player else (-1, 0)
+        self._aim_override = None  # Set by game.py auto-aim system
         self.original_size = 120
         self.scale_factor = 1.2
         self.width = int(self.original_size * self.scale_factor)
@@ -291,7 +331,7 @@ class Ship:
         # Smooth rotation state
         self._current_angle = 0.0 if is_player else 180.0  # Degrees, 0=right
         self._target_angle = self._current_angle
-        self._rotation_speed = 12.0  # Degrees per frame
+        self._rotation_speed = 18.0  # Degrees per frame
         self.load_image()
 
         # Faction colors for lasers
@@ -305,6 +345,7 @@ class Ship:
             "jaffa_rebellion": (255, 100, 50),
             "lucian alliance": (255, 100, 200),
             "lucian_alliance": (255, 100, 200),
+            "wraith": (160, 40, 255),
         }
         self.laser_color = self.faction_colors.get(faction.lower(), (255, 255, 255))
 
@@ -335,6 +376,8 @@ class Ship:
         self._spawner_timer = 0  # Wraith hive dart spawn timer
         self._spawned_darts = []  # Track spawned darts (refs)
         self._swarm_weave = random.uniform(0, math.pi * 2)  # Wraith dart weave offset
+        self._strafe_sign = 1 if random.random() > 0.5 else -1
+        self._strafe_flip_timer = random.randint(120, 180)
 
         # Ally ship attributes
         self.is_friendly = False
@@ -345,8 +388,8 @@ class Ship:
         # Smooth velocity-based movement (player only)
         self.vx = 0.0
         self.vy = 0.0
-        self.acceleration = 1.2  # How fast we reach top speed
-        self.friction = 0.88  # Deceleration when no input (0.0 = instant stop, 1.0 = no friction)
+        self.acceleration = 1.5  # How fast we reach top speed
+        self.friction = 0.82  # Deceleration when no input (0.0 = instant stop, 1.0 = no friction)
 
         # Thruster speed boost (hold SHIFT)
         self.thruster_boost_active = False
@@ -380,6 +423,7 @@ class Ship:
                 "jaffa_rebellion": ("jaffa_rebellion_ship.png", "left"),
                 "lucian alliance": ("lucian_alliance_ship.png", "up"),
                 "lucian_alliance": ("lucian_alliance_ship.png", "up"),
+                "wraith": ("wraith_ship.png", "down"),
             }
             faction_lower = self.faction.lower()
             entry = faction_to_file.get(faction_lower, (faction_lower.replace(" ", "_") + "_ship.png", "left"))
@@ -515,9 +559,9 @@ class Ship:
                 self.vy = self.vy / vel * max_speed
 
             # Kill tiny velocities to avoid drifting forever
-            if abs(self.vx) < 0.1:
+            if abs(self.vx) < 0.05:
                 self.vx = 0
-            if abs(self.vy) < 0.1:
+            if abs(self.vy) < 0.05:
                 self.vy = 0
 
             self.x += self.vx
@@ -581,6 +625,13 @@ class Ship:
                 "particle_count": 3, "shape": "circle",
             },
             "lucian_alliance": None,
+            # Wraith: Sickly green-purple organic bio-engines
+            "wraith": {
+                "colors": [(160, 40, 255), (100, 200, 80), (80, 255, 120)],
+                "emit_rate": 1, "spread": 5.0, "speed": (1.5, 3.0),
+                "size": (3, 6), "life_decay": 0.05, "shrink": 0.93,
+                "particle_count": 2, "shape": "circle",
+            },
         }
         # Alias fallbacks
         aliases = {"tauri": "tau'ri", "goauld": "goa'uld",
@@ -643,8 +694,11 @@ class Ship:
         for i in reversed(to_remove):
             self.engine_particles.pop(i)
 
-        # Budget cap (higher when boosting)
-        max_particles = 80 if boosting else 50
+        # Budget cap (higher when boosting, lower for AI ships)
+        if self.is_player:
+            max_particles = 80 if boosting else 50
+        else:
+            max_particles = 40
         if len(self.engine_particles) > max_particles:
             self.engine_particles = self.engine_particles[-max_particles:]
 
@@ -661,6 +715,10 @@ class Ship:
             (-1, 0): 180,
             (0, -1): 90,
             (0, 1): -90,
+            (1, -1): 45,
+            (1, 1): -45,
+            (-1, -1): 135,
+            (-1, 1): -135,
         }
         self._target_angle = angle_map.get(direction, self._target_angle)
 
@@ -787,12 +845,11 @@ class Ship:
         return None
 
     def update_miniship_ai(self, owner, enemies, formation_angle=0, overdrive=False):
-        """Carrier-style interceptor AI: orbit owner, sortie to attack, return.
+        """SC2 Carrier-style interceptor AI: launch, orbit, attack-run, return.
 
-        Mimics Protoss Carrier interceptors — miniships orbit the owner in
-        formation, launch toward nearby enemies to strafe, then return to
-        orbit when no targets are in range.  Permanent (no lifetime countdown).
-        Uses lerp-based movement for smooth, fluid motion.
+        Interceptors launch from the carrier ship, orbit in formation when
+        idle, dive toward enemies for burst-fire attack runs, then pull out
+        and return to orbit.  Faction-specific weapons.
 
         Args:
             owner: The player Ship this miniship escorts.
@@ -801,7 +858,7 @@ class Ship:
             overdrive: If True, halve fire cooldown for doubled fire rate.
 
         Returns:
-            A Laser projectile if fired, else None.
+            A projectile if fired, else None.
         """
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
@@ -810,33 +867,59 @@ class Ship:
         if not hasattr(self, '_mini_vx'):
             self._mini_vx = 0.0
             self._mini_vy = 0.0
+            self._strafe_dir = 1
+            self._strafe_timer = 0
+
+        # Attack run state machine (init once)
+        if not hasattr(self, '_attack_state'):
+            self._attack_state = "approach"
+            self._attack_burst_count = 0
+            self._pullout_timer = 0
 
         # --- Compute orbit anchor around owner ---
         orbit_radius = 120
         ox = owner.x + owner.width // 2 + math.cos(formation_angle) * orbit_radius
         oy = owner.y + math.sin(formation_angle) * orbit_radius
 
-        # --- Find nearest enemy within engagement range (leash = 500px from owner) ---
+        # --- Launch phase: fly out from carrier before engaging ---
+        if getattr(self, '_launch_phase', False):
+            self._launch_timer = getattr(self, '_launch_timer', 30) - 1
+            dx = ox - (self.x + self.width // 2)
+            dy = oy - self.y
+            dist = math.hypot(dx, dy)
+            if dist > 15 and self._launch_timer > 0:
+                speed_mult = 2.0
+                self._mini_vx = (dx / max(dist, 1)) * self.speed * speed_mult
+                self._mini_vy = (dy / max(dist, 1)) * self.speed * speed_mult
+                self.x += self._mini_vx
+                self.y += self._mini_vy
+                self._ai_face_target(dx, dy) if hasattr(self, '_ai_face_target') else None
+                self._update_rotation()
+                self._update_engine_trail()
+                return None
+            self._launch_phase = False
+
+        # --- Find best target: prioritize low-HP enemies for finishing blows ---
         leash = 500
         nearest = None
-        nearest_dist = float('inf')
+        nearest_score = float('inf')
         owner_cx = owner.x + owner.width // 2
         owner_cy = owner.y
         for e in enemies:
             ed = math.hypot(e.x - owner_cx, e.y - owner_cy)
             if ed < leash:
                 md = math.hypot(e.x - self.x, e.y - self.y)
-                if md < nearest_dist:
+                hp_ratio = e.health / max(e.max_health, 1)
+                score = md * (0.3 + hp_ratio * 0.7)
+                if score < nearest_score:
                     nearest = e
-                    nearest_dist = md
+                    nearest_score = score
 
-        # Compute desired velocity toward target
         target_vx = 0.0
         target_vy = 0.0
         proj = None
 
         if nearest:
-            # --- Sortie toward enemy (interceptor attack run) ---
             ex = nearest.x + nearest.width // 2
             ey = nearest.y
             edx = ex - (self.x + self.width // 2)
@@ -845,57 +928,101 @@ class Ship:
 
             if edist > 1:
                 nx, ny = edx / edist, edy / edist
-                if edist > 150:
-                    # Approach to strafing range
+
+                # SC2-style attack run state machine
+                if self._attack_state == "approach":
+                    # Close to engagement range
                     target_vx = nx * self.speed * 0.9
                     target_vy = ny * self.speed * 0.9
+                    if edist < 150:
+                        self._attack_state = "strafe"
+                        self._attack_burst_count = 0
+                        self._strafe_timer = 0
+
+                elif self._attack_state == "strafe":
+                    # Fire burst of 3 shots while strafing
+                    self._strafe_timer += 1
+                    if self._strafe_timer >= 45:
+                        self._strafe_dir *= -1
+                        self._strafe_timer = 0
+                    target_vx = -ny * self.speed * 0.6 * self._strafe_dir
+                    target_vy = nx * self.speed * 0.6 * self._strafe_dir
+                    if edist < 80:
+                        target_vx -= nx * self.speed * 0.3
+                        target_vy -= ny * self.speed * 0.3
+                    # After 3 shots, pull out
+                    if self._attack_burst_count >= 3:
+                        self._attack_state = "pullout"
+                        self._pullout_timer = 40
+
+                elif self._attack_state == "pullout":
+                    # Retreat back toward orbit anchor
+                    self._pullout_timer -= 1
+                    pull_dx = ox - (self.x + self.width // 2)
+                    pull_dy = oy - self.y
+                    pull_dist = math.hypot(pull_dx, pull_dy)
+                    if pull_dist > 1:
+                        target_vx = (pull_dx / pull_dist) * self.speed * 1.2
+                        target_vy = (pull_dy / pull_dist) * self.speed * 1.2
+                    if self._pullout_timer <= 0:
+                        self._attack_state = "approach"
+                        self._attack_burst_count = 0
+
+            # Face enemy (8-direction aware)
+            if edist > 1:
+                avx, avy = abs(edx), abs(edy)
+                sx = 1 if edx > 0 else -1
+                sy = -1 if edy < 0 else 1
+                if avx > 0.35 and avy > 0.35 and min(avx, avy) / max(avx, avy) > 0.4:
+                    self.set_facing((sx, sy))
+                elif avx >= avy:
+                    self.set_facing((sx, 0))
                 else:
-                    # Strafe around target
-                    target_vx = -ny * self.speed * 0.6
-                    target_vy = nx * self.speed * 0.6
+                    self.set_facing((0, sy))
 
-            # Face enemy
-            if edx > 0:
-                self.set_facing((1, 0))
-            else:
-                self.set_facing((-1, 0))
-
-            # Fire at enemy
+            # Fire at enemy — faction-specific weapons
             effective_rate = max(3, self.fire_rate // 2) if overdrive else self.fire_rate
-            if self.fire_cooldown <= 0 and edist < 400:
+            # Burst fire: use tighter cooldown during strafe phase
+            if self._attack_state == "strafe":
+                effective_rate = max(3, effective_rate // 3)
+            if self.fire_cooldown <= 0 and edist < 400 and self._attack_state != "pullout":
                 self.fire_cooldown = effective_rate
                 direction = (edx / edist, edy / edist) if edist > 1 else self.facing
-                from .projectiles import Laser
-                proj = Laser(self.x + self.width // 2, self.y, direction,
-                             self.laser_color, speed=20)
-                proj.damage = 8
-                proj.is_player_proj = True
+                self._attack_burst_count += 1
+                proj = self._create_miniship_projectile(direction)
         else:
-            # --- Return to orbit anchor (no enemy nearby) ---
+            # --- Return to orbit anchor with visible idle orbit ---
+            self._attack_state = "approach"
+            self._attack_burst_count = 0
             dx = ox - (self.x + self.width // 2)
             dy = oy - self.y
             dist = math.hypot(dx, dy)
-            if dist > 10:
-                # Lerp toward orbit — smooth deceleration as we approach
-                lerp = min(0.08, self.speed * 0.7 / max(dist, 1))
-                target_vx = dx * lerp / 1.0  # Will be blended below
-                target_vy = dy * lerp / 1.0
-                # Use direct lerp for orbit return (feels floaty and nice)
+            if dist > 15:
                 self._mini_vx = dx * 0.08
                 self._mini_vy = dy * 0.08
                 self.x += self._mini_vx
                 self.y += self._mini_vy
-                # Face owner direction if idle
-                face_dx = owner.x - self.x
-                if face_dx > 0:
-                    self.set_facing((1, 0))
-                elif face_dx < 0:
-                    self.set_facing((-1, 0))
-                self._update_rotation()
-                self._update_engine_trail()
-                return proj
+            else:
+                # Visible idle orbit: small circle around formation anchor
+                self._orbit_phase = getattr(self, '_orbit_phase', formation_angle) + 0.04
+                orbit_r = 30
+                target_x = ox + math.cos(self._orbit_phase) * orbit_r
+                target_y = oy + math.sin(self._orbit_phase) * orbit_r
+                self._mini_vx = (target_x - (self.x + self.width // 2)) * 0.12
+                self._mini_vy = (target_y - self.y) * 0.12
+                self.x += self._mini_vx
+                self.y += self._mini_vy
+            # Face owner direction if idle
+            face_dx = owner.x - self.x
+            if face_dx > 0:
+                self.set_facing((1, 0))
+            elif face_dx < 0:
+                self.set_facing((-1, 0))
+            self._update_rotation()
+            self._update_engine_trail()
+            return proj
 
-        # Smooth velocity blending for attack movement (0.15 = responsive but smooth)
+        # Smooth velocity blending for attack movement
         smooth = 0.15
         self._mini_vx += (target_vx - self._mini_vx) * smooth
         self._mini_vy += (target_vy - self._mini_vy) * smooth
@@ -906,7 +1033,26 @@ class Ship:
         self._update_engine_trail()
         return proj
 
-    def update_ai(self, target_ship, asteroids, other_ships=None):
+    def _create_miniship_projectile(self, direction):
+        """Create faction-specific projectile for miniship interceptors."""
+        faction = self.faction.lower() if hasattr(self, 'faction') else ""
+        cx = self.x + self.width // 2
+        cy = self.y
+
+        if "tau" in faction:
+            proj = Missile(cx, cy, direction, self.laser_color, speed=16)
+            proj.damage = 10
+        elif "goa" in faction:
+            proj = Laser(cx, cy, direction, (255, 180, 0), speed=18)
+            proj.damage = 8
+        else:
+            proj = Laser(cx, cy, direction, self.laser_color, speed=20)
+            proj.damage = 8
+
+        proj.is_player_proj = True
+        return proj
+
+    def update_ai(self, target_ship, asteroids, other_ships=None, spatial_grid=None):
         """Space-battle AI: approach to combat range, then strafe/orbit the target."""
         player_ship = target_ship  # local alias for backwards compat
         if self.fire_cooldown > 0:
@@ -985,7 +1131,7 @@ class Ship:
         if dist_to_player > 1:
             ux = dx / dist_to_player
             uy = dy / dist_to_player
-            strafe_sign = 1 if id(self) % 2 == 0 else -1
+            strafe_sign = self._strafe_sign
             perp_x = -uy * strafe_sign
             perp_y = ux * strafe_sign
 
@@ -1000,10 +1146,13 @@ class Ship:
                 move_x = ux * self.speed * 0.15 * drift + perp_x * self.speed * 0.5
                 move_y = uy * self.speed * 0.15 * drift + perp_y * self.speed * 0.5
 
-        # --- Asteroid dodge ---
+        # --- Asteroid dodge (use spatial grid if available) ---
         dodge_x, dodge_y = 0.0, 0.0
         closest_threat_dist = float('inf')
-        for asteroid in asteroids:
+        nearby_asteroids = spatial_grid.query(self.x, self.y, 400) if spatial_grid else asteroids
+        for asteroid in nearby_asteroids:
+            if not hasattr(asteroid, 'size'):
+                continue
             ax = asteroid.x - self.x
             ay = asteroid.y - self.y
             dist = math.hypot(ax, ay)
@@ -1020,10 +1169,11 @@ class Ship:
                         dodge_x = -(ax / dist) * self.speed * 1.0
                         dodge_y = -(ay / dist) * self.speed * 1.0
 
-        # --- Separation (strong push to prevent overlap) ---
+        # --- Separation (use spatial grid if available) ---
         sep_x, sep_y = 0.0, 0.0
-        if other_ships:
-            for other in other_ships:
+        nearby_ships = spatial_grid.query(self.x, self.y, 180) if spatial_grid else (other_ships or [])
+        if nearby_ships:
+            for other in nearby_ships:
                 if other is self:
                     continue
                 sx = self.x - other.x
@@ -1047,11 +1197,14 @@ class Ship:
             self.x += move_x + sep_x
             self.y += move_y + sep_y
 
-        # --- Facing ---
-        if dx > 0:
-            self.set_facing((1, 0))
-        elif dx < 0:
-            self.set_facing((-1, 0))
+        # --- Facing (4/8-direction) ---
+        self._ai_face_target(dx, dy)
+
+        # Strafe timer flip
+        self._strafe_flip_timer -= 1
+        if self._strafe_flip_timer <= 0:
+            self._strafe_sign *= -1
+            self._strafe_flip_timer = random.randint(120, 180)
 
         # No screen clamping for AI — despawn handled by game.py
 
@@ -1076,25 +1229,36 @@ class Ship:
 
     def fire(self):
         """Fire weapon based on faction type."""
-        direction = self.facing
+        direction = self._aim_override if self._aim_override else self.facing
         dx, dy = direction
-        if dx == 1:
+        cx = self.x + self.width // 2
+        cy = self.y
+        if dx == 1 and dy == 0:
             fire_x = self.x + self.width
-            fire_y = self.y
-        elif dx == -1:
+            fire_y = cy
+        elif dx == -1 and dy == 0:
             fire_x = self.x
-            fire_y = self.y
-        elif dy == -1:
-            fire_x = self.x + self.width // 2
+            fire_y = cy
+        elif dx == 0 and dy == -1:
+            fire_x = cx
             fire_y = self.y - self.height // 2
-        else:
-            fire_x = self.x + self.width // 2
+        elif dx == 0 and dy == 1:
+            fire_x = cx
             fire_y = self.y + self.height // 2
+        else:
+            # Diagonal or arbitrary aim direction
+            fire_x = cx + int(dx * self.width * 0.5)
+            fire_y = cy + int(dy * self.height * 0.5)
 
-        if self.weapon_type == "beam":
+        if self.weapon_type in ("beam", "wraith_culling"):
             if self.beam_cooldown <= 0 and not self.current_beam:
-                self.current_beam = ContinuousBeam(self, direction, self.laser_color,
-                                                   self.screen_width, self.screen_height)
+                if self.weapon_type == "wraith_culling":
+                    from .projectiles import WraithCullingBeam
+                    self.current_beam = WraithCullingBeam(self, direction, (160, 40, 255),
+                                                          self.screen_width, self.screen_height)
+                else:
+                    self.current_beam = ContinuousBeam(self, direction, self.laser_color,
+                                                       self.screen_width, self.screen_height)
                 self.beam_duration_timer = 0
                 fury = self.get_fury_multiplier()
                 if fury > 1.0:
@@ -1118,10 +1282,27 @@ class Ship:
                 from .projectiles import DisruptorPulse
                 proj = DisruptorPulse(fire_x, fire_y, direction, self.laser_color)
             elif self.weapon_type == "drone_pulse":
-                # Ancient drone: rapid golden homing shots
-                proj = Laser(fire_x, fire_y, direction, (255, 200, 50), speed=16)
-                proj.damage = 12
-                proj.homing_strength = 0.03  # slight tracking
+                # Ancient drone weapon: golden squid-shaped homing projectiles
+                proj = AncientDrone(fire_x, fire_y, direction)
+            elif self.weapon_type == "nanite_swarm":
+                from .projectiles import NaniteProjectile
+                base_angle = math.atan2(dy, dx)
+                count = random.randint(3, 5)
+                projs = []
+                for i in range(count):
+                    spread = (i - count / 2) * 0.15 + random.uniform(-0.05, 0.05)
+                    angle = base_angle + spread
+                    ndx, ndy = math.cos(angle), math.sin(angle)
+                    p = NaniteProjectile(fire_x, fire_y, (ndx, ndy))
+                    p.is_player_proj = self.is_player
+                    fury = self.get_fury_multiplier()
+                    if fury > 1.0:
+                        p.damage = int(p.damage * fury)
+                    projs.append(p)
+                return projs
+            elif self.weapon_type == "tunnel_crystal":
+                from .projectiles import TunnelCrystal
+                proj = TunnelCrystal(fire_x, fire_y, direction)
             elif self.weapon_type == "dual_staff":
                 # Two or four parallel staff blasts (mastery: Staff Barrage)
                 mastery_active = getattr(self, '_mastery_active', False)
@@ -1240,8 +1421,8 @@ class Ship:
                 angle = base_angle + spread
                 sdx = math.cos(angle)
                 sdy = math.sin(angle)
-                proj = Laser(cx + dx * 30, cy + dy * 30, (sdx, sdy),
-                           (255, 200, 50), speed=14)
+                proj = AncientDrone(cx + dx * 30, cy + dy * 30, (sdx, sdy),
+                                    speed=14)
                 proj.damage = 15
                 proj.homing_strength = 0.05
                 proj.is_player_proj = self.is_player
@@ -1490,10 +1671,7 @@ class Ship:
             self.x += ux * self.speed * 0.7 + perp_x * weave
             self.y += uy * self.speed * 0.7 + perp_y * weave
         # Face player
-        if dx > 0:
-            self.set_facing((1, 0))
-        else:
-            self.set_facing((-1, 0))
+        self._ai_face_target(dx, dy)
         self._update_rotation()
         self._update_engine_trail()
 
@@ -1519,10 +1697,7 @@ class Ship:
         self.y += math.sin(self._homing_angle) * self.speed
 
         # Face movement direction
-        if math.cos(self._homing_angle) > 0:
-            self.set_facing((1, 0))
-        else:
-            self.set_facing((-1, 0))
+        self._ai_face_target(math.cos(self._homing_angle), math.sin(self._homing_angle))
         self._update_rotation()
         self._update_engine_trail()
 
@@ -1545,10 +1720,7 @@ class Ship:
                 uy = dy / dist
                 self.x += ux * self.speed
                 self.y += uy * self.speed
-            if dx > 0:
-                self.set_facing((1, 0))
-            else:
-                self.set_facing((-1, 0))
+            self._ai_face_target(dx, dy)
             self._update_rotation()
             self._update_engine_trail()
 
@@ -1563,43 +1735,79 @@ class Ship:
         self._ai_standard_strafe(dx, dy, dist, target, asteroids, other_ships, preferred_range=500)
 
     def _ai_ori_boss(self, dx, dy, dist, target, asteroids, other_ships):
-        """Ori mothership: slowly drifts toward action, fires sweeping beam + regular lasers."""
+        """Ori mothership: slowly drifts toward action, fires sweeping beam + regular lasers.
+
+        Phase transitions based on HP:
+        - Normal (>50%): slow drift, fire every 60 frames
+        - Aggressive (25-50%): 30% faster, fire every 40 frames
+        - Enrage (<=25%): spread lasers every 30 frames, beam charges 2x faster
+        """
+        hp_pct = self.health / max(self.max_health, 1)
+
+        # Determine movement speed based on phase
+        move_speed = self.speed * 1.3 if hp_pct <= 0.5 else self.speed
+
         # Slow drift toward target
         if dist > 1:
             ux = dx / dist
             uy = dy / dist
-            self.x += ux * self.speed
-            self.y += uy * self.speed
+            self.x += ux * move_speed
+            self.y += uy * move_speed
 
-        # Face target
-        if dx > 0:
-            self.set_facing((1, 0))
-        else:
-            self.set_facing((-1, 0))
+        # Face target (4/8-direction)
+        self._ai_face_target(dx, dy)
 
         # Ori boss beam timer (tracked by game.py via _ori_beam_timer)
-        self._ori_beam_timer = getattr(self, '_ori_beam_timer', 0) + 1
+        beam_advance = 2 if hp_pct <= 0.25 else 1
+        self._ori_beam_timer = getattr(self, '_ori_beam_timer', 0) + beam_advance
 
-        # Fire regular golden lasers between beam charges (every 60 frames)
+        # Determine fire rate based on phase
+        if hp_pct <= 0.25:
+            fire_interval = 30
+        elif hp_pct <= 0.5:
+            fire_interval = 40
+        else:
+            fire_interval = 60
+
+        # Fire regular golden lasers between beam charges
         self.ai_fire_timer = getattr(self, 'ai_fire_timer', 0)
         if self.ai_fire_timer <= 0 and dist < 800:
-            self.ai_fire_timer = 60
+            self.ai_fire_timer = fire_interval
             if dist > 1:
-                direction = (dx / dist, dy / dist)
-                proj = Laser(self.x + self.width // 2, self.y, direction,
-                            (255, 220, 80), speed=12)
-                proj.damage = 15
-                proj.is_player_proj = False
-                # Store for game.py to collect (game.py checks this in AI loop)
                 if not hasattr(self, '_pending_projectiles'):
                     self._pending_projectiles = []
-                self._pending_projectiles.append(proj)
+                if hp_pct <= 0.25:
+                    # Enrage: fire 3 spread lasers (-15, 0, +15 degrees)
+                    base_angle = math.atan2(dy, dx)
+                    for spread in [-math.radians(15), 0, math.radians(15)]:
+                        angle = base_angle + spread
+                        direction = (math.cos(angle), math.sin(angle))
+                        proj = Laser(self.x + self.width // 2, self.y, direction,
+                                    (255, 220, 80), speed=12)
+                        proj.damage = 15
+                        proj.is_player_proj = False
+                        self._pending_projectiles.append(proj)
+                else:
+                    direction = (dx / dist, dy / dist)
+                    proj = Laser(self.x + self.width // 2, self.y, direction,
+                                (255, 220, 80), speed=12)
+                    proj.damage = 15
+                    proj.is_player_proj = False
+                    self._pending_projectiles.append(proj)
 
         self._update_rotation()
         self._update_engine_trail()
 
     def _ai_wraith_boss(self, dx, dy, dist, target, asteroids, other_ships):
-        """Wraith Hive boss: drifts toward action, fires purple beam + spawns darts via _pending."""
+        """Wraith Hive boss: drifts toward action, fires purple beam + spawns darts via _pending.
+
+        Phase transitions based on HP:
+        - Normal (>50%): fire every 45 frames, spawn darts every 240 frames (max 3)
+        - Aggressive (25-50%): fire every 35 frames, spawn darts every 180 frames (max 3)
+        - Desperate (<=25%): fire every 25 frames with stronger lifesteal, spawn every 120 frames (max 5)
+        """
+        hp_pct = self.health / max(self.max_health, 1)
+
         # Slow drift toward target
         if dist > 1:
             ux = dx / dist
@@ -1607,19 +1815,24 @@ class Ship:
             self.x += ux * self.speed
             self.y += uy * self.speed
 
-        # Face target
-        if dx > 0:
-            self.set_facing((1, 0))
-        else:
-            self.set_facing((-1, 0))
+        # Face target (4/8-direction)
+        self._ai_face_target(dx, dy)
 
         # Wraith beam timer (tracked by game.py)
         self._ori_beam_timer = getattr(self, '_ori_beam_timer', 0) + 1
 
-        # Fire purple life-drain bolts between beam charges (every 45 frames, faster than Ori)
+        # Determine fire rate based on phase
+        if hp_pct <= 0.25:
+            fire_interval = 25
+        elif hp_pct <= 0.5:
+            fire_interval = 35
+        else:
+            fire_interval = 45
+
+        # Fire purple life-drain bolts between beam charges
         self.ai_fire_timer = getattr(self, 'ai_fire_timer', 0)
         if self.ai_fire_timer <= 0 and dist < 700:
-            self.ai_fire_timer = 45
+            self.ai_fire_timer = fire_interval
             if dist > 1:
                 direction = (dx / dist, dy / dist)
                 proj = Laser(self.x + self.width // 2, self.y, direction,
@@ -1627,15 +1840,28 @@ class Ship:
                 proj.damage = 12
                 proj.is_player_proj = False
                 proj._wraith_lifesteal = True  # game.py uses this for heal-on-hit
+                if hp_pct <= 0.25:
+                    proj._wraith_lifesteal_pct = 0.3  # Stronger heal in desperate phase
                 if not hasattr(self, '_pending_projectiles'):
                     self._pending_projectiles = []
                 self._pending_projectiles.append(proj)
 
-        # Spawn wraith darts periodically (every 240 frames = 4s, max 3 alive)
+        # Determine spawn rate and max darts based on phase
+        if hp_pct <= 0.25:
+            spawn_interval = 120
+            max_darts = 5
+        elif hp_pct <= 0.5:
+            spawn_interval = 180
+            max_darts = 3
+        else:
+            spawn_interval = 240
+            max_darts = 3
+
+        # Spawn wraith darts periodically
         self._wraith_spawn_timer = getattr(self, '_wraith_spawn_timer', 0) + 1
         if not hasattr(self, '_spawned_darts'):
             self._spawned_darts = []
-        if self._wraith_spawn_timer >= 240 and len(self._spawned_darts) < 3:
+        if self._wraith_spawn_timer >= spawn_interval and len(self._spawned_darts) < max_darts:
             self._wraith_spawn_timer = 0
             # game.py handles actual spawn via _pending_spawns
             if not hasattr(self, '_pending_spawns'):
@@ -1664,7 +1890,7 @@ class Ship:
         if tdist > 1:
             ux = (tx - (self.x + self.width // 2)) / tdist
             uy = (ty - self.y) / tdist
-            strafe_sign = 1 if id(self) % 2 == 0 else -1
+            strafe_sign = self._strafe_sign
             perp_x = -uy * strafe_sign
             perp_y = ux * strafe_sign
 
@@ -1679,12 +1905,8 @@ class Ship:
                 self.x += perp_x * self.speed * 0.5
                 self.y += perp_y * self.speed * 0.5
 
-        # Facing
-        face_dx = tx - (self.x + self.width // 2)
-        if face_dx > 0:
-            self.set_facing((1, 0))
-        else:
-            self.set_facing((-1, 0))
+        # Facing (4/8-direction)
+        self._ai_face_target(tx - (self.x + self.width // 2), ty - self.y)
 
         # Fire at target — mark projectiles as hostile_all
         if self.fire_cooldown <= 0 and tdist < 450:
@@ -1707,6 +1929,18 @@ class Ship:
         self._update_rotation()
         self._update_engine_trail()
 
+    def _ai_face_target(self, dx, dy):
+        """Set facing toward target using 4/8-direction logic."""
+        adx, ady = abs(dx), abs(dy)
+        if adx > ady * 1.5:
+            self.set_facing((1, 0) if dx > 0 else (-1, 0))
+        elif ady > adx * 1.5:
+            self.set_facing((0, 1) if dy > 0 else (0, -1))
+        else:
+            sx = 1 if dx > 0 else -1
+            sy = 1 if dy > 0 else -1
+            self.set_facing((sx, sy))
+
     def _ai_standard_strafe(self, dx, dy, dist, target, asteroids, other_ships, preferred_range=275):
         """Common strafe AI reused by multiple behaviors."""
         range_tolerance = 75
@@ -1715,7 +1949,17 @@ class Ship:
         if dist > 1:
             ux = dx / dist
             uy = dy / dist
-            strafe_sign = 1 if id(self) % 2 == 0 else -1
+
+            # Flanking: some enemies approach from an angle
+            if other_ships and len(other_ships) >= 3 and id(self) % 3 == 0:
+                angle_off = math.pi / 3  # 60 degrees
+                cos_o = math.cos(angle_off)
+                sin_o = math.sin(angle_off)
+                ux2 = ux * cos_o - uy * sin_o
+                uy2 = ux * sin_o + uy * cos_o
+                ux, uy = ux2, uy2
+
+            strafe_sign = self._strafe_sign
             perp_x = -uy * strafe_sign
             perp_y = ux * strafe_sign
 
@@ -1767,15 +2011,18 @@ class Ship:
             self.x += move_x + sep_x
             self.y += move_y + sep_y
 
-        if dx > 0:
-            self.set_facing((1, 0))
-        elif dx < 0:
-            self.set_facing((-1, 0))
+        self._ai_face_target(dx, dy)
 
         if self.current_beam:
             self.current_beam.update()
             self.beam_duration_timer += 1
             if self.beam_duration_timer >= 90:
                 self.stop_beam()
+
+        self._strafe_flip_timer -= 1
+        if self._strafe_flip_timer <= 0:
+            self._strafe_sign *= -1
+            self._strafe_flip_timer = random.randint(120, 180)
+
         self._update_rotation()
         self._update_engine_trail()

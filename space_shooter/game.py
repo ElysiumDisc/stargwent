@@ -8,16 +8,20 @@ import os
 from .projectiles import (Projectile, Laser, ContinuousBeam, EnergyBall,
                           ChainLightning, RailgunShot, ProximityMine, AreaBomb,
                           PlasmaLance, OriBossBeam, WraithBossBeam,
-                          Missile, DisruptorPulse)
+                          Missile, DisruptorPulse,
+                          NaniteProjectile, WraithCullingBeam, TunnelCrystal,
+                          AncientDrone)
 from .entities import (
     Asteroid, PowerUp, Drone, XPOrb, WormholeEffect, Explosion,
     DamageNumber, PopupNotification, GravityWell, Sun, Supergate,
+    TunnelVortex,
 )
 from .effects import StarField, ScreenShake
 from .ship import Ship
 from .upgrades import UPGRADES, EVOLUTIONS, ENEMY_TYPES, ENEMY_EXPLOSION_PALETTES, PRIMARY_MASTERIES
 from .camera import Camera
 from .spawner import ContinuousSpawner
+from .spatial_grid import SpatialGrid
 from . import ui as _ui
 
 def _get_sfx_vol():
@@ -59,8 +63,8 @@ class SpaceShooterGame:
     SCORE_BOSS = 1000
     SCORE_ASTEROID = 50
 
-    # Miniship escort thresholds: level → max escorts (Carrier-style)
-    MINISHIP_THRESHOLDS = {3: 2, 6: 3, 10: 4, 15: 5}
+    # Miniship escort thresholds: level → max escorts (SC2 Carrier-style)
+    MINISHIP_THRESHOLDS = {1: 4, 5: 5, 10: 6, 15: 7, 20: 8}
 
     def __init__(self, screen_width, screen_height, player_faction, ai_faction, session_scores=None,
                  mission_type=None, mission_target=None, starting_upgrades=None, variant=0):
@@ -90,9 +94,11 @@ class SpaceShooterGame:
         self.enemies_defeated = 0
         self.asteroids_destroyed = 0
 
-        # Kill streak
+        # Kill streak & combo system
         self.kill_streak = 0
         self.kill_streak_timer = 0
+        self.kill_streak_tier = 0   # 0=none, 1=5kills, 2=10, 3=20, 4=50
+        self.kill_streak_mult = 1.0  # Damage multiplier from combo
 
         # Power-up system
         self.powerups = []
@@ -101,6 +107,8 @@ class SpaceShooterGame:
         self.active_powerups = {}
         self.drones = []
         self.mines = []  # Lucian Alliance proximity mines
+        self.tunnel_vortices = []  # Tok'ra tunnel crystal vortices
+        self._plague_targets = {}  # enemy id -> {timer, generation, spread_timer}
         self.ion_pulse_effects = []  # Asgard ion pulse visual effects
         self.base_fire_rate = None
         self.base_damage_mult = 1.15  # Slight base damage bonus — player should feel powerful
@@ -118,6 +126,10 @@ class SpaceShooterGame:
         self.total_kills = 0
         self.upgrade_drones = []
         self.rear_turret_timer = 0
+
+        # Input buffering for abilities (Q/E fire on next available frame)
+        self._wormhole_buffer = 0
+        self._secondary_buffer = 0
 
         # Wormhole escape ability
         self.wormhole_cooldown = 0
@@ -184,12 +196,19 @@ class SpaceShooterGame:
         self.miniships = []
         self.miniship_max = 0  # Current max count (0 until level threshold)
         self.miniship_respawn_timer = 0
-        self.miniship_respawn_delay = 300  # 5s at 60fps
+        self.miniship_respawn_delay = 180  # 3s at 60fps (SC2-style auto-build rate)
         self.miniship_overdrive_timer = 0
         self.miniship_shields_timer = 0
         self._miniship_images = {}  # Cached directional sprites
         self._miniship_faction_sprite = None  # Raw sprite for this faction
         self._load_miniship_sprites()
+
+        # Spatial grid for efficient collision queries
+        self.spatial_grid = SpatialGrid(200)
+
+        # Auto-aim smoothing state
+        self._aim_direction_smooth = None
+        self._aim_target = None
 
         # Area bombs (from Al'kesh bombers)
         self.area_bombs = []
@@ -245,7 +264,7 @@ class SpaceShooterGame:
         self.screen_shake = ScreenShake()
 
         # All faction options for variety
-        self.all_factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance"]
+        self.all_factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance", "Wraith"]
 
         # --- Camera system ---
         self.camera = Camera(screen_width, screen_height)
@@ -266,6 +285,9 @@ class SpaceShooterGame:
         # Snap camera to player start
         self.camera.snap_to(self.player_ship.x + self.player_ship.width // 2,
                             self.player_ship.y)
+
+        # Spawn initial interceptor escorts (SC2: carrier starts with 4)
+        self._check_miniship_threshold()
 
         # --- Continuous spawner (replaces wave system) ---
         self.spawner = ContinuousSpawner(self.camera, player_faction, self.all_factions,
@@ -348,8 +370,13 @@ class SpaceShooterGame:
             elif event.key == pygame.K_q and not self.game_over:
                 if self.wormhole_cooldown <= 0 and not self.wormhole_active:
                     self._activate_wormhole()
+                else:
+                    self._wormhole_buffer = 10  # Buffer for 10 frames
             elif event.key == pygame.K_e and not self.game_over:
-                self._fire_secondary()
+                if self.player_ship.secondary_cooldown <= 0:
+                    self._fire_secondary()
+                else:
+                    self._secondary_buffer = 10  # Buffer for 10 frames
             elif event.key == pygame.K_r and self.game_over:
                 self.__init__(self.screen_width, self.screen_height,
                             self.player_faction, self.ai_faction,
@@ -833,27 +860,36 @@ class SpaceShooterGame:
             pass
 
     def _spawn_miniship(self):
-        """Spawn a single Carrier-style interceptor miniship from the player."""
+        """Spawn a single Carrier-style interceptor from the player ship.
+
+        SC2 Carrier reference: interceptors launch FROM the carrier,
+        fly out to orbit position. HP scales with player level.
+        """
         if not self._miniship_faction_sprite:
             return
-        # Spawn at player position
+        # Launch from player ship center (SC2: interceptors fly out from carrier bay)
         px = self.player_ship.x + self.player_ship.width // 2
         py = self.player_ship.y
-        angle = random.uniform(0, math.pi * 2)
-        dist = random.uniform(40, 80)
-        mx = px + math.cos(angle) * dist
-        my = py + math.sin(angle) * dist
 
-        mini = Ship(mx, my, self.player_faction, is_player=False,
+        mini = Ship(px, py, self.player_faction, is_player=False,
                     screen_width=self.screen_width, screen_height=self.screen_height)
         mini.is_friendly = True
         mini.ally_owner = self.player_ship
         mini.ally_lifetime = 999999  # Permanent
         mini.is_miniship = True
-        mini.max_health = 40
-        mini.health = 40
+        # HP scales with level (40 base + 3 per level)
+        scaled_hp = 40 + self.level * 3
+        mini.max_health = scaled_hp
+        mini.health = scaled_hp
         mini.speed = 10
         mini.fire_rate = 20
+        # Launch phase: interceptor flies out from carrier before engaging
+        mini._launch_phase = True
+        mini._launch_timer = 30
+        # Attack run state machine (SC2-style dive-fire-pullout)
+        mini._attack_state = "approach"
+        mini._attack_burst_count = 0
+        mini._pullout_timer = 0
         # Apply cached miniship sprite (native size, x1 scale)
         if self._miniship_images:
             mini.image = self._miniship_images['right'].copy()
@@ -866,7 +902,10 @@ class SpaceShooterGame:
         self.miniships.append(mini)
 
     def _check_miniship_threshold(self):
-        """Check if level unlocks more escort miniships (Carrier-style)."""
+        """Check if level unlocks more escort miniships (SC2 Carrier-style).
+
+        Starts with 4 interceptors at level 1, builds to max 8 by level 20.
+        """
         if not self._miniship_faction_sprite:
             return  # No miniship support for this faction
         new_max = 0
@@ -879,7 +918,10 @@ class SpaceShooterGame:
             for _ in range(delta):
                 if len(self.miniships) < self.miniship_max:
                     self._spawn_miniship()
-            label = "ESCORTS ONLINE!" if self.miniship_max == 2 else f"ESCORTS: {self.miniship_max}!"
+            if self.miniship_max <= 4:
+                label = "INTERCEPTORS ONLINE!"
+            else:
+                label = f"INTERCEPTORS: {self.miniship_max}!"
             self.popup_notifications.append(PopupNotification(
                 self.player_ship.x + self.player_ship.width // 2,
                 self.player_ship.y - 80,
@@ -1195,6 +1237,70 @@ class SpaceShooterGame:
                 mini.health = mini.max_health
             self.screen_shake.trigger(3, 6)
 
+        # --- NEW STARGATE POWERUPS ---
+        elif ptype == "prior_plague":
+            self.active_powerups["prior_plague"] = duration
+            px = self.player_ship.x + self.player_ship.width // 2
+            py = self.player_ship.y
+            sorted_enemies = sorted(self.ai_ships,
+                                    key=lambda e: math.hypot(e.x - px, e.y - py))
+            for enemy in sorted_enemies[:3]:
+                self._plague_targets[id(enemy)] = {"timer": 480, "generation": 0, "spread_timer": 240}
+                enemy._plagued = True
+            self.screen_shake.trigger(4, 8)
+            self.popup_notifications.append(PopupNotification(
+                self.player_ship.x + self.player_ship.width // 2,
+                self.player_ship.y - 60,
+                "PLAGUE SPREADS...", (160, 40, 255)))
+        elif ptype == "ancient_ascension":
+            self.active_powerups["ancient_ascension"] = duration
+            self._pre_ascension_dmg = self.base_damage_mult
+            self._pre_ascension_speed = self.player_ship.speed
+            self.base_damage_mult *= 2.0
+            self.player_ship.speed = int(self.player_ship.speed * 2)
+            self.screen_shake.trigger(8, 15)
+            self.popup_notifications.append(PopupNotification(
+                self.player_ship.x + self.player_ship.width // 2,
+                self.player_ship.y - 80,
+                "ASCENSION!", (255, 255, 220)))
+        elif ptype == "naquadria_cascade":
+            self.screen_shake.trigger(10, 18)
+            self._naquadria_cascade_chain()
+
+    def _naquadria_cascade_chain(self):
+        """Chain explosion bouncing between enemies — Naquadria chain reaction."""
+        px = self.player_ship.x + self.player_ship.width // 2
+        py = self.player_ship.y
+        if not self.ai_ships:
+            return
+        damage = 80
+        hit_set = set()
+        current_x, current_y = px, py
+        for bounce in range(15):
+            nearest = None
+            nearest_dist = float('inf')
+            for enemy in self.ai_ships:
+                if id(enemy) in hit_set:
+                    continue
+                dist = math.hypot(enemy.x + enemy.width // 2 - current_x, enemy.y - current_y)
+                if dist < nearest_dist:
+                    nearest = enemy
+                    nearest_dist = dist
+            if not nearest or nearest_dist > 600:
+                break
+            hit_set.add(id(nearest))
+            ex = nearest.x + nearest.width // 2
+            ey = nearest.y
+            self.chain_lightning_effects.append(
+                ChainLightning(current_x, current_y, [(ex, ey)], damage, max_chains=1))
+            self.explosions.append(Explosion(ex, ey, tier="normal"))
+            nearest.hit_flash = 10
+            self.damage_numbers.append(DamageNumber(ex, ey, int(damage), (255, 150, 50)))
+            if self._damage_enemy(nearest, damage):
+                self._on_enemy_killed(nearest)
+            current_x, current_y = ex, ey
+            damage *= 0.9  # -10% per bounce
+
     def _expire_powerup(self, ptype):
         """Handle expiration of a power-up effect."""
         if ptype == "rapid_fire":
@@ -1229,6 +1335,22 @@ class SpaceShooterGame:
                     del self._saved_fire_rate
             else:
                 self.player_ship.fire_rate = min(self.player_ship.fire_rate * 3, 60)
+        elif ptype == "ancient_ascension":
+            if hasattr(self, '_pre_ascension_dmg'):
+                self.base_damage_mult = self._pre_ascension_dmg
+                del self._pre_ascension_dmg
+            else:
+                self.base_damage_mult = max(1.15, self.base_damage_mult / 2.0)
+            if hasattr(self, '_pre_ascension_speed'):
+                self.player_ship.speed = self._pre_ascension_speed
+                del self._pre_ascension_speed
+            else:
+                self.player_ship.speed = max(4, self.player_ship.speed // 2)
+        elif ptype == "prior_plague":
+            # Clear all plague marks
+            for enemy in self.ai_ships:
+                enemy._plagued = False
+            self._plague_targets.clear()
 
     def is_cloaked(self):
         """Check if player is currently cloaked."""
@@ -1236,7 +1358,8 @@ class SpaceShooterGame:
 
     def is_invulnerable(self):
         """Check if player has invulnerability active."""
-        return self.active_powerups.get("goauld_sarcophagus", 0) > 0
+        return (self.active_powerups.get("goauld_sarcophagus", 0) > 0
+                or self.active_powerups.get("ancient_ascension", 0) > 0)
 
     def _on_enemy_killed(self, ai_ship):
         """Handle bookkeeping when an enemy is killed by the player."""
@@ -1306,11 +1429,12 @@ class SpaceShooterGame:
             self.running = False
             return
 
-        # Kill streak
+        # Kill streak & combo multiplier
         self.kill_streak += 1
         self.kill_streak_timer = 0
         if self.kill_streak >= 3:
             self.score += self.kill_streak * 25
+        self._update_streak_tier()
 
         # Screen shake on kill
         if is_boss:
@@ -1500,6 +1624,9 @@ class SpaceShooterGame:
 
     def _damage_enemy(self, enemy, amount):
         """Damage an enemy, handling behavior-specific shields (Ori). Returns True if killed."""
+        # Prior Plague: plagued enemies take 30% more damage
+        if getattr(enemy, '_plagued', False):
+            amount = int(amount * 1.3)
         if getattr(enemy, '_behavior', None) == "shielded_charge" and enemy._shield_hp > 0:
             absorbed = min(enemy._shield_hp, amount)
             enemy._shield_hp -= absorbed
@@ -1604,6 +1731,82 @@ class SpaceShooterGame:
         if bsk_stacks > 0 and self.player_ship.health < self.player_ship.max_health * 0.5:
             return 1.0 + bsk_stacks * 0.05
         return 1.0
+
+    def _update_streak_tier(self):
+        """Update kill streak combo tier and damage multiplier."""
+        old_tier = self.kill_streak_tier
+        if self.kill_streak >= 50:
+            self.kill_streak_tier = 4
+            self.kill_streak_mult = 2.0
+        elif self.kill_streak >= 20:
+            self.kill_streak_tier = 3
+            self.kill_streak_mult = 1.5
+        elif self.kill_streak >= 10:
+            self.kill_streak_tier = 2
+            self.kill_streak_mult = 1.2
+        elif self.kill_streak >= 5:
+            self.kill_streak_tier = 1
+            self.kill_streak_mult = 1.1
+        else:
+            self.kill_streak_tier = 0
+            self.kill_streak_mult = 1.0
+        if self.kill_streak_tier > old_tier:
+            self.screen_shake.trigger(3 + self.kill_streak_tier, 6 + self.kill_streak_tier * 2)
+            tier_names = {1: "COMBO x5!", 2: "COMBO x10!", 3: "MEGA COMBO!", 4: "ULTRA COMBO!"}
+            tier_colors = {1: (255, 255, 255), 2: (80, 140, 255), 3: (180, 80, 255), 4: (255, 200, 50)}
+            self.popup_notifications.append(PopupNotification(
+                self.player_ship.x + self.player_ship.width // 2,
+                self.player_ship.y - 60,
+                tier_names.get(self.kill_streak_tier, ""),
+                tier_colors.get(self.kill_streak_tier, (255, 255, 255))))
+
+    def _get_aim_direction(self):
+        """Auto-aim: find nearest enemy and return smoothed direction toward it.
+
+        Uses target hysteresis (sticks to current target if close enough)
+        and direction lerping to prevent jerky aim transitions.
+        Falls back to player facing direction if no enemies within range.
+        """
+        px = self.player_ship.x + self.player_ship.width // 2
+        py = self.player_ship.y
+        best_dist = 800  # Max auto-aim range
+        best_dir = None
+        best_enemy = None
+        for enemy in self.ai_ships:
+            if getattr(enemy, 'is_friendly', False):
+                continue
+            ex = enemy.x + enemy.width // 2
+            ey = enemy.y
+            dist = math.hypot(ex - px, ey - py)
+            if dist < best_dist and dist > 5:
+                best_dist = dist
+                dx = (ex - px) / dist
+                dy = (ey - py) / dist
+                best_dir = (dx, dy)
+                best_enemy = enemy
+
+        # Target hysteresis: stick to current target if still within 1.5x best
+        if self._aim_target and self._aim_target in self.ai_ships:
+            ex = self._aim_target.x + self._aim_target.width // 2
+            ey = self._aim_target.y
+            cur_dist = math.hypot(ex - px, ey - py)
+            if cur_dist < best_dist * 1.5 and cur_dist < 800 and cur_dist > 5:
+                best_dir = ((ex - px) / cur_dist, (ey - py) / cur_dist)
+                best_enemy = self._aim_target
+
+        self._aim_target = best_enemy
+
+        # Smooth direction lerp to prevent jerky transitions
+        if best_dir and self._aim_direction_smooth:
+            lerp_rate = 0.15
+            sdx = self._aim_direction_smooth[0] + (best_dir[0] - self._aim_direction_smooth[0]) * lerp_rate
+            sdy = self._aim_direction_smooth[1] + (best_dir[1] - self._aim_direction_smooth[1]) * lerp_rate
+            mag = math.hypot(sdx, sdy)
+            if mag > 0.01:
+                best_dir = (sdx / mag, sdy / mag)
+
+        self._aim_direction_smooth = best_dir
+        return best_dir  # None = fallback to facing in ship.fire()
 
     def _beam_damage_players(self, beam):
         """Check beam collision against player ship(s). Override in co-op."""
@@ -2221,6 +2424,8 @@ class SpaceShooterGame:
             if self.kill_streak_timer >= 180:  # 3 seconds
                 self.kill_streak = 0
                 self.kill_streak_timer = 0
+                self.kill_streak_tier = 0
+                self.kill_streak_mult = 1.0
 
         if self.game_over:
             self.explosions = [e for e in self.explosions if e.update()]
@@ -2243,14 +2448,19 @@ class SpaceShooterGame:
                     pass
             self._was_boosting = boosting_now
 
-            # Derive facing from velocity (smooth — only change when moving)
+            # Derive facing from velocity (smooth — 8-direction support)
             ship = self.player_ship
             if abs(ship.vx) > 0.5 or abs(ship.vy) > 0.5:
-                # Pick dominant axis for facing
-                if abs(ship.vx) >= abs(ship.vy):
-                    ship.set_facing((1, 0) if ship.vx > 0 else (-1, 0))
+                avx, avy = abs(ship.vx), abs(ship.vy)
+                sx = 1 if ship.vx > 0 else -1
+                sy = -1 if ship.vy < 0 else 1
+                # Diagonal facing when both axes have significant input
+                if avx > 0.35 and avy > 0.35 and min(avx, avy) / max(avx, avy) > 0.4:
+                    ship.set_facing((sx, sy))
+                elif avx >= avy:
+                    ship.set_facing((sx, 0))
                 else:
-                    ship.set_facing((0, -1) if ship.vy < 0 else (0, 1))
+                    ship.set_facing((0, sy))
 
         # Update camera (smooth follow player center)
         player_cx = self.player_ship.x + self.player_ship.width // 2
@@ -2266,6 +2476,18 @@ class SpaceShooterGame:
         # Wormhole cooldown tick
         if self.wormhole_cooldown > 0:
             self.wormhole_cooldown -= 1
+
+        # Input buffer: fire abilities the instant cooldown ends
+        if self._wormhole_buffer > 0:
+            self._wormhole_buffer -= 1
+            if self.wormhole_cooldown <= 0 and not self.wormhole_active:
+                self._activate_wormhole()
+                self._wormhole_buffer = 0
+        if self._secondary_buffer > 0:
+            self._secondary_buffer -= 1
+            if self.player_ship.secondary_cooldown <= 0:
+                self._fire_secondary()
+                self._secondary_buffer = 0
 
         # Wormhole transit logic
         if self.wormhole_active:
@@ -2493,6 +2715,54 @@ class SpaceShooterGame:
 
         # Jaffa Freedom (KREE): 3x damage handled in auto-fire, invuln via sarcophagus
 
+        # Prior Plague: tick spreading between enemies
+        if self.active_powerups.get("prior_plague", 0) > 0:
+            plague_to_add = {}
+            for eid in list(self._plague_targets):
+                data = self._plague_targets[eid]
+                enemy = None
+                for e in self.ai_ships:
+                    if id(e) == eid:
+                        enemy = e
+                        break
+                if not enemy:
+                    del self._plague_targets[eid]
+                    continue
+                data["timer"] -= 1
+                data["spread_timer"] -= 1
+                if data["timer"] <= 0:
+                    del self._plague_targets[eid]
+                    enemy._plagued = False
+                    continue
+                if data["spread_timer"] <= 0 and data["generation"] < 3:
+                    data["spread_timer"] = 240  # 4 seconds between spreads
+                    ex, ey = enemy.x + enemy.width // 2, enemy.y
+                    for target in self.ai_ships:
+                        tid = id(target)
+                        if tid not in self._plague_targets and tid not in plague_to_add:
+                            dist = math.hypot(target.x + target.width // 2 - ex, target.y - ey)
+                            if dist < 100:
+                                plague_to_add[tid] = {"timer": 480, "generation": data["generation"] + 1,
+                                                       "spread_timer": 240}
+                                target._plagued = True
+                                break  # One spread per tick per source
+            self._plague_targets.update(plague_to_add)
+
+        # Ancient Ascension: screen-wide XP magnet + all projectiles pierce
+        if self.active_powerups.get("ancient_ascension", 0) > 0:
+            px = self.player_ship.x + self.player_ship.width // 2
+            py = self.player_ship.y
+            for orb in self.xp_orbs:
+                dist = math.hypot(orb.x - px, orb.y - py)
+                if dist > 5:
+                    pull = min(0.8, 20.0 / max(dist, 1))
+                    orb.x += (px - orb.x) * pull
+                    orb.y += (py - orb.y) * pull
+            # Mark all player projectiles as piercing
+            for proj in self.projectiles:
+                if proj.is_player_proj:
+                    proj.piercing = True
+
         # Asgard Time Dilation: freeze all enemies (including newly spawned)
         if self.active_powerups.get("asgard_time_dilation", 0) > 0:
             for enemy in self.ai_ships:
@@ -2549,7 +2819,8 @@ class SpaceShooterGame:
                 ai_ship.stop_beam()
                 continue
 
-            ai_ship.update_ai(self.player_ship, self.asteroids, self.ai_ships)
+            ai_ship.update_ai(self.player_ship, self.asteroids, self.ai_ships,
+                              spatial_grid=self.spatial_grid)
 
             # AI firing
             if self.is_cloaked():
@@ -2562,7 +2833,7 @@ class SpaceShooterGame:
             facing_player = (ai_ship.facing[0] > 0 and dx_to_player > 0) or \
                             (ai_ship.facing[0] < 0 and dx_to_player < 0)
 
-            if ai_ship.weapon_type == "beam":
+            if ai_ship.weapon_type in ("beam", "wraith_culling"):
                 if y_diff < 80 and facing_player:
                     if not ai_ship.current_beam:
                         ai_ship.fire()
@@ -2812,8 +3083,9 @@ class SpaceShooterGame:
                 continue
             source = getattr(proj, '_source_ship', None)
             proj_rect = pygame.Rect(int(proj.x - 4), int(proj.y - 4), 8, 8)
-            for ai_ship in self.ai_ships[:]:
-                if ai_ship is source:
+            nearby = self.spatial_grid.query(proj.x, proj.y, 60)
+            for ai_ship in nearby:
+                if ai_ship is source or not isinstance(ai_ship, Ship):
                     continue
                 if proj_rect.colliderect(ai_ship.get_rect()):
                     ai_ship.hit_flash = 5
@@ -2827,21 +3099,25 @@ class SpaceShooterGame:
         if hostile_remove:
             self.projectiles = [p for p in self.projectiles if id(p) not in hostile_remove]
 
-        # Player auto-fire
+        # Player auto-fire (with auto-aim toward nearest enemy)
         if not self.game_over:
+            self.player_ship._aim_override = self._get_aim_direction()
             berserker_mult = self._get_berserker_mult()
 
             # Bullet Hell evolution: fire in ALL directions
             bullet_hell = "bullet_hell" in self.evolutions
 
-            if self.player_ship.weapon_type == "beam":
+            if self.player_ship.weapon_type in ("beam", "wraith_culling"):
+                # Smooth beam tracking: update existing beam direction toward aimed target
+                if self.player_ship.current_beam and self.player_ship._aim_override:
+                    self.player_ship.current_beam.direction = self.player_ship._aim_override
                 if not self.player_ship.current_beam:
                     beam = self.player_ship.fire()
                     if beam:
                         wp_stacks = self.upgrades.get("weapons_power", 0)
                         if wp_stacks > 0:
                             beam.damage_per_frame *= (1.0 + wp_stacks * 0.15)
-                        beam.damage_per_frame *= berserker_mult
+                        beam.damage_per_frame *= berserker_mult * self.kill_streak_mult
                         # Mastery: Overcharged Beam — 50% wider visual
                         if self.primary_mastery == "beam":
                             beam.width_mult = 1.5
@@ -2872,7 +3148,7 @@ class SpaceShooterGame:
                         faction_dmg_mult = 3.0
                     elif self.active_powerups.get("jaffa_freedom", 0) > 0:
                         faction_dmg_mult = 3.0
-                    base_dmg = p.damage * self.base_damage_mult * wp_mult * berserker_mult * war_cry_mult * faction_dmg_mult
+                    base_dmg = p.damage * self.base_damage_mult * wp_mult * berserker_mult * war_cry_mult * faction_dmg_mult * self.kill_streak_mult
                     base_dmg, is_crit = self._apply_critical(base_dmg)
                     p.damage = int(base_dmg)
                     p._is_crit = is_crit
@@ -2888,9 +3164,9 @@ class SpaceShooterGame:
                     cy = ship.y
                     for _ in range(2):
                         angle = random.uniform(0, math.pi * 2)
-                        drone_proj = Laser(cx, cy,
-                                           (math.cos(angle), math.sin(angle)),
-                                           (255, 200, 50), speed=14)
+                        drone_proj = AncientDrone(cx, cy,
+                                                  (math.cos(angle), math.sin(angle)),
+                                                  speed=14)
                         drone_proj.damage = 8
                         drone_proj.homing_strength = 0.06
                         drone_proj.is_player_proj = True
@@ -3003,6 +3279,9 @@ class SpaceShooterGame:
                             pellet.height = max(2, pellet.height // 2)
                             self.projectiles.append(pellet)
 
+        # Clear aim override after auto-fire section
+        self.player_ship._aim_override = None
+
         # Spawn asteroids around viewport
         self.asteroid_spawn_timer += 1
         if self.asteroid_spawn_timer >= self.asteroid_spawn_rate:
@@ -3089,6 +3368,24 @@ class SpaceShooterGame:
                         self.mines.remove(mine)
                         break
 
+        # Update Tok'ra tunnel vortices
+        for vortex in self.tunnel_vortices[:]:
+            vortex.update()
+            if not vortex.active:
+                self.tunnel_vortices.remove(vortex)
+                continue
+            for enemy in self.ai_ships[:]:
+                ex = enemy.x + enemy.width // 2
+                ey = enemy.y
+                dist = math.hypot(ex - vortex.x, ey - vortex.y)
+                if dist < vortex.pull_radius and dist > 5:
+                    pull = 3.0 * (1.0 - dist / vortex.pull_radius)
+                    enemy.x += (vortex.x - ex) / dist * pull
+                    enemy.y += (vortex.y - ey) / dist * pull
+                    if dist < 80:  # Inner damage zone
+                        if self._damage_enemy(enemy, vortex.damage_per_frame):
+                            self._on_enemy_killed(enemy)
+
         # Update ion pulse effects
         for pulse in self.ion_pulse_effects:
             pulse["timer"] += 1
@@ -3102,11 +3399,25 @@ class SpaceShooterGame:
             if self.player_ship.fire_cooldown > 1:
                 self.player_ship.fire_cooldown = max(1, self.player_ship.fire_cooldown - 1)
 
+        # Rebuild spatial grid for this frame
+        self.spatial_grid.clear()
+        for ai_ship in self.ai_ships:
+            cx = ai_ship.x + ai_ship.width // 2
+            cy = ai_ship.y
+            he = max(ai_ship.width, ai_ship.height) // 2
+            self.spatial_grid.insert(ai_ship, cx, cy, he)
+        for asteroid in self.asteroids:
+            self.spatial_grid.insert(asteroid, asteroid.x, asteroid.y, asteroid.size // 2)
+
         # Update projectiles
         tc_stacks = self.upgrades.get("targeting_computer", 0)
         to_remove_projs = []
         _trail_frame = self.survival_frames  # for energy ball trail damage rate limiting
         for proj_idx, proj in enumerate(self.projectiles):
+            # ContinuousBeams should never be in self.projectiles — remove if one slips in
+            if isinstance(proj, ContinuousBeam):
+                to_remove_projs.append(proj_idx)
+                continue
             proj.update()
 
             # Mastery: Unstable Naquadah — energy ball trail damage every 6 frames
@@ -3161,7 +3472,8 @@ class SpaceShooterGame:
 
             if proj.is_player_proj:
                 hit = False
-                for ai_ship in self.ai_ships[:]:
+                nearby_enemies = self.spatial_grid.query(proj.x, proj.y, 60)
+                for ai_ship in nearby_enemies:
                     if proj_rect.colliderect(ai_ship.get_rect()):
                         hit = True
                         ai_ship.hit_flash = 10
@@ -3232,6 +3544,37 @@ class SpaceShooterGame:
                                 sub._is_mirv = True
                                 sub.homing_strength = 0.04
                                 self.projectiles.append(sub)
+
+                        # Nanite replication: spawn children on kill
+                        if isinstance(proj, NaniteProjectile) and proj.can_replicate:
+                            if ai_ship in _killed_this_hit:
+                                active_nanites = sum(1 for p in self.projectiles
+                                                     if isinstance(p, NaniteProjectile))
+                                max_nanites = 30 if self.primary_mastery == "nanite_swarm" else 20
+                                children = 3 if self.primary_mastery == "nanite_swarm" else random.randint(1, 2)
+                                for _ in range(children):
+                                    if active_nanites >= max_nanites:
+                                        break
+                                    angle = random.uniform(0, math.pi * 2)
+                                    child = NaniteProjectile(proj.x, proj.y,
+                                                             (math.cos(angle), math.sin(angle)))
+                                    child.generation = proj.generation + 1
+                                    child.can_replicate = child.generation < 3
+                                    child.is_player_proj = True
+                                    child.damage = int(child.damage * self.base_damage_mult * self.kill_streak_mult)
+                                    self.projectiles.append(child)
+                                    active_nanites += 1
+
+                        # Tunnel Crystal: create gravity vortex on impact
+                        if isinstance(proj, TunnelCrystal):
+                            max_vortices = 4 if self.primary_mastery == "tunnel_crystal" else 2
+                            if len(self.tunnel_vortices) < max_vortices:
+                                vortex = TunnelVortex(proj.x, proj.y)
+                                if self.primary_mastery == "tunnel_crystal":
+                                    vortex.duration = 480  # doubled
+                                self.tunnel_vortices.append(vortex)
+                                self.screen_shake.trigger(3, 6)
+
                         break
                 # Ancient Tech: all player projectiles pierce
                 has_piercing = getattr(proj, 'piercing', False)
@@ -3327,8 +3670,11 @@ class SpaceShooterGame:
                 if mini_hit:
                     continue
 
-            # Projectile vs asteroids
-            for asteroid in self.asteroids[:]:
+            # Projectile vs asteroids (spatial grid query)
+            nearby_rocks = self.spatial_grid.query(proj.x, proj.y, 60)
+            for asteroid in nearby_rocks:
+                if not isinstance(asteroid, Asteroid):
+                    continue
                 if proj_rect.colliderect(asteroid.get_rect()):
                     to_remove_projs.append(proj_idx)
                     if asteroid.take_damage(proj.damage):
@@ -3345,42 +3691,36 @@ class SpaceShooterGame:
             if idx < len(self.projectiles):
                 self.projectiles.pop(idx)
 
-        # Check beam collision (player)
+        # Check beam collision (player) — supports arbitrary aim direction
         if self.player_ship.current_beam:
             beam = self.player_ship.current_beam
             beam_sx, beam_sy = beam.get_start_pos()
             bdx, bdy = beam.direction
             piercing = self.player_ship.passive == "beam_pierce"
-            is_horizontal = abs(bdx) > abs(bdy)
             # Mastery: Overcharged Beam — 50% wider hit detection
             beam_width_bonus = 1.5 if self.primary_mastery == "beam" else 1.0
+            beam_hit_width = 20 * beam_width_bonus
 
             targets = []
             for ai_ship in self.ai_ships:
                 ship_cx = ai_ship.x + ai_ship.width // 2
                 ship_cy = ai_ship.y
-                if is_horizontal:
-                    if abs(ship_cy - beam_sy) < (ai_ship.height // 2 + 10) * beam_width_bonus:
-                        dist = (ship_cx - beam_sx) * bdx
-                        if dist > 0:
-                            targets.append((dist, ai_ship, False))
-                else:
-                    if abs(ship_cx - beam_sx) < (ai_ship.width // 2 + 10) * beam_width_bonus:
-                        dist = (ship_cy - beam_sy) * bdy
-                        if dist > 0:
-                            targets.append((dist, ai_ship, False))
+                # Project target onto beam line to get perpendicular distance
+                tx, ty = ship_cx - beam_sx, ship_cy - beam_sy
+                along = tx * bdx + ty * bdy  # Distance along beam
+                if along > 0:
+                    perp = abs(tx * (-bdy) + ty * bdx)  # Perpendicular distance
+                    hit_r = (ai_ship.width // 2 + beam_hit_width)
+                    if perp < hit_r:
+                        targets.append((along, ai_ship, False))
             for asteroid in self.asteroids:
-                half_s = asteroid.size // 2 + 10
-                if is_horizontal:
-                    if abs(asteroid.y - beam_sy) < half_s:
-                        dist = (asteroid.x - beam_sx) * bdx
-                        if dist > 0:
-                            targets.append((dist, asteroid, True))
-                else:
-                    if abs(asteroid.x - beam_sx) < half_s:
-                        dist = (asteroid.y - beam_sy) * bdy
-                        if dist > 0:
-                            targets.append((dist, asteroid, True))
+                tx, ty = asteroid.x - beam_sx, asteroid.y - beam_sy
+                along = tx * bdx + ty * bdy
+                if along > 0:
+                    perp = abs(tx * (-bdy) + ty * bdx)
+                    hit_r = (asteroid.size // 2 + beam_hit_width)
+                    if perp < hit_r:
+                        targets.append((along, asteroid, True))
 
             targets.sort(key=lambda t: t[0])
 
@@ -3410,6 +3750,14 @@ class SpaceShooterGame:
                         if self.primary_mastery == "beam":
                             target._burn_timer = 180  # 3 seconds
                             target._burn_dps = 5.0
+                    # Wraith Culling Beam: life steal
+                    life_steal = getattr(beam, 'life_steal_pct', 0)
+                    if life_steal > 0:
+                        if self.primary_mastery == "wraith_culling":
+                            life_steal = 0.40  # Feeding Frenzy mastery
+                        heal = dmg * life_steal
+                        self.player_ship.health = min(self.player_ship.max_health,
+                                                      self.player_ship.health + heal)
                     if not piercing:
                         beam_end_dist = dist
 
@@ -3657,6 +4005,11 @@ class SpaceShooterGame:
             if cam.is_visible(mine.x, mine.y, margin=50):
                 mine.draw(draw_surface, camera=cam)
 
+        # Draw tunnel vortices
+        for vortex in self.tunnel_vortices:
+            if cam.is_visible(vortex.x, vortex.y, margin=vortex.pull_radius):
+                vortex.draw(draw_surface, camera=cam)
+
         # Draw ion pulse effects
         for pulse in self.ion_pulse_effects:
             if cam.is_visible(pulse['x'], pulse['y'], margin=pulse['max_radius']):
@@ -3743,6 +4096,25 @@ class SpaceShooterGame:
                                                   int(sy - self.player_ship.height // 2)))
                     else:
                         self.player_ship.draw(draw_surface, time_tick, camera=cam)
+                elif self.active_powerups.get("ancient_ascension", 0) > 0:
+                    # Ascension: translucent white glowing ship
+                    self.player_ship.draw(draw_surface, time_tick, camera=cam)
+                    if self.player_ship.image:
+                        sx, sy = cam.world_to_screen(self.player_ship.x, self.player_ship.y)
+                        glow_img = self.player_ship.image.copy()
+                        glow_img.fill((255, 255, 220, int(80 + 40 * math.sin(time_tick * 0.15))),
+                                      special_flags=pygame.BLEND_RGBA_ADD)
+                        draw_surface.blit(glow_img, (int(sx),
+                                                     int(sy - self.player_ship.height // 2)))
+                        # Halo ring
+                        halo_r = self.player_ship.width // 2 + 15
+                        halo_alpha = int(60 + 30 * math.sin(time_tick * 0.1))
+                        halo_surf = pygame.Surface((halo_r * 2, halo_r * 2), pygame.SRCALPHA)
+                        pygame.draw.circle(halo_surf, (255, 255, 200, halo_alpha),
+                                          (halo_r, halo_r), halo_r, 3)
+                        draw_surface.blit(halo_surf,
+                                         (int(sx) + self.player_ship.width // 2 - halo_r,
+                                          int(sy) - halo_r))
                 else:
                     self.player_ship.draw(draw_surface, time_tick, camera=cam)
 
@@ -3782,6 +4154,14 @@ class SpaceShooterGame:
                                             ai_ship.width, ai_ship.height)
                     draw_surface.blit(_get_flash_surf(ship_rect.width, ship_rect.height), ship_rect.topleft)
                     ai_ship.hit_flash = hit_flash - 1
+                # Prior Plague visual: purple tint overlay
+                if getattr(ai_ship, '_plagued', False):
+                    sx, sy = cam.world_to_screen(ai_ship.x, ai_ship.y)
+                    pw, ph = ai_ship.width + 8, ai_ship.height + 8
+                    plague_surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
+                    pulse = int(30 + 20 * math.sin(time_tick * 0.1))
+                    plague_surf.fill((140, 20, 220, pulse))
+                    draw_surface.blit(plague_surf, (int(sx) - 4, int(sy) - ai_ship.height // 2 - 4))
 
         # Draw explosions
         for explosion in self.explosions:

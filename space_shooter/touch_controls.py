@@ -212,10 +212,10 @@ class SpaceShooterTouchOverlay:
         dx = self.joystick.dx
         dy = self.joystick.dy
         keys = {
-            "up": dy < -0.3,
-            "down": dy > 0.3,
-            "left": dx < -0.3,
-            "right": dx > 0.3,
+            "up": dy < -0.15,
+            "down": dy > 0.15,
+            "left": dx < -0.15,
+            "right": dx > 0.15,
             "shift": False,
             "e": False,
             "q": False,

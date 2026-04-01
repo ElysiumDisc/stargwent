@@ -21,7 +21,7 @@ class Camera:
         self.vx = 0.0
         self.vy = 0.0
         # Smoothing factor (0 = no follow, 1 = instant snap)
-        self.lerp_speed = 0.08
+        self.lerp_speed = 0.12
 
     def follow(self, target_x, target_y):
         """Smooth-follow a world-space target (usually the player center)."""

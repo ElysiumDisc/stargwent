@@ -125,7 +125,7 @@ async def run_space_shooter(screen, player_faction=None, ai_faction=None,
 
     # Pick random AI faction (different from player)
     if ai_faction is None:
-        factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance"]
+        factions = ["Tau'ri", "Goa'uld", "Asgard", "Jaffa Rebellion", "Lucian Alliance", "Wraith"]
         ai_faction = random.choice([f for f in factions if f != player_faction])
 
     # Stop any existing music (e.g. main menu) and start space shooter music

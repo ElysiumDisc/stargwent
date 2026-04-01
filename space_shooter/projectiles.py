@@ -4,6 +4,21 @@ import pygame
 import math
 import random
 
+_trail_particle_count = 0
+_TRAIL_PARTICLE_MAX = 800
+
+def _can_add_particle():
+    global _trail_particle_count
+    return _trail_particle_count < _TRAIL_PARTICLE_MAX
+
+def _add_particle():
+    global _trail_particle_count
+    _trail_particle_count += 1
+
+def _remove_particle():
+    global _trail_particle_count
+    _trail_particle_count = max(0, _trail_particle_count - 1)
+
 
 class Projectile:
     """Base class for all projectiles."""
@@ -45,6 +60,23 @@ class Laser(Projectile):
         else:
             self.width = 35
             self.height = 6
+        self.trail = []
+
+    def update(self):
+        # Golden afterglow trail
+        if _can_add_particle():
+            self.trail.append({'x': self.x, 'y': self.y, 'alpha': 120})
+            _add_particle()
+        if len(self.trail) > 8:
+            self.trail.pop(0)
+            _remove_particle()
+        for t in self.trail:
+            t['alpha'] -= 20
+        removed = [t for t in self.trail if t['alpha'] <= 0]
+        self.trail = [t for t in self.trail if t['alpha'] > 0]
+        for _ in removed:
+            _remove_particle()
+        super().update()
 
     def get_rect(self):
         return pygame.Rect(int(self.x) - self.width // 2, int(self.y) - self.height // 2,
@@ -55,10 +87,22 @@ class Laser(Projectile):
             sx, sy = camera.world_to_screen(self.x, self.y)
         else:
             sx, sy = self.x, self.y
+
+        # Draw golden afterglow trail
+        for t in self.trail:
+            if camera:
+                tx, ty = camera.world_to_screen(t['x'], t['y'])
+            else:
+                tx, ty = t['x'], t['y']
+            a = max(0, t['alpha'])
+            trail_s = pygame.Surface((10, 10), pygame.SRCALPHA)
+            pygame.draw.circle(trail_s, (255, 200, 50, a), (5, 5), 4)
+            surface.blit(trail_s, (int(tx) - 5, int(ty) - 5))
+
         # Glowing laser effect
         glow_surf = pygame.Surface((self.width + 10, self.height + 10), pygame.SRCALPHA)
         pygame.draw.rect(glow_surf, (*self.color[:3], 100), (5, 5, self.width, self.height))
-        pygame.draw.rect(glow_surf, self.color, (5, 5, self.width, self.height))
+        pygame.draw.rect(glow_surf, (*self.color[:3], 255), (5, 5, self.width, self.height))
         # Bright core
         if self.is_vertical:
             pygame.draw.rect(glow_surf, (255, 255, 255),
@@ -68,6 +112,130 @@ class Laser(Projectile):
                              (5, 5 + self.height // 4, self.width, self.height // 2))
         surface.blit(glow_surf, (int(sx) - self.width // 2 - 5,
                                  int(sy) - self.height // 2 - 5))
+
+        # Tiny ember dots (20% chance)
+        if random.random() < 0.2:
+            ember_x = int(sx) + random.randint(-6, 6)
+            ember_y = int(sy) + random.randint(-6, 6)
+            ember_s = pygame.Surface((6, 6), pygame.SRCALPHA)
+            pygame.draw.circle(ember_s, (255, 200, 50, 160), (3, 3), 2)
+            surface.blit(ember_s, (ember_x - 3, ember_y - 3))
+
+
+class AncientDrone(Projectile):
+    """Ancient drone weapon — glowing golden squid-shaped homing projectile.
+
+    Inspired by the yellow squid-like Ancient drone weapons from Stargate.
+    Renders as a glowing golden oval with trailing energy wisps and a slight
+    wobble to simulate the organic flight pattern seen in the show.
+    """
+
+    def __init__(self, x, y, direction, color=(255, 200, 50), speed=16):
+        super().__init__(x, y, direction, color, speed, damage=12)
+        self.radius = 8
+        self.wobble = random.uniform(0, math.pi * 2)
+        self.trail = []
+        self.homing_strength = 0.03  # Default slight tracking
+
+    def update(self):
+        # Trail particle (position before move)
+        if _can_add_particle():
+            self.trail.append({'x': self.x, 'y': self.y, 'alpha': 180})
+            _add_particle()
+        if len(self.trail) > 10:
+            self.trail.pop(0)
+            _remove_particle()
+        for t in self.trail:
+            t['alpha'] -= 20
+        removed = [t for t in self.trail if t['alpha'] <= 0]
+        self.trail = [t for t in self.trail if t['alpha'] > 0]
+        for _ in removed:
+            _remove_particle()
+
+        # Slight wobble perpendicular to direction (organic flight feel)
+        self.wobble += 0.4
+        dx, dy = self.direction
+        perp_x, perp_y = -dy, dx  # perpendicular
+        wobble_amt = math.sin(self.wobble) * 0.8
+        self.x += self.speed * dx + perp_x * wobble_amt
+        self.y += self.speed * dy + perp_y * wobble_amt
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) - self.radius, int(self.y) - self.radius,
+                           self.radius * 2, self.radius * 2)
+
+    def draw(self, surface, camera=None):
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+
+        # Draw trail (fading golden wisps)
+        for t in self.trail:
+            if camera:
+                tx, ty = camera.world_to_screen(t['x'], t['y'])
+            else:
+                tx, ty = t['x'], t['y']
+            a = max(0, t['alpha'])
+            trail_r = max(1, int(4 * a / 180))
+            trail_surf = pygame.Surface((trail_r * 2 + 4, trail_r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surf, (255, 200, 50, a),
+                              (trail_r + 2, trail_r + 2), trail_r)
+            surface.blit(trail_surf, (int(tx) - trail_r - 2, int(ty) - trail_r - 2))
+
+        # Compute heading angle for oriented drawing
+        dx, dy = self.direction
+        angle = math.atan2(-dy, dx)  # pygame Y-axis inverted
+
+        sz = self.radius * 4
+        drone_surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        c = sz // 2
+
+        # Outer glow
+        pygame.draw.circle(drone_surf, (255, 200, 50, 50), (c, c), self.radius + 5)
+
+        # Main body — elongated golden oval (squid shape)
+        body_w = int(self.radius * 2.2)
+        body_h = int(self.radius * 1.2)
+        body_rect = (c - body_w // 2, c - body_h // 2, body_w, body_h)
+        pygame.draw.ellipse(drone_surf, (255, 190, 30), body_rect)
+
+        # Bright yellow-white core
+        core_w = body_w // 2
+        core_h = body_h // 2
+        core_rect = (c - core_w // 2, c - core_h // 2, core_w, core_h)
+        pygame.draw.ellipse(drone_surf, (255, 255, 180), core_rect)
+
+        # Trailing "tentacles" — 3 small lines behind the drone
+        for i in range(3):
+            offset = (i - 1) * 3
+            tail_len = random.randint(4, 8)
+            tx1 = c - body_w // 2
+            ty1 = c + offset
+            tx2 = tx1 - tail_len
+            ty2 = ty1 + random.randint(-2, 2)
+            pygame.draw.line(drone_surf, (255, 220, 80, 140), (tx1, ty1), (tx2, ty2), 1)
+
+        # Rotate the drone surface to face direction of travel
+        rotated = pygame.transform.rotate(drone_surf, math.degrees(angle))
+        rw, rh = rotated.get_size()
+        surface.blit(rotated, (int(sx) - rw // 2, int(sy) - rh // 2))
+
+        # Spiral helix trail effect
+        if hasattr(self, 'trail') and len(self.trail) > 0:
+            for i, t in enumerate(self.trail[-6:]):
+                helix_off = math.sin(self.wobble + i * 1.2) * 8
+                dx, dy = self.direction
+                perp_x, perp_y = -dy, dx
+                hx = int(t['x'] + perp_x * helix_off)
+                hy = int(t['y'] + perp_y * helix_off)
+                if camera:
+                    hx, hy = camera.world_to_screen(hx, hy)
+                alpha = max(0, t.get('alpha', 100))
+                if alpha > 10:
+                    s = pygame.Surface((6, 6), pygame.SRCALPHA)
+                    pygame.draw.circle(s, (255, 215, 80, alpha), (3, 3), 3)
+                    surface.blit(s, (hx - 3, hy - 3))
 
 
 class Missile(Projectile):
@@ -87,14 +255,20 @@ class Missile(Projectile):
 
     def update(self):
         # Add trail particle
-        self.trail.append({'x': self.x, 'y': self.y, 'alpha': 200})
+        if _can_add_particle():
+            self.trail.append({'x': self.x, 'y': self.y, 'alpha': 200})
+            _add_particle()
         if len(self.trail) > 15:
             self.trail.pop(0)
+            _remove_particle()
 
         # Update trail
         for t in self.trail:
             t['alpha'] -= 15
+        removed = [t for t in self.trail if t['alpha'] <= 0]
         self.trail = [t for t in self.trail if t['alpha'] > 0]
+        for _ in removed:
+            _remove_particle()
 
         # Slight wobble perpendicular to travel direction
         self.wobble += 0.3
@@ -111,17 +285,27 @@ class Missile(Projectile):
                           self.width, self.height)
 
     def draw(self, surface, camera=None):
-        # Draw trail (engine exhaust)
-        for t in self.trail:
+        # Draw trail (engine exhaust) with smoke layer and variable thrust
+        for i, t in enumerate(self.trail):
             if camera:
                 tx, ty = camera.world_to_screen(t['x'], t['y'])
             else:
                 tx, ty = t['x'], t['y']
             alpha = max(0, t['alpha'])
-            trail_surf = pygame.Surface((12, 12), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (255, 150, 50, alpha), (6, 6), 4)
-            pygame.draw.circle(trail_surf, (255, 255, 100, alpha // 2), (6, 6), 2)
-            surface.blit(trail_surf, (int(tx) - 6, int(ty) - 6))
+            trail_r = max(2, 4 + int(math.sin(self.wobble + i * 0.3) * 2))
+            smoke_r = trail_r + 2
+            # Smoke layer behind main trail
+            smoke_surf = pygame.Surface((smoke_r * 2 + 4, smoke_r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(smoke_surf, (160, 160, 160, alpha // 3),
+                             (smoke_r + 2, smoke_r + 2), smoke_r)
+            surface.blit(smoke_surf, (int(tx) - smoke_r - 2, int(ty) - smoke_r - 2))
+            # Main trail
+            trail_surf = pygame.Surface((trail_r * 2 + 4, trail_r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surf, (255, 150, 50, alpha),
+                             (trail_r + 2, trail_r + 2), trail_r)
+            pygame.draw.circle(trail_surf, (255, 255, 100, alpha // 2),
+                             (trail_r + 2, trail_r + 2), max(1, trail_r // 2))
+            surface.blit(trail_surf, (int(tx) - trail_r - 2, int(ty) - trail_r - 2))
 
         if camera:
             sx, sy = camera.world_to_screen(self.x, self.y)
@@ -181,14 +365,19 @@ class ContinuousBeam:
 
     def get_start_pos(self):
         dx, dy = self.direction
-        if dx == 1:
-            return (self.ship.x + self.ship.width, self.ship.y)
-        elif dx == -1:
-            return (self.ship.x, self.ship.y)
-        elif dy == -1:
-            return (self.ship.x + self.ship.width // 2, self.ship.y - self.ship.height // 2)
-        else:  # dy == 1
-            return (self.ship.x + self.ship.width // 2, self.ship.y + self.ship.height // 2)
+        cx = self.ship.x + self.ship.width // 2
+        cy = self.ship.y
+        if dx == 1 and dy == 0:
+            return (self.ship.x + self.ship.width, cy)
+        elif dx == -1 and dy == 0:
+            return (self.ship.x, cy)
+        elif dx == 0 and dy == -1:
+            return (cx, self.ship.y - self.ship.height // 2)
+        elif dx == 0 and dy == 1:
+            return (cx, self.ship.y + self.ship.height // 2)
+        else:
+            # Arbitrary direction (auto-aim): emit from ship center offset
+            return (cx + dx * self.ship.width * 0.4, cy + dy * self.ship.height * 0.4)
 
     def get_end_pos(self):
         sx, sy = self.get_start_pos()
@@ -197,17 +386,15 @@ class ContinuousBeam:
 
     def get_rect(self):
         start_x, start_y = self.get_start_pos()
-        dx, dy = self.direction
-        if abs(dx) > abs(dy):  # Horizontal
-            if dx == 1:
-                return pygame.Rect(int(start_x), int(start_y) - 10, self.current_length, 20)
-            else:
-                return pygame.Rect(int(start_x) - self.current_length, int(start_y) - 10, self.current_length, 20)
-        else:  # Vertical
-            if dy == 1:
-                return pygame.Rect(int(start_x) - 10, int(start_y), 20, self.current_length)
-            else:
-                return pygame.Rect(int(start_x) - 10, int(start_y) - self.current_length, 20, self.current_length)
+        end_x, end_y = self.get_end_pos()
+        # Build axis-aligned bounding box for any direction
+        x1 = min(start_x, end_x)
+        y1 = min(start_y, end_y)
+        x2 = max(start_x, end_x)
+        y2 = max(start_y, end_y)
+        # Ensure minimum width for collision (beam has visual thickness)
+        return pygame.Rect(int(x1) - 10, int(y1) - 10,
+                           max(20, int(x2 - x1) + 20), max(20, int(y2 - y1) + 20))
 
     def draw(self, surface, camera=None):
         sx, sy = self.get_start_pos()
@@ -228,6 +415,25 @@ class ContinuousBeam:
         # Draw white core
         pygame.draw.line(surface, (255, 255, 255), (sx, sy), (ex, ey), max(1, pulse_width // 2))
 
+        # Energy nodes along beam
+        beam_len = math.hypot(ex - sx, ey - sy)
+        if beam_len > 1:
+            node_spacing = 40
+            for t in range(node_spacing, int(beam_len), node_spacing):
+                frac = t / beam_len
+                nx = int(sx + (ex - sx) * frac)
+                ny = int(sy + (ey - sy) * frac)
+                node_r = max(2, int(pulse_width * 0.5 + math.sin(self.pulse + t * 0.05) * 2))
+                pygame.draw.circle(surface, (200, 255, 255), (nx, ny), node_r)
+
+        # Crackle sparks (30% chance)
+        if random.random() < 0.3 and beam_len > 1:
+            for _ in range(random.randint(1, 2)):
+                spark_t = random.uniform(0.1, 0.9)
+                spark_x = int(sx + (ex - sx) * spark_t + random.randint(-4, 4))
+                spark_y = int(sy + (ey - sy) * spark_t + random.randint(-4, 4))
+                pygame.draw.circle(surface, (255, 255, 255), (spark_x, spark_y), 1)
+
 
 class EnergyBall(Projectile):
     """Lucian Alliance energy ball - medium speed, splash potential."""
@@ -242,13 +448,14 @@ class EnergyBall(Projectile):
         self.pulse += 0.15
 
         # Spawn trailing particles
-        if random.random() < 0.4:
+        if random.random() < 0.4 and _can_add_particle():
             self.particles.append({
                 'x': self.x + random.uniform(-5, 5),
                 'y': self.y + random.uniform(-5, 5),
                 'alpha': 150,
                 'size': random.randint(3, 6)
             })
+            _add_particle()
 
         # Update particles — trail opposite to travel direction
         dx, dy = self.direction
@@ -256,7 +463,10 @@ class EnergyBall(Projectile):
             p['alpha'] -= 10
             p['x'] -= dx * 2
             p['y'] -= dy * 2
+        removed = [p for p in self.particles if p['alpha'] <= 0]
         self.particles = [p for p in self.particles if p['alpha'] > 0]
+        for _ in removed:
+            _remove_particle()
 
     def get_rect(self):
         return pygame.Rect(int(self.x) - self.radius, int(self.y) - self.radius,
@@ -291,6 +501,13 @@ class EnergyBall(Projectile):
         # Bright core
         pygame.draw.circle(ball_surf, (255, 200, 255), (center, center), pulse_radius // 2)
 
+        # Orbiting spark particles
+        for i in range(3):
+            spark_angle = self.pulse * 2 + i * math.pi * 2 / 3
+            spark_x = center + int(math.cos(spark_angle) * (pulse_radius + 4))
+            spark_y = center + int(math.sin(spark_angle) * (pulse_radius + 4))
+            pygame.draw.circle(ball_surf, (255, 200, 255), (spark_x, spark_y), 2)
+
         surface.blit(ball_surf, (int(sx) - center, int(sy) - center))
 
 
@@ -323,6 +540,13 @@ class JaffaStaffBlast(Projectile):
         center_x = self.width // 2 + glow_size
         center_y = self.height // 2 + glow_size
 
+        # Heat shimmer — larger, more transparent ellipse behind the main blast
+        shimmer_off_x = int(math.sin(self.glow_pulse * 1.3) * 2)
+        shimmer_off_y = int(math.cos(self.glow_pulse * 1.1) * 2)
+        pygame.draw.ellipse(blast_surf, (*self.color[:3], 40),
+                           (shimmer_off_x - 3, shimmer_off_y - 3,
+                            self.width + glow_size * 2 + 6, self.height + glow_size * 2 + 6))
+
         # Outer glow
         pygame.draw.ellipse(blast_surf, (*self.color[:3], 80),
                            (0, 0, self.width + glow_size * 2, self.height + glow_size * 2))
@@ -334,6 +558,15 @@ class JaffaStaffBlast(Projectile):
                            (glow_size, glow_size, self.width, self.height))
 
         surface.blit(blast_surf, (int(sx) - center_x, int(sy) - center_y))
+
+        # Ember scatter (30% chance)
+        if random.random() < 0.3:
+            for _ in range(random.randint(1, 2)):
+                ember_x = int(sx) + random.randint(-8, 8)
+                ember_y = int(sy) + random.randint(-8, 8)
+                ember_s = pygame.Surface((6, 6), pygame.SRCALPHA)
+                pygame.draw.circle(ember_s, (255, 120, 30, 140), (3, 3), 2)
+                surface.blit(ember_s, (ember_x - 3, ember_y - 3))
 
 
 class RailgunShot(Projectile):
@@ -442,11 +675,14 @@ class ProximityMine:
         mine_surf = pygame.Surface((pulse_r * 4, pulse_r * 4), pygame.SRCALPHA)
         c = pulse_r * 2
 
-        # Detection ring (faint, pulsing)
+        # Detection rings (faint, pulsing) — 2 concentric with opposite phase
         if self.is_armed():
-            ring_alpha = int(30 + abs(math.sin(self.pulse * 2)) * 30)
-            pygame.draw.circle(mine_surf, (*self.color[:3], ring_alpha), (c, c),
+            outer_alpha = int(40 + abs(math.sin(self.pulse * 2)) * 40)
+            pygame.draw.circle(mine_surf, (*self.color[:3], outer_alpha), (c, c),
                              int(self.detection_radius * 0.3), 1)
+            inner_alpha = int(40 + abs(math.cos(self.pulse * 2)) * 40)
+            pygame.draw.circle(mine_surf, (*self.color[:3], inner_alpha), (c, c),
+                             int(self.detection_radius * 0.3 * 0.7), 1)
 
         # Mine body
         armed_color = self.color if self.is_armed() else (100, 100, 100)
@@ -610,12 +846,18 @@ class PlasmaLance(Projectile):
 
     def update(self):
         self.pulse += 0.2
-        self.trail.append({"x": self.x, "y": self.y, "alpha": 180})
+        if _can_add_particle():
+            self.trail.append({"x": self.x, "y": self.y, "alpha": 180})
+            _add_particle()
         if len(self.trail) > 12:
             self.trail.pop(0)
+            _remove_particle()
         for t in self.trail:
             t["alpha"] -= 18
+        removed = [t for t in self.trail if t["alpha"] <= 0]
         self.trail = [t for t in self.trail if t["alpha"] > 0]
+        for _ in removed:
+            _remove_particle()
         super().update()
 
     def on_hit(self):
@@ -637,6 +879,18 @@ class PlasmaLance(Projectile):
             trail_surf = pygame.Surface((16, 16), pygame.SRCALPHA)
             pygame.draw.circle(trail_surf, (0, 200, 255, alpha), (8, 8), 6)
             surface.blit(trail_surf, (int(tx) - 8, int(ty) - 8))
+
+            # Electric arc particles along trail (40% chance per particle)
+            if random.random() < 0.4:
+                dx, dy = self.direction
+                perp_x, perp_y = -dy, dx
+                arc_off = random.randint(-6, 6)
+                arc_x = int(tx) + int(perp_x * arc_off)
+                arc_y = int(ty) + int(perp_y * arc_off)
+                arc_end_x = arc_x + random.randint(-3, 3)
+                arc_end_y = arc_y + random.randint(-3, 3)
+                pygame.draw.line(surface, (180, 255, 255),
+                               (arc_x, arc_y), (arc_end_x, arc_end_y), 1)
 
         if camera:
             sx, sy = camera.world_to_screen(self.x, self.y)
@@ -787,6 +1041,17 @@ class OriBossBeam:
             pygame.draw.line(surface, (255, 255, 200),
                             (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), max(2, pulse_w // 3))
 
+            # Golden energy nodes along beam
+            beam_len = math.hypot(draw_ex - sx, draw_ey - sy)
+            if beam_len > 1:
+                node_spacing = 60
+                for t in range(node_spacing, int(beam_len), node_spacing):
+                    frac = t / beam_len
+                    nx = int(sx + (draw_ex - sx) * frac)
+                    ny = int(sy + (draw_ey - sy) * frac)
+                    node_r = max(2, int(pulse_w * 0.5 + math.sin(self.pulse + t * 0.05) * 2))
+                    pygame.draw.circle(surface, (255, 240, 160), (nx, ny), node_r)
+
 
 class WraithBossBeam(OriBossBeam):
     """Wraith Hive sweeping beam — purple life-draining beam that rotates.
@@ -834,3 +1099,163 @@ class WraithBossBeam(OriBossBeam):
             # Core — pale violet
             pygame.draw.line(surface, (220, 180, 255),
                             (int(sx), int(sy)), (int(draw_ex), int(draw_ey)), max(2, pulse_w // 3))
+
+
+# ─── New weapon projectiles ───────────────────────────────────────────
+
+class NaniteProjectile(Projectile):
+    """Replicator nanite — small grey metallic projectile that replicates on kill."""
+
+    def __init__(self, x, y, direction, color=(180, 180, 200), speed=14):
+        super().__init__(x, y, direction, color, speed, damage=7)
+        self.radius = 5
+        self.flicker = random.uniform(0, math.pi * 2)
+        self.can_replicate = True
+        self.generation = 0  # Replication depth (max 3)
+
+    def update(self):
+        super().update()
+        self.flicker += 0.3
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) - self.radius, int(self.y) - self.radius,
+                           self.radius * 2, self.radius * 2)
+
+    def draw(self, surface, camera=None):
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+        r = self.radius + int(math.sin(self.flicker) * 2)
+        sz = r * 4
+        surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        c = sz // 2
+        # Metallic glow
+        pygame.draw.circle(surf, (140, 140, 160, 50), (c, c), r + 3)
+        # Main body — angular metallic look via polygon
+        pts = []
+        for i in range(6):
+            angle = self.flicker + i * math.pi / 3
+            pts.append((c + int(math.cos(angle) * r), c + int(math.sin(angle) * r)))
+        pygame.draw.polygon(surf, self.color, pts)
+        # Silver core
+        pygame.draw.circle(surf, (220, 220, 230), (c, c), max(2, r // 2))
+        surface.blit(surf, (int(sx) - c, int(sy) - c))
+
+
+class WraithCullingBeam(ContinuousBeam):
+    """Wraith culling beam — purple life-stealing continuous beam."""
+
+    def __init__(self, ship, direction, color=(160, 40, 255),
+                 screen_width=1280, screen_height=1080):
+        super().__init__(ship, direction, color, screen_width, screen_height)
+        self.damage_per_frame = 0.7
+        self.max_range = 1200
+        self.current_length = self.max_range
+        self.life_steal_pct = 0.25  # Heal player 25% of damage dealt
+
+    def draw(self, surface, camera=None):
+        sx, sy = self.get_start_pos()
+        ex, ey = self.get_end_pos()
+        if camera:
+            sx, sy = camera.world_to_screen(sx, sy)
+            ex, ey = camera.world_to_screen(ex, ey)
+        base_pw = 8 + int(math.sin(self.pulse) * 4)
+        pulse_width = int(base_pw * self.width_mult)
+        # Deep purple outer glow
+        pygame.draw.line(surface, (100, 0, 180), (sx, sy), (ex, ey), pulse_width + 14)
+        # Main purple beam
+        pygame.draw.line(surface, self.color, (sx, sy), (ex, ey), pulse_width)
+        # Pale violet core
+        pygame.draw.line(surface, (220, 180, 255), (sx, sy), (ex, ey), max(1, pulse_width // 2))
+        # Soul-drain wisps flowing toward ship with sinusoidal path
+        beam_len = math.hypot(ex - sx, ey - sy)
+        if beam_len > 1:
+            beam_dx = (ex - sx) / beam_len
+            beam_dy = (ey - sy) / beam_len
+            perp_x, perp_y = -beam_dy, beam_dx
+            num_wisps = min(5, max(1, int(beam_len / 120)))
+            for i in range(num_wisps):
+                wisp_t = (i + 1) / (num_wisps + 1)
+                sin_off = math.sin(self.pulse + i * 0.8) * 15
+                base_x = sx + (ex - sx) * wisp_t
+                base_y = sy + (ey - sy) * wisp_t
+                wx = int(base_x + perp_x * sin_off)
+                wy = int(base_y + perp_y * sin_off)
+                wisp_alpha = int(80 + 40 * abs(math.sin(self.pulse + i)))
+                wisp_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+                pygame.draw.circle(wisp_surf, (100, 255, 100, wisp_alpha), (4, 4), 3)
+                surface.blit(wisp_surf, (wx - 4, wy - 4))
+
+
+class TunnelCrystal(Projectile):
+    """Tok'ra tunnel crystal — slow projectile that creates gravity vortex on impact."""
+
+    def __init__(self, x, y, direction, color=(150, 80, 255), speed=6):
+        super().__init__(x, y, direction, color, speed, damage=15)
+        self.radius = 12
+        self.pulse = 0
+        self.rotation = 0
+        self.shards = []
+
+    def update(self):
+        super().update()
+        self.pulse += 0.15
+        self.rotation += 3
+        # Spawn crystalline shard fragments (30% chance)
+        if random.random() < 0.3 and len(self.shards) < 6 and _can_add_particle():
+            self.shards.append({
+                'x': self.x + random.randint(-8, 8),
+                'y': self.y + random.randint(-8, 8),
+                'alpha': 100,
+                'size': random.randint(2, 4)
+            })
+            _add_particle()
+        for s in self.shards:
+            s['alpha'] -= 8
+        removed = [s for s in self.shards if s['alpha'] <= 0]
+        self.shards = [s for s in self.shards if s['alpha'] > 0]
+        for _ in removed:
+            _remove_particle()
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) - self.radius, int(self.y) - self.radius,
+                           self.radius * 2, self.radius * 2)
+
+    def draw(self, surface, camera=None):
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+        r = self.radius + int(math.sin(self.pulse) * 3)
+        sz = r * 4
+        surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        c = sz // 2
+        # Purple glow halo
+        pygame.draw.circle(surf, (120, 40, 220, 40), (c, c), r + 6)
+        # Crystal diamond shape (rotated square)
+        pts = []
+        for i in range(4):
+            angle = math.radians(self.rotation + i * 90)
+            pts.append((c + int(math.cos(angle) * r), c + int(math.sin(angle) * r)))
+        pygame.draw.polygon(surf, self.color, pts)
+        pygame.draw.polygon(surf, (200, 150, 255), pts, 2)
+        # White inner glow
+        pygame.draw.circle(surf, (255, 255, 255, 180), (c, c), max(3, r // 3))
+        surface.blit(surf, (int(sx) - c, int(sy) - c))
+
+        # Draw crystalline shard fragments
+        for shard in self.shards:
+            if camera:
+                shx, shy = camera.world_to_screen(shard['x'], shard['y'])
+            else:
+                shx, shy = shard['x'], shard['y']
+            sa = max(0, shard['alpha'])
+            ss = shard['size']
+            shard_surf = pygame.Surface((ss * 4, ss * 4), pygame.SRCALPHA)
+            sc = ss * 2
+            # Diamond shape (4 points)
+            pts = [(sc, sc - ss), (sc + ss, sc), (sc, sc + ss), (sc - ss, sc)]
+            pygame.draw.polygon(shard_surf, (150, 80, 255, sa), pts)
+            pygame.draw.polygon(shard_surf, (180, 220, 255, sa), pts, 1)
+            surface.blit(shard_surf, (int(shx) - sc, int(shy) - sc))

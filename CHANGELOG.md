@@ -4,6 +4,103 @@
 
 ---
 
+### Version 10.3.0 (March 2026)
+**Space Shooter — Combat Overhaul & Carrier Rework**
+
+#### Ship Fixes
+- **Tok'ra Tunneler image** — now uses the correct `jaffa_rebellion_ship.png` design instead of `alteran_ship.png`
+- **Wraith faction removed from player selection** — Wraith Hive is now exclusively a supergate boss encounter (like Ori Mothership). SHIP_VARIANTS entry retained for boss spawn code
+
+#### Performance
+- **Spatial grid collision detection** — new `SpatialGrid` class replaces O(n*m) brute-force projectile-vs-enemy checks with cell-based spatial partitioning (200px cells). Reduces ~21,000 collision checks/frame to ~2,000 at peak density
+- **AI neighbor queries optimized** — asteroid dodge and ship separation in `_ai_standard_strafe` now use spatial grid queries instead of iterating all entities
+- **Global projectile particle budget** — module-level cap of 800 trail particles prevents unbounded particle accumulation during intense combat. AI engine trails reduced from 80 to 40 max particles
+- **Hostile-all and asteroid collisions** also routed through spatial grid
+
+#### AI Improvements
+- **Strafe direction switching** — AI enemies now periodically flip their strafe direction every 2-3 seconds (random timer) instead of using a fixed pattern based on object ID. Makes enemy movement much less predictable
+- **Boss phase transitions** — Ori Mothership and Wraith Hive bosses now have 3 combat phases:
+  - Ori: Normal → Aggressive (50% HP: faster movement, 40f fire rate) → Enrage (25% HP: 3 spread lasers, halved beam cooldown)
+  - Wraith: Normal → Aggressive (50% HP: 180f dart spawn, 35f fire) → Desperate (25% HP: 120f dart spawn, max 5 darts, 25f fire, stronger lifesteal)
+- **4-direction facing for all AI** — enemies now face up/down/diagonal toward targets instead of only left/right. Applied to all 7 AI behavior methods via shared `_ai_face_target()` helper
+- **Flanking behavior** — when 3+ enemies are alive, ~33% of them approach the player from a 60-degree offset angle, creating natural flanking patterns
+
+#### Controls & Game Feel
+- **Tighter acceleration** — ship acceleration increased from 1.2 to 1.5, friction decreased from 0.88 to 0.82. Faster ramp-up and snappier stops
+- **Velocity dead zone reduced** — from 0.1 to 0.05 for more responsive micro-adjustments
+- **Auto-aim smoothing** — aim direction now lerps at 15% per frame toward new targets instead of snapping instantly. Target hysteresis keeps current target if within 1.5x best distance, preventing jerky transitions between crossing enemies
+
+#### Weapon Animation Enhancements
+Faction-themed visual effects for every projectile type:
+- **Asgard (cyan)**: ContinuousBeam gets pulsing energy nodes every 40px + crackle sparks. PlasmaLance gets electric arc particles. DisruptorPulse gets impact ring
+- **Goa'uld (golden)**: Laser gets golden afterglow trail (8-frame fade) + ember particles. Dual staff muzzle flash
+- **Tau'ri (blue)**: Missile gets smoke trail layer + variable thrust sizing. AncientDrone gets spiral golden helix trail. TunnelCrystal gets crystalline shard fragments
+- **Jaffa (orange-red)**: StaffBlast gets heat shimmer + ember scatter
+- **Lucian Alliance (magenta)**: EnergyBall gets 3 orbiting spark particles. ProximityMine gets dual concentric pulsing rings
+- **Wraith (purple, boss only)**: CullingBeam gets sinusoidal soul-drain wisps. OriBossBeam gets golden energy nodes
+
+#### Carrier Miniship Overhaul (SC2 Carrier Reference)
+Complete rework of the interceptor escort system modeled after StarCraft II Carriers:
+- **Start with 4 interceptors** at level 1 (was 0 until level 3). Max increased to 8 at level 20 (was 5 at level 15)
+- **Launch animation** — interceptors now fly out FROM the player ship instead of spawning in place. 30-frame launch phase where they accelerate to orbit position before engaging
+- **Attack run pattern** — SC2-style dive-fire-pullout cycle: approach target → fire burst of 3 shots rapidly → retreat at 1.2x speed back to orbit for 40 frames → re-engage
+- **Faction-specific weapons** — Tau'ri interceptors fire small missiles, Goa'uld fire golden lasers (unchanged). No longer all firing generic white lasers
+- **Visible idle orbit** — interceptors orbit in a small 30px circle around their formation anchor when no enemies nearby, instead of sitting on a static point
+- **HP scaling** — interceptor health now scales with level: 40 + 3×level (100 HP at level 20, was flat 40)
+- **Faster respawn** — auto-build time reduced from 5s to 3s, matching SC2's auto-cast build rate
+- Only factions with dedicated miniship sprites (Tau'ri, Goa'uld) get interceptors. Asgard/Jaffa/Lucian remain without escorts
+
+---
+
+### Version 10.2.0 (March 2026)
+**Space Shooter Easter Egg — Deep Survival Update**
+
+#### Controls & Game Feel
+- **Auto-aim system** — projectiles now fire toward the nearest enemy within 800px while ship sprite still faces movement direction. Beams smoothly track targets each frame. The #1 Vampire Survivors-style improvement
+- **8-direction facing** — ship now faces diagonals (NE/NW/SE/SW) when moving diagonally, not just 4 cardinals. All firing positions and beam collision updated for arbitrary angles
+- **Snappier camera** — lerp speed increased from 0.08 to 0.12, cutting follow lag by ~33%
+- **Faster rotation** — ship visual rotation 12°/frame → 18°/frame (90° turn in 5 frames instead of 7.5)
+- **Input buffering** — Q (wormhole) and E (secondary) now buffer for 10 frames. Press slightly before cooldown ends and the ability fires the instant it's ready
+- **Touch joystick dead band fix** — movement threshold lowered from 0.3 to 0.15 to match dead zone, eliminating the unresponsive band between 15-30% input
+
+#### Kill Streak Combo System
+- **Escalating damage multiplier** — sustained kill streaks now grant bonus damage:
+  - 5 kills: 1.1x | 10 kills: 1.2x | 20 kills: 1.5x | 50 kills: 2.0x
+- **Tier-colored UI** — streak display changes color with tier (orange → white → blue → purple → gold) with glow ring at tier 3+
+- **Screen pulse** on each tier-up with popup notification (COMBO x5!, MEGA COMBO!, ULTRA COMBO!)
+- Multiplier resets after 3 seconds of no kills
+
+#### New Weapons (3 Lore-Accurate Types)
+- **Replicator Nanite Swarm** (Asgard — "Loki's Lab Ship" variant) — fires 3-5 grey metallic nanites that self-replicate on kill: 1-2 children per kill, max 20 active, 3 generation limit. Mastery "Replicator Horde" raises cap to 30 with 3 children per kill
+- **Wraith Culling Beam** (Goa'uld — "Wraith Alliance Cruiser" variant) — purple continuous beam that heals player 25% of damage dealt. Shorter range (1200px) but sustain advantage. Green life-steal wisps flow toward ship. Mastery "Feeding Frenzy" increases to 40% life steal
+- **Tok'ra Tunnel Crystal** (Tau'ri — "Tok'ra Scout" variant) — slow crystal projectile (speed 6) creates gravity vortex on impact. 200px pull radius, 5 dmg/frame inner zone, 4s duration, max 2 active. Swirling purple visual with spiral arms. Mastery "Crystal Labyrinth" allows 4 vortices with doubled duration
+
+#### New Power-Ups (3 Stargate-Themed)
+- **Prior Plague** (epic, Goa'uld) — infects nearest 3 enemies with plague that spreads to nearby enemies within 100px (max 3 generations). Infected enemies take 30% more damage and show purple tint overlay
+- **Ancient Ascension** (legendary, universal) — 10 seconds of transcendence: 2x damage, 2x speed, full invulnerability, all projectiles pierce, screen-wide XP magnet. Ship rendered with white energy glow and halo ring
+- **Naquadria Cascade** (legendary, Lucian Alliance) — instant chain explosion bouncing between up to 15 enemies. 80 base damage with -10% per bounce. Uses ChainLightning + Explosion visuals for satisfying cascading detonation
+
+#### Ancient Drone Weapon Overhaul
+- **New `AncientDrone` projectile class** replaces generic Laser for Aurora-class drone_pulse weapon. Now renders as golden squid-shaped projectiles with:
+  - Elongated golden oval body with bright yellow-white core
+  - 3 trailing energy tentacles (randomized per frame)
+  - Fading golden energy wisp trail
+  - Organic wobble flight pattern true to the show
+  - Rotates to face direction of travel
+- Updated drone_salvo secondary and Drone Swarm mastery to use proper AncientDrone visuals
+- Fixed Laser class SRCALPHA color rendering bug (3-tuple RGB on SRCALPHA surface)
+
+#### Miniship Escort Improvements
+- **Target prioritization** — escorts now favor low-HP enemies for finishing blows (weighted distance × HP ratio scoring)
+- **Weaving strafe** — alternates strafe direction every 0.75s for dynamic attack patterns instead of one-directional circling
+- **Retreat when close** — escorts drift backward when within 80px of target while strafing
+- **8-direction facing** — escorts now use diagonal-aware facing toward their target
+
+#### Beam Collision Rewrite
+- Player beam collision detection rewritten from cardinal-only axis checks to proper beam-line projection math, supporting arbitrary aim directions from the auto-aim system
+
+---
+
 ### Version 10.1.5 (March 2026)
 **Balance Patch — Faction & Leader Tuning**
 

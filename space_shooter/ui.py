@@ -50,13 +50,30 @@ def draw_ui(game, surface):
     kill_text = game.small_font.render(f"Kills: {game.total_kills}", True, (255, 200, 100))
     surface.blit(kill_text, (game.screen_width - kill_text.get_width() - 20, 80))
 
-    # Kill streak display
+    # Kill streak & combo display
     if game.kill_streak >= 3:
+        tier = getattr(game, 'kill_streak_tier', 0)
+        mult = getattr(game, 'kill_streak_mult', 1.0)
+        tier_colors = {0: (255, 100, 50), 1: (255, 255, 255), 2: (80, 140, 255),
+                       3: (180, 80, 255), 4: (255, 200, 50)}
+        streak_color = tier_colors.get(tier, (255, 100, 50))
         pulse = 1.0 + math.sin(pygame.time.get_ticks() * 0.01) * 0.15
-        streak_size = int(32 * pulse)
+        streak_size = int(32 * pulse) + tier * 2
         streak_font = _get_cached_font(streak_size, bold=True)
-        streak_surf = streak_font.render(f"STREAK x{game.kill_streak}!", True, (255, 100, 50))
-        surface.blit(streak_surf, (game.screen_width - streak_surf.get_width() - 20, 110))
+        label = f"STREAK x{game.kill_streak}!"
+        if mult > 1.0:
+            label += f" ({mult:.1f}x DMG)"
+        streak_surf = streak_font.render(label, True, streak_color)
+        sx = game.screen_width - streak_surf.get_width() - 20
+        # Glow ring for tier 3+ (purple/gold)
+        if tier >= 3:
+            glow_r = streak_surf.get_width() // 2 + 10
+            glow_surf = pygame.Surface((glow_r * 2, streak_surf.get_height() + 20), pygame.SRCALPHA)
+            glow_alpha = int(60 + 30 * math.sin(pygame.time.get_ticks() * 0.008))
+            pygame.draw.ellipse(glow_surf, (*streak_color[:3], glow_alpha),
+                              (0, 0, glow_r * 2, streak_surf.get_height() + 20))
+            surface.blit(glow_surf, (sx + streak_surf.get_width() // 2 - glow_r, 100))
+        surface.blit(streak_surf, (sx, 110))
 
     # XP bar (below health/shield bars area, left side)
     xp_bar_x = 20

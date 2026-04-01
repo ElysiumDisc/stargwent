@@ -479,6 +479,36 @@ class PowerUp:
             "rarity": "rare",
             "faction": "goa'uld",
         },
+        # --- NEW STARGATE POWERUPS ---
+        "prior_plague": {
+            "name": "Prior Plague",
+            "color": (160, 40, 255),
+            "duration": 480,  # 8 seconds
+            "spawn_weight": 0,
+            "icon": "P",
+            "icon_file": "weather.png",
+            "rarity": "epic",
+            "faction": "goa'uld",
+        },
+        "ancient_ascension": {
+            "name": "Ascension",
+            "color": (255, 255, 220),
+            "duration": 600,  # 10 seconds
+            "spawn_weight": 1,
+            "icon": "A",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+        },
+        "naquadria_cascade": {
+            "name": "Naquadria Cascade",
+            "color": (255, 150, 50),
+            "duration": 0,  # Instant
+            "spawn_weight": 0,
+            "icon": "N",
+            "icon_file": "Legendary commander.png",
+            "rarity": "legendary",
+            "faction": "lucian alliance",
+        },
     }
 
     # Rarity colors for powerup border glow
@@ -646,6 +676,64 @@ class PowerUp:
         x = screen_width + 30
         y = random.randint(100, screen_height - 100)
         return cls.spawn_at(x, y)
+
+
+class TunnelVortex:
+    """Tok'ra tunnel crystal gravity vortex — pulls and damages nearby enemies."""
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.pull_radius = 200
+        self.damage_per_frame = 5
+        self.duration = 240  # 4 seconds at 60fps
+        self.timer = 0
+        self.active = True
+        self.pulse = 0
+        self.rotation = 0
+
+    def update(self):
+        self.timer += 1
+        self.pulse += 0.2
+        self.rotation += 4
+        if self.timer >= self.duration:
+            self.active = False
+
+    def draw(self, surface, camera=None):
+        if not self.active:
+            return
+        if camera:
+            sx, sy = camera.world_to_screen(self.x, self.y)
+        else:
+            sx, sy = self.x, self.y
+        # Fade out in last 60 frames
+        fade = min(1.0, (self.duration - self.timer) / 60.0)
+        base_alpha = int(120 * fade)
+        r = self.pull_radius
+        size = r * 2 + 20
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        c = size // 2
+        # Outer pull ring (pulsing)
+        ring_r = int(r * (0.9 + 0.1 * math.sin(self.pulse)))
+        pygame.draw.circle(surf, (120, 40, 220, int(base_alpha * 0.3)), (c, c), ring_r, 3)
+        # Swirling arms
+        for i in range(4):
+            angle = math.radians(self.rotation + i * 90)
+            arm_len = r * 0.6
+            for j in range(8):
+                t = j / 8.0
+                arm_angle = angle + t * 2.5  # Spiral
+                dist = arm_len * (1.0 - t * 0.4)
+                ax = c + int(math.cos(arm_angle) * dist)
+                ay = c + int(math.sin(arm_angle) * dist)
+                dot_r = max(2, int(5 * (1.0 - t)))
+                alpha = int(base_alpha * (1.0 - t * 0.5))
+                pygame.draw.circle(surf, (150, 80, 255, alpha), (ax, ay), dot_r)
+        # Core glow
+        core_r = int(20 + 5 * math.sin(self.pulse * 2))
+        pygame.draw.circle(surf, (200, 140, 255, base_alpha), (c, c), core_r)
+        pygame.draw.circle(surf, (255, 255, 255, int(base_alpha * 0.7)), (c, c), core_r // 2)
+        surface.blit(surf, (int(sx) - c, int(sy) - c))
 
 
 class Drone:

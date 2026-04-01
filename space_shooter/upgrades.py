@@ -260,6 +260,21 @@ PRIMARY_MASTERIES = {
         "desc": "Energy balls deal trail damage",
         "color": (255, 100, 200),
     },
+    "nanite_swarm": {
+        "name": "Replicator Horde",
+        "desc": "3 children per kill, cap raised to 30",
+        "color": (180, 180, 200),
+    },
+    "wraith_culling": {
+        "name": "Feeding Frenzy",
+        "desc": "Life steal 40%, beam widens on kill",
+        "color": (160, 40, 255),
+    },
+    "tunnel_crystal": {
+        "name": "Crystal Labyrinth",
+        "desc": "Max 4 vortices, duration doubled",
+        "color": (150, 80, 255),
+    },
 }
 
 # Enemy type modifiers: (speed_mult, hp_mult, scale, xp_value, tint, behavior)
