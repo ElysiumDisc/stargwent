@@ -500,6 +500,8 @@ class MainMenu:
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    if dragging_slider:
+                        settings.end_batch()
                     return 'quit'
                 if event.type == pygame.KEYDOWN:
                     if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
@@ -531,6 +533,7 @@ class MainMenu:
                             break
                     if clicked_slider:
                         dragging_slider = clicked_slider
+                        settings.begin_batch()
                         set_volume_from_pos(clicked_slider, event.pos[0])
                     elif unlock_gate_rect.collidepoint(event.pos):
                         self.toggle_unlock_override()
@@ -543,6 +546,8 @@ class MainMenu:
                         pygame.event.clear()  # Discard stale events from display recreation
                         break
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    if dragging_slider:
+                        settings.end_batch()
                     dragging_slider = None
                 elif event.type == pygame.MOUSEMOTION:
                     if dragging_slider:
@@ -768,6 +773,9 @@ class MainMenu:
             surface.blit(esc_surface, esc_rect)
 
             display_manager.gpu_flip()
+        # Flush any pending batch save (e.g., if menu closed while dragging a slider)
+        if dragging_slider:
+            settings.end_batch()
         return None
     def load_background(self):
         """Load menu background image."""

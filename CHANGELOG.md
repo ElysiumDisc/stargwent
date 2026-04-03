@@ -4,6 +4,16 @@
 
 ---
 
+### Version 10.3.1 (April 2026)
+**Space Shooter — Bug Fixes & Polish**
+
+#### Bug Fixes
+- **Asteroid collision crash** — fixed `AttributeError: 'Asteroid' object has no attribute 'width'` when player projectiles hit asteroids via spatial grid query. Asteroids are now properly skipped in the ship collision loop (handled in dedicated asteroid loop)
+- **Settings save spam** — fixed settings being saved to disk on every frame during slider drags (100+ writes/sec). Added skip-if-unchanged guards on all setters and batch mode for slider interactions (single write on mouse-up)
+- **Miniship escort facing** — interceptor escorts now properly follow the player's facing direction. When idle they mirror the owner's facing; when returning to orbit they face their movement direction; during combat pullout they face retreat direction instead of flying backwards
+
+---
+
 ### Version 10.3.0 (March 2026)
 **Space Shooter — Combat Overhaul & Carrier Rework**
 

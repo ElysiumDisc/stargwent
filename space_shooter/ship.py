@@ -968,8 +968,23 @@ class Ship:
                         self._attack_state = "approach"
                         self._attack_burst_count = 0
 
-            # Face enemy (8-direction aware)
-            if edist > 1:
+            # Face direction: during pullout, face movement dir; otherwise face enemy
+            if self._attack_state == "pullout":
+                # Face movement direction during retreat (not backwards at enemy)
+                mvx, mvy = self._mini_vx, self._mini_vy
+                mspd = math.hypot(mvx, mvy)
+                if mspd > 0.5:
+                    avx, avy = abs(mvx), abs(mvy)
+                    sx = 1 if mvx > 0 else -1
+                    sy = -1 if mvy < 0 else 1
+                    if avx > 0.35 and avy > 0.35 and min(avx, avy) / max(avx, avy) > 0.4:
+                        self.set_facing((sx, sy))
+                    elif avx >= avy:
+                        self.set_facing((sx, 0))
+                    else:
+                        self.set_facing((0, sy))
+            elif edist > 1:
+                # Face enemy (8-direction aware)
                 avx, avy = abs(edx), abs(edy)
                 sx = 1 if edx > 0 else -1
                 sy = -1 if edy < 0 else 1
@@ -1012,12 +1027,24 @@ class Ship:
                 self._mini_vy = (target_y - self.y) * 0.12
                 self.x += self._mini_vx
                 self.y += self._mini_vy
-            # Face owner direction if idle
-            face_dx = owner.x - self.x
-            if face_dx > 0:
-                self.set_facing((1, 0))
-            elif face_dx < 0:
-                self.set_facing((-1, 0))
+            # Mirror owner's facing direction when idle
+            if dist > 15:
+                # Returning to orbit: face movement direction
+                mvx, mvy = self._mini_vx, self._mini_vy
+                mspd = math.hypot(mvx, mvy)
+                if mspd > 0.5:
+                    avx, avy = abs(mvx), abs(mvy)
+                    sx = 1 if mvx > 0 else -1
+                    sy = -1 if mvy < 0 else 1
+                    if avx > 0.35 and avy > 0.35 and min(avx, avy) / max(avx, avy) > 0.4:
+                        self.set_facing((sx, sy))
+                    elif avx >= avy:
+                        self.set_facing((sx, 0))
+                    else:
+                        self.set_facing((0, sy))
+            else:
+                # At orbit anchor: match owner's facing direction
+                self.set_facing(owner.facing)
             self._update_rotation()
             self._update_engine_trail()
             return proj

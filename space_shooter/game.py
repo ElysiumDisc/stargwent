@@ -3474,6 +3474,8 @@ class SpaceShooterGame:
                 hit = False
                 nearby_enemies = self.spatial_grid.query(proj.x, proj.y, 60)
                 for ai_ship in nearby_enemies:
+                    if isinstance(ai_ship, Asteroid):
+                        continue
                     if proj_rect.colliderect(ai_ship.get_rect()):
                         hit = True
                         ai_ship.hit_flash = 10

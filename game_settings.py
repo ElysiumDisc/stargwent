@@ -20,6 +20,8 @@ class GameSettings:
 
     def __init__(self):
         self.settings = self.load_settings()
+        self._dirty = False
+        self._batch_mode = False  # When True, defer saves until batch ends
 
     def load_settings(self) -> dict:
         """Load saved settings from file"""
@@ -37,14 +39,32 @@ class GameSettings:
         return self._get_default_settings()
 
     def save_settings(self):
-        """Save current settings to file"""
+        """Save current settings to file (respects batch mode)."""
+        if self._batch_mode:
+            self._dirty = True
+            return
+        self._force_save()
+
+    def _force_save(self):
+        """Unconditionally write settings to disk."""
         try:
             with open(SETTINGS_FILE, 'w') as f:
                 json.dump(self.settings, f, indent=2)
             sync_saves()
+            self._dirty = False
             print(f"✓ Settings saved to {SETTINGS_FILE}")
         except Exception as e:
             print(f"Error saving settings: {e}")
+
+    def begin_batch(self):
+        """Start a batch of changes — saves are deferred until end_batch()."""
+        self._batch_mode = True
+
+    def end_batch(self):
+        """End a batch of changes and save if anything was modified."""
+        self._batch_mode = False
+        if self._dirty:
+            self._force_save()
 
     def _get_default_settings(self) -> dict:
         """Default settings"""
@@ -71,6 +91,8 @@ class GameSettings:
     def set_master_volume(self, volume: float):
         """Set master volume (0.0 to 1.0) and apply immediately"""
         volume = max(0.0, min(1.0, volume))  # Clamp to 0-1
+        if self.settings.get("master_volume") == volume:
+            return
         self.settings["master_volume"] = volume
         self.apply_volume()
         self.save_settings()
@@ -82,6 +104,8 @@ class GameSettings:
     def set_music_volume(self, volume: float):
         """Set music volume (0.0 to 1.0) and apply immediately"""
         volume = max(0.0, min(1.0, volume))
+        if self.settings.get("music_volume") == volume:
+            return
         self.settings["music_volume"] = volume
         self.apply_volume()
         self.save_settings()
@@ -93,6 +117,8 @@ class GameSettings:
     def set_sfx_volume(self, volume: float):
         """Set SFX volume (0.0 to 1.0)"""
         volume = max(0.0, min(1.0, volume))
+        if self.settings.get("sfx_volume") == volume:
+            return
         self.settings["sfx_volume"] = volume
         # SFX volume will be applied when sounds play
         self.save_settings()
@@ -104,6 +130,8 @@ class GameSettings:
     def set_voice_volume(self, volume: float):
         """Set voice volume (0.0 to 1.0)"""
         volume = max(0.0, min(1.0, volume))
+        if self.settings.get("voice_volume") == volume:
+            return
         self.settings["voice_volume"] = volume
         self.save_settings()
 
@@ -137,7 +165,10 @@ class GameSettings:
 
     def set_show_fps(self, show: bool):
         """Set show FPS setting"""
-        self.settings["show_fps"] = bool(show)
+        show = bool(show)
+        if self.settings.get("show_fps") == show:
+            return
+        self.settings["show_fps"] = show
         self.save_settings()
 
     def get_vsync_enabled(self) -> bool:
@@ -146,7 +177,10 @@ class GameSettings:
 
     def set_vsync_enabled(self, enabled: bool):
         """Set VSync enabled setting"""
-        self.settings["vsync"] = bool(enabled)
+        enabled = bool(enabled)
+        if self.settings.get("vsync") == enabled:
+            return
+        self.settings["vsync"] = enabled
         self.save_settings()
 
     def get_competitive_mode(self) -> bool:
@@ -155,42 +189,60 @@ class GameSettings:
 
     def set_competitive_mode(self, enabled: bool):
         """Set competitive mode setting"""
-        self.settings["competitive_mode"] = bool(enabled)
+        enabled = bool(enabled)
+        if self.settings.get("competitive_mode") == enabled:
+            return
+        self.settings["competitive_mode"] = enabled
         self.save_settings()
 
     def get_gpu_enabled(self) -> bool:
         return self.settings.get("gpu_enabled", True)
 
     def set_gpu_enabled(self, enabled: bool):
-        self.settings["gpu_enabled"] = bool(enabled)
+        enabled = bool(enabled)
+        if self.settings.get("gpu_enabled") == enabled:
+            return
+        self.settings["gpu_enabled"] = enabled
         self.save_settings()
 
     def get_bloom_enabled(self) -> bool:
         return self.settings.get("bloom_enabled", True)
 
     def set_bloom_enabled(self, enabled: bool):
-        self.settings["bloom_enabled"] = bool(enabled)
+        enabled = bool(enabled)
+        if self.settings.get("bloom_enabled") == enabled:
+            return
+        self.settings["bloom_enabled"] = enabled
         self.save_settings()
 
     def get_bloom_intensity(self) -> float:
         return self.settings.get("bloom_intensity", 0.6)
 
     def set_bloom_intensity(self, value: float):
-        self.settings["bloom_intensity"] = max(0.0, min(1.0, value))
+        value = max(0.0, min(1.0, value))
+        if self.settings.get("bloom_intensity") == value:
+            return
+        self.settings["bloom_intensity"] = value
         self.save_settings()
 
     def get_bloom_threshold(self) -> float:
         return self.settings.get("bloom_threshold", 0.65)
 
     def set_bloom_threshold(self, value: float):
-        self.settings["bloom_threshold"] = max(0.0, min(1.0, value))
+        value = max(0.0, min(1.0, value))
+        if self.settings.get("bloom_threshold") == value:
+            return
+        self.settings["bloom_threshold"] = value
         self.save_settings()
 
     def get_vignette_enabled(self) -> bool:
         return self.settings.get("vignette_enabled", True)
 
     def set_vignette_enabled(self, enabled: bool):
-        self.settings["vignette_enabled"] = bool(enabled)
+        enabled = bool(enabled)
+        if self.settings.get("vignette_enabled") == enabled:
+            return
+        self.settings["vignette_enabled"] = enabled
         self.save_settings()
 
     def get_shader_quality(self) -> str:
@@ -198,6 +250,8 @@ class GameSettings:
 
     def set_shader_quality(self, quality: str):
         if quality in ("low", "medium", "high"):
+            if self.settings.get("shader_quality") == quality:
+                return
             self.settings["shader_quality"] = quality
             self.save_settings()
 
@@ -260,6 +314,7 @@ def run_settings_menu(screen):
                 for name, slider_rect in slider_rects.items():
                     if slider_rect.collidepoint(event.pos):
                         dragging_slider = name
+                        settings.begin_batch()
                         # Update value immediately
                         x_rel = (event.pos[0] - slider_rect.x) / slider_rect.width
                         x_rel = max(0.0, min(1.0, x_rel))
@@ -273,6 +328,8 @@ def run_settings_menu(screen):
                             settings.set_voice_volume(x_rel)
 
             elif event.type == pygame.MOUSEBUTTONUP:
+                if dragging_slider:
+                    settings.end_batch()
                 dragging_slider = None
 
             elif event.type == pygame.MOUSEMOTION and dragging_slider:
@@ -359,4 +416,7 @@ def run_settings_menu(screen):
         display_manager.gpu_flip()
         clock.tick(60)
 
+    # Flush any pending batch save (e.g., if menu closed while dragging a slider)
+    if dragging_slider:
+        settings.end_batch()
     return
