@@ -46,6 +46,7 @@ class CampaignState:
     pending_crisis: dict = field(default_factory=dict)                    # crisis dict with choices (empty = none)
     wisdom_actions_this_turn: int = 0                                     # reset each turn
     turns_held: dict = field(default_factory=dict)                        # planet_id → turns owned (development track)
+    diplomatic_favor: dict = field(default_factory=dict)                  # faction → int (-100 to +100)
 
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
@@ -86,6 +87,7 @@ class CampaignState:
             "pending_crisis": dict(self.pending_crisis),
             "wisdom_actions_this_turn": self.wisdom_actions_this_turn,
             "turns_held": dict(self.turns_held),
+            "diplomatic_favor": dict(self.diplomatic_favor),
         }
 
     @classmethod
@@ -128,6 +130,7 @@ class CampaignState:
             pending_crisis=data.get("pending_crisis", {}),
             wisdom_actions_this_turn=data.get("wisdom_actions_this_turn", 0),
             turns_held=data.get("turns_held", {}),
+            diplomatic_favor=data.get("diplomatic_favor", {}),
         )
 
     def tick_cooldowns(self):

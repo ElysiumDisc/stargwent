@@ -73,8 +73,8 @@ def get_building(building_id):
     return BUILDINGS.get(building_id)
 
 
-def _get_building_cost(building, state=None):
-    """Get effective building cost, applying Asgard Engineering perk + doctrine discount."""
+def _get_building_cost(building, state=None, planet_id=None, galaxy=None):
+    """Get effective building cost, applying Asgard Engineering perk + doctrine + trading discount."""
     from .meta_progression import has_perk
     cost = building.cost
     if has_perk("building_discount"):
@@ -84,6 +84,10 @@ def _get_building_cost(building, state=None):
         from .doctrines import get_active_effects
         effects = get_active_effects(state)
         cost -= effects.get("building_cost_reduction", 0)
+    # Trading partner adjacency discount (-10 naq)
+    if state is not None and planet_id is not None and galaxy is not None:
+        from .diplomacy import get_trading_building_discount
+        cost -= get_trading_building_discount(state, planet_id, galaxy)
     return max(10, cost)
 
 
@@ -98,15 +102,15 @@ def can_build(state, planet_id, building_id, galaxy):
     building = BUILDINGS.get(building_id)
     if not building:
         return False
-    return state.naquadah >= _get_building_cost(building, state)
+    return state.naquadah >= _get_building_cost(building, state, planet_id, galaxy)
 
 
-def construct_building(state, planet_id, building_id):
+def construct_building(state, planet_id, building_id, galaxy=None):
     """Build a building on a planet. Returns message or None."""
     building = BUILDINGS.get(building_id)
     if not building:
         return None
-    cost = _get_building_cost(building, state)
+    cost = _get_building_cost(building, state, planet_id, galaxy)
     state.add_naquadah(-cost)
     state.buildings[planet_id] = building_id
     # Track building construction stat

@@ -4,6 +4,56 @@
 
 ---
 
+### Version 10.5.0 (April 2026)
+**Galactic Conquest — Diplomacy Overhaul**
+
+#### Diplomatic Favor System
+- **Per-faction favor score** (-100 to +100) — tracks player reputation with each faction based on diplomatic actions, betrayals, gifts, and military aggression
+- **Favor effects** — high favor (50+) grants -25% trade/alliance cost and +15% AI acceptance of demands; low favor (-50) adds +10% counterattack chance and blocks trade proposals
+- **Favor decay** — 3 points toward zero each turn prevents permanent lock-in, encouraging active diplomacy
+- **Trading favor** — maintaining a TRADING relation for 3+ turns passively builds +5 favor
+
+#### Five New Player-Initiated Diplomatic Actions (8 total)
+- **Send Gift** (-30 naq) — improve favor with any non-allied faction. Gift effectiveness scaled by faction personality (Asgard 1.5x, Goa'uld 0.5x)
+- **Demand Tribute** (free) — leverage 2x military superiority to extract 20-40 naq from weaker factions. Refusal costs -10 favor with 20% chance of retaliatory counterattack
+- **Non-Aggression Pact** (-20 naq) — 5-turn ceasefire with hostile factions (sets relation to NEUTRAL). Honoring the full term grants +10 favor; breaking it early costs -30 favor and permanent trust penalty
+- **Request Military Aid** (-40 naq) — direct an allied faction to attack a hostile neighbor. Success uses AI faction war math. 3-turn cooldown per ally
+- **Propose Joint Attack** (-15 naq) — coordinate with trading partners against mutual enemies. Grants -1 cooldown on target + 30% chance partner captures a planet
+
+#### Personality-Driven AI Diplomacy
+- Each faction's unique personality now shapes their diplomatic behavior:
+  - **Goa'uld**: Gifts half as effective, rarely accept NAPs (30%), demand subjugation
+  - **Asgard**: Love gifts (1.5x), almost always accept NAPs (95%), offer technology exchanges
+  - **Jaffa Rebellion**: Propose Revenge Pacts against the Goa'uld with mutual cooldown bonuses
+  - **Lucian Alliance**: Run protection rackets, love trade (1.3x proposal rate), suspicious of NAPs
+  - **Alteran**: Share Ancient knowledge for Wisdom after turn 15, generally peaceful
+  - **Tau'ri**: Propose Mutual Defense Treaties granting +1 defense power for 5 turns
+
+#### Enhanced AI Proposals (13 total, was 4)
+- **Alliance Offer** — TRADING faction with 30+ favor offers free alliance
+- **Peace Offering** — hostile faction sends 25 naq + ceasefire after losing 2+ planets
+- **Ultimatum** — strong hostile faction demands you break an alliance or face 100% counterattack for 2 turns
+- **Asgard Technology Exchange** — trade 50 naq for +1 card draw in next 5 battles
+- **Lucian Protection Racket** — pay 15 naq/turn or suffer income sabotage (-5 naq/turn for 3 turns)
+- **Jaffa Revenge Pact** — mutual -1 cooldown vs Goa'uld planets + instant trade agreement
+- **Goa'uld Subjugation Demand** — surrender a border planet or face 100% counterattack for 2 turns
+- **Tau'ri Mutual Defense** — +1 defense power for both sides for 5 turns
+- **Alteran Knowledge Sharing** — trade 30 naq for +10 Wisdom (after turn 15)
+
+#### Faction Elimination Consequences
+- Eliminating any faction now triggers **galactic fear**: all surviving factions lose -15 favor with the player
+- Flash message: "The galaxy trembles -- {faction} has been destroyed!"
+
+#### Enriched Relation Tiers
+- **NEUTRAL** (was zero benefits) — now grants +2 naq/turn income and NAP eligibility. Active NAP prevents counterattacks
+- **TRADING** (buffed) — increased from +5 to +8 naq/turn. Planets adjacent to trading partners get -10 naq building cost discount
+- **Diplomacy screen** — now shows favor bars per faction, all 8 contextual action buttons, NAP timers, updated benefit text, and target selection overlay for military aid/joint attacks
+
+#### Save Compatibility
+- Backward compatible — existing saves load with default 0 favor for all factions via `diplomatic_favor: {}` default
+
+---
+
 ### Version 10.3.1 (April 2026)
 **Space Shooter — Bug Fixes & Polish**
 

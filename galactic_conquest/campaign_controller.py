@@ -36,6 +36,13 @@ from .crisis_events import (should_trigger_crisis, pick_crisis, apply_crisis,
                              check_crisis_option_c)
 from .diplomacy import (get_adjacency_bonus_factions,
                          get_trade_income, get_alliance_upkeep, set_relation,
+                         get_neutral_income, get_lucian_sabotage_penalty,
+                         get_favor_counter_bonus, get_demand_retaliation_bonus,
+                         get_ultimatum_aggro, tick_favor_decay, tick_trading_favor,
+                         tick_nap_timers, tick_diplomacy_cooldowns, tick_special_effects,
+                         check_nap_break, break_nap, on_faction_eliminated,
+                         get_mutual_defense_bonus, get_asgard_tech_bonus,
+                         consume_asgard_tech_draw,
                          TRADING, check_conquest_strain)
 from .minor_worlds import (init_minor_worlds, ensure_minor_world,
                             decay_minor_world_influence, ai_court_minor_worlds,
@@ -66,6 +73,12 @@ FACTION_PERSONALITIES = {
         "expansion_mult": 1.4,        # more likely to attack in faction wars
         "success_bonus": 0.05,        # slightly better at conquering
         "desc": "Relentless conquerors — high counterattack, aggressive expansion",
+        # Diplomacy personality
+        "gift_favor_mult": 0.5,       # gifts are half as effective
+        "nap_acceptance": 0.30,       # rarely accept NAPs
+        "demand_refusal_rate": 0.80,  # almost always refuse tribute demands
+        "trade_propose_mult": 0.5,    # rarely propose trades
+        "unique_proposal": "subjugation",
     },
     "Asgard": {
         "name": "Diplomatic",
@@ -73,6 +86,12 @@ FACTION_PERSONALITIES = {
         "expansion_mult": 0.6,        # rarely attacks others
         "success_bonus": 0.0,
         "desc": "Prefer trade and protection — low aggression",
+        # Diplomacy personality
+        "gift_favor_mult": 1.5,       # appreciate gifts more
+        "nap_acceptance": 0.95,       # almost always accept NAPs
+        "demand_refusal_rate": 0.20,  # usually comply with demands
+        "trade_propose_mult": 1.5,    # frequently propose trades
+        "unique_proposal": "tech_exchange",
     },
     "Jaffa Rebellion": {
         "name": "Vengeful",
@@ -81,6 +100,12 @@ FACTION_PERSONALITIES = {
         "success_bonus": 0.0,
         "vengeful": True,             # 2x counterattack if lost planet last turn
         "desc": "Strike back hard when wronged — vengeful counterattacks",
+        # Diplomacy personality
+        "gift_favor_mult": 1.0,
+        "nap_acceptance": 0.50,
+        "demand_refusal_rate": 0.50,
+        "trade_propose_mult": 1.0,
+        "unique_proposal": "revenge_pact",
     },
     "Lucian Alliance": {
         "name": "Opportunistic",
@@ -89,6 +114,12 @@ FACTION_PERSONALITIES = {
         "success_bonus": 0.10,        # better at winning battles
         "target_weakest": True,       # targets faction with fewest planets
         "desc": "Strike the weak, exploit the strong",
+        # Diplomacy personality
+        "gift_favor_mult": 0.8,       # greedy, gifts less effective
+        "nap_acceptance": 0.40,       # suspicious of NAPs
+        "demand_refusal_rate": 0.60,  # usually refuse demands
+        "trade_propose_mult": 1.3,    # love trade (profit motive)
+        "unique_proposal": "protection_racket",
     },
     "Alteran": {
         "name": "Ascendant",
@@ -97,6 +128,12 @@ FACTION_PERSONALITIES = {
         "success_bonus": 0.0,
         "late_game_mult": 2.5,        # multiplier after turn 15
         "desc": "Passive early, overwhelming after turn 15",
+        # Diplomacy personality
+        "gift_favor_mult": 1.2,       # receptive to gifts
+        "nap_acceptance": 0.70,       # generally peaceful
+        "demand_refusal_rate": 0.30,
+        "trade_propose_mult": 0.5,    # aloof early, but unique proposals late
+        "unique_proposal": "knowledge_sharing",
     },
     "Tau'ri": {
         "name": "Balanced",
@@ -104,6 +141,12 @@ FACTION_PERSONALITIES = {
         "expansion_mult": 1.0,
         "success_bonus": 0.0,
         "desc": "Standard behavior — no special modifiers",
+        # Diplomacy personality
+        "gift_favor_mult": 1.0,
+        "nap_acceptance": 0.60,
+        "demand_refusal_rate": 0.40,
+        "trade_propose_mult": 1.0,
+        "unique_proposal": "mutual_defense",
     },
 }
 
@@ -229,7 +272,7 @@ class CampaignController:
                 building_id = action[6:]  # strip "build_" prefix
                 planet_id = self.map_screen.selected_planet
                 if planet_id and can_build(self.state, planet_id, building_id, self.galaxy):
-                    msg = construct_building(self.state, planet_id, building_id)
+                    msg = construct_building(self.state, planet_id, building_id, self.galaxy)
                     if msg:
                         self.message = msg
                         # Minor world quest: build event
@@ -414,6 +457,27 @@ class CampaignController:
                         turn_msg += f" | {result_msg}"
                 tick_tribute_rejections(self.state)
 
+                # Diplomacy: tick favor decay, NAP timers, trading favor, cooldowns, special effects
+                tick_favor_decay(self.state)
+                tick_nap_timers(self.state)
+                tick_trading_favor(self.state)
+                tick_diplomacy_cooldowns(self.state)
+                tick_special_effects(self.state)
+                # Clear planet loss counters (used for peace offering proposals, one-shot per turn)
+                for _pk in list(self.state.conquest_ability_data):
+                    if _pk.startswith("_faction_planets_lost_"):
+                        del self.state.conquest_ability_data[_pk]
+
+                # Neutral income (+2/turn per neutral partner)
+                neutral_inc = get_neutral_income(self.state)
+                if neutral_inc > 0:
+                    self.state.add_naquadah(neutral_inc)
+
+                # Lucian sabotage penalty
+                sab_penalty = get_lucian_sabotage_penalty(self.state)
+                if sab_penalty > 0:
+                    self.state.add_naquadah(-sab_penalty)
+
                 # Ancient Repository relic: +30 naq/turn if player controls Atlantis
                 if self.state.has_relic("ancient_repository"):
                     atlantis_controlled = any(
@@ -577,9 +641,14 @@ class CampaignController:
             _p.save_unlocks()
 
             # Victory! Claim planet
+            defeated_faction_name = planet.owner  # Capture before transfer
             self.galaxy.transfer_ownership(planet_id, "player")
             self.state.planet_ownership[planet_id] = "player"
             self.message = f"Conquered {planet.name}!"
+            # Track planet loss for AI peace offering proposals
+            loss_key = f"_faction_planets_lost_{defeated_faction_name}"
+            self.state.conquest_ability_data[loss_key] = \
+                self.state.conquest_ability_data.get(loss_key, 0) + 1
             # +5 Wisdom for card battle victory
             self.state.wisdom += 5
             # Minor world quest: conquer event
@@ -668,10 +737,27 @@ class CampaignController:
 
             self.state.attacks_this_turn += 1
 
+            # Break NAP if attacking a NAP faction
+            nap_faction = check_nap_break(self.state, planet_id, self.galaxy)
+            if nap_faction:
+                break_nap(self.state, nap_faction)
+                self._flash_message(f"NAP with {nap_faction} broken! Severe diplomatic penalty.", 2000)
+
             # Conquest near allies causes diplomatic strain
             strain_msg = check_conquest_strain(self.state, planet, self.galaxy, self.rng)
             if strain_msg:
                 self._flash_message(strain_msg, 2000)
+
+            # Check if conquered faction was eliminated
+            defeated_faction = planet.faction
+            if (defeated_faction != "neutral"
+                    and self.galaxy.get_faction_planet_count(defeated_faction) == 0):
+                on_faction_eliminated(self.state, defeated_faction)
+                self._flash_message(
+                    f"The galaxy trembles -- {defeated_faction} has been destroyed!", 2500)
+
+            # Consume Asgard tech draw if active
+            consume_asgard_tech_draw(self.state)
 
             # Homeworld conquest: award faction-specific relic
             if planet.planet_type == "homeworld":
@@ -739,6 +825,9 @@ class CampaignController:
         sabotage_cards = get_sabotage_effect(self.state, planet.id)
         weaken_amount += sabotage_cards
 
+        # Asgard tech exchange: +1 extra card draw for player
+        asgard_extra = get_asgard_tech_bonus(self.state)
+
         result = await run_card_battle(
             self.screen,
             player_faction=self.state.player_faction,
@@ -753,6 +842,7 @@ class CampaignController:
             ai_extra_cards=ai_extra_cards,
             relics=getattr(self.state, 'relics', []),
             ai_weaken_amount=weaken_amount,
+            extra_player_cards=asgard_extra,
         )
         return result
 
@@ -793,9 +883,15 @@ class CampaignController:
             base_chance = get_counterattack_chance(self.state.difficulty)
             network = self._get_network_cached(allied)
             betrayal_bonus = get_betrayal_counter_bonus(self.state, faction)
-            effective_chance = (base_chance + betrayal_bonus
-                                - get_counterattack_reduction(self.galaxy, allied)
-                                - network["counterattack_reduction"])
+            favor_bonus = get_favor_counter_bonus(self.state, faction)
+            demand_bonus = get_demand_retaliation_bonus(self.state, faction)
+            ultimatum_override = get_ultimatum_aggro(self.state, faction)
+            if ultimatum_override > 0:
+                effective_chance = 1.0  # 100% counterattack from ultimatum
+            else:
+                effective_chance = (base_chance + betrayal_bonus + favor_bonus + demand_bonus
+                                    - get_counterattack_reduction(self.galaxy, allied)
+                                    - network["counterattack_reduction"])
 
             # AI Personality modifier
             personality = _get_personality(faction)
@@ -916,6 +1012,9 @@ class CampaignController:
                         sleeper_reduction = 1
                         break
 
+            # Mutual defense treaty bonus (+1 defense power)
+            mutual_def = get_mutual_defense_bonus(self.state)
+
             result = await run_card_battle(
                 self.screen,
                 player_faction=self.state.player_faction,
@@ -928,7 +1027,7 @@ class CampaignController:
                 upgraded_cards=self.state.upgraded_cards,
                 relics=getattr(self.state, 'relics', []),
                 extra_player_cards=extra_defense,
-                fort_defense_bonus=fort_level + defense_bonus_power,
+                fort_defense_bonus=fort_level + defense_bonus_power + mutual_def,
                 ai_weaken_amount=sleeper_reduction,
             )
             self._refresh_after_battle()
@@ -1045,7 +1144,19 @@ class CampaignController:
 
                 # Check if a faction was eliminated
                 if self.galaxy.get_faction_planet_count(defender_faction) == 0:
-                    self._flash_message(f"{defender_faction} has been ELIMINATED!", 2000)
+                    on_faction_eliminated(self.state, defender_faction)
+                    self._flash_message(
+                        f"The galaxy trembles -- {defender_faction} has been destroyed!", 2500)
+
+                # Track planet losses for AI proposals (peace offering trigger)
+                key = f"_faction_planets_lost_{defender_faction}"
+                self.state.conquest_ability_data[key] = \
+                    self.state.conquest_ability_data.get(key, 0) + 1
+
+        # Reset planet loss counters at end of wars phase (they track "this turn")
+        for key in list(self.state.conquest_ability_data):
+            if key.startswith("_faction_planets_lost_"):
+                pass  # Keep for AI proposals next turn, cleared on turn after
 
         # Store lost-planet info for Jaffa vengeful personality next turn
         self.state.conquest_ability_data["_ai_lost_planet_last_turn"] = lost_planets
