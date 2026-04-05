@@ -77,18 +77,24 @@ PY
 # Bundle Python and pygame-ce using python-appimage
 PYTHON_APPIMAGE_DIR="$BUILD_ROOT/python-appimage"
 PYTHON_VERSION="3.13"
-
-# Check for incomplete download
 PYTHON_APPIMAGE="$BUILD_ROOT/python${PYTHON_VERSION}-x86_64.AppImage"
-if [[ -f "$PYTHON_APPIMAGE" && ! -s "$PYTHON_APPIMAGE" ]]; then
-    echo "Removing incomplete Python AppImage download..."
-    rm "$PYTHON_APPIMAGE"
-fi
+PYTHON_BIN="$PYTHON_APPIMAGE_DIR/python/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}"
 
-if [[ ! -d "$PYTHON_APPIMAGE_DIR/python" ]]; then
-    echo "Setting up Python appimage base..."
+# Validate cache: the directory must exist AND contain the actual python binary.
+# Previous builds could leave a half-extracted tree that silently breaks pip install.
+if [[ ! -x "$PYTHON_BIN" ]]; then
+    if [[ -d "$PYTHON_APPIMAGE_DIR/python" ]]; then
+        echo "Cached Python runtime is incomplete (missing $PYTHON_BIN) — re-extracting..."
+    else
+        echo "Setting up Python appimage base..."
+    fi
     rm -rf "$PYTHON_APPIMAGE_DIR"
     mkdir -p "$PYTHON_APPIMAGE_DIR"
+
+    # Remove any incomplete download before re-fetching
+    if [[ -f "$PYTHON_APPIMAGE" && ! -s "$PYTHON_APPIMAGE" ]]; then
+        rm -f "$PYTHON_APPIMAGE"
+    fi
 
     # Download python-appimage
     if [[ ! -f "$PYTHON_APPIMAGE" ]]; then
@@ -105,9 +111,15 @@ if [[ ! -d "$PYTHON_APPIMAGE_DIR/python" ]]; then
     # Extract Python AppImage
     cd "$PYTHON_APPIMAGE_DIR"
     echo "Extracting Python runtime..."
-    "$PYTHON_APPIMAGE" --appimage-extract >/dev/null 2>&1 || { echo "Failed to extract Python AppImage"; exit 1; }
+    "$PYTHON_APPIMAGE" --appimage-extract >/dev/null || { echo "Failed to extract Python AppImage"; exit 1; }
     mv squashfs-root python
     cd "$ROOT_DIR"
+
+    # Re-validate after extraction
+    if [[ ! -x "$PYTHON_BIN" ]]; then
+        echo "ERROR: Python binary still missing after extraction at $PYTHON_BIN" >&2
+        exit 1
+    fi
 fi
 
 # Copy Python runtime to AppDir
@@ -117,7 +129,7 @@ rm -f "$APPDIR/AppRun"
 
 # Install Python dependencies into the bundled runtime
 echo "Installing Python dependencies..."
-"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce moderngl Pillow >/dev/null 2>&1
+"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --quiet --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce moderngl Pillow
 echo "    Installed: pygame-ce, moderngl, Pillow"
 
 # Create launcher script
@@ -160,6 +172,6 @@ EOF
 # Build AppImage
 OUTPUT="$RELEASE_ROOT/Stargwent-${VERSION}-linux-x86_64.AppImage"
 echo "Building AppImage..."
-ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT" >/dev/null 2>&1
+ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT" >/dev/null
 
 echo "AppImage created: $OUTPUT"

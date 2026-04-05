@@ -70,8 +70,8 @@ PY
 echo "[2/5] Creating bundled Python virtual environment..."
 VENV_DIR="$DATA_DIR/.venv"
 python3 -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install --upgrade pip >/dev/null 2>&1
-"$VENV_DIR/bin/pip" install pygame-ce moderngl Pillow >/dev/null 2>&1
+"$VENV_DIR/bin/pip" install --quiet --upgrade pip
+"$VENV_DIR/bin/pip" install --quiet pygame-ce moderngl Pillow
 echo "    Installed: pygame-ce, moderngl, Pillow"
 
 # ── Create launcher script ────────────────────────────────────
