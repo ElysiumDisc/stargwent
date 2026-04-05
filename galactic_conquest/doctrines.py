@@ -2,8 +2,21 @@
 STARGWENT - GALACTIC CONQUEST - Doctrine Trees
 
 New resource "Wisdom" funds policy trees that force strategic identity per run.
-5 trees, 4 sequential policies each + completion bonus.
-Can complete 2-3 trees per campaign, creating distinct "builds."
+5 trees, 4 tiers of policies each + completion bonus. At tier 3, each tree
+offers THREE mutually-exclusive options: the original "spine" policy and
+two new specialized branches introduced in v11.0. Players pick ONE tier-3
+option and the capstone (tier 4) unlocks after any of them.
+
+Save-compat note (v11.0): existing save files with the old linear tier-3
+policy IDs (`con_3`, `asc_3`, …) still load unchanged — those IDs are
+still present as the "balanced" option. New branches (`con_3a`, `con_3b`,
+…) are ADDITIVE and only reachable in new runs.
+
+Each policy dict supports:
+    id, name, base_cost, effect, penalty, desc, tier        (all existing)
+    requires: [policy_id, ...]   — at least one must be adopted (OR)
+    conflicts_with: [policy_id, ...] — none may be adopted
+    capstone: True               — adopting this completes the tree
 """
 
 
@@ -16,18 +29,37 @@ DOCTRINE_TREES = {
         "icon": "\u2605",  # star
         "policies": [
             {"id": "asc_1", "name": "Ancient Meditation", "base_cost": 10,
+             "tier": 1,
              "effect": {"wisdom_per_turn": 3},
              "penalty": {"naquadah_per_turn_penalty": 5},
              "desc": "+3 Wisdom/turn | -5 naq/turn"},
             {"id": "asc_2", "name": "Repository Access", "base_cost": 20,
+             "tier": 2, "requires": ["asc_1"],
              "effect": {"extra_card_choices": 1},
              "penalty": {},
              "desc": "+1 reward card choice"},
+            # --- Tier 3: pick one ---
             {"id": "asc_3", "name": "Enlightened Warfare", "base_cost": 30,
+             "tier": 3, "requires": ["asc_2"],
+             "conflicts_with": ["asc_3a", "asc_3b"],
              "effect": {"battle_power_bonus": 1},
              "penalty": {"counterattack_chance_increase": 0.05},
-             "desc": "+1 power to all cards | +5% counterattack chance"},
+             "desc": "+1 power to all cards | +5% counterattack"},
+            {"id": "asc_3a", "name": "Inner Peace", "base_cost": 30,
+             "tier": 3, "requires": ["asc_2"],
+             "conflicts_with": ["asc_3", "asc_3b"],
+             "effect": {"global_counter_reduction": 0.05},
+             "penalty": {"battle_power_penalty": 1},
+             "desc": "-5% all counterattacks | -1 card power"},
+            {"id": "asc_3b", "name": "Ascended Fury", "base_cost": 30,
+             "tier": 3, "requires": ["asc_2"],
+             "conflicts_with": ["asc_3", "asc_3a"],
+             "effect": {"battle_power_bonus": 2},
+             "penalty": {"counterattack_chance_increase": 0.10},
+             "desc": "+2 power to all cards | +10% counterattack"},
             {"id": "asc_4", "name": "Near-Ascension", "base_cost": 40,
+             "tier": 4, "capstone": True,
+             "requires": ["asc_3", "asc_3a", "asc_3b"],
              "effect": {"wisdom_income_doubled": True},
              "penalty": {"naquadah_per_turn_penalty": 10},
              "desc": "Wisdom income doubled | -10 naq/turn"},
@@ -44,18 +76,37 @@ DOCTRINE_TREES = {
         "icon": "\u2694",  # swords
         "policies": [
             {"id": "con_1", "name": "Blitzkrieg Tactics", "base_cost": 10,
+             "tier": 1,
              "effect": {"attack_cooldown_reduction": 1},
              "penalty": {"defense_power_penalty": 1},
              "desc": "-1 turn cooldown | -1 defense power"},
             {"id": "con_2", "name": "Veteran Troops", "base_cost": 20,
+             "tier": 2, "requires": ["con_1"],
              "effect": {"attack_power_bonus": 1},
              "penalty": {},
              "desc": "+1 power when attacking"},
+            # --- Tier 3: pick one ---
             {"id": "con_3", "name": "War Logistics", "base_cost": 30,
+             "tier": 3, "requires": ["con_2"],
+             "conflicts_with": ["con_3a", "con_3b"],
              "effect": {"extra_attacks_per_turn": 1},
              "penalty": {"alliance_upkeep_increase": 5},
-             "desc": "+1 attack per turn | +5 alliance upkeep"},
+             "desc": "+1 attack per turn | +5 upkeep"},
+            {"id": "con_3a", "name": "Scorched Earth", "base_cost": 30,
+             "tier": 3, "requires": ["con_2"],
+             "conflicts_with": ["con_3", "con_3b"],
+             "effect": {"attack_cooldown_reduction": 1},
+             "penalty": {"conquest_naq_penalty": 10},
+             "desc": "-1 additional cooldown | -10 naq per conquest"},
+            {"id": "con_3b", "name": "Siege Engineers", "base_cost": 30,
+             "tier": 3, "requires": ["con_2"],
+             "conflicts_with": ["con_3", "con_3a"],
+             "effect": {"homeworld_attack_bonus": 2},
+             "penalty": {"defense_power_penalty": 1},
+             "desc": "+2 power vs homeworlds | -1 defense"},
             {"id": "con_4", "name": "Total Supremacy", "base_cost": 40,
+             "tier": 4, "capstone": True,
+             "requires": ["con_3", "con_3a", "con_3b"],
              "effect": {"conquest_naq_bonus": 30},
              "penalty": {"trade_income_penalty": 5},
              "desc": "+30 naq per conquest | -5 trade income"},
@@ -72,18 +123,37 @@ DOCTRINE_TREES = {
         "icon": "\u2696",  # scales
         "policies": [
             {"id": "all_1", "name": "Diplomatic Mastery", "base_cost": 10,
+             "tier": 1,
              "effect": {"minor_world_influence_per_turn": 5},
              "penalty": {"counterattack_chance_increase": 0.05},
-             "desc": "+5 influence/turn | +5% counterattack chance"},
+             "desc": "+5 influence/turn | +5% counterattack"},
             {"id": "all_2", "name": "Free Trade Zone", "base_cost": 20,
+             "tier": 2, "requires": ["all_1"],
              "effect": {"trade_cost_discount": 20},
              "penalty": {},
              "desc": "Trade agreements cost -20 naq"},
+            # --- Tier 3: pick one ---
             {"id": "all_3", "name": "Deep Alliance", "base_cost": 30,
+             "tier": 3, "requires": ["all_2"],
+             "conflicts_with": ["all_3a", "all_3b"],
              "effect": {"alliance_upkeep_reduction": 5},
              "penalty": {},
              "desc": "Alliance upkeep -5/turn"},
+            {"id": "all_3a", "name": "Trade Federation", "base_cost": 30,
+             "tier": 3, "requires": ["all_2"],
+             "conflicts_with": ["all_3", "all_3b"],
+             "effect": {"trading_naq_bonus": 5},
+             "penalty": {"alliance_upkeep_increase": 5},
+             "desc": "+5 naq/turn per trade | +5 upkeep"},
+            {"id": "all_3b", "name": "Brotherhood", "base_cost": 30,
+             "tier": 3, "requires": ["all_2"],
+             "conflicts_with": ["all_3", "all_3a"],
+             "effect": {"allied_passive_boost": True},
+             "penalty": {"trade_income_penalty": 3},
+             "desc": "Allied sharing 75% (was 50%) | -3 trade"},
             {"id": "all_4", "name": "Galactic Federation", "base_cost": 40,
+             "tier": 4, "capstone": True,
+             "requires": ["all_3", "all_3a", "all_3b"],
              "effect": {"passive_sharing_boost": True},
              "penalty": {"conquest_naq_penalty": 15},
              "desc": "Allied sharing 75% | -15 naq per conquest"},
@@ -100,18 +170,37 @@ DOCTRINE_TREES = {
         "icon": "\u2623",  # biohazard
         "policies": [
             {"id": "shd_1", "name": "Tok'ra Training", "base_cost": 10,
+             "tier": 1,
              "effect": {"operative_death_risk_reduction": 0.10},
              "penalty": {},
              "desc": "Operative death risk -10%"},
             {"id": "shd_2", "name": "Intelligence Networks", "base_cost": 20,
+             "tier": 2, "requires": ["shd_1"],
              "effect": {"mission_time_reduction": 1},
              "penalty": {"incident_chance_increase": 0.05},
-             "desc": "Mission times -1 turn | +5% incident chance"},
+             "desc": "Mission times -1 turn | +5% incidents"},
+            # --- Tier 3: pick one ---
             {"id": "shd_3", "name": "Advanced Sabotage", "base_cost": 30,
+             "tier": 3, "requires": ["shd_2"],
+             "conflicts_with": ["shd_3a", "shd_3b"],
              "effect": {"sabotage_extra_cards": 1},
              "penalty": {},
              "desc": "Sabotage removes 2 cards (was 1)"},
+            {"id": "shd_3a", "name": "Assassins Guild", "base_cost": 30,
+             "tier": 3, "requires": ["shd_2"],
+             "conflicts_with": ["shd_3", "shd_3b"],
+             "effect": {"mission_time_reduction": 1},
+             "penalty": {"operative_death_risk_increase": 0.15},
+             "desc": "-1 mission time | +15% death risk"},
+            {"id": "shd_3b", "name": "Intelligence Web", "base_cost": 30,
+             "tier": 3, "requires": ["shd_2"],
+             "conflicts_with": ["shd_3", "shd_3a"],
+             "effect": {"counter_intel_double": True},
+             "penalty": {"naquadah_per_turn_penalty": 5},
+             "desc": "Counter-Intel blocks 2 ops | -5 naq/turn"},
             {"id": "shd_4", "name": "Shadow Government", "base_cost": 40,
+             "tier": 4, "capstone": True,
+             "requires": ["shd_3", "shd_3a", "shd_3b"],
              "effect": {"free_operative_interval": 8},
              "penalty": {"naquadah_per_turn_penalty": 8},
              "desc": "Free operative every 8 turns | -8 naq/turn"},
@@ -128,21 +217,40 @@ DOCTRINE_TREES = {
         "icon": "\u2699",  # gear
         "policies": [
             {"id": "inn_1", "name": "Accelerated Research", "base_cost": 10,
+             "tier": 1,
              "effect": {"building_naq_bonus": 10},
              "penalty": {},
              "desc": "+10 naq/turn from buildings"},
             {"id": "inn_2", "name": "Advanced Engineering", "base_cost": 20,
+             "tier": 2, "requires": ["inn_1"],
              "effect": {"building_cost_reduction": 25},
              "penalty": {"wisdom_per_turn_penalty": 2},
              "desc": "Buildings -25 naq | -2 Wisdom/turn"},
+            # --- Tier 3: pick one ---
             {"id": "inn_3", "name": "Network Optimization", "base_cost": 30,
+             "tier": 3, "requires": ["inn_2"],
+             "conflicts_with": ["inn_3a", "inn_3b"],
              "effect": {"network_tier_reduction": 1},
              "penalty": {},
-             "desc": "Network tier thresholds -1 planet each"},
+             "desc": "Network tier thresholds -1 planet"},
+            {"id": "inn_3a", "name": "Rapid Prototype", "base_cost": 30,
+             "tier": 3, "requires": ["inn_2"],
+             "conflicts_with": ["inn_3", "inn_3b"],
+             "effect": {"upgrade_cost_reduction": 50},
+             "penalty": {"wisdom_per_turn_penalty": 2},
+             "desc": "Building upgrades -50 naq | -2 Wisdom/turn"},
+            {"id": "inn_3b", "name": "Quantum Computing", "base_cost": 30,
+             "tier": 3, "requires": ["inn_2"],
+             "conflicts_with": ["inn_3", "inn_3a"],
+             "effect": {"wisdom_per_turn": 5},
+             "penalty": {"building_cost_penalty": 20},
+             "desc": "+5 Wisdom/turn | +20 building cost"},
             {"id": "inn_4", "name": "Supergate Project", "base_cost": 40,
+             "tier": 4, "capstone": True,
+             "requires": ["inn_3", "inn_3a", "inn_3b"],
              "effect": {"enable_supergate": True},
              "penalty": {"counterattack_chance_increase": 0.08},
-             "desc": "Enables Supergate | +8% counterattack chance"},
+             "desc": "Enables Supergate | +8% counterattack"},
         ],
         "completion_bonus": {
             "name": "Tech Mastery",
@@ -176,20 +284,52 @@ def get_policy_cost(policy_id, state):
 
 
 def can_adopt(state, policy_id):
-    """Check if a policy can be adopted (wisdom available, prerequisite met)."""
+    """Check if a policy can be adopted.
+
+    Rules:
+    - Not already adopted.
+    - Every id listed in `requires` must have at least one entry in
+      state.adopted_policies (OR semantics — capstones can list all
+      three tier-3 siblings).
+    - No id listed in `conflicts_with` may be adopted already (mutual
+      exclusion for tier-3 branches).
+    - Player has enough wisdom for the escalating cost.
+    """
     if policy_id in state.adopted_policies:
         return False
     tree_id, idx = _POLICY_LOOKUP.get(policy_id, (None, None))
     if tree_id is None:
         return False
-    # Check prerequisite: previous policy in tree must be adopted
-    if idx > 0:
-        prev_id = DOCTRINE_TREES[tree_id]["policies"][idx - 1]["id"]
-        if prev_id not in state.adopted_policies:
+    policy = DOCTRINE_TREES[tree_id]["policies"][idx]
+
+    # G2b: espionage block from enemy "steal_doctrine" mission
+    blocked = getattr(state, "espionage_blocks", {}).get("doctrine_blocked_turns", 0)
+    if blocked > 0:
+        return False
+
+    # Prerequisites (OR semantics): at least one required policy must be adopted.
+    requires = policy.get("requires", [])
+    if requires and not any(r in state.adopted_policies for r in requires):
+        return False
+
+    # Conflicts: none of the listed policies may be adopted already.
+    for conflict_id in policy.get("conflicts_with", []):
+        if conflict_id in state.adopted_policies:
             return False
-    # Check wisdom
+
     cost = get_policy_cost(policy_id, state)
     return state.wisdom >= cost
+
+
+def _is_tree_complete_by_capstone(state, tree_id):
+    """Tree is complete when the capstone policy (flagged `capstone: True`) is adopted."""
+    tree = DOCTRINE_TREES.get(tree_id)
+    if not tree:
+        return False
+    for policy in tree["policies"]:
+        if policy.get("capstone") and policy["id"] in state.adopted_policies:
+            return True
+    return False
 
 
 def adopt_policy(state, policy_id):
@@ -204,19 +344,19 @@ def adopt_policy(state, policy_id):
     tree = DOCTRINE_TREES[tree_id]
     policy = tree["policies"][idx]
 
-    # Check if tree is now complete
-    all_ids = [p["id"] for p in tree["policies"]]
-    if all(pid in state.adopted_policies for pid in all_ids):
-        if tree_id not in state.completed_doctrines:
-            state.completed_doctrines.append(tree_id)
-            bonus_name = tree["completion_bonus"]["name"]
-            return f"Adopted {policy['name']}! (-{cost} Wisdom) TREE COMPLETE: {bonus_name}!"
+    # Tree completion now keys off the capstone flag rather than "all
+    # policies adopted" — branches are mutually exclusive so no run can
+    # ever own every policy in a tree.
+    if policy.get("capstone") and tree_id not in state.completed_doctrines:
+        state.completed_doctrines.append(tree_id)
+        bonus_name = tree["completion_bonus"]["name"]
+        return f"Adopted {policy['name']}! (-{cost} Wisdom) TREE COMPLETE: {bonus_name}!"
 
     return f"Adopted {policy['name']}! (-{cost} Wisdom)"
 
 
 def is_tree_complete(state, tree_id):
-    """Check if all policies in a tree are adopted."""
+    """Check if a tree's capstone has been adopted."""
     return tree_id in state.completed_doctrines
 
 

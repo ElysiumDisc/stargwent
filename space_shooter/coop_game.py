@@ -72,10 +72,17 @@ class CoopSpaceShooterGame(SpaceShooterGame):
 
         # Snapshot frame counter (send every 3 frames = 20 Hz)
         self._snapshot_frame = 0
+        # L2: monotonically-increasing sequence number on every emitted
+        # snapshot so the client can discard out-of-order packets.
+        self._snapshot_id = 0
 
         # Heartbeat tracking
         self._heartbeat_timer = 0
         self._last_partner_msg_frame = 0
+        # L2: pause-on-silent-input window — if the partner goes quiet
+        # the host pauses simulation at PARTNER_PAUSE_FRAMES and fails
+        # the co-op at PARTNER_FAIL_FRAMES.
+        self.partner_paused = False
 
         # Scale spawner for two players
         self.spawner = ContinuousSpawner(self.camera, p1_faction, self.all_factions,
@@ -1164,7 +1171,13 @@ class CoopSpaceShooterGame(SpaceShooterGame):
                 'facing': m.facing,
             }
 
+        # L2: bump sequence id for every snapshot so the client can
+        # detect out-of-order arrivals and drop stale frames.
+        self._snapshot_id += 1
+        enemies_trunc = len(self.ai_ships) > 60
+        proj_trunc = len(self.projectiles) > 100
         return {
+            'snapshot_id': self._snapshot_id,
             'frame': self.survival_frames,
             'p1': ship_data(self.player_ship, self.p1_alive, self.p1_ghost),
             'p2': ship_data(self.partner_ship, self.p2_alive, self.p2_ghost),
@@ -1176,6 +1189,8 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             # Total counts so client can detect truncation
             'total_enemies': len(self.ai_ships),
             'total_projectiles': len(self.projectiles),
+            # L2: explicit truncation flags — client warns once per match
+            'truncated': {'enemies': enemies_trunc, 'projectiles': proj_trunc},
             'asteroids': [{'x': round(a.x), 'y': round(a.y),
                           'size': a.size} for a in self.asteroids[:30]],
             'suns': [sun_data(s) for s in self.suns],
@@ -1221,11 +1236,33 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             'p2_invuln': self.p2_invuln_timer,
         }
 
+    # L2: partner timeout two-stage thresholds (at 60 FPS)
+    PARTNER_PAUSE_FRAMES = 180  # 3 seconds — pause simulation, show overlay
+    PARTNER_FAIL_FRAMES = 600   # 10 seconds — fail co-op with retry prompt
+
     def apply_partner_input(self, input_dict):
         """Apply input from the network partner."""
         self.partner_keys.update(input_dict)
         self._last_partner_msg_frame = self.survival_frames
+        # Clear the pause flag if partner came back
+        self.partner_paused = False
 
     def is_partner_connected(self):
-        """Check if partner has sent input recently (within 3 seconds)."""
-        return (self.survival_frames - self._last_partner_msg_frame) < 180
+        """Return True if partner input arrived recently enough to keep running.
+
+        At 3s silent: partner_paused flag flips on so the client-side UI
+        can show a "Waiting for partner..." overlay while the host freezes
+        simulation. At 10s silent: returns False so the co-op session
+        fails with a retry prompt.
+        """
+        silent_frames = self.survival_frames - self._last_partner_msg_frame
+        if silent_frames >= self.PARTNER_FAIL_FRAMES:
+            return False
+        if silent_frames >= self.PARTNER_PAUSE_FRAMES:
+            self.partner_paused = True
+        return True
+
+    def is_partner_paused(self):
+        """True when partner has been silent for 3s but is not yet timed out."""
+        silent_frames = self.survival_frames - self._last_partner_msg_frame
+        return self.PARTNER_PAUSE_FRAMES <= silent_frames < self.PARTNER_FAIL_FRAMES

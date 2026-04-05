@@ -2615,7 +2615,7 @@ class BattleShip:
                     self.raw_image = scaled_image
                     self.image = pygame.transform.rotate(self.raw_image, self.rotation)
                     return
-                except:
+                except Exception:
                     continue
     
         # No image found - will use placeholder triangle

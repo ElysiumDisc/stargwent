@@ -33,7 +33,7 @@ from .buildings import (get_building_naq_income, get_defense_bonus,
                          upgrade_building, get_upgrade_cost)
 from .crisis_events import (should_trigger_crisis, pick_crisis, apply_crisis,
                              show_crisis_screen, CRISIS_CHOICES,
-                             check_crisis_option_c)
+                             check_crisis_option_c, get_current_act)
 from .diplomacy import (get_adjacency_bonus_factions,
                          get_trade_income, get_alliance_upkeep, set_relation,
                          get_neutral_income, get_lucian_sabotage_penalty,
@@ -43,11 +43,14 @@ from .diplomacy import (get_adjacency_bonus_factions,
                          check_nap_break, break_nap, on_faction_eliminated,
                          get_mutual_defense_bonus, get_asgard_tech_bonus,
                          consume_asgard_tech_draw,
-                         TRADING, check_conquest_strain)
+                         TRADING, check_conquest_strain,
+                         update_coalition_trust, check_coalition_formation,
+                         check_coalition_break, get_coalition_counterattack_mult)
 from .minor_worlds import (init_minor_worlds, ensure_minor_world,
                             decay_minor_world_influence, ai_court_minor_worlds,
                             apply_minor_world_income, notify_quest_event,
-                            get_minor_world_bonuses)
+                            get_minor_world_bonuses,
+                            update_rival_courtship, tick_rival_lockouts)
 from .doctrines import (get_active_effects, apply_wisdom_income, get_wisdom_per_turn)
 from .espionage import (tick_operatives, check_earn_operative, get_sabotage_effect,
                          get_operative_summary, generate_ai_espionage_events,
@@ -57,7 +60,10 @@ from .relics import get_combo_effects
 from .buildings import get_synergy_effects
 from .planet_passives import tick_turns_held, get_development_counterattack_mod
 from .victory_conditions import (check_any_victory, tick_supergate, VICTORY_INFO,
-                                   VICTORY_SCORE_MULTIPLIERS)
+                                   VICTORY_SCORE_MULTIPLIERS,
+                                   _player_income_per_turn,
+                                   ECONOMIC_TERRITORY_FRACTION,
+                                   ECONOMIC_INCOME_PER_TURN)
 
 
 # AI counterattack chance per faction with adjacent border (now overridden by difficulty)
@@ -79,6 +85,8 @@ FACTION_PERSONALITIES = {
         "demand_refusal_rate": 0.80,  # almost always refuse tribute demands
         "trade_propose_mult": 0.5,    # rarely propose trades
         "unique_proposal": "subjugation",
+        # G2a: which doctrine tree this AI prefers when adopting
+        "preferred_tree": "conquest",
     },
     "Asgard": {
         "name": "Diplomatic",
@@ -92,6 +100,7 @@ FACTION_PERSONALITIES = {
         "demand_refusal_rate": 0.20,  # usually comply with demands
         "trade_propose_mult": 1.5,    # frequently propose trades
         "unique_proposal": "tech_exchange",
+        "preferred_tree": "alliance",
     },
     "Jaffa Rebellion": {
         "name": "Vengeful",
@@ -106,6 +115,7 @@ FACTION_PERSONALITIES = {
         "demand_refusal_rate": 0.50,
         "trade_propose_mult": 1.0,
         "unique_proposal": "revenge_pact",
+        "preferred_tree": "shadow",
     },
     "Lucian Alliance": {
         "name": "Opportunistic",
@@ -120,6 +130,7 @@ FACTION_PERSONALITIES = {
         "demand_refusal_rate": 0.60,  # usually refuse demands
         "trade_propose_mult": 1.3,    # love trade (profit motive)
         "unique_proposal": "protection_racket",
+        "preferred_tree": "shadow",
     },
     "Alteran": {
         "name": "Ascendant",
@@ -134,6 +145,7 @@ FACTION_PERSONALITIES = {
         "demand_refusal_rate": 0.30,
         "trade_propose_mult": 0.5,    # aloof early, but unique proposals late
         "unique_proposal": "knowledge_sharing",
+        "preferred_tree": "ascension",
     },
     "Tau'ri": {
         "name": "Balanced",
@@ -147,6 +159,7 @@ FACTION_PERSONALITIES = {
         "demand_refusal_rate": 0.40,
         "trade_propose_mult": 1.0,
         "unique_proposal": "mutual_defense",
+        "preferred_tree": "innovation",
     },
 }
 
@@ -185,6 +198,7 @@ class CampaignController:
                 self._defend_sound = pygame.mixer.Sound(path)
         except Exception:
             pass
+        self._debug_force_crisis = False
 
     def _get_network_cached(self, allied=None):
         """Return network bonuses, cached per turn (invalidated after ownership changes)."""
@@ -404,6 +418,12 @@ class CampaignController:
                 init_minor_worlds(self.state, self.galaxy)
                 decay_minor_world_influence(self.state)
                 ai_court_minor_worlds(self.state, self.galaxy, self.rng)
+                # G6: rival courtship — pick a suitor for each minor world,
+                # tick their influence, fire lockouts if they beat the player.
+                rival_events = update_rival_courtship(self.state, self.galaxy, self.rng)
+                for _pid, rival_msg in rival_events:
+                    turn_msg += f" | {rival_msg}"
+                tick_rival_lockouts(self.state)
                 mw_naq = apply_minor_world_income(self.state, self.galaxy)
                 if mw_naq > 0:
                     self.state.add_naquadah(mw_naq)
@@ -463,6 +483,50 @@ class CampaignController:
                 tick_trading_favor(self.state)
                 tick_diplomacy_cooldowns(self.state)
                 tick_special_effects(self.state)
+
+                # G2a: AI doctrine adoption (every 8 turns)
+                ai_doctrine_msg = self._ai_adopt_doctrines()
+                if ai_doctrine_msg:
+                    turn_msg += f" | {ai_doctrine_msg}"
+
+                # G2b: Tick down espionage doctrine block
+                blocked = self.state.espionage_blocks.get("doctrine_blocked_turns", 0)
+                if blocked > 0:
+                    self.state.espionage_blocks["doctrine_blocked_turns"] = blocked - 1
+
+                # G5: Economic Hegemony streak counter — tick when both
+                # territory and income thresholds are met this turn, reset
+                # otherwise. check_economic reads the counter.
+                total_planets = len(self.galaxy.planets)
+                if total_planets > 0:
+                    fraction = self.galaxy.get_player_planet_count() / total_planets
+                    income = _player_income_per_turn(self.state, self.galaxy)
+                    if (fraction >= ECONOMIC_TERRITORY_FRACTION
+                            and income >= ECONOMIC_INCOME_PER_TURN):
+                        self.state.consecutive_high_income_turns += 1
+                    else:
+                        self.state.consecutive_high_income_turns = 0
+
+                # G4: keep state.act in sync with turn_number. Acts are
+                # purely informational for now — chance scaling in
+                # should_trigger_crisis reads directly from turn_number.
+                prev_act = self.state.act
+                self.state.act = get_current_act(self.state.turn_number)
+                if self.state.act != prev_act:
+                    act_names = {1: "Act I: Expansion", 2: "Act II: Tension", 3: "Act III: Endgame"}
+                    new_act_msg = act_names.get(self.state.act, f"Act {self.state.act}")
+                    turn_msg += f" | {new_act_msg}"
+                    self._flash_message(new_act_msg, 2500)
+
+                # G3: Coalition against player — trust update, form, break
+                update_coalition_trust(self.state, self.galaxy)
+                coalition_form_msg = check_coalition_formation(self.state, self.galaxy)
+                if coalition_form_msg:
+                    turn_msg += f" | {coalition_form_msg}"
+                    self._flash_message(coalition_form_msg, 3000)
+                coalition_break_msg = check_coalition_break(self.state, self.galaxy)
+                if coalition_break_msg:
+                    turn_msg += f" | {coalition_break_msg}"
                 # Clear planet loss counters (used for peace offering proposals, one-shot per turn)
                 for _pk in list(self.state.conquest_ability_data):
                     if _pk.startswith("_faction_planets_lost_"):
@@ -487,8 +551,9 @@ class CampaignController:
                         self.state.add_naquadah(30)
                         turn_msg += " | Ancient Repository: +30 naq"
 
-                # Crisis events: 10% chance after turn 5
-                if should_trigger_crisis(self.state):
+                # Crisis events: 10% chance after turn 5 (or forced via dev shim F6)
+                if self._debug_force_crisis or should_trigger_crisis(self.state):
+                    self._debug_force_crisis = False
                     crisis = pick_crisis(self.state)
                     if crisis:
                         choices = CRISIS_CHOICES.get(crisis["effect"])
@@ -560,6 +625,10 @@ class CampaignController:
                 if event.type == pygame.QUIT:
                     return "quit"
 
+                # G7: active relic ability hotkeys (v11.0)
+                if self._handle_relic_active_key(event):
+                    continue
+
                 action = self.map_screen.handle_event(
                     event, self.galaxy, self.state, attackable)
                 if action:
@@ -568,6 +637,35 @@ class CampaignController:
             self.map_screen.draw(
                 self.screen, self.galaxy, self.state, attackable, self.message)
             display_manager.gpu_flip()
+
+    def _handle_relic_active_key(self, event):
+        """Handle G7 active-ability hotkeys on the galaxy map.
+
+        Shift+T fires the Asgard Time Machine's manual rewind (separate
+        from the automatic counterattack-loss fallback at line ~1240).
+        Shift+S fires the Sarcophagus Chamber (full deck heal).
+
+        Returns True if the event was consumed.
+        """
+        if event.type != pygame.KEYDOWN:
+            return False
+        shift_held = bool(event.mod & pygame.KMOD_SHIFT)
+        if not shift_held:
+            return False
+        from .relics import activate_relic
+        if event.key == pygame.K_t:
+            msg = activate_relic(self.state, self.galaxy, "asgard_time_machine")
+            if msg:
+                self.message = msg
+                self._flash_message(msg, 2500)
+            return True
+        if event.key == pygame.K_s:
+            msg = activate_relic(self.state, self.galaxy, "sarcophagus")
+            if msg:
+                self.message = msg
+                self._flash_message(msg, 2500)
+            return True
+        return False
 
     async def _attack_planet(self, planet_id):
         """Execute an attack on a planet. Returns 'done' or 'quit'."""
@@ -856,6 +954,59 @@ class CampaignController:
         pygame.event.clear()
         self._music_start()
 
+    # ──────────────────────────────────────────────────────────────
+    # G2a — AI Doctrine Adoption
+    # ──────────────────────────────────────────────────────────────
+    # Every 8 turns, pick one random active AI faction and advance it
+    # one policy down its personality-preferred doctrine tree. Capped
+    # at tier-2 in 11.0 so we can tune balance before letting AI take
+    # tier-3 branches and capstones.
+    AI_DOCTRINE_INTERVAL = 8
+    AI_DOCTRINE_TIER_CAP = 2  # 11.0 safety cap
+
+    def _ai_adopt_doctrines(self):
+        """Roll AI doctrine adoption for this turn. No-op off-interval."""
+        if self.state.turn_number < self.AI_DOCTRINE_INTERVAL:
+            return None
+        if self.state.turn_number % self.AI_DOCTRINE_INTERVAL != 0:
+            return None
+
+        # Pick an active (non-eliminated) AI faction with a preferred tree.
+        candidates = []
+        for faction in ALL_FACTIONS:
+            if faction == self.state.player_faction:
+                continue
+            if self.galaxy.get_faction_planet_count(faction) == 0:
+                continue
+            personality = _get_personality(faction)
+            tree_id = personality.get("preferred_tree")
+            if not tree_id:
+                continue
+            candidates.append((faction, tree_id))
+        if not candidates:
+            return None
+
+        faction, tree_id = self.rng.choice(candidates)
+        from .doctrines import DOCTRINE_TREES
+        tree = DOCTRINE_TREES.get(tree_id)
+        if not tree:
+            return None
+
+        # Find the next policy down the spine up to the tier cap.
+        adopted = self.state.ai_doctrines.setdefault(faction, [])
+        for policy in tree["policies"]:
+            if policy.get("tier", 1) > self.AI_DOCTRINE_TIER_CAP:
+                break
+            if policy["id"] in adopted:
+                continue
+            # Spine-only for AI in 11.0 (skip branches — IDs ending in 'a'/'b')
+            pid = policy["id"]
+            if pid.endswith("a") or pid.endswith("b"):
+                continue
+            adopted.append(pid)
+            return f"{faction} adopted {policy['name']}"
+        return None
+
     async def _ai_counterattack_phase(self):
         """Process AI counterattacks. Returns 'done', 'defeat', or 'quit'."""
         # Meta perk: Diplomatic Immunity — first counterattack auto-fails
@@ -904,6 +1055,19 @@ class CampaignController:
                 lost_last_turn = self.state.conquest_ability_data.get("_ai_lost_planet_last_turn", {})
                 if lost_last_turn.get(faction):
                     ca_mult *= 2.0
+            # G2a: AI doctrine bonuses
+            ai_policies = self.state.ai_doctrines.get(faction, [])
+            if "con_1" in ai_policies:
+                # Conquest tier-1: slight aggression bump
+                ca_mult *= 1.10
+            if "con_2" in ai_policies:
+                # Conquest tier-2: meaningful aggression bump
+                ca_mult *= 1.15
+            if "all_1" in ai_policies or "all_2" in ai_policies:
+                # Alliance policies: calmer counterattack
+                ca_mult *= 0.90
+            # G3: Coalition against player bonus
+            ca_mult *= get_coalition_counterattack_mult(self.state, faction)
             effective_chance *= ca_mult
 
             # Doctrine penalty: counterattack_chance_increase
@@ -1065,6 +1229,11 @@ class CampaignController:
                 self.state.planet_ownership[target_id] = faction
                 self.state.add_naquadah(-30)
                 self.message = f"{target.name} lost to {faction}!"
+                # G7: record for Asgard Time Machine manual activation path.
+                self.state.conquest_ability_data["_last_planet_lost"] = {
+                    "planet_id": target_id,
+                    "turn": self.state.turn_number,
+                }
 
                 # Asgard Time Machine relic: once per campaign, undo last planet loss
                 if (self.state.has_relic("asgard_time_machine")

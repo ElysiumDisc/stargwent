@@ -71,9 +71,40 @@ class CoopSpaceShooterClient:
         self._frames_since_last_msg = 0    # For disconnect detection (any message)
         self.host_disconnected = False
         self._disconnect_timer = 0  # Frames since host_disconnected became True
+        # L2: two-stage silent-partner handling
+        self.partner_paused = False       # flipped on between 3s and 10s silent
+        # L2: track highest snapshot_id seen so we drop out-of-order arrivals
+        self._last_snapshot_id = 0
+        # L2: once-per-match truncation warnings
+        self._warned_enemy_trunc = False
+        self._warned_proj_trunc = False
+
+    # L2: two-stage partner timeout thresholds (at 60 FPS)
+    PARTNER_PAUSE_FRAMES = 180  # 3s — show overlay, keep session alive
+    PARTNER_FAIL_FRAMES = 600   # 10s — declare host disconnected
 
     def apply_state(self, snapshot):
         """Apply a new state snapshot from the host."""
+        # L2: discard stale / out-of-order snapshots so interpolation
+        # never rubber-bands backwards.
+        incoming_id = snapshot.get('snapshot_id', 0)
+        if incoming_id and incoming_id <= self._last_snapshot_id:
+            return
+        if incoming_id:
+            self._last_snapshot_id = incoming_id
+
+        # L2: log the first time we notice host truncating entities so
+        # the player (or a test run) knows some enemies aren't visible.
+        trunc = snapshot.get('truncated', {})
+        if trunc.get('enemies') and not self._warned_enemy_trunc:
+            print("[coop_client] Warning: host truncated enemy list "
+                  "(>60 enemies this match)")
+            self._warned_enemy_trunc = True
+        if trunc.get('projectiles') and not self._warned_proj_trunc:
+            print("[coop_client] Warning: host truncated projectile list "
+                  "(>100 projectiles this match)")
+            self._warned_proj_trunc = True
+
         self.prev_state = self.state
         self.state = snapshot
         self.interp_t = 0.0
@@ -104,9 +135,17 @@ class CoopSpaceShooterClient:
         self._frames_since_last_state += 1
         self._frames_since_last_msg += 1
 
-        # Detect host disconnect (no message of any kind for 3 seconds)
-        if self._frames_since_last_msg > 180 and not self.game_over:
+        # L2: two-stage timeout. At 3s silent, flip partner_paused so the
+        # renderer can overlay "Waiting for partner..." without tearing
+        # down the session. At 10s silent, declare host disconnected.
+        silent = self._frames_since_last_msg
+        if silent >= self.PARTNER_FAIL_FRAMES and not self.game_over:
             self.host_disconnected = True
+            self.partner_paused = False
+        elif silent >= self.PARTNER_PAUSE_FRAMES and not self.game_over:
+            self.partner_paused = True
+        else:
+            self.partner_paused = False
 
         # Track how long we've been in disconnected state
         if self.host_disconnected:
@@ -431,6 +470,28 @@ class CoopSpaceShooterClient:
         # Game over overlay
         if state.get('game_over'):
             self._draw_game_over(surface, state)
+
+        # L2: partner-paused overlay (between 3s and 10s silent). Draws
+        # on top of the live game so the surviving player can still see
+        # what was happening when their partner dropped.
+        if self.partner_paused:
+            self._draw_partner_pause_overlay(surface)
+
+    def _draw_partner_pause_overlay(self, surface):
+        """Semi-transparent 'Waiting for partner' notice during the grace window."""
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 120))
+        surface.blit(overlay, (0, 0))
+        title = self.title_font.render("Waiting for partner...", True, (255, 220, 100))
+        surface.blit(title, title.get_rect(
+            center=(self.screen_width // 2, self.screen_height // 2 - 30)))
+        # Countdown — PARTNER_FAIL_FRAMES - frames_since_last_msg, at 60fps
+        remaining_frames = max(0, self.PARTNER_FAIL_FRAMES - self._frames_since_last_msg)
+        remaining_secs = remaining_frames // 60
+        countdown = self.ui_font.render(
+            f"Disconnecting in {remaining_secs}s", True, (220, 220, 220))
+        surface.blit(countdown, countdown.get_rect(
+            center=(self.screen_width // 2, self.screen_height // 2 + 30)))
 
     @staticmethod
     def _lerp_entities(prev_list, curr_list, t, key='x'):

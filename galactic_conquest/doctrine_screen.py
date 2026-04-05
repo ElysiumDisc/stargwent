@@ -71,16 +71,27 @@ async def run_doctrine_screen(screen, state, galaxy):
         start_x = sw // 2 - total_w // 2
         col_top = int(sh * 0.20)
 
+        # Each tree may have a different policy count now that tier 3
+        # branches out into 3 mutually-exclusive options. Derive the
+        # slot height from the longest tree so every column lines up.
+        max_policies = max(len(t["policies"]) for t in DOCTRINE_TREES.values())
+        # Available vertical space inside a column (after header + bonus)
+        col_body_h = int(sh * 0.58)
+        slot_h = col_body_h // max_policies
+        # Box height leaves a small gap between slots
+        box_h = int(slot_h * 0.88)
+
         for i, tree_id in enumerate(tree_ids):
             tree = DOCTRINE_TREES[tree_id]
             col_x = start_x + i * (col_w + col_gap)
             for j, policy in enumerate(tree["policies"]):
-                policy_y = col_top + int(sh * 0.08) + j * int(sh * 0.14)
+                policy_y = col_top + int(sh * 0.08) + j * slot_h
                 is_adopted = policy["id"] in state.adopted_policies
                 is_available = can_adopt(state, policy["id"])
                 if not is_adopted and is_available:
-                    btn_rect = pygame.Rect(col_x + 5, policy_y + int(sh * 0.075),
-                                           col_w - 10, int(sh * 0.03))
+                    btn_rect = pygame.Rect(col_x + 5,
+                                           policy_y + box_h - int(sh * 0.03) - 2,
+                                           col_w - 10, int(sh * 0.025))
                     adopt_rects.append((btn_rect, policy["id"], True))
 
         # Build wisdom action rects
@@ -188,29 +199,50 @@ async def run_doctrine_screen(screen, state, galaxy):
                                      col_top + 5))
 
             # Policies
+            prev_tier = 0
             for j, policy in enumerate(tree["policies"]):
-                policy_y = col_top + int(sh * 0.08) + j * int(sh * 0.14)
+                policy_y = col_top + int(sh * 0.08) + j * slot_h
                 is_adopted = policy["id"] in state.adopted_policies
                 is_available = can_adopt(state, policy["id"])
                 cost = get_policy_cost(policy["id"], state)
+                current_tier = policy.get("tier", j + 1)
+                # "OR" divider between consecutive sibling tier-3 options
+                if current_tier == prev_tier and current_tier == 3:
+                    or_surf = small_font.render("─ OR ─", True, CRT_TEXT_DIM)
+                    screen.blit(or_surf,
+                                (col_x + col_w // 2 - or_surf.get_width() // 2,
+                                 policy_y - or_surf.get_height() - 1))
+                prev_tier = current_tier
 
                 # Policy box
-                box_rect = pygame.Rect(col_x + 4, policy_y, col_w - 8, int(sh * 0.12))
+                box_rect = pygame.Rect(col_x + 4, policy_y, col_w - 8, box_h)
+
+                # Sibling policies become visually muted once the player has
+                # locked in one branch at this tier — makes the mutual
+                # exclusion obvious at a glance.
+                locked_out = False
+                if not is_adopted:
+                    for conflict_id in policy.get("conflicts_with", []):
+                        if conflict_id in state.adopted_policies:
+                            locked_out = True
+                            break
 
                 if is_adopted:
-                    # Green check background
                     pygame.draw.rect(screen, (20, 50, 25), box_rect)
                     pygame.draw.rect(screen, CRT_GREEN, box_rect, 1)
                     status = "\u2713 "  # checkmark
                     name_color = CRT_GREEN
+                elif locked_out:
+                    pygame.draw.rect(screen, (25, 15, 15), box_rect)
+                    pygame.draw.rect(screen, (80, 40, 40), box_rect, 1)
+                    status = "\u2715 "  # x mark
+                    name_color = (120, 70, 70)
                 elif is_available:
-                    # Highlighted
                     pygame.draw.rect(screen, (25, 35, 20), box_rect)
                     pygame.draw.rect(screen, tree_color, box_rect, 1)
                     status = ""
                     name_color = (255, 255, 255)
                 else:
-                    # Dimmed
                     pygame.draw.rect(screen, (12, 15, 12), box_rect)
                     pygame.draw.rect(screen, (40, 50, 40), box_rect, 1)
                     status = ""
@@ -218,24 +250,25 @@ async def run_doctrine_screen(screen, state, galaxy):
 
                 # Policy name
                 pname = policy_font.render(f"{status}{policy['name']}", True, name_color)
-                screen.blit(pname, (col_x + 8, policy_y + 3))
+                screen.blit(pname, (col_x + 8, policy_y + 2))
 
                 # Description
                 desc_surf = small_font.render(policy["desc"], True,
                                                CRT_TEXT if is_adopted or is_available else CRT_TEXT_DIM)
-                screen.blit(desc_surf, (col_x + 8, policy_y + 3 + pname.get_height()))
+                screen.blit(desc_surf, (col_x + 8, policy_y + 2 + pname.get_height()))
 
-                # Cost (if not adopted)
-                if not is_adopted:
+                # Cost (if not adopted and not locked out)
+                if not is_adopted and not locked_out:
                     cost_color = CRT_CYAN if is_available else CRT_TEXT_DIM
-                    cost_surf = small_font.render(f"Cost: {cost} Wisdom", True, cost_color)
+                    cost_surf = small_font.render(f"Cost: {cost}W", True, cost_color)
                     screen.blit(cost_surf, (col_x + 8,
-                                            policy_y + 3 + pname.get_height() + desc_surf.get_height()))
+                                            policy_y + 2 + pname.get_height() + desc_surf.get_height()))
 
                 # Adopt button
                 if not is_adopted and is_available:
-                    btn_rect = pygame.Rect(col_x + 5, policy_y + int(sh * 0.075),
-                                           col_w - 10, int(sh * 0.03))
+                    btn_rect = pygame.Rect(col_x + 5,
+                                           policy_y + box_h - int(sh * 0.03) - 2,
+                                           col_w - 10, int(sh * 0.025))
                     hovered = btn_rect.collidepoint(mx, my)
                     bg = CRT_BTN_HOVER if hovered else CRT_BTN_BG
                     border = CRT_BTN_BORDER_HOVER if hovered else CRT_BTN_BORDER
@@ -247,8 +280,9 @@ async def run_doctrine_screen(screen, state, galaxy):
                                             btn_rect.centery - btn_label.get_height() // 2))
                     adopt_rects_render.append((btn_rect, policy["id"], True))
 
-            # Completion bonus at bottom
-            bonus_y = col_top + int(sh * 0.64)
+            # Completion bonus at bottom — positioned below the policy
+            # area which now sizes to fit the longest tree.
+            bonus_y = col_top + int(sh * 0.08) + col_body_h + 4
             bonus = tree["completion_bonus"]
             if complete:
                 b_color = tree_color

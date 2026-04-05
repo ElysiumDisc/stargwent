@@ -890,8 +890,8 @@ class UserContentLoader:
                                 "enabled": not enabled_cards or card_id in enabled_cards,
                                 "author": data.get("author", "Unknown")
                             })
-                        except:
-                            pass
+                        except Exception as e:
+                            print(f"[user_content] Warning: skipped invalid card {card_dir.name}: {e}")
 
         # List leaders
         leaders_dir = USER_CONTENT_DIR / "leaders"
@@ -910,8 +910,8 @@ class UserContentLoader:
                                 "enabled": not enabled_leaders or leader_id in enabled_leaders,
                                 "author": data.get("author", "Unknown")
                             })
-                        except:
-                            pass
+                        except Exception as e:
+                            print(f"[user_content] Warning: skipped invalid leader {leader_dir.name}: {e}")
 
         # List factions
         factions_dir = USER_CONTENT_DIR / "factions"
@@ -929,8 +929,8 @@ class UserContentLoader:
                                 "enabled": not enabled_factions or faction_name in enabled_factions,
                                 "author": data.get("author", "Unknown")
                             })
-                        except:
-                            pass
+                        except Exception as e:
+                            print(f"[user_content] Warning: skipped invalid faction {faction_dir.name}: {e}")
 
         # List packs
         packs_dir = USER_CONTENT_DIR / "packs"
@@ -949,8 +949,8 @@ class UserContentLoader:
                                 "enabled": not enabled_packs or pack_name in enabled_packs,
                                 "author": data.get("author", "Unknown")
                             })
-                        except:
-                            pass
+                        except Exception as e:
+                            print(f"[user_content] Warning: skipped invalid pack {pack_dir.name}: {e}")
 
         return result
 

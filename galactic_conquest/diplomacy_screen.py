@@ -22,6 +22,9 @@ from .diplomacy import (get_diplomacy_options, propose_trade, form_alliance,
                           propose_nap, request_military_aid,
                           propose_joint_attack, get_favor,
                           get_nap_turns_remaining, has_active_nap,
+                          renew_alliance, get_active_treaty,
+                          request_tech_exchange, request_knowledge,
+                          propose_revenge_pact,
                           _get_aid_targets, _get_joint_attack_targets,
                           RELATION_DISPLAY, get_relation,
                           get_trade_income, get_alliance_upkeep,
@@ -66,6 +69,10 @@ _ACTION_LABELS = {
     "aid": "AID",
     "joint": "JOINT ATK",
     "nap_info": "NAP",
+    "renew": "RENEW",
+    "tech_exchange": "TECH",
+    "knowledge": "KNOWLEDGE",
+    "revenge_pact": "REVENGE",
 }
 
 
@@ -220,6 +227,14 @@ async def run_diplomacy_screen(screen, state, galaxy):
                             msg = propose_nap(state, faction, galaxy, rng)
                         elif action == "demand":
                             msg = demand_tribute(state, faction, galaxy, rng)
+                        elif action == "renew":
+                            msg = renew_alliance(state, faction)
+                        elif action == "tech_exchange":
+                            msg = request_tech_exchange(state, faction)
+                        elif action == "knowledge":
+                            msg = request_knowledge(state, faction)
+                        elif action == "revenge_pact":
+                            msg = propose_revenge_pact(state, faction)
                         elif action == "aid":
                             # Need target selection
                             targets = _get_aid_targets(state, faction, galaxy)
@@ -297,6 +312,16 @@ async def run_diplomacy_screen(screen, state, galaxy):
         naq_text = info_font.render(naq_str, True, CRT_CYAN)
         screen.blit(naq_text, (sw // 2 - naq_text.get_width() // 2, int(sh * 0.14)))
 
+        # G3: Coalition banner
+        if state.coalition.get("active"):
+            members = ", ".join(state.coalition.get("members", []))
+            turns_left = state.coalition.get("turns_remaining", 0)
+            coalition_msg = f"!! COALITION AGAINST YOU: {members} ({turns_left}t) !!"
+            coalition_color = (255, 100, 100) if (frame_count // 30) % 2 == 0 else (255, 200, 100)
+            coalition_surf = info_font.render(coalition_msg, True, coalition_color)
+            screen.blit(coalition_surf,
+                        (sw // 2 - coalition_surf.get_width() // 2, int(sh * 0.17)))
+
         # Faction rows
         for i, (faction, rel, actions) in enumerate(options):
             row_y = base_y + i * row_height
@@ -315,12 +340,40 @@ async def run_diplomacy_screen(screen, state, galaxy):
             rel_surf = info_font.render(f"[{rel_info['name']}]", True, rel_info["color"])
             screen.blit(rel_surf, (panel_x + 20 + fname.get_width() + 12, row_y + 5))
 
-            # NAP indicator
+            # G2a: AI adopted doctrines — small caption below faction name
+            ai_doctrines = state.ai_doctrines.get(faction, [])
+            if ai_doctrines:
+                from .doctrines import DOCTRINE_TREES, _POLICY_LOOKUP
+                # Pick the most recent (highest tier) adopted policy to display
+                latest = ai_doctrines[-1]
+                pair = _POLICY_LOOKUP.get(latest)
+                if pair:
+                    _tree_id, _idx = pair
+                    policy_name = DOCTRINE_TREES[_tree_id]["policies"][_idx]["name"]
+                    tree_color = DOCTRINE_TREES[_tree_id]["color"]
+                    doctrine_surf = small_font.render(
+                        f"Doctrine: {policy_name}", True, tree_color)
+                    screen.blit(doctrine_surf,
+                                (panel_x + 20, row_y + int(sh * 0.045)))
+
+            # NAP indicator / Alliance treaty timer
+            indicator_x = panel_x + 20 + fname.get_width() + 12 + rel_surf.get_width() + 10
             nap_turns = get_nap_turns_remaining(state, faction)
             if nap_turns > 0:
                 nap_surf = small_font.render(f"NAP: {nap_turns}t", True, (100, 220, 180))
-                screen.blit(nap_surf, (panel_x + 20 + fname.get_width() + 12 + rel_surf.get_width() + 10,
-                                       row_y + 7))
+                screen.blit(nap_surf, (indicator_x, row_y + 7))
+            else:
+                alliance_treaty = get_active_treaty(state, "alliance", faction)
+                if alliance_treaty is not None:
+                    tr = alliance_treaty["turns_remaining"]
+                    if tr > 0:
+                        treaty_color = (140, 220, 255) if tr > 5 else (255, 200, 80)
+                        treaty_surf = small_font.render(f"Treaty: {tr}t", True, treaty_color)
+                        screen.blit(treaty_surf, (indicator_x, row_y + 7))
+                    else:
+                        # Needs renewal
+                        treaty_surf = small_font.render("Treaty: renew!", True, (255, 180, 80))
+                        screen.blit(treaty_surf, (indicator_x, row_y + 7))
 
             # Planet count + strength bar
             planet_count = galaxy.get_faction_planet_count(faction)
@@ -401,9 +454,8 @@ async def run_diplomacy_screen(screen, state, galaxy):
 
                 # Tooltip on hover
                 if hovered and enabled:
-                    tip = small_font.render(desc, True, CRT_TEXT)
-                    tip_x = max(10, min(rect.x, sw - tip.get_width() - 10))
-                    screen.blit(tip, (tip_x, rect.bottom + 3))
+                    from .tooltip import draw_tooltip
+                    draw_tooltip(screen, desc, rect, small_font)
 
         # Close button
         mx, my = pygame.mouse.get_pos()

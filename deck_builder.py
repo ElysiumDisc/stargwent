@@ -170,6 +170,7 @@ class DeckBuilderUI:
         self.filter_rects = {}  # Clickable areas for filter buttons
         self.tab_rects = {}
         self.return_to_menu = False  # Flag for when user clicks MAIN MENU button
+        self.pending_reset_confirm = False  # P3: flip to show reset-deck confirm dialog
 
         self.leader_scroll_offset = 0
         self.leader_scroll_limit = 0
@@ -1478,9 +1479,11 @@ class DeckBuilderUI:
                         self.save_current_deck()
                         return
 
-                    # Reset to Default button
+                    # Reset to Default button — confirmation dialog in the
+                    # async runner picks this up via the pending flag so
+                    # we don't need to make handle_event async.
                     if self.reset_default_button.collidepoint(mouse_pos):
-                        self.reset_deck_to_default()
+                        self.pending_reset_confirm = True
                         return
 
                 # RIGHT CLICK = ZOOM/INSPECT (works on accordion and deck list)
@@ -2920,7 +2923,19 @@ async def run_deck_builder(screen, for_new_game=True, *, unlock_override=False, 
                     deck_builder.handle_event(event)
             else:
                 deck_builder.handle_event(event)
-        
+
+        # P3: handle pending reset-deck confirmation dialog outside the
+        # sync event loop so we can await show_confirmation_dialog.
+        if deck_builder.pending_reset_confirm:
+            deck_builder.pending_reset_confirm = False
+            from stats_menu import show_confirmation_dialog
+            deck_builder.draw(screen)
+            confirmed = await show_confirmation_dialog(
+                screen, "Reset deck to default?", screen_width, screen_height)
+            if confirmed:
+                deck_builder.reset_deck_to_default()
+            pygame.event.clear()
+
         # Check if deck building is complete
         if deck_builder.is_complete():
             stop_faction_theme()

@@ -494,6 +494,13 @@ AI_ESPIONAGE_MISSIONS = {
     "steal_naq": {"name": "Resource Theft", "desc": "Steal 20-40 naquadah", "chance": 0.70},
     "sabotage": {"name": "Sabotage", "desc": "Remove 1 card from your next battle", "chance": 0.60},
     "rig_minor": {"name": "Rig Influence", "desc": "Reduce your minor world influence", "chance": 0.70},
+    # --- New in 11.0 (G2b) ---
+    "sabotage_building": {"name": "Building Sabotage",
+                           "desc": "Reduce a building level by 1", "chance": 0.55},
+    "steal_doctrine": {"name": "Doctrine Theft",
+                        "desc": "Block your next doctrine adoption for 2 turns", "chance": 0.50},
+    "assassinate_operative": {"name": "Operative Hit",
+                               "desc": "Kill one of your operatives", "chance": 0.45},
 }
 
 
@@ -585,6 +592,35 @@ def resolve_ai_espionage(state, galaxy, event, choice, rng):
                     state.minor_world_states[pid] = mw.to_dict()
                     return f"{faction} rigged influence on a minor world! -15 influence."
             return f"{faction}'s influence operation found no viable targets."
+        # --- New in 11.0 (G2b) ---
+        elif mission_type == "sabotage_building":
+            # Pick any player-owned planet with a building to damage
+            targets = [pid for pid, bid in state.buildings.items()
+                       if galaxy.planets.get(pid) and galaxy.planets[pid].owner == "player"
+                       and state.building_levels.get(pid, 1) > 1]
+            if not targets:
+                return f"{faction}'s building sabotage found no viable targets."
+            target_pid = rng.choice(targets)
+            level = state.building_levels.get(target_pid, 1)
+            state.building_levels[target_pid] = level - 1
+            target_name = galaxy.planets[target_pid].name
+            return (f"{faction} sabotaged a building on {target_name}! "
+                    f"Level {level} → {level - 1}.")
+        elif mission_type == "steal_doctrine":
+            # Block the player's next doctrine adoption for 2 turns
+            state.espionage_blocks["doctrine_blocked_turns"] = 2
+            return f"{faction} stole doctrine intel! No adoption for 2 turns."
+        elif mission_type == "assassinate_operative":
+            # Kill one player operative (any state except already dead)
+            alive_ops = [op for op in state.operatives
+                         if op.get("state") not in ("dead", None)]
+            if not alive_ops:
+                return f"{faction}'s assassination found no viable targets."
+            victim = rng.choice(alive_ops)
+            victim["state"] = "dead"
+            victim["revival_timer"] = 3
+            return (f"{faction} killed operative {victim.get('name', 'agent')}! "
+                    f"Revival in 3 turns.")
     else:
         if choice == "ignore":
             return f"{faction}'s espionage on {planet_name} failed."

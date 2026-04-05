@@ -97,7 +97,7 @@ def draw_leader_inspection_overlay(surface, player, screen_width, screen_height)
             else:
                 # Fallback rectangle
                 pygame.draw.rect(surface, (60, 60, 80), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height))
-        except:
+        except Exception:
             # Fallback rectangle
             pygame.draw.rect(surface, (60, 60, 80), pygame.Rect(portrait_x, portrait_y, portrait_width, portrait_height))
     
@@ -316,7 +316,7 @@ def draw_card_inspection_overlay(surface, card, screen_width, screen_height):
             # Fallback to scaled existing image
             large_card_image = pygame.transform.smoothscale(card.image, (card_display_width, card_display_height))
         surface.blit(large_card_image, (card_x, card_y))
-    except:
+    except Exception:
         pygame.draw.rect(surface, (80, 80, 90), pygame.Rect(card_x, card_y, card_display_width, card_display_height))
     
     # Faction-colored glow effect

@@ -115,7 +115,7 @@ async def run_stats_menu(screen):
     if os.path.exists(cb_path):
         try:
             card_back_img = pygame.image.load(cb_path).convert_alpha()
-        except:
+        except Exception:
             pass
 
     # Faction color mapping for bars and dots

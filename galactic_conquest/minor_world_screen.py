@@ -281,6 +281,36 @@ async def run_minor_world_screen(screen, state, galaxy, planet_id):
                 screen.blit(ai_surf, (panel_x + 30, ai_y))
                 ai_y += ai_surf.get_height() + 2
                 has_ai = True
+
+        # G6: Rival suitor progress bar — visible rival racing the player
+        rival_entry = state.minor_world_rival.get(mw.planet_id)
+        if rival_entry:
+            rival_faction = rival_entry.get("faction", "?")
+            rival_inf = rival_entry.get("influence", 0)
+            rival_color = FACTION_DISPLAY_COLORS.get(rival_faction, (255, 120, 60))
+            rival_surf = info_font.render(
+                f"Rival Suitor: {rival_faction} ({rival_inf}/100)",
+                True, rival_color)
+            screen.blit(rival_surf, (panel_x + 30, ai_y))
+            ai_y += rival_surf.get_height() + 2
+            # Progress bar
+            bar_x = panel_x + 30
+            bar_w = 200
+            bar_h = 6
+            pygame.draw.rect(screen, (30, 30, 30), (bar_x, ai_y, bar_w, bar_h))
+            fill_w = max(1, int(bar_w * min(100, rival_inf) / 100))
+            pygame.draw.rect(screen, rival_color, (bar_x, ai_y, fill_w, bar_h))
+            pygame.draw.rect(screen, (80, 80, 80), (bar_x, ai_y, bar_w, bar_h), 1)
+            ai_y += bar_h + 4
+            # Lockout warning
+            lockout = state.conquest_ability_data.get(f"_mw_locked_{mw.planet_id}", 0)
+            if lockout > 0:
+                lock_surf = info_font.render(
+                    f"Trading LOCKED ({lockout} turns)", True, (255, 100, 100))
+                screen.blit(lock_surf, (panel_x + 30, ai_y))
+                ai_y += lock_surf.get_height() + 2
+            has_ai = True
+
         if not has_ai:
             no_ai = info_font.render("No AI influence yet", True, CRT_TEXT_DIM)
             screen.blit(no_ai, (panel_x + 30, ai_y))

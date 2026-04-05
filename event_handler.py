@@ -130,6 +130,16 @@ async def handle_events(state, game, screen, dt):
             # Q to surrender in pause menu
             elif event.key == pygame.K_q:
                 if state.ui_state == UIState.PAUSED and game.game_state == "playing":
+                    # L3: in LAN PvP, notify the remote player first so they
+                    # end with a victory flash rather than a desync timeout.
+                    ai_ctrl = getattr(state, "ai_controller", None)
+                    if ai_ctrl is not None and hasattr(ai_ctrl, "session"):
+                        try:
+                            from lan_protocol import build_concede_message
+                            msg = build_concede_message()
+                            ai_ctrl.session.send(msg["type"], msg["payload"])
+                        except Exception as exc:
+                            print(f"[event_handler] Failed to send concede: {exc}")
                     game.surrender(game.player1)
                     state.ui_state = UIState.GAME_OVER
 

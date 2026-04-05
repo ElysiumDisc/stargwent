@@ -4,6 +4,134 @@
 
 ---
 
+### Version 11.0.0 (April 2026)
+**Galactic Conquest — Deep Systems + LAN Hardening**
+
+A major release that turns the Galactic Conquest subsystem into a full
+strategic layer and closes real gaps in the LAN card-game netcode. Core
+card game, draft, and space shooter are unchanged.
+
+#### Galactic Conquest — Strategic Depth
+- **Branching Doctrine Trees (G1)** — Every tree now offers three
+  mutually-exclusive options at tier 3: the original "balanced" spine
+  policy and two new specialized branches (10 new policies total).
+  Capstones unlock after any of the three. Existing save files on the
+  linear spine keep working — branches are additive-only.
+- **AI Doctrine Adoption (G2a)** — AI factions adopt doctrine policies
+  every 8 turns, driven by personality (Goa'uld→Conquest, Asgard→
+  Alliance, Jaffa→Shadow, etc.). Capped at tier 2 in 11.0 for balance
+  tuning. Visible on the diplomacy screen per faction.
+- **Expanded AI Espionage (G2b)** — Three new AI mission types added
+  to the player-facing espionage threat: `sabotage_building`,
+  `steal_doctrine` (blocks player's next adoption for 2 turns), and
+  `assassinate_operative`.
+- **Coalition Against Player (G3)** — Emergent late-game alliance.
+  When the player holds ≥40% territory, weak AI factions accumulate
+  "coalition trust". At the threshold, two or more factions pact up,
+  forcing HOSTILE relations with the player and +50% counterattack
+  for 5 turns. Breaks on territory drop, gift appeasement, or timer
+  expiry. Gated behind `coalition_enabled` flag in
+  `conquest_settings.json` as a scope-down safety valve.
+- **Campaign Acts + Crisis Expansion (G4)** — Campaigns now progress
+  through three acts (Expansion, Tension, Endgame) with crisis chance
+  scaling by act (5%/10%/15%). Five new crisis events: Stargate
+  Virus, Black Hole Proximity, Naquadria Reactor Meltdown, First
+  Contact, Dakara Signal. Each has the standard 3-choice branching
+  with a conditional Option C.
+- **Two New Victory Paths (G5)** — **Economic Hegemony**: 40%+ planets
+  and 500+ naq/turn income sustained for 3 consecutive turns.
+  **Cultural Ascendancy**: 4+ Ally minor worlds AND 2+ relics owned.
+  Both paths have full progress tracking on the victory screen.
+- **Minor World Quest Chains + Rival Courtship (G6)** — 50% of new
+  quests now start a 3-step chain (Defense Pact / Trade Route /
+  Military Contract) with escalating influence rewards and a +40 naq
+  bonus on the final step. Every minor world also has one AI faction
+  actively courting it — if the rival reaches Ally tier before the
+  player does, trading with that minor world is locked out for 5
+  turns.
+- **Active Relic Abilities (G7)** — Two relics gain out-of-battle
+  player-triggered abilities: **Asgard Time Machine** (Shift+T on
+  the galaxy map: manually undo the most recent planet loss — 1
+  charge per campaign, separate from the existing automatic
+  counterattack save) and **Sarcophagus** (Shift+S: reset cooldowns
+  and clear card upgrade penalties between battles — 2 charges).
+  Charge state persists across save/reload. Two new three-relic
+  combos: **Weapon Trinity** (Ra + Thor + Prior: +2 hero power) and
+  **Galactic Archive** (Alteran DB + Asgard Core + Quantum Mirror:
+  +25 naq per victory, +1 card choice).
+- **Persistent Treaties + Reputation Web (G8)** — NAP and Alliance
+  are now backed by a unified `state.treaties` system. Alliances
+  gain an explicit 15-turn duration with a new "Renew Alliance"
+  action (-30 naq, +10 favor, resets the timer). Breaking any
+  treaty applies a small -2 favor trickle to all other factions
+  (reputation web) on top of existing per-type penalties. Vengeful
+  personalities (Jaffa) track `broken_treaty_counts` and apply
+  compounding -5 favor per prior broken treaty on each subsequent
+  break. Legacy `_nap_timer_*` keys migrate transparently on first
+  load.
+- **Player-Initiated Faction-Unique Proposals (P2)** — Three new
+  diplomatic actions gated on personality + relation: Asgard Tech
+  Exchange (-50 naq: +1 card draw for 5 battles), Alteran Knowledge
+  Sharing (-30 naq: +10 Wisdom, unlocks at turn 15), Jaffa Revenge
+  Pact (mutual -1 cooldown vs Goa'uld planets for 10 turns,
+  requires HOSTILE with Goa'uld).
+
+#### LAN Multiplayer — Netcode Hardening
+- **Protocol Version Negotiation (L1)** — New `HELLO` handshake sent
+  immediately after TCP connect. Peers exchange `PROTOCOL_VERSION` and
+  game version; mismatch surfaces a specific error message instead of
+  a silent cross-version desync (previously the scariest LAN failure
+  mode). The handshake also carries player names.
+- **Space Shooter Co-op Sync (L2)** — Snapshot sequence numbers on the
+  host so the client can discard out-of-order frames (no more
+  interpolation rubber-banding). Explicit `truncated` flag on snapshots
+  with a one-time warning when the host caps enemy or projectile
+  lists. Partner silence now uses a two-stage timeout: at 3 seconds
+  the client shows a "Waiting for partner..." overlay with a 10-second
+  countdown instead of instantly dropping the session.
+- **Card Game PvP Hardening (L3)** — New `CONCEDE` message type:
+  pressing Q in the pause menu during a LAN match now notifies the
+  remote peer who ends with a victory flash instead of hitting the
+  desync timeout. Mulligan indices are validated against the local
+  hand size before sending, preventing corrupted selections from ever
+  crossing the wire. On desync detection, the last 20 actions are
+  dumped to `lan_desync_history.log` for post-mortem.
+- **LAN Connection UX (L5)** — Custom player names persist to
+  `game_settings.json` and flow through the handshake. Connection
+  errors get specific hints: "port already in use", "host not
+  listening", "incompatible versions", etc.
+
+#### Polish & Quality
+- **Version Alignment (P1)** — `game_config.py` bumped to 11.0.0,
+  README badge updated, stale `# DEBUG MODE (v4.3.1)` comment in
+  `main.py` removed. Dev shim used during phased rollout has been
+  removed from the release build.
+- **Deck Reset Confirmation (P3)** — The "Reset to Default" button in
+  the deck builder now prompts a Yes/No confirmation dialog, matching
+  the existing `stats_menu.show_confirmation_dialog` pattern.
+- **Rival Suitor Display (P3)** — Minor world screen now shows each
+  minor world's rival AI suitor as a labeled progress bar with a
+  lockout warning when it applies.
+- **Unified Tooltip Helper (P3)** — New `galactic_conquest/tooltip.py`
+  centralizes hover-text rendering with multi-line wrap and
+  screen-edge clamping. `diplomacy_screen.py` migrated as proof;
+  other screens will follow in a point release.
+- **Code Hardening (P4)** — Bare `except:` clauses hardened to
+  `except Exception:` in 6 spots, with warning logs added where user
+  custom card data was previously silently dropped
+  (`user_content_loader.py:893-952`, `selection_overlays.py:100,319`,
+  `animations.py:2618`, `stats_menu.py:118`).
+
+#### Save Compatibility
+- Campaign saves gain a `schema_version: 11` field and a centralized
+  migration dispatcher (`_migrate_10_to_11` in `campaign_state.py`).
+  Pre-11 saves load cleanly with all new 11.0 fields seeded and legacy
+  `_nap_timer_*` keys converted to Treaty records. The first time a
+  pre-11 save is overwritten, a `.v10.bak` backup is created next to
+  it so users can roll back if needed.
+
+---
+
 ### Version 10.5.0 (April 2026)
 **Galactic Conquest — Diplomacy Overhaul**
 

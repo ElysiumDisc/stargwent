@@ -4,7 +4,8 @@ import display_manager
 import re
 import time
 from touch_support import is_web_platform
-from lan_session import LanSession
+from lan_session import LanSession, ProtocolVersionMismatch
+from game_config import GAME_VERSION
 
 if not is_web_platform():
     import threading
@@ -42,6 +43,74 @@ def draw_text_left(surface, text, x, y, color=(200, 200, 200), size=24):
     font = get_font(size)
     surf = font.render(text, True, color)
     surface.blit(surf, (x, y))
+
+
+def _get_local_player_name():
+    """Fetch the custom LAN player name from game settings.
+
+    Defaults to "Player" when unset. Stored on game_settings so it
+    persists across sessions.
+    """
+    try:
+        from game_settings import get_settings
+        name = (get_settings().settings.get("lan_player_name", "") or "").strip()
+        return name if name else "Player"
+    except Exception:
+        return "Player"
+
+
+def _set_local_player_name(name):
+    """Persist the LAN player name. Clamps to 16 alphanumeric+underscore chars."""
+    name = "".join(c for c in (name or "") if c.isalnum() or c == "_")
+    name = name[:16]
+    try:
+        from game_settings import get_settings
+        s = get_settings()
+        s.settings["lan_player_name"] = name
+        s.save_settings()
+    except Exception:
+        pass
+    return name
+
+
+def _friendly_connect_error(exc):
+    """Translate an OSError from host()/join() into a specific hint."""
+    text = str(exc).lower()
+    if "in use" in text or "address already in use" in text:
+        return "Connection failed: port 4765 in use. Wait 30s and retry."
+    if "refused" in text:
+        return "Connection failed: host not listening. Check firewall or room code."
+    if "unreachable" in text or "no route" in text:
+        return "Connection failed: host unreachable (different network?)."
+    if "timed out" in text or "timeout" in text:
+        return "Connection failed: timeout reaching host."
+    return f"Connection failed: {exc}"
+
+
+def _perform_handshake(session, role):
+    """Run the LAN protocol handshake and return a human-readable result.
+
+    Returns a tuple (success: bool, message: str, peer_payload: dict | None).
+    On success the peer payload includes the peer's player_name so the UI
+    can display a friendlier label than "Host"/"Client".
+    """
+    try:
+        peer = session.handshake(GAME_VERSION, role,
+                                 player_name=_get_local_player_name())
+    except ProtocolVersionMismatch as exc:
+        peer_game = exc.peer_game_version or "unknown"
+        return (False,
+                f"Incompatible versions: host {GAME_VERSION}, peer {peer_game}",
+                None)
+    except TimeoutError:
+        return (False, "Handshake timeout - peer did not respond", None)
+    except OSError as exc:
+        return (False, f"Handshake failed: {exc}", None)
+    peer_game = peer.get("game_version", "?")
+    peer_name = peer.get("player_name") or "Peer"
+    return (True,
+            f"Handshake OK — connected to {peer_name} (Stargwent {peer_game})",
+            peer)
 
 
 def get_local_ips():
@@ -346,12 +415,18 @@ async def run_lan_menu(screen):
                         add_status(f"Connecting to {target_ip}:{target_port}...")
                         try:
                             session.join(target_ip, target_port)
+                            ok, msg, peer_info = _perform_handshake(session, "client")
+                            add_status(msg)
+                            if not ok:
+                                session.close()
+                                session = None
+                                continue
                             state = "chat"
                             role = "client"
                             add_status("Connected successfully!")
                             session.send("status", "Joined Stargwent LAN!")
                         except OSError as exc:
-                            add_status(f"Connection failed: {exc}")
+                            add_status(_friendly_connect_error(exc))
                             session = None
                     elif event.unicode and event.unicode.isprintable():
                         if len(join_ip) < 45:  # Max length for IP/room code
@@ -373,10 +448,18 @@ async def run_lan_menu(screen):
                             try:
                                 # Use timeout to allow periodic cancel checks
                                 addr = session.host(4765, timeout=host_timeout)
-                                if not host_cancelled:
-                                    connected = True
-                                    add_status(f"Client connected: {addr[0]}")
-                                    session.send("status", "Welcome to Stargwent LAN!")
+                                if host_cancelled:
+                                    return
+                                # Version handshake before announcing connection
+                                ok, msg, peer_info = _perform_handshake(session, "host")
+                                if not ok:
+                                    host_error = msg
+                                    session.close()
+                                    return
+                                add_status(msg)
+                                connected = True
+                                add_status(f"Client connected: {addr[0]}")
+                                session.send("status", "Welcome to Stargwent LAN!")
                             except socket.timeout:
                                 if not host_cancelled:
                                     host_error = "Connection timeout - no client connected within 2 minutes"
@@ -411,12 +494,18 @@ async def run_lan_menu(screen):
                         add_status(f"Connecting to {target_ip}:{target_port}...")
                         try:
                             session.join(target_ip, target_port)
+                            ok, msg, peer_info = _perform_handshake(session, "client")
+                            add_status(msg)
+                            if not ok:
+                                session.close()
+                                session = None
+                                continue
                             state = "chat"
                             role = "client"
                             add_status("Connected successfully!")
                             session.send("status", "Joined Stargwent LAN!")
                         except OSError as exc:
-                            add_status(f"Connection failed: {exc}")
+                            add_status(_friendly_connect_error(exc))
                             session = None
                     elif back_btn.collidepoint(mx, my):
                         state = "menu"

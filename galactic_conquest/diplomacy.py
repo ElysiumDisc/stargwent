@@ -253,22 +253,55 @@ def form_alliance(state, faction, galaxy):
     state.add_naquadah(-cost)
     set_relation(state, faction, ALLIED)
     adjust_favor(state, faction, 15)
+    # Alliances now have an explicit duration that can be renewed.
+    # The treaty never auto-terminates — turns_remaining reaching 0
+    # just flags the alliance as "needs renewal" in the UI.
+    sign_treaty(state, "alliance", faction, ALLIANCE_TREATY_DURATION, penalty_if_broken=40)
     _track_conquest_stat("alliances_forged")
     return f"Alliance formed with {faction}! (-{cost} naq) Their territory counts as yours."
+
+
+def can_renew_alliance(state, faction):
+    """Check if an active alliance can be renewed for a favor bump."""
+    if get_relation(state, faction) != ALLIED:
+        return False
+    if state.naquadah < ALLIANCE_RENEW_COST:
+        return False
+    return get_active_treaty(state, "alliance", faction) is not None
+
+
+def renew_alliance(state, faction):
+    """Renew an alliance treaty: reset duration + small favor bonus.
+
+    Returns message or None if not renewable.
+    """
+    if not can_renew_alliance(state, faction):
+        return None
+    treaty = get_active_treaty(state, "alliance", faction)
+    treaty["turns_remaining"] = ALLIANCE_TREATY_DURATION
+    treaty["signed_on_turn"] = state.turn_number
+    state.add_naquadah(-ALLIANCE_RENEW_COST)
+    adjust_favor(state, faction, ALLIANCE_RENEW_FAVOR)
+    return (f"Alliance with {faction} renewed! (-{ALLIANCE_RENEW_COST} naq, "
+            f"+{ALLIANCE_RENEW_FAVOR} favor, {ALLIANCE_TREATY_DURATION} turns)")
 
 
 def betray_alliance(state, faction, rng=None):
     """Break alliance for immediate reward. Returns message.
 
     Ripple effect: 40% chance each TRADING partner also turns HOSTILE.
-    Massive favor loss.
+    Massive favor loss. Vengeful factions remember the betrayal forever.
     """
     if not can_betray(state, faction):
         return None
     state.add_naquadah(BETRAY_REWARD)
     set_relation(state, faction, HOSTILE)
     state.conquest_ability_data[f"betrayed_{faction}"] = True
-    adjust_favor(state, faction, -40)
+    # Snapshot prior offenses BEFORE incrementing (see break_nap note)
+    prior_breaks = _vengeful_count(state, faction)
+    break_treaty(state, "alliance", faction, reason="betrayed")
+    compound = prior_breaks * 5
+    adjust_favor(state, faction, -40 - compound)
     adjust_favor_all(state, -15, exclude=faction)
     _track_conquest_stat("betrayals")
     msg = f"Betrayed {faction}! +{BETRAY_REWARD} naq. Permanently hostile (+15% counterattack)."
@@ -311,6 +344,8 @@ def send_gift(state, faction, galaxy):
     adjust_favor(state, faction, favor_gain)
     state.conquest_ability_data[f"_gift_sent_{faction}"] = True
     _track_conquest_stat("gifts_sent")
+    # G3: log gifts for coalition-break tracking
+    log_player_gift(state, faction, GIFT_COST)
     return f"Sent gift to {faction}! (-{GIFT_COST} naq, +{favor_gain} favor)"
 
 
@@ -375,7 +410,7 @@ def can_propose_nap(state, faction, galaxy):
     if not _has_shared_border(state, faction, galaxy):
         return False
     # Already have active NAP?
-    if state.conquest_ability_data.get(f"_nap_timer_{faction}", 0) > 0:
+    if has_active_nap(state, faction):
         return False
     return state.naquadah >= NAP_COST
 
@@ -383,7 +418,8 @@ def can_propose_nap(state, faction, galaxy):
 def propose_nap(state, faction, galaxy, rng=None):
     """Propose a Non-Aggression Pact. Returns message.
 
-    AI acceptance based on personality + favor.
+    AI acceptance based on personality + favor. Vengeful factions
+    remember prior treaty breaks and lower acceptance accordingly.
     """
     if not can_propose_nap(state, faction, galaxy):
         return None
@@ -393,13 +429,15 @@ def propose_nap(state, faction, galaxy, rng=None):
     personality = _get_diplo_personality(faction)
     favor = get_favor(state, faction)
     acceptance = personality["nap_acceptance"] + favor * 0.005
+    # Vengeful memory: -15% acceptance per prior broken treaty
+    acceptance -= _vengeful_count(state, faction) * 0.15
     acceptance = max(0.10, min(0.95, acceptance))
 
     state.add_naquadah(-NAP_COST)
 
     if rng.random() < acceptance:
         set_relation(state, faction, NEUTRAL_REL)
-        state.conquest_ability_data[f"_nap_timer_{faction}"] = NAP_DURATION
+        sign_treaty(state, "nap", faction, NAP_DURATION, penalty_if_broken=30)
         adjust_favor(state, faction, 10)
         _track_conquest_stat("naps_formed")
         return f"NAP with {faction}! (-{NAP_COST} naq) No attacks for {NAP_DURATION} turns."
@@ -545,44 +583,407 @@ def propose_joint_attack(state, faction, target_faction, galaxy, rng=None):
 
 
 # =========================================================================
-# NAP Management
+# Player-Initiated Faction-Unique Proposals (P2, v11.0)
+# =========================================================================
+# The AI path at generate_ai_proposals can already fire these, but the
+# player couldn't previously *initiate* them. Unlocks are gated on
+# relation + personality + any preconditions from the original AI path.
+
+# -- Asgard Tech Exchange -- cost 50 naq, +1 card draw for next 5 battles
+TECH_EXCHANGE_COST = 50
+TECH_EXCHANGE_BATTLES = 5
+
+
+def can_request_tech_exchange(state, faction):
+    personality = _get_diplo_personality(faction)
+    if personality.get("unique_proposal") != "tech_exchange":
+        return False
+    if get_relation(state, faction) not in (TRADING, ALLIED):
+        return False
+    if state.naquadah < TECH_EXCHANGE_COST:
+        return False
+    # Cooldown
+    if state.conquest_ability_data.get(f"_tech_exchange_cd_{faction}", 0) > 0:
+        return False
+    return True
+
+
+def request_tech_exchange(state, faction):
+    if not can_request_tech_exchange(state, faction):
+        return None
+    state.add_naquadah(-TECH_EXCHANGE_COST)
+    state.conquest_ability_data["_asgard_tech_draws"] = TECH_EXCHANGE_BATTLES
+    state.conquest_ability_data[f"_tech_exchange_cd_{faction}"] = 5
+    adjust_favor(state, faction, 5)
+    return (f"{faction} shares technology! +1 card draw for next "
+            f"{TECH_EXCHANGE_BATTLES} battles. (-{TECH_EXCHANGE_COST} naq)")
+
+
+# -- Alteran Knowledge Sharing -- cost 30 naq, +10 wisdom, unlocked turn 15+
+KNOWLEDGE_COST = 30
+KNOWLEDGE_WISDOM = 10
+KNOWLEDGE_UNLOCK_TURN = 15
+
+
+def can_request_knowledge(state, faction):
+    personality = _get_diplo_personality(faction)
+    if personality.get("unique_proposal") != "knowledge_sharing":
+        return False
+    if state.turn_number < KNOWLEDGE_UNLOCK_TURN:
+        return False
+    if get_relation(state, faction) not in (TRADING, ALLIED):
+        return False
+    if state.naquadah < KNOWLEDGE_COST:
+        return False
+    if state.conquest_ability_data.get(f"_knowledge_cd_{faction}", 0) > 0:
+        return False
+    return True
+
+
+def request_knowledge(state, faction):
+    if not can_request_knowledge(state, faction):
+        return None
+    state.add_naquadah(-KNOWLEDGE_COST)
+    state.wisdom += KNOWLEDGE_WISDOM
+    state.conquest_ability_data[f"_knowledge_cd_{faction}"] = 5
+    adjust_favor(state, faction, 8)
+    return (f"{faction} shares Ancient knowledge! +{KNOWLEDGE_WISDOM} Wisdom. "
+            f"(-{KNOWLEDGE_COST} naq)")
+
+
+# -- Jaffa Revenge Pact -- mutual -1 cooldown vs Goa'uld planets for 10 turns
+REVENGE_PACT_DURATION = 10
+
+
+def can_propose_revenge_pact(state, faction):
+    personality = _get_diplo_personality(faction)
+    if personality.get("unique_proposal") != "revenge_pact":
+        return False
+    if get_relation(state, faction) not in (TRADING, ALLIED):
+        return False
+    # Must currently be hostile with Goa'uld to unlock
+    if get_relation(state, "Goa'uld") != HOSTILE:
+        return False
+    if state.conquest_ability_data.get("_jaffa_revenge_pact_cd", 0) > 0:
+        return False
+    return True
+
+
+def propose_revenge_pact(state, faction):
+    if not can_propose_revenge_pact(state, faction):
+        return None
+    state.conquest_ability_data["_jaffa_revenge_pact"] = True
+    state.conquest_ability_data["_jaffa_revenge_pact_turns"] = REVENGE_PACT_DURATION
+    state.conquest_ability_data["_jaffa_revenge_pact_cd"] = REVENGE_PACT_DURATION
+    adjust_favor(state, faction, 10)
+    return (f"{faction} joins a Revenge Pact against Goa'uld! "
+            f"Mutual -1 cooldown vs Goa'uld planets for {REVENGE_PACT_DURATION} turns.")
+
+
+# =========================================================================
+# Treaty System (G8 — unified source of truth for NAP, Alliance, etc.)
+# =========================================================================
+#
+# `state.treaties` is a list of dicts (JSON-native for save compat). Each
+# treaty has:
+#   type: "nap" | "alliance"
+#   faction: str
+#   turns_remaining: int  (for NAP: ticks toward expiry; for alliance:
+#                          ticks toward "needs renewal")
+#   signed_on_turn: int
+#   penalty_if_broken: int  (favor cost when explicitly broken)
+#
+# `state.broken_treaty_counts` tracks how many treaties the player has
+# broken with each faction, so vengeful personalities (Jaffa) can remember
+# across the whole run.
+
+ALLIANCE_TREATY_DURATION = 15
+ALLIANCE_RENEW_COST = 30
+ALLIANCE_RENEW_FAVOR = 10
+
+
+def _vengeful_count(state, faction):
+    """How many times have we broken a treaty with a vengeful faction?
+
+    Returns 0 for non-vengeful personalities. Used to compound penalties.
+    """
+    personality = _get_diplo_personality(faction)
+    if personality.get("unique_proposal") != "revenge_pact":
+        return 0
+    return state.broken_treaty_counts.get(faction, 0)
+
+
+def get_active_treaty(state, treaty_type, faction):
+    """Return the active treaty dict for a type/faction, or None."""
+    for t in state.treaties:
+        if t.get("type") == treaty_type and t.get("faction") == faction:
+            return t
+    return None
+
+
+def sign_treaty(state, treaty_type, faction, duration, penalty_if_broken=30):
+    """Add a new treaty to state.treaties.
+
+    Replaces any existing treaty of the same type+faction. Returns the
+    treaty dict.
+    """
+    # Remove any duplicate first
+    state.treaties = [t for t in state.treaties
+                      if not (t.get("type") == treaty_type and t.get("faction") == faction)]
+    treaty = {
+        "type": treaty_type,
+        "faction": faction,
+        "turns_remaining": duration,
+        "signed_on_turn": state.turn_number,
+        "penalty_if_broken": penalty_if_broken,
+    }
+    state.treaties.append(treaty)
+    return treaty
+
+
+def tick_treaties(state):
+    """Decrement all treaty timers and handle expirations.
+
+    NAP: expires cleanly on reaching 0 (honored → +10 favor).
+    Alliance: ticks down but does NOT auto-sever on 0 — the treaty just
+    enters a "needs renewal" state that the UI can flag. This keeps
+    existing balance (alliances never auto-break) while giving the
+    renewal action real meaning.
+    """
+    remaining = []
+    for treaty in state.treaties:
+        treaty["turns_remaining"] -= 1
+        ttype = treaty.get("type")
+        if ttype == "nap":
+            if treaty["turns_remaining"] <= 0:
+                # NAP honored to full term: +10 favor, drop the treaty
+                adjust_favor(state, treaty["faction"], 10)
+                continue
+        # Alliance (and everything else): keep the record, clamp at 0
+        if treaty["turns_remaining"] < 0:
+            treaty["turns_remaining"] = 0
+        remaining.append(treaty)
+    state.treaties = remaining
+
+
+def break_treaty(state, treaty_type, faction, *, reason="broken"):
+    """Remove a treaty and apply break penalties.
+
+    Increments state.broken_treaty_counts[faction] so vengeful factions
+    remember. Applies the treaty's own penalty + a reputation-web
+    trickle (-2 favor to all other factions) on top of any type-specific
+    penalties the caller applies separately.
+    """
+    treaty = get_active_treaty(state, treaty_type, faction)
+    if not treaty:
+        return False
+    state.treaties = [t for t in state.treaties
+                      if not (t.get("type") == treaty_type and t.get("faction") == faction)]
+    state.broken_treaty_counts[faction] = state.broken_treaty_counts.get(faction, 0) + 1
+    # Small reputation-web trickle that applies on ANY treaty break.
+    # (Type-specific heavy penalties stay with the per-type caller so
+    # NAP and alliance breakage keep their distinct existing weights.)
+    adjust_favor_all(state, -2, exclude=faction)
+    return True
+
+
+# =========================================================================
+# Coalition Against Player (G3 — new in 11.0)
+# =========================================================================
+#
+# When the player reaches 40%+ of the galaxy, AI factions start accumulating
+# "coalition trust" toward each other. Once two or more weak factions hit a
+# total trust threshold, they form a coalition: forced HOSTILE relation with
+# the player and +50% counterattack multiplier for the coalition's duration.
+# The coalition breaks if the player drops below 30% territory OR gifts a
+# total of 60+ naq to 2+ coalition members inside a 3-turn window.
+
+COALITION_TERRITORY_THRESHOLD = 0.40   # Fraction of planets that triggers trust buildup
+COALITION_BREAK_TERRITORY = 0.30       # Drop below this to break coalition
+COALITION_TRUST_GAIN = 10              # Trust per qualifying faction per turn
+COALITION_FORM_THRESHOLD = 80          # Per-faction trust required to join
+COALITION_MIN_MEMBERS = 2              # Minimum weak factions required
+COALITION_DURATION = 5                 # Turns
+COALITION_COUNTERATTACK_MULT = 1.5     # Applied on top of personality counterattack_mult
+COALITION_GIFT_BREAK_TOTAL = 60        # Player gifts 60+ naq in 3-turn window
+COALITION_GIFT_BREAK_MEMBERS = 2       # Across at least 2 coalition factions
+COALITION_GIFT_WINDOW = 3              # Turns
+
+
+def _coalition_enabled():
+    """Check the conquest_settings.json feature flag."""
+    try:
+        from .campaign_persistence import load_conquest_settings
+        return load_conquest_settings().get("coalition_enabled", True)
+    except Exception:
+        return True
+
+
+def _player_territory_fraction(state, galaxy):
+    """Fraction of planets owned by the player (0.0-1.0)."""
+    total = len(galaxy.planets)
+    if total == 0:
+        return 0.0
+    return galaxy.get_player_planet_count() / total
+
+
+def update_coalition_trust(state, galaxy):
+    """Tick each AI faction's coalition trust score.
+
+    Only accumulates while the player holds COALITION_TERRITORY_THRESHOLD+
+    of the galaxy. Trust is capped at COALITION_FORM_THRESHOLD.
+    """
+    if not _coalition_enabled():
+        return
+    if _player_territory_fraction(state, galaxy) < COALITION_TERRITORY_THRESHOLD:
+        # Below trigger: slowly drain trust so coalition can reform later if needed
+        trust = state.coalition.get("trust", {})
+        for faction in list(trust):
+            trust[faction] = max(0, trust[faction] - 2)
+        return
+
+    # Weaker factions are the likely coalition cores — bump their trust faster.
+    player_planets = galaxy.get_player_planet_count()
+    for faction in galaxy.get_active_factions():
+        if faction == state.player_faction:
+            continue
+        # Only eligible if faction still has planets and weaker than player
+        fp = galaxy.get_faction_planet_count(faction)
+        if fp == 0 or fp >= player_planets:
+            continue
+        current = state.coalition.setdefault("trust", {}).get(faction, 0)
+        state.coalition["trust"][faction] = min(
+            COALITION_FORM_THRESHOLD, current + COALITION_TRUST_GAIN)
+
+
+def check_coalition_formation(state, galaxy):
+    """If enough weak factions have maxed out trust, form a coalition.
+
+    Returns a human-readable message on formation, else None.
+    """
+    if not _coalition_enabled():
+        return None
+    if state.coalition.get("active"):
+        return None
+    trust = state.coalition.get("trust", {})
+    members = [f for f, v in trust.items()
+               if v >= COALITION_FORM_THRESHOLD
+               and galaxy.get_faction_planet_count(f) > 0]
+    if len(members) < COALITION_MIN_MEMBERS:
+        return None
+    # Form! Forced-HOSTILE to player + ALLIED pact between members.
+    state.coalition["active"] = True
+    state.coalition["members"] = list(members)
+    state.coalition["turns_remaining"] = COALITION_DURATION
+    for faction in members:
+        set_relation(state, faction, HOSTILE)
+        adjust_favor(state, faction, -30)
+    member_list = ", ".join(members)
+    return (f"COALITION FORMED — {member_list} have banded against you! "
+            f"+50% counterattack for {COALITION_DURATION} turns.")
+
+
+def check_coalition_break(state, galaxy):
+    """Break conditions: territory drop, gift appeasement, or timer expiry.
+
+    Returns a message on break, else None. Ticks the timer down by 1
+    unconditionally when a coalition is active.
+    """
+    if not state.coalition.get("active"):
+        return None
+
+    # Timer expires cleanly
+    state.coalition["turns_remaining"] -= 1
+    if state.coalition["turns_remaining"] <= 0:
+        state.coalition["active"] = False
+        state.coalition["members"] = []
+        state.coalition["trust"] = {}
+        return "The coalition against you has dissolved."
+
+    # Territory drop break
+    if _player_territory_fraction(state, galaxy) < COALITION_BREAK_TERRITORY:
+        state.coalition["active"] = False
+        state.coalition["members"] = []
+        state.coalition["trust"] = {}
+        return "The coalition loses cohesion — you are no longer dominant enough to threaten them."
+
+    # Gift appeasement: total gifts to coalition members in last 3 turns
+    gift_log = state.conquest_ability_data.get("_coalition_gift_log", [])
+    recent = [g for g in gift_log
+              if state.turn_number - g["turn"] < COALITION_GIFT_WINDOW
+              and g["faction"] in state.coalition["members"]]
+    factions_gifted = {g["faction"] for g in recent}
+    total = sum(g["amount"] for g in recent)
+    if (total >= COALITION_GIFT_BREAK_TOTAL
+            and len(factions_gifted) >= COALITION_GIFT_BREAK_MEMBERS):
+        state.coalition["active"] = False
+        state.coalition["members"] = []
+        state.coalition["trust"] = {}
+        return "Your diplomatic gifts fracture the coalition — they turn on each other."
+
+    return None
+
+
+def get_coalition_counterattack_mult(state, faction):
+    """Extra counterattack multiplier if the faction is in an active coalition."""
+    if not state.coalition.get("active"):
+        return 1.0
+    if faction in state.coalition.get("members", []):
+        return COALITION_COUNTERATTACK_MULT
+    return 1.0
+
+
+def log_player_gift(state, faction, amount):
+    """Record a player gift for coalition-break tracking.
+
+    Called from send_gift. Safe to call whether a coalition is active
+    or not — the log only matters when check_coalition_break runs.
+    """
+    gift_log = state.conquest_ability_data.setdefault("_coalition_gift_log", [])
+    gift_log.append({"turn": state.turn_number, "faction": faction, "amount": amount})
+    # Trim entries older than the window to bound memory
+    cutoff = state.turn_number - COALITION_GIFT_WINDOW
+    state.conquest_ability_data["_coalition_gift_log"] = [
+        g for g in gift_log if g["turn"] >= cutoff
+    ]
+
+
+# =========================================================================
+# NAP Management (now backed by the Treaty system)
 # =========================================================================
 
 def tick_nap_timers(state):
-    """Tick down NAP timers. Expires NAPs and awards favor for honoring them."""
-    keys_to_remove = []
-    for key in list(state.conquest_ability_data):
-        if key.startswith("_nap_timer_"):
-            faction = key[len("_nap_timer_"):]
-            state.conquest_ability_data[key] -= 1
-            if state.conquest_ability_data[key] <= 0:
-                keys_to_remove.append(key)
-                # NAP honored: +10 favor
-                adjust_favor(state, faction, 10)
-    for key in keys_to_remove:
-        del state.conquest_ability_data[key]
+    """Tick NAP treaties. Kept as a thin wrapper over tick_treaties so
+    existing callers in campaign_controller don't need to change."""
+    tick_treaties(state)
 
 
 def has_active_nap(state, faction):
     """Check if there's an active NAP with a faction."""
-    return state.conquest_ability_data.get(f"_nap_timer_{faction}", 0) > 0
+    return get_active_treaty(state, "nap", faction) is not None
 
 
 def get_nap_turns_remaining(state, faction):
     """Get turns remaining on NAP. Returns 0 if no active NAP."""
-    return state.conquest_ability_data.get(f"_nap_timer_{faction}", 0)
+    treaty = get_active_treaty(state, "nap", faction)
+    return treaty["turns_remaining"] if treaty else 0
 
 
 def break_nap(state, faction):
-    """Break a NAP early. Heavy favor penalty."""
-    key = f"_nap_timer_{faction}"
-    if state.conquest_ability_data.get(key, 0) > 0:
-        del state.conquest_ability_data[key]
-        set_relation(state, faction, HOSTILE)
-        adjust_favor(state, faction, -30)
-        adjust_favor_all(state, -10, exclude=faction)
-        state.conquest_ability_data[f"_nap_broken_{faction}"] = True
-        _track_conquest_stat("naps_broken")
+    """Break a NAP early. Heavy favor penalty + reputation web + vengeful memory."""
+    # Snapshot the PRIOR offense count before break_treaty increments it,
+    # so the first broken treaty is the baseline (compound = 0) and only
+    # subsequent breaks stack extra penalty.
+    prior_breaks = _vengeful_count(state, faction)
+    if not break_treaty(state, "nap", faction, reason="nap_broken"):
+        return
+    set_relation(state, faction, HOSTILE)
+    compound = prior_breaks * 5
+    adjust_favor(state, faction, -30 - compound)
+    # Pre-existing reputation web penalty (kept for gameplay parity)
+    adjust_favor_all(state, -10, exclude=faction)
+    state.conquest_ability_data[f"_nap_broken_{faction}"] = True
+    _track_conquest_stat("naps_broken")
 
 
 # =========================================================================
@@ -1341,8 +1742,28 @@ def get_diplomacy_options(state, galaxy):
                 target_str = ", ".join(targets[:2])
                 actions.append(("joint", JOINT_ATTACK_COST, True,
                                 f"Propose joint attack (-{JOINT_ATTACK_COST} naq) vs {target_str}"))
+            # P2: player-initiated faction-unique proposals
+            if can_request_tech_exchange(state, faction):
+                actions.append(("tech_exchange", TECH_EXCHANGE_COST, True,
+                                f"Request Asgard tech (-{TECH_EXCHANGE_COST} naq): "
+                                f"+1 card draw for {TECH_EXCHANGE_BATTLES} battles"))
+            if can_request_knowledge(state, faction):
+                actions.append(("knowledge", KNOWLEDGE_COST, True,
+                                f"Request Ancient knowledge (-{KNOWLEDGE_COST} naq): "
+                                f"+{KNOWLEDGE_WISDOM} Wisdom"))
+            if can_propose_revenge_pact(state, faction):
+                actions.append(("revenge_pact", 0, True,
+                                f"Propose Revenge Pact vs Goa'uld: -1 cooldown vs "
+                                f"Goa'uld planets for {REVENGE_PACT_DURATION} turns"))
 
         elif rel == ALLIED:
+            # Alliance treaty renewal (new in 11.0)
+            alliance_treaty = get_active_treaty(state, "alliance", faction)
+            if alliance_treaty is not None:
+                actions.append(("renew", ALLIANCE_RENEW_COST,
+                                can_renew_alliance(state, faction),
+                                f"Renew alliance (-{ALLIANCE_RENEW_COST} naq): "
+                                f"+{ALLIANCE_RENEW_FAVOR} favor, reset to {ALLIANCE_TREATY_DURATION} turns"))
             actions.append(("betray", -BETRAY_REWARD, True,
                             f"Betray (+{BETRAY_REWARD} naq): permanently hostile, trust ripple"))
             if can_request_military_aid(state, faction, galaxy):

@@ -2,9 +2,94 @@
 STARGWENT - GALACTIC CONQUEST - Campaign State
 
 Dataclass and serialization for the persistent campaign state.
+
+Save schema is versioned via SCHEMA_VERSION. `from_dict` runs all saves
+through `_migrate` first, which seeds new fields for older saves in one
+centralized place so we never scatter `.get(key, default)` guards.
 """
 
 from dataclasses import dataclass, field
+
+
+# Bump whenever we add fields to CampaignState. Paired with a
+# _migrate_{prev}_to_{new} function below.
+SCHEMA_VERSION = 11
+
+
+def _migrate_10_to_11(data: dict) -> dict:
+    """Seed all 11.0 fields on a pre-11 save in one place.
+
+    Covers every new field added by the 11.0 release so downstream code
+    can assume they exist. Also converts legacy NAP keys in
+    `conquest_ability_data` into the new `treaties` list.
+
+    Does NOT mutate the input dict — returns a new dict with updates.
+    """
+    data = dict(data)
+    # Any nested dict/list we'll mutate needs its own copy.
+    data["conquest_ability_data"] = dict(data.get("conquest_ability_data", {}))
+    data["treaties"] = list(data.get("treaties", []))
+
+    # --- New 11.0 state fields (G2a, G2b, G3, G4, G5, G6, G7, G8) ---
+    data.setdefault("act", 1)
+    data.setdefault("consecutive_high_income_turns", 0)
+    data.setdefault("ai_doctrines", {})
+    data.setdefault("broken_treaty_counts", {})
+    data.setdefault("coalition", {
+        "active": False,
+        "members": [],
+        "turns_remaining": 0,
+        "trust": {},
+    })
+    data.setdefault("quest_chain_progress", {})
+    data.setdefault("minor_world_rival", {})
+    data.setdefault("relic_active_charges", {})
+    data.setdefault("espionage_blocks", {})
+
+    # --- Legacy NAP key migration (G8) ---
+    # Old format stored NAPs as "_nap_timer_{faction}" keys in
+    # conquest_ability_data. Convert each to a Treaty dict so the new
+    # diplomacy layer has a single source of truth.  Only the timer
+    # keys migrate — "_nap_broken_*" flags stay put because they're
+    # still read by the counterattack bonus logic.
+    ability_data = data["conquest_ability_data"]
+    turn_number = data.get("turn_number", 1)
+    treaties = data["treaties"]
+    nap_prefix = "_nap_timer_"
+    for key in list(ability_data.keys()):
+        if not key.startswith(nap_prefix):
+            continue
+        value = ability_data[key]
+        if not (isinstance(value, int) and value > 0):
+            continue
+        faction = key[len(nap_prefix):]
+        if not any(t.get("type") == "nap" and t.get("faction") == faction
+                   for t in treaties):
+            treaties.append({
+                "type": "nap",
+                "faction": faction,
+                "turns_remaining": value,
+                "signed_on_turn": max(1, turn_number - 1),
+                "penalty_if_broken": 30,
+            })
+        del ability_data[key]
+
+    return data
+
+
+def _migrate(data: dict) -> dict:
+    """Run all migrations needed to bring *data* up to SCHEMA_VERSION.
+
+    Returns a new dict. The input is not mutated, so callers can safely
+    pass dicts they want to reuse.
+    """
+    version = data.get("schema_version", 10)
+    if version < 11:
+        data = _migrate_10_to_11(data)
+    else:
+        data = dict(data)
+    data["schema_version"] = SCHEMA_VERSION
+    return data
 
 
 @dataclass
@@ -48,9 +133,24 @@ class CampaignState:
     turns_held: dict = field(default_factory=dict)                        # planet_id → turns owned (development track)
     diplomatic_favor: dict = field(default_factory=dict)                  # faction → int (-100 to +100)
 
+    # --- 11.0 fields ---
+    act: int = 1                                                           # G4: 1=Expansion, 2=Tension, 3=Endgame
+    consecutive_high_income_turns: int = 0                                 # G5: for Economic Victory
+    ai_doctrines: dict = field(default_factory=dict)                       # G2a: faction → list[policy_id]
+    treaties: list = field(default_factory=list)                           # G8: list of Treaty dicts
+    broken_treaty_counts: dict = field(default_factory=dict)               # G8: faction → int (vengeful memory)
+    coalition: dict = field(default_factory=lambda: {
+        "active": False, "members": [], "turns_remaining": 0, "trust": {}
+    })                                                                      # G3: coalition-against-player state
+    quest_chain_progress: dict = field(default_factory=dict)               # G6: planet_id → {chain_id, step}
+    minor_world_rival: dict = field(default_factory=dict)                  # G6: planet_id → {faction, influence}
+    relic_active_charges: dict = field(default_factory=dict)               # G7: relic_id → remaining charges
+    espionage_blocks: dict = field(default_factory=dict)                   # G2b: {doctrine_blocked_turns: int}
+
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
         return {
+            "schema_version": SCHEMA_VERSION,
             "player_faction": self.player_faction,
             "player_leader": self.player_leader,
             "current_deck": list(self.current_deck),
@@ -88,11 +188,27 @@ class CampaignState:
             "wisdom_actions_this_turn": self.wisdom_actions_this_turn,
             "turns_held": dict(self.turns_held),
             "diplomatic_favor": dict(self.diplomatic_favor),
+            # --- 11.0 ---
+            "act": self.act,
+            "consecutive_high_income_turns": self.consecutive_high_income_turns,
+            "ai_doctrines": {k: list(v) for k, v in self.ai_doctrines.items()},
+            "treaties": list(self.treaties),
+            "broken_treaty_counts": dict(self.broken_treaty_counts),
+            "coalition": dict(self.coalition),
+            "quest_chain_progress": dict(self.quest_chain_progress),
+            "minor_world_rival": dict(self.minor_world_rival),
+            "relic_active_charges": dict(self.relic_active_charges),
+            "espionage_blocks": dict(self.espionage_blocks),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "CampaignState":
-        """Deserialize campaign state from a dictionary."""
+        """Deserialize campaign state from a dictionary.
+
+        Runs `_migrate` first so pre-11.0 saves are brought forward with
+        all new fields seeded and legacy keys converted.
+        """
+        data = _migrate(data)
         return cls(
             player_faction=data["player_faction"],
             player_leader=data["player_leader"],
@@ -131,6 +247,17 @@ class CampaignState:
             wisdom_actions_this_turn=data.get("wisdom_actions_this_turn", 0),
             turns_held=data.get("turns_held", {}),
             diplomatic_favor=data.get("diplomatic_favor", {}),
+            # --- 11.0 (migration already seeded these) ---
+            act=data["act"],
+            consecutive_high_income_turns=data["consecutive_high_income_turns"],
+            ai_doctrines=data["ai_doctrines"],
+            treaties=data["treaties"],
+            broken_treaty_counts=data["broken_treaty_counts"],
+            coalition=data["coalition"],
+            quest_chain_progress=data["quest_chain_progress"],
+            minor_world_rival=data["minor_world_rival"],
+            relic_active_charges=data["relic_active_charges"],
+            espionage_blocks=data["espionage_blocks"],
         )
 
     def tick_cooldowns(self):

@@ -36,7 +36,7 @@ from event_handler import handle_events
 from frame_renderer import render_frame
 
 # ============================================================================
-# DEBUG MODE (v4.3.1)
+# DEBUG MODE
 # ============================================================================
 # Set to True to enable FPS counter and performance profiling
 from game_settings import get_settings

@@ -14,6 +14,19 @@ else:
     threading = None
 
 
+class ProtocolVersionMismatch(Exception):
+    """Raised when LAN peers speak incompatible protocol versions."""
+
+    def __init__(self, local_version, peer_version, peer_game_version=None):
+        self.local_version = local_version
+        self.peer_version = peer_version
+        self.peer_game_version = peer_game_version
+        super().__init__(
+            f"Protocol version mismatch: local={local_version}, peer={peer_version}"
+            + (f" (peer game {peer_game_version})" if peer_game_version else "")
+        )
+
+
 class LanSession:
     """LAN session supporting TCP host/join + JSON messages with robustness features."""
 
@@ -48,6 +61,11 @@ class LanSession:
         self.current_rtt = 0  # milliseconds
         self.last_ping_time = 0
         self._ping_id = 0
+
+        # Protocol handshake (L1): populated by the reader thread as soon
+        # as the peer's HELLO message arrives so the main thread can
+        # block on it without touching the inbox deque.
+        self.peer_hello = None
 
     def host(self, port=4765, timeout=None):
         """
@@ -164,6 +182,13 @@ class LanSession:
 
                     # Filter out keepalive messages (don't put in inbox)
                     if msg_type == "keepalive":
+                        continue
+
+                    # Capture HELLO handshake directly (L1) — the main
+                    # thread polls self.peer_hello rather than scanning
+                    # the inbox deque.
+                    if msg_type == "hello":
+                        self.peer_hello = payload.get("payload", {})
                         continue
 
                     # Handle ping/pong for latency measurement
@@ -295,6 +320,55 @@ class LanSession:
             return True
         except OSError:
             return False
+
+    def handshake(self, game_version, role, player_name=None, timeout=5.0):
+        """Exchange HELLO packets with the peer and verify protocol compatibility.
+
+        Called after host/join connects but before any game messages are
+        sent. Both sides send their HELLO immediately; both sides then
+        wait for the peer's HELLO to arrive (captured by the reader
+        into ``self.peer_hello``).
+
+        Args:
+            game_version: Local game version string (e.g. "11.0.0").
+            role: "host" or "client".
+            player_name: Optional custom player name.
+            timeout: Seconds to wait for peer HELLO before giving up.
+
+        Returns:
+            The peer's HELLO payload dict on success:
+            ``{"protocol_version", "game_version", "role", "player_name"?}``.
+
+        Raises:
+            ProtocolVersionMismatch: Peer speaks a different PROTOCOL_VERSION.
+            TimeoutError: Peer did not send HELLO within *timeout* seconds.
+            OSError: Underlying socket error.
+        """
+        # Import here to avoid a hard lan_protocol dependency at module
+        # load time (the web build stubs out socket support).
+        from lan_protocol import build_hello_message, PROTOCOL_VERSION
+
+        hello = build_hello_message(game_version, role, player_name=player_name)
+        if not self.send(hello["type"], hello["payload"]):
+            raise OSError("Failed to send HELLO handshake")
+
+        deadline = time.monotonic() + timeout
+        while self.peer_hello is None:
+            if self.stop_event.is_set():
+                raise OSError("Connection closed during handshake")
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Peer did not send HELLO within timeout")
+            time.sleep(0.05)
+
+        peer = self.peer_hello
+        peer_version = peer.get("protocol_version")
+        if peer_version != PROTOCOL_VERSION:
+            raise ProtocolVersionMismatch(
+                local_version=PROTOCOL_VERSION,
+                peer_version=peer_version,
+                peer_game_version=peer.get("game_version"),
+            )
+        return peer
 
     def close(self):
         with self._sock_lock:

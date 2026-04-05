@@ -286,9 +286,13 @@ Call `clear_render_caches()` on resolution change.
 
 ---
 
-## Galactic Conquest Architecture (v10.0.0)
+## Galactic Conquest Architecture (v10.0 baseline, expanded in v11.0)
 
-Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules, ~11,470 lines)
+Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules).
+v11.0 added branching doctrines, AI doctrine adoption, expanded AI espionage,
+coalition-against-player, 3-act crisis escalation, Economic + Cultural victory
+paths, minor-world quest chains + rival courtship, active relic abilities,
+and a unified Treaty system — see `CHANGELOG.md` for the full list.
 
 | File | Description |
 |------|-------------|
@@ -312,17 +316,18 @@ Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules, ~11,
 | `difficulty.py` | 4 levels (Easy/Normal/Hard/Insane) |
 | `stargate_network.py` | Network tiers (Outpost→Galactic) based on BFS connectivity |
 | `conquest_abilities.py` | 40 leader abilities (6 factions), L1-L4 scaling with network tier |
-| `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray, AI proposals (4 types), strain warnings, incident handling |
+| `diplomacy.py` + `diplomacy_screen.py` | Faction relations, trade/alliance/betray, 13 AI proposal types, 3 player-initiated faction-unique actions, Treaty system (NAP + Alliance duration + Renew), coalition-against-player, strain warnings, incident handling |
 | `buildings.py` | 5 building types with Lv 1-3 upgrades, level-scaled effects, doctrine cost reduction |
-| `crisis_events.py` | 5 galaxy-wide events with 2-choice player agency (10%/turn after turn 5) |
+| `crisis_events.py` | 10 galaxy-wide events with 3-choice player agency (a/b/c with conditional Option C); chance scales with campaign act (5%/10%/15%) |
 | `meta_progression.py` | Conquest Points, 5 perks, high scores, victory type multipliers |
-| `minor_worlds.py` | 9 minor worlds: influence, quests, type bonuses, AI competition |
-| `minor_world_screen.py` | CRT-styled minor world interaction panel |
-| `doctrines.py` | 5 doctrine trees (20 policies), Wisdom economy, `get_active_effects()` |
-| `doctrine_screen.py` | CRT-styled doctrine tree selection UI |
-| `espionage.py` | Operative lifecycle, 6 missions, rank system, AI espionage events, incident choices |
+| `minor_worlds.py` | 9 minor worlds: influence, quest chains (3-step), type bonuses, rival-suitor courtship + lockouts |
+| `minor_world_screen.py` | CRT-styled minor world interaction panel with rival progress bar |
+| `doctrines.py` | 5 doctrine trees (30 policies — 20 spine + 10 branches at tier 3), Wisdom economy, `get_active_effects()` |
+| `doctrine_screen.py` | CRT-styled doctrine tree selection UI with "OR" divider at branch tiers |
+| `espionage.py` | Operative lifecycle, 10 player missions, rank system, 6 AI espionage mission types, incident choices |
 | `espionage_screen.py` | CRT-styled operative management UI |
-| `victory_conditions.py` | 4 victory paths + score fallback, progress tracking |
+| `victory_conditions.py` | 6 victory paths + score fallback (Domination/Ascension/Alliance/Supremacy/Economic/Cultural), progress tracking |
+| `tooltip.py` | **NEW in 11.0**: shared tooltip renderer with wrap + clamp |
 
 ### Key Systems
 - **Network Tiers**: Connected planet count → tier → scaling naq/cooldown/range/ability bonuses

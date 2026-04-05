@@ -10,12 +10,24 @@ from dataclasses import dataclass
 
 @dataclass
 class Relic:
-    """A collectible artifact with a passive campaign effect."""
+    """A collectible artifact with a passive campaign effect.
+
+    v11.0 (G7): relics can optionally expose an ``active_ability`` for
+    player-triggered effects. Only out-of-battle actives ship in 11.0 to
+    keep the card-battle path completely untouched.
+
+    active_ability: dict | None with keys:
+        name: str                       — button label
+        desc: str                       — tooltip
+        charges: int                    — starting charge count (per campaign)
+        effect_type: str                — "undo_last_planet_loss", "full_deck_heal"
+    """
     id: str
     name: str
     description: str
     icon_char: str        # Unicode character for HUD display
     category: str         # "combat" | "economy" | "exploration"
+    active_ability: dict = None
 
 
 # All available relics
@@ -69,6 +81,13 @@ RELICS = {
         description="Revive: +1 random card from your discard after each round",
         icon_char="\u2625",  # ankh
         category="combat",
+        # v11.0 (G7): two-charge out-of-battle full-deck heal
+        active_ability={
+            "name": "Sarcophagus Chamber",
+            "desc": "Restore all card upgrade penalties and reset cooldowns",
+            "charges": 2,
+            "effect_type": "full_deck_heal",
+        },
     ),
 
     # === Economy Relics ===
@@ -143,6 +162,13 @@ RELICS = {
         description="Once per campaign: undo last planet loss",
         icon_char="\u231B",  # hourglass
         category="exploration",
+        # v11.0 (G7): single-charge campaign rewind for the last planet loss
+        active_ability={
+            "name": "Temporal Rewind",
+            "desc": "Restore your most recently lost planet (not homeworld)",
+            "charges": 1,
+            "effect_type": "undo_last_planet_loss",
+        },
     ),
     "flames_of_celestis": Relic(
         id="flames_of_celestis",
@@ -213,15 +239,102 @@ RELIC_COMBOS = {
         "description": "+2 card choices on reward screens",
         "effect": {"extra_card_choices": 2},
     },
+    # --- v11.0 three-relic trios (G7) ---
+    "weapon_trinity": {
+        "name": "Weapon Trinity",
+        "relics": ("staff_of_ra", "thors_hammer", "ori_prior_staff"),
+        "description": "Hero cards gain +2 power (trio bonus)",
+        "effect": {"hero_power_bonus": 2},
+    },
+    "galactic_archive": {
+        "name": "Galactic Archive",
+        "relics": ("alteran_database", "asgard_core", "quantum_mirror"),
+        "description": "+25 naquadah per victory and +1 card choice",
+        "effect": {"victory_naq_bonus": 25, "extra_card_choices": 1},
+    },
 }
 
 
+# --- Relic active ability activation ---
+
+def get_active_relics(state):
+    """Return a list of (relic, charges_remaining) for every owned relic
+    that exposes an active ability with remaining charges."""
+    result = []
+    for relic_id in state.relics:
+        relic = RELICS.get(relic_id)
+        if relic is None or relic.active_ability is None:
+            continue
+        starting = relic.active_ability.get("charges", 1)
+        remaining = state.relic_active_charges.get(
+            relic_id,
+            starting,
+        )
+        result.append((relic, remaining))
+    return result
+
+
+def activate_relic(state, galaxy, relic_id):
+    """Fire a relic active ability. Returns message on success, None on failure.
+
+    This function handles ONLY out-of-battle actives — `undo_last_planet_loss`
+    and `full_deck_heal`. Charge bookkeeping lives on
+    state.relic_active_charges (migrated save field) so activations persist
+    across save/load.
+    """
+    relic = RELICS.get(relic_id)
+    if relic is None or relic.active_ability is None:
+        return None
+    if not state.has_relic(relic_id):
+        return None
+    starting = relic.active_ability.get("charges", 1)
+    remaining = state.relic_active_charges.get(relic_id, starting)
+    if remaining <= 0:
+        return "No charges remaining."
+
+    effect_type = relic.active_ability.get("effect_type")
+
+    if effect_type == "undo_last_planet_loss":
+        last_lost = state.conquest_ability_data.get("_last_planet_lost")
+        if not last_lost:
+            return "No recent planet loss to undo."
+        pid = last_lost.get("planet_id")
+        planet = galaxy.planets.get(pid) if pid else None
+        if not planet:
+            return "Lost planet data unavailable."
+        # Restore ownership
+        galaxy.transfer_ownership(pid, "player")
+        state.planet_ownership[pid] = "player"
+        del state.conquest_ability_data["_last_planet_lost"]
+        state.relic_active_charges[relic_id] = remaining - 1
+        return f"Temporal Rewind restored {planet.name}! ({remaining - 1} charges left)"
+
+    if effect_type == "full_deck_heal":
+        # Remove all card-upgrade penalties from prior crises/plagues and
+        # reset cooldowns — a clean slate between battles.
+        healed_count = 0
+        for cid, val in list(state.upgraded_cards.items()):
+            if val < 0:
+                state.upgraded_cards[cid] = 0
+                healed_count += 1
+        state.cooldowns.clear()
+        state.relic_active_charges[relic_id] = remaining - 1
+        return (f"Sarcophagus Chamber: cooldowns reset, {healed_count} cards "
+                f"restored. ({remaining - 1} charges left)")
+
+    return None
+
+
 def get_active_combos(state):
-    """Return list of active relic combo dicts for the player's current relics."""
+    """Return list of active relic combo dicts for the player's current relics.
+
+    v11.0 (G7): combos can now list 2 *or* 3 relics. Matching is
+    all-members-required so the generalization is a tuple membership check.
+    """
     active = []
     for combo_id, combo in RELIC_COMBOS.items():
-        r1, r2 = combo["relics"]
-        if state.has_relic(r1) and state.has_relic(r2):
+        relic_ids = combo["relics"]
+        if all(state.has_relic(rid) for rid in relic_ids):
             active.append(combo)
     return active
 

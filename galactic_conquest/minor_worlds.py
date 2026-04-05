@@ -97,6 +97,43 @@ QUEST_TYPES = {
 QUEST_COOLDOWN_TURNS = 2
 
 
+# Quest chains (v11.0, G6) — themed 3-step arcs with escalating rewards.
+# When a minor world rolls a new quest, there's a chance it starts a
+# chain instead of a single quest. Each step's reward is the base quest
+# reward + a chain bonus that ramps per step. Completing step 3 also
+# grants a small naq windfall.
+QUEST_CHAIN_ROLL_CHANCE = 0.50   # chance the next quest starts a chain
+QUEST_CHAIN_STEP_BONUS = 5        # extra influence per step above the base
+QUEST_CHAIN_FINAL_NAQ = 40        # naq bonus on completing step 3
+
+QUEST_CHAINS = {
+    "defense_pact": {
+        "name": "Defense Pact",
+        "steps": ["defend", "defend", "conquer"],
+        "final_reward_desc": "+40 naq bonus on completion",
+    },
+    "trade_route": {
+        "name": "Trade Route",
+        "steps": ["trade", "tribute", "build"],
+        "final_reward_desc": "+40 naq bonus on completion",
+    },
+    "military_contract": {
+        "name": "Military Contract",
+        "steps": ["conquer", "build", "defend"],
+        "final_reward_desc": "+40 naq bonus on completion",
+    },
+}
+
+
+# Rival courtship (v11.0, G6) — each minor world has one AI faction
+# that is actively "courting" it. If the rival reaches Ally tier before
+# the player, the player loses trading access with that minor world for
+# a cooldown period.
+RIVAL_INFLUENCE_PER_TURN = 2     # How fast the rival ticks up
+RIVAL_ALLY_THRESHOLD = ALLY_THRESHOLD
+RIVAL_LOCKOUT_TURNS = 5           # Trading blocked for N turns after rival wins
+
+
 @dataclass
 class MinorWorldState:
     """Persistent state for a single minor world."""
@@ -242,8 +279,44 @@ def attempt_ally(state, planet_id, galaxy):
     return f"Allied with {name}! Bonus: {type_info.get('ally_desc', '?')}"
 
 
+def _build_quest_from_type(quest_type, rng, chain_id=None, step=1, total_steps=1):
+    """Construct a quest dict from a quest type plus optional chain context.
+
+    Step bonus scales the reward so a 3-step chain is more rewarding than
+    three isolated quests of the same types.
+    """
+    quest_info = QUEST_TYPES[quest_type]
+    amount = None
+    if quest_type == "tribute":
+        amount = rng.randint(30, 60)
+        desc = quest_info["desc_template"].format(amount=amount)
+    else:
+        desc = quest_info["desc_template"]
+    bonus = (step - 1) * QUEST_CHAIN_STEP_BONUS if chain_id else 0
+    reward = quest_info["reward_influence"] + bonus
+    quest = {
+        "quest_type": quest_type,
+        "description": desc,
+        "amount": amount,
+        "reward_influence": reward,
+        "completed": False,
+    }
+    if chain_id:
+        quest["chain_id"] = chain_id
+        quest["step"] = step
+        quest["total_steps"] = total_steps
+        chain_name = QUEST_CHAINS[chain_id]["name"]
+        quest["description"] = f"[{chain_name} {step}/{total_steps}] {desc}"
+    return quest
+
+
 def request_quest(state, planet_id, galaxy, rng):
-    """Generate a new quest for a minor world. Returns message or None."""
+    """Generate a new quest for a minor world. Returns message or None.
+
+    v11.0 (G6): roll for a 3-step quest chain half the time. Chain state
+    is stored inside the active_quest dict and on state.quest_chain_progress
+    so it survives save/load.
+    """
     mw = ensure_minor_world(state, planet_id, galaxy)
     if not mw:
         return None
@@ -252,31 +325,64 @@ def request_quest(state, planet_id, galaxy, rng):
     if mw.quest_cooldown > 0:
         return f"Quest available in {mw.quest_cooldown} turn(s)."
 
-    # Pick a random quest type
-    quest_type = rng.choice(list(QUEST_TYPES.keys()))
-    quest_info = QUEST_TYPES[quest_type]
-    amount = None
-    if quest_type == "tribute":
-        amount = rng.randint(30, 60)
-        desc = quest_info["desc_template"].format(amount=amount)
+    chain_id = None
+    step = 1
+    total_steps = 1
+    if rng.random() < QUEST_CHAIN_ROLL_CHANCE:
+        chain_id = rng.choice(list(QUEST_CHAINS.keys()))
+        total_steps = len(QUEST_CHAINS[chain_id]["steps"])
+        quest_type = QUEST_CHAINS[chain_id]["steps"][0]
+        state.quest_chain_progress[planet_id] = {
+            "chain_id": chain_id, "step": 1,
+        }
     else:
-        desc = quest_info["desc_template"]
+        quest_type = rng.choice(list(QUEST_TYPES.keys()))
 
-    mw.active_quest = {
-        "quest_type": quest_type,
-        "description": desc,
-        "amount": amount,
-        "reward_influence": quest_info["reward_influence"],
-        "completed": False,
-    }
+    mw.active_quest = _build_quest_from_type(
+        quest_type, rng, chain_id=chain_id, step=step, total_steps=total_steps)
     _save_mw(state, mw)
+
     planet = galaxy.planets.get(planet_id)
     name = planet.name if planet else planet_id
-    return f"{name} quest: {desc} (+{quest_info['reward_influence']} influence)"
+    return f"{name} quest: {mw.active_quest['description']} (+{mw.active_quest['reward_influence']} influence)"
 
 
-def complete_quest_tribute(state, planet_id, galaxy):
+def _advance_chain_if_any(state, mw, rng, galaxy):
+    """After a quest completes, start the next chain step if applicable.
+
+    Returns a suffix string to append to the completion message, or "".
+    Final-step completion also awards the chain's naquadah bonus.
+    """
+    quest = mw.active_quest  # about to be cleared by caller
+    if not quest or "chain_id" not in quest:
+        return ""
+    chain_id = quest["chain_id"]
+    step = quest["step"]
+    total_steps = quest["total_steps"]
+    chain = QUEST_CHAINS.get(chain_id)
+    if not chain:
+        return ""
+    if step >= total_steps:
+        # Final step complete — clear chain progress and grant naq bonus
+        state.add_naquadah(QUEST_CHAIN_FINAL_NAQ)
+        state.quest_chain_progress.pop(mw.planet_id, None)
+        return f" | {chain['name']} complete! +{QUEST_CHAIN_FINAL_NAQ} naq"
+    # Advance to the next step
+    next_step = step + 1
+    next_type = chain["steps"][next_step - 1]
+    state.quest_chain_progress[mw.planet_id] = {
+        "chain_id": chain_id, "step": next_step,
+    }
+    mw.active_quest = _build_quest_from_type(
+        next_type, rng, chain_id=chain_id, step=next_step, total_steps=total_steps)
+    return f" | Next: {mw.active_quest['description']}"
+
+
+def complete_quest_tribute(state, planet_id, galaxy, rng=None):
     """Complete a tribute quest by paying naquadah. Returns message or None."""
+    import random as _random
+    if rng is None:
+        rng = _random.Random()
     mw = ensure_minor_world(state, planet_id, galaxy)
     if not mw or not mw.active_quest:
         return None
@@ -288,20 +394,26 @@ def complete_quest_tribute(state, planet_id, galaxy):
     state.add_naquadah(-amount)
     reward = mw.active_quest["reward_influence"]
     mw.influence = min(INFLUENCE_MAX, mw.influence + reward)
-    mw.active_quest = None
-    mw.quest_cooldown = QUEST_COOLDOWN_TURNS
+    # G6: advance chain step if applicable — otherwise clear the quest
+    chain_suffix = _advance_chain_if_any(state, mw, rng, galaxy)
+    if not chain_suffix or "complete!" in chain_suffix:
+        mw.active_quest = None
+        mw.quest_cooldown = QUEST_COOLDOWN_TURNS
     _save_mw(state, mw)
-    return f"Quest complete! +{reward} influence"
+    return f"Quest complete! +{reward} influence{chain_suffix}"
 
 
 # --- Quest Progress Hooks ---
 
-def notify_quest_event(state, event_type):
+def notify_quest_event(state, event_type, rng=None):
     """Check all minor worlds for quest completion on an event.
 
     event_type: "defend" | "conquer" | "trade" | "build"
     Returns list of (planet_id, message) for completed quests.
     """
+    import random as _random
+    if rng is None:
+        rng = _random.Random()
     completed = []
     for pid, data in list(state.minor_world_states.items()):
         mw = MinorWorldState.from_dict(data)
@@ -310,14 +422,91 @@ def notify_quest_event(state, event_type):
         if mw.active_quest["quest_type"] == event_type:
             reward = mw.active_quest["reward_influence"]
             mw.influence = min(INFLUENCE_MAX, mw.influence + reward)
-            mw.active_quest = None
-            mw.quest_cooldown = QUEST_COOLDOWN_TURNS
+            # Galaxy is not in scope here (caller doesn't pass it) — chain
+            # advancement only needs it to resolve ensure_minor_world,
+            # which we already have. Pass a sentinel None.
+            chain_suffix = _advance_chain_if_any(state, mw, rng, galaxy=None)
+            if not chain_suffix or "complete!" in chain_suffix:
+                mw.active_quest = None
+                mw.quest_cooldown = QUEST_COOLDOWN_TURNS
             _save_mw(state, mw)
-            completed.append((pid, f"Quest complete! +{reward} influence"))
+            completed.append((pid, f"Quest complete! +{reward} influence{chain_suffix}"))
     return completed
 
 
 # --- Turn Advance ---
+
+def update_rival_courtship(state, galaxy, rng=None):
+    """Tick each minor world's rival AI suitor (v11.0, G6).
+
+    Each minor world has at most one rival — a randomly-picked active
+    faction that is visibly competing for influence. Their influence
+    ticks up by RIVAL_INFLUENCE_PER_TURN each turn. When the rival
+    reaches Ally tier before the player does, a lockout timer starts
+    on that minor world so the player can't trade with them for a few
+    turns (stored in state.conquest_ability_data).
+
+    Returns a list of (planet_id, message) tuples for any lockouts
+    that fired this turn.
+    """
+    import random as _random
+    if rng is None:
+        rng = _random.Random()
+    events = []
+    for pid, mw_data in list(state.minor_world_states.items()):
+        mw = MinorWorldState.from_dict(mw_data)
+        rival_entry = state.minor_world_rival.get(pid)
+        if not rival_entry:
+            # Pick a rival suitor on first tick
+            try:
+                candidates = [f for f in galaxy.get_active_factions()
+                              if f != state.player_faction
+                              and galaxy.get_faction_planet_count(f) > 0]
+            except Exception:
+                candidates = []
+            if not candidates:
+                continue
+            rival_entry = {"faction": rng.choice(candidates), "influence": 0}
+            state.minor_world_rival[pid] = rival_entry
+
+        # If player already allied, the rival is effectively blocked.
+        if mw.ally_faction == "player":
+            continue
+
+        # Tick rival influence
+        rival_entry["influence"] = min(INFLUENCE_MAX,
+                                       rival_entry["influence"] + RIVAL_INFLUENCE_PER_TURN)
+
+        # Did rival cross the Ally threshold before player?
+        if (rival_entry["influence"] >= RIVAL_ALLY_THRESHOLD
+                and mw.influence < RIVAL_ALLY_THRESHOLD
+                and not state.conquest_ability_data.get(f"_mw_locked_{pid}")):
+            state.conquest_ability_data[f"_mw_locked_{pid}"] = RIVAL_LOCKOUT_TURNS
+            rival_name = rival_entry["faction"]
+            mw_name = galaxy.planets[pid].name if galaxy.planets.get(pid) else pid
+            events.append((pid,
+                           f"{rival_name} allied with {mw_name}! "
+                           f"Trading locked out for {RIVAL_LOCKOUT_TURNS} turns."))
+    return events
+
+
+def tick_rival_lockouts(state):
+    """Tick down per-minor-world rival lockout timers. Called once per turn."""
+    for key in list(state.conquest_ability_data):
+        if key.startswith("_mw_locked_"):
+            v = state.conquest_ability_data[key]
+            if isinstance(v, int):
+                v -= 1
+                if v <= 0:
+                    del state.conquest_ability_data[key]
+                else:
+                    state.conquest_ability_data[key] = v
+
+
+def is_minor_world_locked(state, planet_id):
+    """True if a rival has locked the player out of this minor world."""
+    return state.conquest_ability_data.get(f"_mw_locked_{planet_id}", 0) > 0
+
 
 def decay_minor_world_influence(state):
     """Decay all minor world influence toward resting point."""

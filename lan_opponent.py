@@ -4,13 +4,19 @@ NetworkOpponent - Replaces AI opponent for LAN multiplayer.
 Instead of AI logic, this class waits for network messages from the remote player
 and relays local player actions to the remote player.
 """
+import json
+import os
 import time
-import pygame
+from collections import deque
 from typing import Optional, Dict, Any
+
+import pygame
+
 from lan_session import LanSession
 from lan_protocol import (
     LanMessageType,
     build_action_message,
+    build_concede_message,
     build_mulligan_message,
     parse_message,
 )
@@ -100,6 +106,15 @@ class NetworkOpponent:
                 "type": "disconnect"
             }
 
+        elif msg_type == LanMessageType.CONCEDE.value:
+            # L3: remote player conceded — treat as a graceful surrender
+            # and pass back a sentinel so the game loop can end the
+            # current match with a local victory flash.
+            print("[NetworkOpponent] Remote player conceded the match!")
+            return {
+                "type": "concede"
+            }
+
         # Unknown message type - ignore
         return None
 
@@ -115,15 +130,47 @@ class NetworkOpponent:
         msg = build_action_message(action_type, data, turn_token=turn_token, target_id=target_id)
         self.session.send(msg["type"], msg["payload"])
 
-    def send_mulligan(self, indices: list):
+    def send_mulligan(self, indices: list, local_hand_size: Optional[int] = None):
         """
         Send mulligan selection to remote player.
 
+        L3: validates indices against the sender's hand size *before*
+        building the message so a stale/corrupted index can never cross
+        the wire and desync the remote peer.
+
         Args:
-            indices: List of card indices to mulligan
+            indices: List of card indices to mulligan.
+            local_hand_size: If provided, indices must all be within
+                [0, local_hand_size). Indices outside the range are
+                silently dropped and a warning is logged.
         """
+        # L3: mulligan validation
+        if local_hand_size is not None:
+            cleaned = []
+            for idx in indices:
+                if not isinstance(idx, int):
+                    print(f"[NetworkOpponent] Dropping non-int mulligan index: {idx!r}")
+                    continue
+                if 0 <= idx < local_hand_size:
+                    cleaned.append(idx)
+                else:
+                    print(f"[NetworkOpponent] Dropping out-of-range mulligan index "
+                          f"{idx} (hand size {local_hand_size})")
+            # De-duplicate while preserving order
+            seen = set()
+            indices = [i for i in cleaned if not (i in seen or seen.add(i))]
+
         turn_token = self.next_turn_token()
         msg = build_mulligan_message(indices, turn_token=turn_token)
+        self.session.send(msg["type"], msg["payload"])
+
+    def send_concede(self):
+        """Notify the remote player that this side is conceding the match.
+
+        The remote peer ends the current game with a victory flash. Used
+        by the in-game "Concede" shortcut added in v11.0 (L3).
+        """
+        msg = build_concede_message()
         self.session.send(msg["type"], msg["payload"])
 
     def is_connected(self) -> bool:
@@ -165,6 +212,52 @@ class NetworkController:
         self.card_not_found_count = 0  # Track consecutive card-not-found errors
         self._expected_remote_token = 0  # For turn token sequence validation
         self._token_gap_count = 0  # Accumulated turn token gaps for desync detection
+        # L3: circular buffer of the last 20 actions (local+remote) so we
+        # can dump the history to disk when a desync is detected. Cheap
+        # forensic aid for reproducing net bugs offline.
+        self._action_history = deque(maxlen=20)
+        self._history_dumped = False
+
+    def log_action(self, source, action_type, data=None, turn_token=None,
+                   score_before=None, score_after=None):
+        """Append an entry to the desync forensic history.
+
+        Called from both the local send path and the remote receive path.
+        """
+        self._action_history.append({
+            "t": time.monotonic(),
+            "source": source,           # "local" or "remote"
+            "action": action_type,
+            "data": data,
+            "turn_token": turn_token,
+            "score_before": score_before,
+            "score_after": score_after,
+        })
+
+    def dump_desync_history(self, reason):
+        """Write the action history to a log file for post-mortem.
+
+        Idempotent per controller — only dumps once per session. The log
+        goes next to other save data via save_paths.get_data_dir().
+        """
+        if self._history_dumped:
+            return None
+        self._history_dumped = True
+        try:
+            from save_paths import get_data_dir
+            path = os.path.join(get_data_dir(), "lan_desync_history.log")
+            with open(path, "a") as f:
+                f.write(f"=== Desync at {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+                f.write(f"Reason: {reason}\n")
+                f.write(f"Role: {self.role}\n")
+                for entry in self._action_history:
+                    f.write(json.dumps(entry, default=str) + "\n")
+                f.write("\n")
+            print(f"[Network] Desync history dumped to {path}")
+            return path
+        except OSError as exc:
+            print(f"[Network] Failed to dump desync history: {exc}")
+            return None
 
     def _find_card_in_discard(self, player, card_id):
         if not card_id:
@@ -217,6 +310,12 @@ class NetworkController:
                     "ai",
                     icon="!"
                 )
+                # L3: dump the last 20 actions to a log file for
+                # post-mortem analysis. Runs once per desync.
+                self.dump_desync_history(
+                    f"score_desync expected={expected_p1}-{expected_p2} "
+                    f"got={current_p1}-{current_p2}"
+                )
             
             self.pending_verification = None
 
@@ -244,6 +343,16 @@ class NetworkController:
             action_type = payload.get("action")
             data = payload.get("data", {})
             target_id = payload.get("target_id")
+
+            # L3: record remote action in desync forensic history
+            self.log_action(
+                source="remote",
+                action_type=action_type,
+                data=data,
+                turn_token=payload.get("turn_token"),
+                score_before=(self.game.player1.score, self.game.player2.score),
+                score_after=(p1_score, p2_score),
+            )
 
             # Send ACK for this action so sender knows it arrived
             msg_id = payload.get("msg_id")
@@ -373,6 +482,15 @@ class NetworkController:
 
         elif msg_type == "disconnect":
             print("[NetworkController] Remote player disconnected!")
+            return (None, None)
+
+        elif msg_type == LanMessageType.CONCEDE.value:
+            # L3: remote player conceded — surrender *their* player so
+            # the game engine reports a local victory with a clean
+            # Game Over flash. Safe because concede is always a
+            # voluntary action from the remote side.
+            print("[NetworkController] Remote player conceded — awarding victory.")
+            self.game.surrender(self.network_player)
             return (None, None)
 
         # Unknown or unhandled message

@@ -6,10 +6,12 @@ Save/load/clear campaign state to/from JSON on disk.
 
 import json
 import os
+import shutil
 
 from save_paths import get_data_dir, sync_saves
 
 CAMPAIGN_SAVE_FILENAME = "galactic_conquest_save.json"
+CAMPAIGN_V10_BACKUP_FILENAME = "galactic_conquest_save.json.v10.bak"
 CONQUEST_SETTINGS_FILENAME = "conquest_settings.json"
 
 
@@ -18,10 +20,34 @@ def get_campaign_save_path() -> str:
     return os.path.join(get_data_dir(), CAMPAIGN_SAVE_FILENAME)
 
 
+def _backup_pre_11_save_if_needed(path: str) -> None:
+    """Copy an existing pre-11 save to a .v10.bak file once.
+
+    Runs before the first 11.0 overwrite so users can recover their old
+    save if a migration bug surfaces. No-op if the backup already exists
+    or if the current file is already at schema 11.
+    """
+    if not os.path.exists(path):
+        return
+    backup_path = os.path.join(get_data_dir(), CAMPAIGN_V10_BACKUP_FILENAME)
+    if os.path.exists(backup_path):
+        return
+    try:
+        with open(path, "r") as f:
+            existing = json.load(f)
+        if existing.get("schema_version", 10) >= 11:
+            return  # Already on the new schema; nothing to back up.
+        shutil.copy2(path, backup_path)
+        print(f"[conquest] Backed up pre-11 save to {backup_path}")
+    except (IOError, OSError, json.JSONDecodeError) as e:
+        print(f"[conquest] Pre-11 backup skipped: {e}")
+
+
 def save_campaign(state) -> bool:
     """Save campaign state to disk. Returns True on success."""
     path = get_campaign_save_path()
     try:
+        _backup_pre_11_save_if_needed(path)
         data = state.to_dict()
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
@@ -82,6 +108,10 @@ def load_conquest_settings() -> dict:
         "friendly_faction": None,
         "neutral_count": 5,
         "enemy_leaders": {},  # faction → leader name
+        # G3: coalition-against-player feature flag (11.0). Defaults on;
+        # flip to false in conquest_settings.json if emergent behavior
+        # locks players out of a run.
+        "coalition_enabled": True,
     }
     path = get_conquest_settings_path()
     if not os.path.exists(path):

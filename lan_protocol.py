@@ -16,7 +16,15 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 
+# Wire-protocol version. Bumped whenever we change message shapes or add
+# new required message types. Peers exchange this on the initial HELLO
+# handshake and disconnect with a clear error if they don't match. This
+# prevents silent cross-version desyncs — the scariest LAN failure mode.
+PROTOCOL_VERSION = 2
+
+
 class LanMessageType(str, Enum):
+    HELLO = "hello"  # First message after connect: protocol/game version exchange
     CHAT = "chat"
     CHAT_ACK = "chat_ack"  # Message delivery confirmation
     DECK_SELECTION = "deck_selection"
@@ -28,6 +36,7 @@ class LanMessageType(str, Enum):
     STATUS = "status"
     TYPING = "typing"
     DISCONNECT = "disconnect"
+    CONCEDE = "concede"  # L3: graceful surrender in PvP
     PLAY_AGAIN = "play_again"
     KEEPALIVE = "keepalive"
     PING = "ping"  # Latency measurement request
@@ -42,6 +51,22 @@ def build_message(message_type: LanMessageType, payload: Optional[Dict[str, Any]
     if turn_token is not None:
         msg["turn_token"] = turn_token
     return msg
+
+
+def build_hello_message(game_version: str, role: str, player_name: Optional[str] = None) -> Dict[str, Any]:
+    """Build the initial HELLO handshake packet.
+
+    Sent immediately after TCP connect so both peers can verify they
+    speak the same protocol before any game state is exchanged.
+    """
+    payload = {
+        "protocol_version": PROTOCOL_VERSION,
+        "game_version": game_version,
+        "role": role,
+    }
+    if player_name:
+        payload["player_name"] = player_name
+    return build_message(LanMessageType.HELLO, payload)
 
 
 def build_chat_message(text: str) -> Dict[str, Any]:
@@ -77,6 +102,11 @@ def build_action_message(action_type: str, data: Dict[str, Any], *, turn_token: 
 def build_mulligan_message(indices: list[int], *, turn_token: str) -> Dict[str, Any]:
     payload = {"indices": indices}
     return build_message(LanMessageType.MULLIGAN, payload, turn_token=turn_token)
+
+
+def build_concede_message() -> Dict[str, Any]:
+    """L3: graceful surrender in PvP. Remote peer ends with a victory flash."""
+    return build_message(LanMessageType.CONCEDE, {})
 
 
 def parse_message(raw: Dict[str, Any]) -> Dict[str, Any]:

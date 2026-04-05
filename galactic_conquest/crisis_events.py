@@ -54,6 +54,47 @@ CRISIS_EVENTS = [
         "effect": "wraith_invasion",
         "color": (140, 80, 160),
     },
+    # --- 5 new events (G4, v11.0) ---
+    {
+        "id": "stargate_virus",
+        "title": "Stargate Virus",
+        "text": "A self-replicating virus has compromised the gate network!\n"
+                "Network bonuses are disabled and building repairs cost extra.",
+        "effect": "stargate_virus",
+        "color": (140, 255, 140),
+    },
+    {
+        "id": "black_hole_proximity",
+        "title": "Black Hole Proximity",
+        "text": "Gravitational shear ripples through the sector!\n"
+                "A random building suffers catastrophic damage.",
+        "effect": "black_hole_proximity",
+        "color": (60, 60, 100),
+    },
+    {
+        "id": "naquadria_meltdown",
+        "title": "Naquadria Reactor Meltdown",
+        "text": "An experimental reactor has gone critical!\n"
+                "You must choose: bleed naquadah or sacrifice a card.",
+        "effect": "naquadria_meltdown",
+        "color": (255, 140, 40),
+    },
+    {
+        "id": "first_contact",
+        "title": "First Contact",
+        "text": "An unknown civilization opens communication!\n"
+                "Their gifts could reshape your campaign.",
+        "effect": "first_contact",
+        "color": (180, 220, 255),
+    },
+    {
+        "id": "dakara_signal",
+        "title": "Dakara Signal",
+        "text": "Ancient harmonic waves wash across the galaxy!\n"
+                "Temporary diplomatic thaw between all factions.",
+        "effect": "dakara_signal",
+        "color": (255, 220, 180),
+    },
 ]
 
 CRISIS_CHOICES = {
@@ -86,6 +127,37 @@ CRISIS_CHOICES = {
         "b": {"label": "Evacuate", "desc": "Lose the planet but only -20 naquadah."},
         "c": {"label": "Covert counterattack", "desc": "60% keep planet. Only -10 naq.",
                "requires": "3_operatives"},
+    },
+    # --- v11.0 additions (G4) ---
+    "stargate_virus": {
+        "a": {"label": "Purge the network (-50 naq)", "desc": "Full clean. Network bonuses restored next turn."},
+        "b": {"label": "Endure the outage", "desc": "Network bonuses disabled for 3 turns."},
+        "c": {"label": "Asgard debug tools", "desc": "Instant fix, no cost.",
+               "requires": "asgard_relic"},
+    },
+    "black_hole_proximity": {
+        "a": {"label": "Reinforce structures (-40 naq)", "desc": "Buildings survive. No damage."},
+        "b": {"label": "Ride it out", "desc": "A random building loses 1 upgrade level."},
+        "c": {"label": "Orbital stabilizers", "desc": "No damage, free.",
+               "requires": "shipyard_2"},
+    },
+    "naquadria_meltdown": {
+        "a": {"label": "Flood coolant (-60 naq)", "desc": "Contained. Deck untouched."},
+        "b": {"label": "Vent the core", "desc": "Lose your weakest card, keep the naq."},
+        "c": {"label": "Ancient containment", "desc": "No losses at all.",
+               "requires": "ascension_complete"},
+    },
+    "first_contact": {
+        "a": {"label": "Accept relic", "desc": "Gain Replicator Nanites relic. No other effect."},
+        "b": {"label": "Trade for wisdom", "desc": "+20 Wisdom. No relic."},
+        "c": {"label": "Deep exchange", "desc": "Gain relic AND +10 Wisdom.",
+               "requires": "sensor_array_2"},
+    },
+    "dakara_signal": {
+        "a": {"label": "Embrace the harmony", "desc": "+10 favor with all factions for 3 turns."},
+        "b": {"label": "Ignore the signal", "desc": "-5 Wisdom, no effect on relations."},
+        "c": {"label": "Amplify the wave", "desc": "+20 favor with all factions, +5 Wisdom.",
+               "requires": "3_ancient_planets"},
     },
 }
 
@@ -127,21 +199,64 @@ def check_crisis_option_c(campaign_state, galaxy, crisis_effect):
                          if op.get("state") in ("active", "idle", "moving", "establishing"))
         return active_ops >= 3
 
+    # --- v11.0 crisis requirements (G4) ---
+    elif req == "asgard_relic":
+        return any(r in campaign_state.relics for r in ("asgard_core", "thors_hammer"))
+
+    elif req == "shipyard_2":
+        count = sum(1 for pid, bid in campaign_state.buildings.items()
+                    if bid == "shipyard"
+                    and galaxy.planets.get(pid)
+                    and galaxy.planets[pid].owner == "player"
+                    and campaign_state.building_levels.get(pid, 1) >= 2)
+        return count >= 1
+
     return False
+
+
+# --- v11.0: 3-act escalation (G4) ---
+
+ACT_1_END_TURN = 10
+ACT_2_END_TURN = 20
+
+
+def get_current_act(turn_number):
+    """Return the current campaign act (1, 2, or 3) for a given turn.
+
+    Act 1 (Expansion): turns 1-10.
+    Act 2 (Tension):   turns 11-20.
+    Act 3 (Endgame):   turns 21+.
+    """
+    if turn_number <= ACT_1_END_TURN:
+        return 1
+    if turn_number <= ACT_2_END_TURN:
+        return 2
+    return 3
+
+
+_ACT_CRISIS_CHANCE = {
+    1: 0.05,  # Quiet opening
+    2: 0.10,  # Standard mid game
+    3: 0.15,  # Chaotic endgame
+}
 
 
 def should_trigger_crisis(campaign_state):
     """Check if a crisis should trigger this turn.
 
-    Returns True if crisis should fire (10% chance after turn 5, if cooldown is 0).
-    Ori Shield Matrix perk reduces chance to 5%.
+    v11.0 (G4): chance scales with current act — calmer early game, more
+    chaotic endgame. Ori Shield Matrix perk still halves the final chance.
+    Cooldown + turn floor are unchanged.
     """
     if campaign_state.turn_number < 5:
         return False
     if campaign_state.crisis_cooldown > 0:
         return False
+    act = get_current_act(campaign_state.turn_number)
+    chance = _ACT_CRISIS_CHANCE.get(act, 0.10)
     from .meta_progression import has_perk
-    chance = 0.05 if has_perk("crisis_resistance") else 0.10
+    if has_perk("crisis_resistance"):
+        chance *= 0.5
     return random.random() < chance
 
 
@@ -284,6 +399,83 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
             campaign_state.wisdom = getattr(campaign_state, 'wisdom', 0) + 20
             campaign_state.cooldowns.clear()
             return "+20 Wisdom. All cooldowns reset!"
+
+    # --- v11.0 crisis effects (G4) ---
+
+    elif effect == "stargate_virus":
+        if choice == "c":
+            return "Asgard debug tools wiped the virus clean — network intact!"
+        elif choice == "a":
+            campaign_state.add_naquadah(-50)
+            return "-50 Naquadah. Virus purged, network restored."
+        else:
+            campaign_state.conquest_ability_data["_stargate_virus_turns"] = 3
+            return "Gate network disabled for 3 turns — no network bonuses."
+
+    elif effect == "black_hole_proximity":
+        if choice == "c":
+            return "Orbital stabilizers held. No structural damage."
+        elif choice == "a":
+            campaign_state.add_naquadah(-40)
+            return "-40 Naquadah. Reinforcements held — buildings safe."
+        else:
+            # Downgrade a random player building
+            candidates = [
+                pid for pid, bid in campaign_state.buildings.items()
+                if galaxy.planets.get(pid)
+                and galaxy.planets[pid].owner == "player"
+                and campaign_state.building_levels.get(pid, 1) > 1
+            ]
+            if candidates:
+                pid = rng.choice(candidates)
+                level = campaign_state.building_levels.get(pid, 1)
+                campaign_state.building_levels[pid] = level - 1
+                name = galaxy.planets[pid].name
+                return f"Gravitational shear damaged a building on {name}. Level {level} → {level - 1}."
+            return "The black hole rumbled past — no buildings at risk."
+
+    elif effect == "naquadria_meltdown":
+        from cards import ALL_CARDS
+        if choice == "c":
+            return "Ancient containment protocols neutralized the reactor. No losses."
+        elif choice == "a":
+            campaign_state.add_naquadah(-60)
+            return "-60 Naquadah. Reactor contained — deck intact."
+        else:
+            deck_power = [(cid, getattr(ALL_CARDS.get(cid), 'power', 0) or 0)
+                          for cid in campaign_state.current_deck]
+            deck_power.sort(key=lambda x: x[1])
+            if deck_power and len(campaign_state.current_deck) > 10:
+                removed_cid = deck_power[0][0]
+                campaign_state.remove_card(removed_cid)
+                name = getattr(ALL_CARDS.get(removed_cid), 'name', removed_cid)
+                return f"Reactor vented — lost weakest card: {name}. Naquadah preserved."
+            return "Reactor vented. Deck already at minimum — no card lost."
+
+    elif effect == "first_contact":
+        if choice == "c":
+            campaign_state.add_relic("replicator_nanites")
+            campaign_state.wisdom = getattr(campaign_state, 'wisdom', 0) + 10
+            return "Deep exchange! Replicator Nanites relic + 10 Wisdom."
+        elif choice == "a":
+            campaign_state.add_relic("replicator_nanites")
+            return "Accepted the relic — Replicator Nanites added to your collection."
+        else:
+            campaign_state.wisdom = getattr(campaign_state, 'wisdom', 0) + 20
+            return "+20 Wisdom. The visitors shared their research data."
+
+    elif effect == "dakara_signal":
+        from .diplomacy import adjust_favor_all  # local import to avoid cycles
+        if choice == "c":
+            adjust_favor_all(campaign_state, 20)
+            campaign_state.wisdom = getattr(campaign_state, 'wisdom', 0) + 5
+            return "+20 favor with all factions. +5 Wisdom. The harmony holds."
+        elif choice == "a":
+            adjust_favor_all(campaign_state, 10)
+            return "+10 favor with all factions — a wave of diplomatic thaw."
+        else:
+            campaign_state.wisdom = max(0, getattr(campaign_state, 'wisdom', 0) - 5)
+            return "-5 Wisdom. The signal passed you by."
 
     elif effect == "wraith_invasion":
         if choice == "c":
