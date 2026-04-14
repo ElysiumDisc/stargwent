@@ -6,7 +6,7 @@ import json
 import os
 import pygame
 import board_renderer
-from save_paths import get_settings_path, ensure_migration, sync_saves
+from save_paths import atomic_write_json, get_settings_path, ensure_migration, sync_saves
 from game_config import GAME_VERSION, GAME_LICENSE
 
 # Ensure legacy saves are migrated to XDG directory on first access
@@ -46,15 +46,12 @@ class GameSettings:
         self._force_save()
 
     def _force_save(self):
-        """Unconditionally write settings to disk."""
-        try:
-            with open(SETTINGS_FILE, 'w') as f:
-                json.dump(self.settings, f, indent=2)
-            sync_saves()
+        """Unconditionally write settings to disk (atomic)."""
+        if atomic_write_json(SETTINGS_FILE, self.settings):
             self._dirty = False
             print(f"✓ Settings saved to {SETTINGS_FILE}")
-        except Exception as e:
-            print(f"Error saving settings: {e}")
+        else:
+            print(f"Error saving settings to {SETTINGS_FILE}")
 
     def begin_batch(self):
         """Start a batch of changes — saves are deferred until end_batch()."""

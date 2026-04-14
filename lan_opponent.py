@@ -373,6 +373,12 @@ class NetworkController:
                                 f"Warning: {self._token_gap_count} network actions lost",
                                 pygame.time.get_ticks() + 5000
                             )
+                    else:
+                        # Clean sequential token — decay the gap counter so
+                        # the warning doesn't latch on permanently after
+                        # a single transient hiccup.
+                        if self._token_gap_count > 0:
+                            self._token_gap_count = max(0, self._token_gap_count - 1)
                 except (ValueError, IndexError):
                     pass
 

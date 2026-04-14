@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-11.0.0-blue)
+![Version](https://img.shields.io/badge/version-11.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -34,23 +34,16 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 - [📸 Screenshots](#-screenshots)
 - [✨ Key Features](#-key-features)
-- [🚀 Quick Start](#-quick-start)
 - [🎮 How to Play](#-how-to-play)
 - [🎴 Factions & Leaders](#-factions--leaders)
 - [⚡ Faction Powers](#-faction-powers)
 - [🃏 Card Abilities](#-card-abilities)
 - [🏆 Progression System](#-progression-system)
-- [🎨 Visual Features](#-visual-features)
-- [⌨️ Controls](#️-controls)
-- [🌐 LAN Multiplayer Architecture](#-lan-multiplayer-architecture)
-- [📊 Implementation Status](#-implementation-status)
-- [🏗️ Project Structure](#️-project-structure)
-- [🔧 Technical Details](#-technical-details)
-- [🌐 Play in Browser (PWA)](#-play-in-browser-pwa)
-- [🛠 Build & Packaging](#-build--packaging)
-- [📜 Rules Spec Generator](#-rules-spec-generator-auto-detection)
-- [🛠️ Content Manager](#️-content-manager-developer-tool)
+- [💡 Quick Reference](#-quick-reference)
 - [📝 License & Credits](#-license--credits)
+- [🤝 Contributing](#-contributing)
+
+> **Builds, packaging, content manager, GPU pipeline, and other contributor topics live in [DEVELOPMENT.md](DEVELOPMENT.md). Per-version notes live in [CHANGELOG.md](CHANGELOG.md).**
 
 ---
 
@@ -73,7 +66,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ---
 
-### ✨ Key Features
+## ✨ Key Features
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics, powers, animations, persistence, LAN multiplayer, and Draft Mode
@@ -188,20 +181,14 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Mouse + Keyboard** - Drag-and-drop or keyboard-only gameplay
 - **Touch (Mobile/Tablet)** - Tap, long-press, drag, and two-finger scroll with automatic gesture recognition
 
-### 💾 Progression & Customization
+### 💾 Progression & Persistence
 - **Witcher-Style Deck Builder** - Accordion card pool, holographic stats, drag-and-drop, faction/neutral filter tabs
 - **Card Unlock System** - Win games to unlock 20+ powerful cards
 - **Leader Unlock System** - Win 3 in a row to unlock alternate faction leaders
-- **Tabbed Stats Menu** - 6-tab layout (Overview, Factions, Leaders, Records, Draft, Conquest) with score records, win rate bars, achievements, and hover preview
-- **Persistent Saves** - All progress saved to JSON
-
-### 💾 Persistent Progression
-- **Automatic Deck Saving** - Your deck is saved every time you finish customizing
 - **Per-Faction Customization** - Each faction remembers your leader and deck choices
-- **Win Tracking** - Track your wins, losses, and win streaks
-- **Stats Menu** - Tabbed layout with independent scroll per tab, score records (highest/lowest/closest game with leader names), visual win rate bars, achievements, top leaders, matchups, and draft history
-- **Leader Unlocks** - Earn new leaders every 3 consecutive wins
-- **Cross-Session Saves** - All progress saved in `player_decks.json` and `player_unlocks.json`
+- **Win Tracking** - Wins, losses, and win streaks tracked across sessions
+- **Tabbed Stats Menu** - 6-tab layout (Overview, Factions, Leaders, Records, Draft, Conquest) with score records, win rate bars, achievements, and hover preview
+- **Atomic Saves (v11.1)** - All saves use a `.tmp` + rename pattern so a crash mid-write never corrupts `player_decks.json`, `player_unlocks.json`, `game_settings.json`, or your campaign save
 
 ### 🌌 Stargate Universe Integration
 All abilities renamed and themed around Stargate lore:
@@ -214,14 +201,6 @@ All abilities renamed and themed around Stargate lore:
 - **Command Network** - Tactical comms (was Commander's Horn)
 - **Space Hazards** - Ice planets, nebulas, asteroid storms (was Weather)
 - **Wormhole Stabilization** - Clear hazards with black hole animation!
-
-### 🏆 Progression & Customization
-- **Card Unlock System** - Win games to unlock 20+ powerful cards
-- **Leader Unlock System** - Win 3 in a row to unlock faction leaders
-- **Full Deck Builder** - Customize decks (25-40 cards, faction-specific unlocks)
-- **Persistent Progress** - All unlocks saved to JSON
-- **Win Streak Tracking** - Stats tracked across sessions
-- **Faction-Specific Unlocks** - Leaders and cards match your chosen faction
 
 ## 🎮 How to Play
 

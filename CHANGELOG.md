@@ -4,6 +4,87 @@
 
 ---
 
+### Version 11.1.0 (April 2026)
+**Stability + Performance Patch**
+
+A maintenance release after 11.0 — no new gameplay content. The focus
+is making the existing systems more crash-resistant under edge cases,
+making the LAN/chat layer more honest about delivery, and trimming a
+bit of GPU work the renderer was doing for nothing.
+
+#### Save Persistence — Atomic Writes Everywhere
+- **New `atomic_write_json()` helper** — serialises to a sibling `.tmp`
+  file then `os.replace()`s it over the target. A `kill -9`, power
+  loss, or OOM mid-write can no longer leave a half-written
+  `player_decks.json`, `player_unlocks.json`, `game_settings.json`,
+  custom-deck file, or `galactic_conquest_save.json` — the prior good
+  save stays put. Lives in `save_paths.py`.
+- **All save call sites converted** — `main_menu.save_decks`,
+  `unlocks.save_unlocks`, `deck_persistence.save_decks/save_unlocks`,
+  `game_settings._force_save`, `galactic_conquest.save_campaign`, and
+  `save_conquest_settings` all route through the helper.
+- **Disk-full handling** — `main_menu.save_decks()` previously had no
+  try/except; a read-only target or full disk crashed the game. Now
+  prints a warning and continues.
+- **Cleaner failure modes** — `save_campaign` separates serialisation
+  errors from I/O errors, so a bad `to_dict()` no longer silently
+  looks like a disk failure.
+
+#### LAN Multiplayer & Chat
+- **Disconnect sentinel can't wedge the reader thread** —
+  `chat_inbox.put({"type":"disconnect"})` was a *blocking* call against
+  a bounded queue; replaced with a non-blocking variant that drops the
+  oldest chat entry to make room when full.
+- **Honest ACK tracking** — `LanChatPanel.send_message()` now only
+  registers a message for ACK-tracking *after* the underlying
+  `session.send()` returns success. A failed send used to leave an
+  orphan entry that "timed out and failed" a message that was never
+  transmitted.
+- **Retry preserves the original payload** — chat history entries
+  store an explicit `raw_text` field; retries resend that instead of
+  parsing the display-formatted string. Messages containing `": "`
+  (e.g. *"Hi: how's it?"*) are no longer mangled on retry.
+- **Token-gap warning decays** — turn-token gap counter now decays on
+  a clean sequential token, so the *"N network actions lost"* warning
+  doesn't latch on permanently after a single transient hiccup.
+- **Handshake uses an Event, not a sleep loop** — `time.sleep(0.05)`
+  busy-wait replaced with `threading.Event.wait()` (250 ms tick so
+  `close()` still wakes it). `LanSession.close()` now signals the
+  handshake waiter immediately.
+
+#### GPU / ModernGL Pipeline
+- **Empty-chain early-out** — `GPURenderer.present()` short-circuits
+  when every registered effect is disabled; no FBO acquire / clear /
+  release for a frame the shader chain wouldn't change. Saves
+  measurable GPU time on bare-bones menu screens.
+- **Explicit blend state per frame** — set at the top of every
+  `present()` (was inheriting whatever Pygame or the previous effect
+  happened to leave enabled).
+- **Tightened bare excepts** — `display_manager` Windows-DPI calls
+  narrowed from bare `except:` to `(AttributeError, OSError)` so
+  `KeyboardInterrupt` and programmer errors propagate.
+
+#### Engine + UI Perf
+- **Bounded panel caches** — `frame_renderer._panel_cache` and
+  `_overlay_cache` are now bounded LRUs (64 / 16 entries) backed by
+  `OrderedDict`. Long sessions and resolution toggles no longer
+  accumulate cached SRCALPHA surfaces forever.
+
+#### Defensive Code
+- **Safer draft serialisation** — `DraftRun.to_dict()` accesses
+  `drafted_leader` through `.get()` so a partially-initialised dict
+  can't `KeyError` mid-save.
+- **Narrower minor-worlds exception** — rival-candidate scan
+  in `galactic_conquest.minor_worlds` narrowed from a bare `except:`
+  to `(AttributeError, TypeError, KeyError)` and now logs the failure
+  instead of silently swallowing it.
+
+#### Version
+- `game_config.GAME_VERSION` bumped to `11.1.0`.
+- README badge updated.
+
+---
+
 ### Version 11.0.0 (April 2026)
 **Galactic Conquest — Deep Systems + LAN Hardening**
 

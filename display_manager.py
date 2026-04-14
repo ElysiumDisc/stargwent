@@ -18,10 +18,10 @@ pygame.key.set_repeat(300, 50)
 if sys.platform != "emscripten":
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)  # Windows 8.1+
-    except:
+    except (AttributeError, OSError):
         try:
             ctypes.windll.user32.SetProcessDPIAware()  # Windows Vista+
-        except:
+        except (AttributeError, OSError):
             pass  # Not Windows or already set
 
 screen = None

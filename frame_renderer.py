@@ -7,6 +7,7 @@ Extracted from main.py to reduce its size. All rendering logic
 import sys
 import pygame
 import math
+from collections import OrderedDict
 import game_config as cfg
 import display_manager
 import board_renderer
@@ -31,7 +32,11 @@ from deck_persistence import record_victory, record_defeat, get_persistence
 import battle_music
 
 # --- Panel surface cache (avoids per-frame Surface alloc for static panels) ---
-_panel_cache = {}
+# Bounded LRU: long sessions / resolution changes can produce many unique
+# (w, h, fill, border) keys; without an eviction policy the cache grows
+# unboundedly.  64 entries covers the active UI surfaces with headroom.
+_PANEL_CACHE_MAX = 64
+_panel_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
 
 
 def _get_cached_panel(w, h, fill, border):
@@ -44,29 +49,38 @@ def _get_cached_panel(w, h, fill, border):
     """
     key = (w, h, fill, border)
     surf = _panel_cache.get(key)
-    if surf is None:
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        surf.fill(fill)
-        if border:
-            pygame.draw.rect(surf, border, surf.get_rect(), 2, border_radius=8)
-        _panel_cache[key] = surf
+    if surf is not None:
+        _panel_cache.move_to_end(key)
+        return surf
+    surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    surf.fill(fill)
+    if border:
+        pygame.draw.rect(surf, border, surf.get_rect(), 2, border_radius=8)
+    _panel_cache[key] = surf
+    if len(_panel_cache) > _PANEL_CACHE_MAX:
+        _panel_cache.popitem(last=False)
     return surf
 
 
-# --- Full-screen dim overlay cache ---
-_overlay_cache = {}
+# --- Full-screen dim overlay cache (bounded LRU) ---
+_OVERLAY_CACHE_MAX = 16
+_overlay_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
 
 
 def _get_cached_overlay(w, h, alpha):
     """Return a cached full-screen dim overlay using fast whole-surface alpha."""
     key = (w, h, alpha)
     surf = _overlay_cache.get(key)
-    if surf is None:
-        # Use non-SRCALPHA surface + set_alpha for fast blending (no per-pixel alpha)
-        surf = pygame.Surface((w, h))
-        surf.fill((0, 0, 0))
-        surf.set_alpha(alpha)
-        _overlay_cache[key] = surf
+    if surf is not None:
+        _overlay_cache.move_to_end(key)
+        return surf
+    # Use non-SRCALPHA surface + set_alpha for fast blending (no per-pixel alpha)
+    surf = pygame.Surface((w, h))
+    surf.fill((0, 0, 0))
+    surf.set_alpha(alpha)
+    _overlay_cache[key] = surf
+    if len(_overlay_cache) > _OVERLAY_CACHE_MAX:
+        _overlay_cache.popitem(last=False)
     return surf
 
 

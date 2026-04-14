@@ -6,7 +6,13 @@ import json
 import os
 from typing import Dict, List, Optional
 from content_registry import iter_unlockable_leader_ids
-from save_paths import get_deck_save_path, get_unlock_save_path, ensure_migration, sync_saves
+from save_paths import (
+    atomic_write_json,
+    ensure_migration,
+    get_deck_save_path,
+    get_unlock_save_path,
+    sync_saves,
+)
 
 # Ensure legacy saves are migrated to XDG directory on first access
 ensure_migration()
@@ -75,15 +81,13 @@ class DeckPersistence:
             try:
                 with open(DECK_SAVE_FILE, 'r') as f:
                     data = json.load(f)
-                    # Apply migrations for renamed/split cards
-                    data, was_migrated = self._migrate_card_ids(data)
-                    # Save migrated data so it only migrates once
-                    if was_migrated:
-                        with open(DECK_SAVE_FILE, 'w') as fw:
-                            json.dump(data, fw, indent=2)
-                        sync_saves()
+                # Apply migrations for renamed/split cards
+                data, was_migrated = self._migrate_card_ids(data)
+                # Save migrated data atomically so it only migrates once
+                if was_migrated:
+                    if atomic_write_json(DECK_SAVE_FILE, data):
                         print(f"✓ Migrated deck data saved to {DECK_SAVE_FILE}")
-                    return data
+                return data
             except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
                 print(f"Error loading deck data: {e}")
                 return self._get_default_deck_data()
@@ -102,25 +106,18 @@ class DeckPersistence:
     
     def save_decks(self):
         """Save current deck configurations. Returns True on success, False on failure."""
-        try:
-            with open(DECK_SAVE_FILE, 'w') as f:
-                json.dump(self.deck_data, f, indent=2)
-            sync_saves()
+        if atomic_write_json(DECK_SAVE_FILE, self.deck_data):
             print(f"✓ Decks saved to {DECK_SAVE_FILE}")
             return True
-        except (OSError, TypeError, ValueError) as e:
-            print(f"Error saving deck data: {e}")
-            return False
+        print(f"Error saving deck data to {DECK_SAVE_FILE}")
+        return False
 
     def save_unlocks(self):
         """Save unlock progress"""
-        try:
-            with open(UNLOCK_SAVE_FILE, 'w') as f:
-                json.dump(self.unlock_data, f, indent=2)
-            sync_saves()
+        if atomic_write_json(UNLOCK_SAVE_FILE, self.unlock_data):
             print(f"✓ Unlocks saved to {UNLOCK_SAVE_FILE}")
-        except (OSError, TypeError, ValueError) as e:
-            print(f"Error saving unlock data: {e}")
+        else:
+            print(f"Error saving unlock data to {UNLOCK_SAVE_FILE}")
     
     def _get_default_deck_data(self) -> Dict:
         """Default deck configuration"""

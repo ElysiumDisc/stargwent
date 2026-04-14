@@ -66,6 +66,9 @@ class LanSession:
         # as the peer's HELLO message arrives so the main thread can
         # block on it without touching the inbox deque.
         self.peer_hello = None
+        # Signalled by the reader thread when peer_hello is populated, so
+        # handshake() can wait without burning CPU on a sleep poll.
+        self._peer_hello_event = threading.Event()
 
     def host(self, port=4765, timeout=None):
         """
@@ -185,10 +188,11 @@ class LanSession:
                         continue
 
                     # Capture HELLO handshake directly (L1) — the main
-                    # thread polls self.peer_hello rather than scanning
-                    # the inbox deque.
+                    # thread waits on _peer_hello_event rather than scanning
+                    # the inbox deque or polling on sleep.
                     if msg_type == "hello":
                         self.peer_hello = payload.get("payload", {})
+                        self._peer_hello_event.set()
                         continue
 
                     # Handle ping/pong for latency measurement
@@ -235,7 +239,26 @@ class LanSession:
             if not self._disconnect_sent:
                 self._disconnect_sent = True
                 self.inbox.append({"type": "disconnect"})
-                self.chat_inbox.put({"type": "disconnect"})
+                self._send_disconnect_to_chat()
+
+    def _send_disconnect_to_chat(self):
+        """Push a disconnect sentinel into chat_inbox without blocking.
+
+        If the queue is full, drop the oldest entry to make room — the
+        disconnect message must reach the UI even when chat is saturated.
+        """
+        sentinel = {"type": "disconnect"}
+        try:
+            self.chat_inbox.put_nowait(sentinel)
+        except queue.Full:
+            try:
+                self.chat_inbox.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.chat_inbox.put_nowait(sentinel)
+            except queue.Full:
+                pass  # Best-effort; UI will see disconnect via inbox anyway
 
     def _keepalive_sender(self):
         """Send periodic ping messages to keep connection alive and measure latency.
@@ -264,7 +287,7 @@ class LanSession:
                         if not self._disconnect_sent:
                             self._disconnect_sent = True
                             self.inbox.append({"type": "disconnect"})
-                            self.chat_inbox.put({"type": "disconnect"})
+                            self._send_disconnect_to_chat()
                     break
 
     def is_connected(self):
@@ -352,13 +375,17 @@ class LanSession:
         if not self.send(hello["type"], hello["payload"]):
             raise OSError("Failed to send HELLO handshake")
 
+        # Block on the reader-set event with bounded waits so we still
+        # notice a connection close without spinning on sleep().
         deadline = time.monotonic() + timeout
         while self.peer_hello is None:
             if self.stop_event.is_set():
                 raise OSError("Connection closed during handshake")
-            if time.monotonic() >= deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
                 raise TimeoutError("Peer did not send HELLO within timeout")
-            time.sleep(0.05)
+            # Poll stop_event at 250ms granularity so close() doesn't wedge.
+            self._peer_hello_event.wait(timeout=min(0.25, remaining))
 
         peer = self.peer_hello
         peer_version = peer.get("protocol_version")
@@ -375,6 +402,8 @@ class LanSession:
             self.stop_event.set()
             sock = self.sock
             self.sock = None
+        # Wake any handshake waiter so it doesn't sit on its 250ms tick.
+        self._peer_hello_event.set()
         if sock:
             try:
                 sock.shutdown(socket.SHUT_RDWR)

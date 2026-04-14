@@ -4,6 +4,7 @@ Implements XDG Base Directory Specification for Linux compatibility.
 Works correctly with both .deb and AppImage builds.
 On web (Pygbag/Emscripten), uses IDBFS virtual filesystem with IndexedDB sync.
 """
+import json
 import os
 import shutil
 import sys
@@ -106,6 +107,34 @@ def migrate_legacy_saves():
         print(f"[save_paths] You may delete the old files from the game directory")
 
     return migrated
+
+
+def atomic_write_json(path: str, obj, *, indent: int = 2) -> bool:
+    """Write JSON to *path* atomically: serialize to a sibling .tmp file
+    then rename over the target. Prevents truncation/corruption when the
+    process is killed mid-write (power loss, SIGKILL, OOM).
+
+    On Emscripten the rename pattern is preserved so IDBFS sees a single
+    coherent state, then sync_saves() flushes to IndexedDB.
+
+    Returns True on success, False on any I/O / serialization error.
+    """
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(obj, f, indent=indent)
+        os.replace(tmp_path, path)
+        sync_saves()
+        return True
+    except (OSError, TypeError, ValueError) as e:
+        print(f"[save_paths] atomic_write_json({path}) failed: {e}")
+        # Best-effort cleanup of the partial temp file
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        return False
 
 
 def sync_saves():

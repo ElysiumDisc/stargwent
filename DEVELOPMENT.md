@@ -1,5 +1,28 @@
 # Stargwent Development Guide
 
+This document is the contributor reference: how to add content, how the
+engine subsystems fit together, and how to ship builds. End-user docs
+live in [README.md](README.md); per-version notes live in
+[CHANGELOG.md](CHANGELOG.md).
+
+## Table of Contents
+
+- [Content Changes](#content-changes) — adding/renaming cards, leaders, factions
+- [Content Manager](#content-manager) — the dev/user CLI tool
+- [Save Persistence](#save-persistence) — XDG paths and atomic writes
+- [Miniship Escort System](#miniship-escort-system) — Carrier-style interceptors
+- [Audio Assets](#audio-assets) — file layout and volume mapping
+- [Art Assembler](#art-assembler) — automated card art pipeline
+- [GPU Post-Processing Architecture](#gpu-post-processing-architecture)
+- [Building & Packaging](#building--packaging) — desktop + web + CI/CD
+- [Web (Emscripten) Performance Notes](#web-emscripten-performance-notes)
+- [Galactic Conquest Architecture](#galactic-conquest-architecture)
+- [Space Shooter Architecture](#space-shooter-architecture)
+- [Chat System](#chat-system)
+- [Progression](#progression)
+
+---
+
 ## Content Changes
 
 ### Renaming a Card
@@ -91,7 +114,51 @@ All user content lives in `user_content/` — never touches game source code.
 
 ---
 
-## Miniship Escort System (v9.4.0)
+## Save Persistence
+
+All player-facing JSON saves go through XDG-compliant paths defined in
+`save_paths.py`:
+
+| File | Path |
+|------|------|
+| Decks | `$XDG_DATA_HOME/stargwent/player_decks.json` |
+| Unlocks | `$XDG_DATA_HOME/stargwent/player_unlocks.json` |
+| Settings | `$XDG_DATA_HOME/stargwent/game_settings.json` |
+| Custom decks | `$XDG_DATA_HOME/stargwent/custom_decks.json` |
+| Galactic Conquest | `$XDG_DATA_HOME/stargwent/galactic_conquest_save.json` |
+| Conquest run settings | `$XDG_DATA_HOME/stargwent/conquest_settings.json` |
+
+On web (Pygbag/Emscripten) these paths resolve to
+`/home/web_user/.local/share/stargwent/` backed by IDBFS. Every write
+should be followed by `sync_saves()` (no-op on desktop) so the
+in-browser IndexedDB layer flushes.
+
+### Atomic Writes (v11.1+)
+
+Use `save_paths.atomic_write_json(path, obj)` for every JSON save. It
+serialises to a sibling `.tmp` file, then `os.replace()`s it over the
+target — a `kill -9`, power loss, or OOM mid-write leaves the prior
+good save intact instead of producing a half-written JSON file. The
+helper handles `OSError` / `TypeError` / `ValueError` and cleans up
+the temp file on failure. Already wired through:
+
+- `deck_persistence.py` (decks + unlocks)
+- `unlocks.py` (`save_unlocks`)
+- `game_settings.py` (`_force_save`)
+- `main_menu.py` (custom decks)
+- `galactic_conquest/campaign_persistence.py` (campaign + conquest settings)
+
+Do **not** call `json.dump(...)` to a final path directly in new code.
+
+### Migration
+
+`migrate_legacy_saves()` runs once per process via `ensure_migration()`
+and copies pre-XDG saves from the working directory into the data dir.
+Call sites at the top of `deck_persistence.py` and `game_settings.py`.
+
+---
+
+## Miniship Escort System (added v9.4.0)
 
 Carrier-style interceptors (StarCraft Carrier inspired). Permanent escorts orbit the player, sortie to attack, return to formation.
 
@@ -190,6 +257,12 @@ Hybrid rendering: Pygame draws to offscreen surface → uploaded to ModernGL for
 
 ## Building & Packaging
 
+### Prerequisites
+- **Python 3.8+**, **Pygame CE 2.5.6+**
+- **ModernGL** — optional GPU post-processing (`pip install moderngl`)
+- **Pillow** — card assembler (`pip install Pillow`)
+- **Pygbag** — web builds (`pip install pygbag`)
+
 ### Desktop Builds
 
 Version is read from the README.md badge.
@@ -252,6 +325,44 @@ pygbag --build main.py      # Production build → build/web/
 
 **LAN on web:** Not supported (no TCP sockets in WASM). Future: WebSocket relay or WebRTC.
 
+### GitHub Actions CI/CD
+
+The `Build Releases` workflow (`.github/workflows/build.yml`) builds
+`.deb`, `.AppImage`, `.exe`, and `.dmg` in parallel. Two trigger
+methods:
+
+**Method 1 — Tag push (creates draft GitHub Release):**
+```bash
+git tag v11.1.0
+git push origin main
+git push origin v11.1.0
+```
+Creates a **draft** GitHub Release with all 4 platform artifacts
+attached. Go to Releases to review and publish.
+
+**Method 2 — Manual dispatch (downloads as artifacts):** Actions tab
+→ **Build Releases** → **Run workflow** (top-right). Optional version
+override; leave empty to read from the README badge. Artifacts have
+1-day retention.
+
+**Version detection:** the workflow reads
+`![Version](https://img.shields.io/badge/version-X.Y.Z-blue)` from the
+README. Priority is *manual input > git tag > README badge*.
+
+**Web build:** `.github/workflows/web-deploy.yml` triggers on any push
+to `main` that touches `.py`, `assets/`, `shaders/`, or `build/web/`.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `ModuleNotFoundError: moderngl` | Add `--hidden-import moderngl --hidden-import glcontext` to PyInstaller |
+| Assets not found | Verify `--add-data` paths (`:` on Linux/macOS, `;` on Windows) |
+| OpenGL errors in AppImage | `sudo apt install mesa-utils` |
+| AppImage won't run | `sudo apt install fuse libfuse2` or `--appimage-extract` |
+| macOS "app is damaged" | `xattr -cr Stargwent.app` |
+| Save data location | `~/.local/share/stargwent/` (XDG) |
+
 ---
 
 ## Web (Emscripten) Performance Notes
@@ -286,13 +397,16 @@ Call `clear_render_caches()` on resolution change.
 
 ---
 
-## Galactic Conquest Architecture (v10.0 baseline, expanded in v11.0)
+## Galactic Conquest Architecture
 
 Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules).
-v11.0 added branching doctrines, AI doctrine adoption, expanded AI espionage,
-coalition-against-player, 3-act crisis escalation, Economic + Cultural victory
-paths, minor-world quest chains + rival courtship, active relic abilities,
-and a unified Treaty system — see `CHANGELOG.md` for the full list.
+v10.0 was the original release; v11.0 deepened the strategic layer
+(branching doctrines, AI doctrine adoption, expanded AI espionage,
+coalition-against-player, 3-act crisis escalation, Economic + Cultural
+victory paths, minor-world quest chains + rival courtship, active relic
+abilities, unified Treaty system). v11.1 made the campaign save
+atomic — see [Save Persistence](#save-persistence). Per-version detail
+in [CHANGELOG.md](CHANGELOG.md).
 
 | File | Description |
 |------|-------------|
@@ -352,9 +466,10 @@ and a unified Treaty system — see `CHANGELOG.md` for the full list.
 
 ---
 
-## Space Shooter Architecture (v9.4.0)
+## Space Shooter Architecture
 
 Vampire Survivors-style infinite survival. Package: `space_shooter/`
+(baseline v9.4.0; expanded through v10.x — see [CHANGELOG.md](CHANGELOG.md)).
 
 | File | ~Lines | Description |
 |------|--------|-------------|
@@ -392,10 +507,17 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 
 - **Sound**: `chat_notification.ogg` on incoming messages, respects SFX volume
 - **Scrolling**: PageUp/Down, Home/End, mouse wheel, 100 message buffer
-- **Quick Chat**: Keys 1-5 ("Good game!", "Nice play!", etc.)
+- **Quick Chat**: Keys 1-0 (Stargate quotes — "Indeed.", "Kree!", etc.)
 - **Unread Badge**: Count badge when chat minimized
-- **Delivery Confirmation**: Unique message IDs + ACK protocol, checkmark on confirmed
-- **Thread Safety**: Socket lock, duplicate disconnect prevention, parse error tolerance (5 consecutive), `deque(maxlen=1000)` inbox (atomic under CPython GIL), `time.monotonic()` for all timing, game action ACKs with single-retry
+- **Delivery Confirmation**: Unique message IDs + ACK protocol, checkmark on confirmed.
+  In v11.1, `pending_acks` is only populated *after* the underlying
+  `session.send()` succeeds, so a failed send no longer registers a
+  ghost message that "times out".
+- **Retry safety (v11.1)**: history entries store an explicit
+  `raw_text` field; retries resend that instead of parsing the
+  display-formatted string, so messages containing `": "` survive
+  a retry intact.
+- **Thread Safety**: Socket lock, duplicate disconnect prevention, parse error tolerance (5 consecutive), `deque(maxlen=1000)` inbox (atomic under CPython GIL), `time.monotonic()` for all timing, game action ACKs with single-retry. The disconnect sentinel uses `chat_inbox.put_nowait()` with overflow eviction (v11.1) so the reader thread can never wedge on a full chat queue.
 
 ---
 
@@ -414,51 +536,4 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 - **Naquadah Budget**: 150 limit (cost = 4 + power - 1, heroes +3)
 - **Mercenary Tax**: More Neutral than Faction cards → -25% score
 - **Ori Corruption**: Over 150 Naquadah → -50% score
-- Saved to `player_decks.json`
-
----
-
-## Build Troubleshooting
-
-| Issue | Fix |
-|-------|-----|
-| `ModuleNotFoundError: moderngl` | Add `--hidden-import moderngl --hidden-import glcontext` to PyInstaller |
-| Assets not found | Verify `--add-data` paths (`:` on Linux/macOS, `;` on Windows) |
-| OpenGL errors in AppImage | `sudo apt install mesa-utils` |
-| AppImage won't run | `sudo apt install fuse libfuse2` or `--appimage-extract` |
-| macOS "app is damaged" | `xattr -cr Stargwent.app` |
-| Save data location | `~/.local/share/stargwent/` (XDG) |
-
-### GitHub Actions CI/CD
-
-The `Build Releases` workflow (`.github/workflows/build.yml`) builds `.deb`, `.AppImage`, `.exe`, and `.dmg` in parallel. Two trigger methods:
-
-#### Method 1: Tag Push (creates draft GitHub Release)
-```bash
-# Tag the current commit and push both code + tag:
-git tag v10.1.5
-git push origin main
-git push origin v10.1.5
-```
-This creates a **draft** GitHub Release with all 4 platform artifacts attached. Go to Releases to review and publish.
-
-#### Method 2: Manual Dispatch (downloads as artifacts)
-1. Go to the repository on GitHub
-2. Click **Actions** tab → **Build Releases** workflow (left sidebar)
-3. Click **Run workflow** (top-right dropdown)
-4. Optionally enter a version override (leave empty to read from README.md badge)
-5. Click **Run workflow**
-
-Artifacts are uploaded with 1-day retention. Download from the workflow run summary page.
-
-#### Version Detection
-The workflow reads the version from the README.md badge (`![Version](https://img.shields.io/badge/version-X.Y.Z-blue)`). Priority: manual input > git tag > README badge.
-
-#### Web Build
-Web build (Pygbag → WASM) triggers on any push to `main` that touches `.py`, `assets/`, `shaders/`, or `build/web/` files.
-
-### Development Prerequisites
-- **Python 3.8+**, **Pygame CE 2.5.6+**
-- **ModernGL** — optional GPU post-processing (`pip install moderngl`)
-- **Pillow** — card assembler (`pip install Pillow`)
-- **Pygbag** — web builds (`pip install pygbag`)
+- Saved to `player_decks.json` (atomic write — see [Save Persistence](#save-persistence))

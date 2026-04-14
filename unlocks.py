@@ -299,9 +299,9 @@ class CardUnlockSystem:
             'unlock_override_enabled': self.unlock_override_enabled,
         })
         
-        with open(UNLOCK_DATA_FILE, 'w') as f:
-            json.dump(existing_data, f, indent=2)
-        sync_saves()
+        from save_paths import atomic_write_json
+        if not atomic_write_json(UNLOCK_DATA_FILE, existing_data):
+            print(f"[unlocks] Failed to save unlock data to {UNLOCK_DATA_FILE}")
 
     def record_game_result(self, won):
         """Record game result and update consecutive wins."""

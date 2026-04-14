@@ -462,7 +462,9 @@ def update_rival_courtship(state, galaxy, rng=None):
                 candidates = [f for f in galaxy.get_active_factions()
                               if f != state.player_faction
                               and galaxy.get_faction_planet_count(f) > 0]
-            except Exception:
+            except (AttributeError, TypeError, KeyError) as exc:
+                # galaxy may be partially initialised in some early-tick states
+                print(f"[minor_worlds] Rival candidate scan failed: {exc}")
                 candidates = []
             if not candidates:
                 continue

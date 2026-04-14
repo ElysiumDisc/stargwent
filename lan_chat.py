@@ -81,7 +81,8 @@ class LanChatPanel:
         return str(uuid.uuid4())[:8]
 
     def add_message(self, prefix: str, text: str, color: Optional[tuple] = None,
-                    msg_id: Optional[str] = None, confirmed: bool = True):
+                    msg_id: Optional[str] = None, confirmed: bool = True,
+                    raw_text: Optional[str] = None):
         """Add a message to the chat log.
 
         Args:
@@ -90,6 +91,8 @@ class LanChatPanel:
             color: Optional color override
             msg_id: Optional message ID for delivery tracking
             confirmed: Whether the message delivery is confirmed
+            raw_text: Original payload text (without "Prefix: " framing)
+                used for retry; falls back to *text* if not supplied.
         """
         if color is None:
             # Default colors based on prefix
@@ -108,6 +111,7 @@ class LanChatPanel:
         timestamp = self._get_timestamp()
         entry = {
             "text": f"{prefix}: {text}",
+            "raw_text": raw_text if raw_text is not None else text,
             "color": color,
             "timestamp": timestamp,
             "msg_id": msg_id,
@@ -140,13 +144,18 @@ class LanChatPanel:
     def send_message(self, text: str):
         """Send a chat message with delivery confirmation tracking."""
         msg_id = self._generate_msg_id()
-        self.pending_acks[msg_id] = pygame.time.get_ticks() / 1000.0
 
-        # Send message with ID
-        self.session.send(LanMessageType.CHAT.value, {"text": text, "msg_id": msg_id})
-
-        # Add to local log (unconfirmed until ACK received)
-        self.add_message("You", text, msg_id=msg_id, confirmed=False)
+        # Send first; only track for ACK if the send actually went out.
+        # Otherwise a failed send leaves a pending_acks entry that
+        # times out and "fails" a message that was never transmitted.
+        sent = self.session.send(LanMessageType.CHAT.value, {"text": text, "msg_id": msg_id})
+        if sent:
+            self.pending_acks[msg_id] = pygame.time.get_ticks() / 1000.0
+            self.add_message("You", text, msg_id=msg_id, confirmed=False, raw_text=text)
+        else:
+            # Surface the failure immediately rather than waiting for ACK timeout
+            self.add_message("You", text, msg_id=msg_id, confirmed=False, raw_text=text)
+            self._mark_failed(msg_id)
 
     def send_quick_chat(self, key: int):
         """Send a quick chat message if the key is a quick chat key."""
@@ -178,16 +187,24 @@ class LanChatPanel:
                 entry = e
                 break
         if entry and not entry.get("_retried"):
-            # Retry once — resend and reset the ACK timer
+            # Retry once — resend the original payload and reset the ACK timer.
+            # Use stored raw_text so messages containing ": " aren't mangled
+            # by trying to parse the display string.
             entry["_retried"] = True
-            text = entry.get("text", "")
-            # Extract just the message content (strip "You: " prefix)
-            colon_idx = text.find(": ")
-            if colon_idx != -1 and colon_idx < 20:
-                text = text[colon_idx + 2:]
-            self.session.send(LanMessageType.CHAT.value, {"text": text, "msg_id": msg_id})
-            self.pending_acks[msg_id] = pygame.time.get_ticks() / 1000.0
-            return
+            raw = entry.get("raw_text")
+            if raw is None:
+                # Legacy entry without raw_text — fall back to display parse.
+                text = entry.get("text", "")
+                colon_idx = text.find(": ")
+                if colon_idx != -1 and colon_idx < 20:
+                    text = text[colon_idx + 2:]
+                raw = text
+            sent = self.session.send(LanMessageType.CHAT.value,
+                                     {"text": raw, "msg_id": msg_id})
+            if sent:
+                self.pending_acks[msg_id] = pygame.time.get_ticks() / 1000.0
+                return
+            # Send failed on retry — fall through to permanent-fail state
         # Already retried or not found — mark as permanently failed
         if entry:
             entry["failed"] = True

@@ -149,9 +149,10 @@ class DeckManager:
             self.custom_decks = {}
     
     def save_decks(self):
-        """Save custom decks to file."""
-        with open(CUSTOM_DECKS_FILE, 'w') as f:
-            json.dump(self.custom_decks, f, indent=2)
+        """Save custom decks to file using an atomic write."""
+        from save_paths import atomic_write_json
+        if not atomic_write_json(CUSTOM_DECKS_FILE, self.custom_decks):
+            print(f"[main_menu] Failed to save custom decks to {CUSTOM_DECKS_FILE}")
     
     def get_deck(self, faction):
         """Get custom deck for faction, or None if using default."""

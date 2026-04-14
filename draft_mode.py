@@ -173,7 +173,7 @@ class DraftRun:
             'losses': self.losses,
             'phase': self.phase,
             'current_pick': self.current_pick,
-            'leader_id': self.drafted_leader['card_id'] if self.drafted_leader else None,
+            'leader_id': (self.drafted_leader.get('card_id') if isinstance(self.drafted_leader, dict) else None),
             'card_ids': [c.id for c in self.drafted_cards] if self.drafted_cards and hasattr(self.drafted_cards[0], 'id') else [],
             # Note: We need a way to robustly save card IDs. 
             # Ideally card objects have an 'id' attribute or we map names.

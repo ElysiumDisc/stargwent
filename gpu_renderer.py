@@ -247,22 +247,32 @@ class GPURenderer:
                 self.input_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
             self.input_texture.write(raw)
 
-            # Run shader chain
+            # Reset blend state so previous Pygame/effect state can't leak in
+            self.ctx.enable(moderngl.BLEND)
+            self.ctx.blend_func = (moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA)
+
+            # Run shader chain — early-out if every effect is disabled
             current_tex = self.input_texture
             temp_resources = []
 
-            for name in self._effect_order:
-                if not self._effect_enabled.get(name, False):
-                    continue
-                passes = self._effects.get(name, [])
-                for sp in passes:
-                    if not sp.enabled:
+            any_enabled = any(
+                self._effect_enabled.get(name, False)
+                and any(sp.enabled for sp in self._effects.get(name, []))
+                for name in self._effect_order
+            )
+            if any_enabled:
+                for name in self._effect_order:
+                    if not self._effect_enabled.get(name, False):
                         continue
-                    fbo, out_tex = sp.apply(
-                        current_tex, self.fbo_pool, sp._vao, w, h
-                    )
-                    temp_resources.append((fbo, out_tex))
-                    current_tex = out_tex
+                    passes = self._effects.get(name, [])
+                    for sp in passes:
+                        if not sp.enabled:
+                            continue
+                        fbo, out_tex = sp.apply(
+                            current_tex, self.fbo_pool, sp._vao, w, h
+                        )
+                        temp_resources.append((fbo, out_tex))
+                        current_tex = out_tex
 
             # Render final result to default framebuffer (the display)
             self.ctx.screen.use()

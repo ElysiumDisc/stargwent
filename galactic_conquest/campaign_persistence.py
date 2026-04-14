@@ -8,7 +8,7 @@ import json
 import os
 import shutil
 
-from save_paths import get_data_dir, sync_saves
+from save_paths import atomic_write_json, get_data_dir, sync_saves
 
 CAMPAIGN_SAVE_FILENAME = "galactic_conquest_save.json"
 CAMPAIGN_V10_BACKUP_FILENAME = "galactic_conquest_save.json.v10.bak"
@@ -44,19 +44,24 @@ def _backup_pre_11_save_if_needed(path: str) -> None:
 
 
 def save_campaign(state) -> bool:
-    """Save campaign state to disk. Returns True on success."""
+    """Save campaign state to disk atomically. Returns True on success.
+
+    Atomic write ensures the on-disk save can't be corrupted by a SIGKILL
+    (or power loss) mid-write — a half-written .tmp is left behind instead
+    of clobbering the prior good save.
+    """
     path = get_campaign_save_path()
     try:
         _backup_pre_11_save_if_needed(path)
         data = state.to_dict()
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2)
-        sync_saves()
+    except (TypeError, AttributeError) as e:
+        print(f"[conquest] Failed to serialize campaign state: {e}")
+        return False
+    if atomic_write_json(path, data):
         print(f"[conquest] Campaign saved to {path}")
         return True
-    except (IOError, OSError, TypeError) as e:
-        print(f"[conquest] Failed to save campaign: {e}")
-        return False
+    print(f"[conquest] Failed to save campaign to {path}")
+    return False
 
 
 def load_campaign():
@@ -127,12 +132,5 @@ def load_conquest_settings() -> dict:
 
 
 def save_conquest_settings(settings: dict) -> bool:
-    """Save conquest run settings to disk."""
-    path = get_conquest_settings_path()
-    try:
-        with open(path, "w") as f:
-            json.dump(settings, f, indent=2)
-        sync_saves()
-        return True
-    except (IOError, OSError):
-        return False
+    """Save conquest run settings to disk atomically."""
+    return atomic_write_json(get_conquest_settings_path(), settings)
