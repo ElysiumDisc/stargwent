@@ -196,7 +196,7 @@ def check_crisis_option_c(campaign_state, galaxy, crisis_effect):
 
     elif req == "3_operatives":
         active_ops = sum(1 for op in campaign_state.operatives
-                         if op.get("state") in ("active", "idle", "moving", "establishing"))
+                         if op.get("status") in ("active", "idle", "moving", "establishing"))
         return active_ops >= 3
 
     # --- v11.0 crisis requirements (G4) ---
@@ -260,11 +260,160 @@ def should_trigger_crisis(campaign_state):
     return random.random() < chance
 
 
-def pick_crisis(campaign_state):
-    """Pick a random crisis event. Returns crisis dict or None."""
+def pick_crisis(campaign_state, galaxy=None):
+    """Pick a crisis event. Scripted faction crises are preferred when
+    their trigger predicate fires; otherwise a random generic one is
+    returned.
+
+    12.0: adds the scripted-crisis tier so big faction-state milestones
+    (Goa'uld dominance, Asgard network apex, Alteran doctrine mastery,
+    etc.) land as bespoke events instead of generic RNG.
+    """
+    if galaxy is not None:
+        eligible = _scripted_eligible(campaign_state, galaxy)
+        if eligible:
+            chosen = random.choice(eligible)
+            # Record the fire so it doesn't immediately re-trigger.
+            fired = campaign_state.conquest_ability_data.setdefault(
+                "scripted_crisis_fired", [])
+            if chosen["id"] not in fired:
+                fired.append(chosen["id"])
+            return chosen
     if not CRISIS_EVENTS:
         return None
     return random.choice(CRISIS_EVENTS)
+
+
+# --- 12.0 scripted crises ------------------------------------------------
+# Each entry is a standard crisis dict PLUS a ``predicate`` callable
+# ``(state, galaxy) -> bool``.  Predicates may read any state; they
+# should be cheap — they run once per trigger check.  Scripted crises
+# also respect a one-shot ``scripted_crisis_fired`` list so they don't
+# re-fire back-to-back.
+
+def _pred_goauld_dominance(state, galaxy):
+    count = sum(1 for p in galaxy.planets.values() if p.owner == "Goa'uld")
+    return count >= 5
+
+
+def _pred_asgard_network_apex(state, galaxy):
+    return getattr(state, "network_tier", 1) >= 4 and \
+        any(p.owner == "Asgard" for p in galaxy.planets.values())
+
+
+def _pred_alteran_doctrine_mastery(state, galaxy):
+    return len(getattr(state, "completed_doctrines", []) or []) >= 2
+
+
+def _pred_jaffa_ascendant(state, galaxy):
+    count = sum(1 for p in galaxy.planets.values()
+                if p.owner == "Jaffa Rebellion")
+    return count >= 4
+
+
+def _pred_lucian_cartel(state, galaxy):
+    trading = [f for f, r in (state.faction_relations or {}).items()
+               if r == "trading"]
+    leader_id = (state.player_leader or {}).get("card_id", "")
+    lucian_leader = leader_id in ("lucian_vala", "lucian_netan",
+                                   "lucian_varro", "lucian_anateo",
+                                   "lucian_kiva", "lucian_sodan_master",
+                                   "lucian_baal_clone")
+    return len(trading) >= 3 and lucian_leader
+
+
+def _pred_stargate_lockdown(state, galaxy):
+    return getattr(state, "network_tier", 1) >= 5 and \
+        state.supergate_progress.get("built")
+
+
+def _pred_ancient_awakening(state, galaxy):
+    ancient_names = {"Atlantis", "Heliopolis", "Vis Uban",
+                     "Kheb", "Proclarush"}
+    count = sum(1 for p in galaxy.planets.values()
+                if p.owner == "player" and p.name in ancient_names)
+    return count >= 3
+
+
+SCRIPTED_CRISIS_EVENTS = [
+    {
+        "id": "apophis_declaration",
+        "title": "Apophis's Declaration",
+        "text": "The System Lord Apophis demands tribute from all the galaxy.\n"
+                "Pay 100 naq to avoid a cascade of Goa'uld raids.",
+        "effect": "apophis_declaration",
+        "color": (240, 80, 80),
+        "predicate": _pred_goauld_dominance,
+    },
+    {
+        "id": "replicator_signal",
+        "title": "Replicator Signal",
+        "text": "The Asgard network detects Replicator pings from deep space.\n"
+                "Asgard-owned worlds face an incursion — share intel or leave them to it.",
+        "effect": "replicator_signal",
+        "color": (180, 200, 230),
+        "predicate": _pred_asgard_network_apex,
+    },
+    {
+        "id": "ori_crusade_scripted",
+        "title": "Ori Crusade",
+        "text": "The Ori turn their gaze toward the galaxy.\n"
+                "Mass conversion events sweep every world you do not hold.",
+        "effect": "ori_crusade",  # reuse existing effect
+        "color": (255, 180, 80),
+        "predicate": _pred_alteran_doctrine_mastery,
+    },
+    {
+        "id": "jaffa_rebellion_rising",
+        "title": "Jaffa Rebellion Rising",
+        "text": "Free Jaffa armies mobilise under a unified banner.\n"
+                "The Tok'ra offer you a free operative in solidarity.",
+        "effect": "jaffa_rebellion_rising",
+        "color": (240, 210, 120),
+        "predicate": _pred_jaffa_ascendant,
+    },
+    {
+        "id": "lucian_cartel_open",
+        "title": "Lucian Cartel Opens",
+        "text": "The black market floods the galaxy with naquadah at fire-sale prices.\n"
+                "+120 naq, and every trade partner gains +10 favor.",
+        "effect": "lucian_cartel_open",
+        "color": (220, 130, 220),
+        "predicate": _pred_lucian_cartel,
+    },
+    {
+        "id": "stargate_lockdown",
+        "title": "Stargate Lockdown",
+        "text": "Your Supergate has drawn the attention of every surviving power.\n"
+                "All rivals gain +20% counterattack chance for 3 turns.",
+        "effect": "stargate_lockdown",
+        "color": (140, 180, 255),
+        "predicate": _pred_stargate_lockdown,
+    },
+    {
+        "id": "ancient_awakening",
+        "title": "Ancient Awakening",
+        "text": "Atlantis resurfaces. Ancient machinery hums to life across your empire.\n"
+                "Gain an Ancient ZPM relic and +60 wisdom.",
+        "effect": "ancient_awakening",
+        "color": (200, 230, 255),
+        "predicate": _pred_ancient_awakening,
+    },
+]
+
+
+def _scripted_eligible(state, galaxy):
+    fired = state.conquest_ability_data.get("scripted_crisis_fired", []) or []
+    out = []
+    for crisis in SCRIPTED_CRISIS_EVENTS:
+        if crisis["id"] in fired:
+            continue
+        try:
+            if crisis["predicate"](state, galaxy):
+                out.append(crisis)
+        except Exception:
+            continue
+    return out
 
 
 def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
@@ -515,6 +664,67 @@ def apply_crisis(campaign_state, galaxy, crisis, rng=None, choice="b"):
                 galaxy.transfer_ownership(pid, new_owner)
                 campaign_state.planet_ownership[pid] = new_owner
             return f"-20 Naquadah. Evacuated {lost_name} — Wraith took control."
+
+    # --- 12.0 scripted crises ----------------------------------------
+
+    elif effect == "apophis_declaration":
+        if choice == "a":
+            campaign_state.add_naquadah(-100)
+            return "-100 naq. Tribute paid — the raids subside."
+        # Refuse: Goa'uld counterattacks spike for 3 turns
+        campaign_state.conquest_ability_data["apophis_declaration_turns"] = 3
+        return "Defiance. Goa'uld raids intensify for 3 turns."
+
+    elif effect == "replicator_signal":
+        if choice == "a":
+            campaign_state.add_naquadah(-30)
+            # +10 favor with Asgard
+            cur = campaign_state.diplomatic_favor.get("Asgard", 0)
+            campaign_state.diplomatic_favor["Asgard"] = min(100, cur + 15)
+            return "-30 naq, +15 favor with Asgard. They remember."
+        # Stand aside: Asgard loses a random planet to neutral
+        asgard_planets = [pid for pid, p in galaxy.planets.items()
+                          if p.owner == "Asgard" and p.planet_type != "homeworld"]
+        if asgard_planets:
+            pid = rng.choice(asgard_planets)
+            galaxy.transfer_ownership(pid, "neutral")
+            campaign_state.planet_ownership[pid] = "neutral"
+            return f"The Asgard take the hit alone — {galaxy.planets[pid].name} falls."
+        return "The Replicator probe fizzles in empty space."
+
+    elif effect == "jaffa_rebellion_rising":
+        # Grant a free operative (reuse the espionage operative dict shape)
+        op_id = campaign_state.operative_next_id
+        campaign_state.operative_next_id += 1
+        campaign_state.operatives.append({
+            "id": op_id,
+            "planet_id": None,
+            "mission": None,
+            "turns_remaining": 0,
+            "status": "idle",
+        })
+        cur = campaign_state.diplomatic_favor.get("Jaffa Rebellion", 0)
+        campaign_state.diplomatic_favor["Jaffa Rebellion"] = min(100, cur + 10)
+        return "A Tok'ra agent joins your service. +10 favor with Jaffa."
+
+    elif effect == "lucian_cartel_open":
+        campaign_state.add_naquadah(120)
+        trading = [f for f, r in (campaign_state.faction_relations or {}).items()
+                   if r == "trading"]
+        for f in trading:
+            cur = campaign_state.diplomatic_favor.get(f, 0)
+            campaign_state.diplomatic_favor[f] = min(100, cur + 10)
+        return f"+120 naq, +10 favor with {len(trading)} trade partner(s)."
+
+    elif effect == "stargate_lockdown":
+        campaign_state.conquest_ability_data["stargate_lockdown_turns"] = 3
+        return "Stargate Lockdown: all rivals +20% counterattack for 3 turns."
+
+    elif effect == "ancient_awakening":
+        if not campaign_state.has_relic("ancient_zpm"):
+            campaign_state.add_relic("ancient_zpm")
+        campaign_state.wisdom = getattr(campaign_state, 'wisdom', 0) + 60
+        return "Ancient ZPM acquired. +60 Wisdom."
 
     return "The crisis passes without incident."
 

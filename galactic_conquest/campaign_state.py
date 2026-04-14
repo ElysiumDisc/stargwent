@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 # Bump whenever we add fields to CampaignState. Paired with a
 # _migrate_{prev}_to_{new} function below.
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 def _migrate_10_to_11(data: dict) -> dict:
@@ -77,6 +77,22 @@ def _migrate_10_to_11(data: dict) -> dict:
     return data
 
 
+def _migrate_11_to_12(data: dict) -> dict:
+    """Seed all 12.0 'Living Galaxy' fields on a pre-12 save.
+
+    Covers: leader action toolkits (Pillar 1), rival leader arcs
+    (Pillar 2), activity log (Pillar 3e), act phase escalation (Pillar
+    4a). Pre-12 saves start with empty/default state for these — no
+    in-flight arcs, no logged history, act phase derived from turn.
+    """
+    data = dict(data)
+    data.setdefault("leader_action_state", {})
+    data.setdefault("rival_arcs", [])
+    data.setdefault("activity_log", [])
+    data.setdefault("save_slot", 0)
+    return data
+
+
 def _migrate(data: dict) -> dict:
     """Run all migrations needed to bring *data* up to SCHEMA_VERSION.
 
@@ -86,7 +102,9 @@ def _migrate(data: dict) -> dict:
     version = data.get("schema_version", 10)
     if version < 11:
         data = _migrate_10_to_11(data)
-    else:
+    if version < 12:
+        data = _migrate_11_to_12(data)
+    if version >= 12:
         data = dict(data)
     data["schema_version"] = SCHEMA_VERSION
     return data
@@ -147,6 +165,12 @@ class CampaignState:
     relic_active_charges: dict = field(default_factory=dict)               # G7: relic_id → remaining charges
     espionage_blocks: dict = field(default_factory=dict)                   # G2b: {doctrine_blocked_turns: int}
 
+    # --- 12.0 "Living Galaxy" fields ---
+    leader_action_state: dict = field(default_factory=dict)                # P1: action_id → {cooldown, charges_used}
+    rival_arcs: list = field(default_factory=list)                         # P2: list of RivalArc dicts
+    activity_log: list = field(default_factory=list)                       # P3e: list of log entry dicts (capped)
+    save_slot: int = 0                                                      # P5d: 0-2, which multi-save slot this is
+
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
         return {
@@ -199,6 +223,11 @@ class CampaignState:
             "minor_world_rival": dict(self.minor_world_rival),
             "relic_active_charges": dict(self.relic_active_charges),
             "espionage_blocks": dict(self.espionage_blocks),
+            # --- 12.0 ---
+            "leader_action_state": dict(self.leader_action_state),
+            "rival_arcs": list(self.rival_arcs),
+            "activity_log": list(self.activity_log),
+            "save_slot": self.save_slot,
         }
 
     @classmethod
@@ -258,6 +287,11 @@ class CampaignState:
             minor_world_rival=data["minor_world_rival"],
             relic_active_charges=data["relic_active_charges"],
             espionage_blocks=data["espionage_blocks"],
+            # --- 12.0 (migration already seeded these) ---
+            leader_action_state=data["leader_action_state"],
+            rival_arcs=data["rival_arcs"],
+            activity_log=data["activity_log"],
+            save_slot=data.get("save_slot", 0),
         )
 
     def tick_cooldowns(self):

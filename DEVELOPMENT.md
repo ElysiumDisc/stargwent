@@ -125,7 +125,9 @@ All player-facing JSON saves go through XDG-compliant paths defined in
 | Unlocks | `$XDG_DATA_HOME/stargwent/player_unlocks.json` |
 | Settings | `$XDG_DATA_HOME/stargwent/game_settings.json` |
 | Custom decks | `$XDG_DATA_HOME/stargwent/custom_decks.json` |
-| Galactic Conquest | `$XDG_DATA_HOME/stargwent/galactic_conquest_save.json` |
+| Galactic Conquest (slot 0 / legacy) | `$XDG_DATA_HOME/stargwent/galactic_conquest_save.json` |
+| Galactic Conquest (slot 1, v12+) | `$XDG_DATA_HOME/stargwent/galactic_conquest_save_slot2.json` |
+| Galactic Conquest (slot 2, v12+) | `$XDG_DATA_HOME/stargwent/galactic_conquest_save_slot3.json` |
 | Conquest run settings | `$XDG_DATA_HOME/stargwent/conquest_settings.json` |
 
 On web (Pygbag/Emscripten) these paths resolve to
@@ -399,14 +401,23 @@ Call `clear_render_caches()` on resolution change.
 
 ## Galactic Conquest Architecture
 
-Roguelite card-battle campaign. Package: `galactic_conquest/` (~30 modules).
+Roguelite card-battle campaign. Package: `galactic_conquest/` (~35 modules).
 v10.0 was the original release; v11.0 deepened the strategic layer
 (branching doctrines, AI doctrine adoption, expanded AI espionage,
 coalition-against-player, 3-act crisis escalation, Economic + Cultural
 victory paths, minor-world quest chains + rival courtship, active relic
 abilities, unified Treaty system). v11.1 made the campaign save
-atomic — see [Save Persistence](#save-persistence). Per-version detail
-in [CHANGELOG.md](CHANGELOG.md).
+atomic. **v12.0 ("Living Galaxy")** reshaped the mode around narrative
+coherence: per-leader toolkits (92 actions across 40 leaders), rival
+leader arcs with multi-phase comebacks + showdown battles, animated
+AI-vs-AI wars, persistent map icons, diplomatic lane colors, hover
+tooltips, activity log sidebar, scripted faction crises, hyperspace
+transitions, multi-save slots. **v12.1** is an audit pass on top of
+that rollout: the operative `state`/`status` field schism is fixed
+(espionage code now reads the same key the writers use), the activity
+sidebar + spy report cache their render surfaces, and six particle
+update loops switched to mark-and-sweep. Per-version detail in
+[CHANGELOG.md](CHANGELOG.md).
 
 | File | Description |
 |------|-------------|
@@ -442,6 +453,14 @@ in [CHANGELOG.md](CHANGELOG.md).
 | `espionage_screen.py` | CRT-styled operative management UI |
 | `victory_conditions.py` | 6 victory paths + score fallback (Domination/Ascension/Alliance/Supremacy/Economic/Cultural), progress tracking |
 | `tooltip.py` | **NEW in 11.0**: shared tooltip renderer with wrap + clamp |
+| `leader_toolkits.py` | **NEW in 12.0**: 40 leaders × 2-3 player-initiated map actions (92 total); templates + dispatcher |
+| `leader_command.py` | **NEW in 12.0**: left-edge Leader Command panel UI |
+| `rival_arcs.py` | **NEW in 12.0**: 5-phase rival arcs (EXILE → GUERRILLA → RESURGENCE → SHOWDOWN → RESOLVED) + showdown battle flow |
+| `activity_log.py` + `activity_sidebar.py` | **NEW in 12.0**: persistent categorised log + right-edge slide-out sidebar |
+| `relic_actives_panel.py` | **NEW in 12.0**: on-map spellbook of owned relic actives (15 of them now active) |
+| `_ui_utils.py` | **NEW in 12.1**: shared `blit_alpha` helper for on-map panels |
+| `spy_report.py` | **NEW in 12.0**: per-faction intel modal (S key) |
+| `slot_picker.py` | **NEW in 12.0**: 3-slot save picker for New Campaign / Resume |
 
 ### Key Systems
 - **Network Tiers**: Connected planet count → tier → scaling naq/cooldown/range/ability bonuses
@@ -460,7 +479,15 @@ in [CHANGELOG.md](CHANGELOG.md).
 - **Active Relic Abilities (v11)**: Relics can expose an `active_ability` dict with charges tracked on `state.relic_active_charges`. v11 ships two out-of-battle actives: Asgard Time Machine (Shift+T, manual planet-loss rewind) and Sarcophagus (Shift+S, reset cooldowns + clear upgrade penalties). Mid-battle actives are intentionally deferred to avoid touching `card_battle.py`.
 - **Quest Chains + Rivals (v11)**: 50% of new minor-world quests roll a 3-step chain (Defense Pact / Trade Route / Military Contract) tracked via `state.quest_chain_progress`. Each minor world also has one AI rival suitor ticking at +2 influence/turn — if they reach Ally tier first, trading with that minor world is locked out for 5 turns via `_mw_locked_*` keys.
 - **Victory Conditions (v11)**: Six paths — Domination, Ascension, Galactic Alliance, Stargate Supremacy, Economic Hegemony (40%+ territory + 500 naq/turn for 3 consecutive turns, tracked in `state.consecutive_high_income_turns`), Cultural Ascendancy (4+ Ally minor worlds + 2+ relics), plus Score Victory as the turn 30 fallback.
-- **Save Migration**: `SCHEMA_VERSION` constant in `campaign_state.py` with a non-mutating `_migrate` dispatcher. 11.0 adds 10 new state fields (act, treaties, coalition, quest_chain_progress, minor_world_rival, relic_active_charges, ai_doctrines, broken_treaty_counts, consecutive_high_income_turns, espionage_blocks) all seeded in `_migrate_10_to_11`. Legacy `_nap_timer_*` keys transparently migrate to `state.treaties`. First overwrite of a pre-11 save creates a `.v10.bak` backup.
+- **Save Migration**: `SCHEMA_VERSION` constant in `campaign_state.py` with a non-mutating `_migrate` dispatcher. 11.0 adds 10 new state fields seeded in `_migrate_10_to_11`; legacy `_nap_timer_*` keys transparently migrate to `state.treaties`. **12.0 bumps schema to v12** via `_migrate_11_to_12`, seeding `leader_action_state`, `rival_arcs`, `activity_log`, and `save_slot` on pre-12 saves. Legacy single-save filename is treated as slot 0 for zero-friction upgrades; slots 1-2 use suffixed filenames.
+- **Leader Toolkits (v12)**: `leader_toolkits.LEADER_ACTIONS` maps every `card_id` → `list[LeaderAction]`. Actions resolve via `can_use` → `execute` dispatch; cooldowns tick in the turn-end block. UI: `leader_command.draw_panel` emits `"leader_action:<id>"` on click; the controller's `_handle_leader_action` resolves targets (planet from selection, faction via modal picker).
+- **Rival Arcs (v12)**: `rival_arcs.spawn_on_homeworld_capture` fires after the player takes a homeworld, choosing a hideout (preferring neutrals). `advance_all` ticks phase dwell time; `pending_showdowns` surfaces arcs that just hit SHOWDOWN for the controller's `_run_rival_showdown` modal. Four scripted pairs reuse `LEADER_MATCHUPS` dialogue; everyone else gets a generic arc.
+- **Scripted Crises (v12)**: `SCRIPTED_CRISIS_EVENTS` in `crisis_events.py` — each has a predicate gated on faction state (Goa'uld planet count, Asgard network tier, Alteran doctrine mastery, etc.). `pick_crisis(state, galaxy)` prefers eligible scripted ones over random; one-shot per run via `conquest_ability_data["scripted_crisis_fired"]`.
+- **Active Relics (v12, 4c)**: 13 relics gained `active_ability` entries on top of the 2 legacy ones. Unified `activate_relic` dispatcher handles all 15 effect types; `relic_actives_panel` renders the owned-relic spellbook beneath the Leader Command strip.
+- **Emergency Anti-Coalition (v12)**: `victory_conditions.is_player_near_victory` returns `(bool, path)` for 5 of the 6 victory paths; the turn-end block in `campaign_controller` force-seeds every surviving faction's coalition trust to the formation threshold.
+- **Living Map (v12)**: `map_renderer.draw` now overlays rival ghost icons, narrative arc stars, and diplomatic lane colors (via `_lane_diplo_color`) — coalition members pulse, allies green, trading blue, NAP amber, hostile red. `_draw_hover_tooltip` aggregates per-planet intel. AI-vs-AI wars animate via `_animate_ai_war_arc` on the controller side.
+- **Activity Log (v12)**: `activity_log.log(state, category, text, ...)` appends a capped list (400 max) stored on `state.activity_log`. `activity_sidebar.ActivitySidebar` renders a right-edge slide-out toggled with `L`.
+- **Hyperspace Transition (v12)**: `_map_to_battle_transition(direction, duration_ms)` drives the existing `shaders/hyperspace.py` shader's `warp_factor` uniform on both entry and return of every attack.
 - **Side Panel UI**: `_draw_side_panel()` replaces tooltips — planet details with build/upgrade buttons when selected, victory/faction overview when not
 - **Cross-system integration**: `get_active_effects(state)` is the central doctrine query — called by card_battle, buildings, diplomacy, espionage, minor_worlds, campaign_controller
 

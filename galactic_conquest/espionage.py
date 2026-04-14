@@ -112,7 +112,7 @@ class Operative:
     id: int
     name: str
     rank: int = 1
-    state: str = "idle"
+    status: str = "idle"
     target_planet: str = None
     turns_remaining: int = 0
     mission: str = None
@@ -123,7 +123,7 @@ class Operative:
             "id": self.id,
             "name": self.name,
             "rank": self.rank,
-            "state": self.state,
+            "status": self.status,
             "target_planet": self.target_planet,
             "turns_remaining": self.turns_remaining,
             "mission": self.mission,
@@ -132,11 +132,12 @@ class Operative:
 
     @classmethod
     def from_dict(cls, data):
+        # Load-time back-compat: older saves wrote "state", newer code uses "status".
         return cls(
             id=data["id"],
             name=data["name"],
             rank=data.get("rank", 1),
-            state=data.get("state", "idle"),
+            status=data.get("status", data.get("state", "idle")),
             target_planet=data.get("target_planet"),
             turns_remaining=data.get("turns_remaining", 0),
             mission=data.get("mission"),
@@ -209,9 +210,9 @@ def deploy_operative(state, op_id, planet_id):
     """Deploy an idle operative to a planet. Returns message or None."""
     ops = _load_operatives(state)
     op = next((o for o in ops if o.id == op_id), None)
-    if not op or op.state != IDLE:
+    if not op or op.status != IDLE:
         return None
-    op.state = MOVING
+    op.status = MOVING
     op.target_planet = planet_id
     op.turns_remaining = 1
     _save_operatives(state, ops)
@@ -224,7 +225,7 @@ def assign_mission(state, op_id, mission_type):
         return None
     ops = _load_operatives(state)
     op = next((o for o in ops if o.id == op_id), None)
-    if not op or op.state != ACTIVE:
+    if not op or op.status != ACTIVE:
         return None
     mission = MISSIONS[mission_type]
     effects = _get_doctrine_effects(state)
@@ -243,9 +244,9 @@ def recall_operative(state, op_id):
     """Recall an operative back to idle. Returns message."""
     ops = _load_operatives(state)
     op = next((o for o in ops if o.id == op_id), None)
-    if not op or op.state in (IDLE, DEAD):
+    if not op or op.status in (IDLE, DEAD):
         return None
-    op.state = IDLE
+    op.status = IDLE
     op.target_planet = None
     op.mission = None
     op.turns_remaining = 0
@@ -257,7 +258,7 @@ def rank_up_operative(state, op_id):
     """Upgrade an operative's rank. Returns message or None."""
     ops = _load_operatives(state)
     op = next((o for o in ops if o.id == op_id), None)
-    if not op or op.state != IDLE or op.rank >= 3:
+    if not op or op.status != IDLE or op.rank >= 3:
         return None
     if state.naquadah < RANK_UP_COST:
         return None
@@ -276,29 +277,29 @@ def tick_operatives(state, galaxy, rng):
     messages = []
 
     for op in ops:
-        if op.state == DEAD:
+        if op.status == DEAD:
             op.death_countdown -= 1
             if op.death_countdown <= 0:
-                op.state = IDLE
+                op.status = IDLE
                 op.rank = 1  # Reset rank on death
                 messages.append(f"{op.name} revived (Rank 1).")
             continue
 
-        if op.state == MOVING:
+        if op.status == MOVING:
             op.turns_remaining -= 1
             if op.turns_remaining <= 0:
-                op.state = ESTABLISHING
+                op.status = ESTABLISHING
                 op.turns_remaining = 2
             continue
 
-        if op.state == ESTABLISHING:
+        if op.status == ESTABLISHING:
             op.turns_remaining -= 1
             if op.turns_remaining <= 0:
-                op.state = ACTIVE
+                op.status = ACTIVE
                 messages.append(f"{op.name} established at target.")
             continue
 
-        if op.state == ACTIVE and op.mission:
+        if op.status == ACTIVE and op.mission:
             if op.turns_remaining > 0:
                 op.turns_remaining -= 1
             if op.turns_remaining <= 0:
@@ -330,7 +331,7 @@ def _resolve_mission(state, op, galaxy, rng, effects):
     death_risk = max(0.0, death_risk)
 
     if rng.random() < death_risk:
-        op.state = DEAD
+        op.status = DEAD
         op.death_countdown = REVIVAL_TURNS
         op.mission = None
         op.target_planet = None
@@ -483,7 +484,7 @@ def get_sabotage_effect(state, planet_id):
 def get_operative_summary(state):
     """Get summary of all operatives for display."""
     ops = _load_operatives(state)
-    return [(op.name, RANK_NAMES.get(op.rank, "?"), op.state,
+    return [(op.name, RANK_NAMES.get(op.rank, "?"), op.status,
              op.target_planet, op.mission, op.turns_remaining,
              op.death_countdown, op.id) for op in ops]
 
@@ -534,7 +535,7 @@ def generate_ai_espionage_events(state, galaxy, rng):
         has_counter = any(
             op.get("target_planet") == target_pid
             and op.get("current_mission") == "counter_intel"
-            and op.get("state") == "active"
+            and op.get("status") == "active"
             for op in state.operatives
         )
 
@@ -613,11 +614,11 @@ def resolve_ai_espionage(state, galaxy, event, choice, rng):
         elif mission_type == "assassinate_operative":
             # Kill one player operative (any state except already dead)
             alive_ops = [op for op in state.operatives
-                         if op.get("state") not in ("dead", None)]
+                         if op.get("status") not in ("dead", None)]
             if not alive_ops:
                 return f"{faction}'s assassination found no viable targets."
             victim = rng.choice(alive_ops)
-            victim["state"] = "dead"
+            victim["status"] = "dead"
             victim["revival_timer"] = 3
             return (f"{faction} killed operative {victim.get('name', 'agent')}! "
                     f"Revival in 3 turns.")
@@ -636,7 +637,7 @@ def generate_incident_choices(state, galaxy, rng):
     """
     incidents = []
     for op in state.operatives:
-        if op.get("state") != "active":
+        if op.get("status") != "active":
             continue
         target_pid = op.get("target_planet")
         if not target_pid:
@@ -689,7 +690,7 @@ def resolve_incident_choice(state, incident, choice, rng):
         # Find and recall the operative
         for op in state.operatives:
             if op.get("id") == incident["operative_id"]:
-                op["state"] = "idle"
+                op["status"] = "idle"
                 op["target_planet"] = None
                 op["current_mission"] = None
                 break

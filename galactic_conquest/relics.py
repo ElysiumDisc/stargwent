@@ -39,6 +39,13 @@ RELICS = {
         description="+1 power to all Goa'uld cards in your deck",
         icon_char="\u2694",  # crossed swords
         category="combat",
+        active_ability={
+            "name": "Ra's Wrath",
+            "desc": "Destroy a building on any enemy planet.",
+            "charges": 2,
+            "effect_type": "destroy_building",
+            "target_kind": "enemy_planet",
+        },
     ),
     "thors_hammer": Relic(
         id="thors_hammer",
@@ -46,6 +53,12 @@ RELICS = {
         description="+2 power to all Hero cards",
         icon_char="\u2692",  # hammer and pick
         category="combat",
+        active_ability={
+            "name": "Hammer of Judgment",
+            "desc": "Cancel every counterattack this turn.",
+            "charges": 1,
+            "effect_type": "skip_all_counterattacks",
+        },
     ),
     "kull_armor": Relic(
         id="kull_armor",
@@ -53,6 +66,12 @@ RELICS = {
         description="-1 power to all enemy cards (min 1)",
         icon_char="\u26E8",  # shield
         category="combat",
+        active_ability={
+            "name": "Impenetrable Guard",
+            "desc": "+1 fortification on every owned planet.",
+            "charges": 1,
+            "effect_type": "fort_all_owned",
+        },
     ),
     "iris_shield": Relic(
         id="iris_shield",
@@ -60,6 +79,12 @@ RELICS = {
         description="Block the first Spy card played against you",
         icon_char="\u25CE",  # bullseye
         category="combat",
+        active_ability={
+            "name": "Iris Lockdown",
+            "desc": "Neutralise the next 2 sleeper-agent sabotages.",
+            "charges": 2,
+            "effect_type": "iris_lockdown",
+        },
     ),
     "ancient_zpm": Relic(
         id="ancient_zpm",
@@ -67,6 +92,12 @@ RELICS = {
         description="+1 starting card in all battles",
         icon_char="\u26A1",  # lightning
         category="combat",
+        active_ability={
+            "name": "Power Surge",
+            "desc": "Temporary +1 network tier for 3 turns.",
+            "charges": 1,
+            "effect_type": "network_surge",
+        },
     ),
     "ori_prior_staff": Relic(
         id="ori_prior_staff",
@@ -74,6 +105,12 @@ RELICS = {
         description="Weather effects deal minimum 3 power reduction (not 1)",
         icon_char="\u2721",  # star
         category="combat",
+        active_ability={
+            "name": "Prior's Judgment",
+            "desc": "Clear the pending crisis and lock crises for 3 turns.",
+            "charges": 1,
+            "effect_type": "skip_crisis",
+        },
     ),
     "sarcophagus": Relic(
         id="sarcophagus",
@@ -97,6 +134,12 @@ RELICS = {
         description="+20 bonus Naquadah per victory",
         icon_char="\u2B50",  # star
         category="economy",
+        active_ability={
+            "name": "Core Reroute",
+            "desc": "Double your next 2 turns of passive naquadah income.",
+            "charges": 1,
+            "effect_type": "income_double",
+        },
     ),
     "naquadah_reactor": Relic(
         id="naquadah_reactor",
@@ -104,6 +147,13 @@ RELICS = {
         description="+10 Naquadah per turn (passive income)",
         icon_char="\u2622",  # radioactive
         category="economy",
+        active_ability={
+            "name": "Reactor Overload",
+            "desc": "Overload for +150 naquadah now.",
+            "charges": 2,
+            "effect_type": "naq_burst",
+            "naq_amount": 150,
+        },
     ),
 
     # === Exploration Relics ===
@@ -113,6 +163,12 @@ RELICS = {
         description="Attack planets 2 hops away (not just adjacent)",
         icon_char="\u25EF",  # large circle
         category="exploration",
+        active_ability={
+            "name": "Extended Ring",
+            "desc": "Your next 2 attacks may reach distant planets.",
+            "charges": 1,
+            "effect_type": "two_hop_bank",
+        },
     ),
     "replicator_nanites": Relic(
         id="replicator_nanites",
@@ -120,6 +176,12 @@ RELICS = {
         description="20% chance to duplicate chosen reward card",
         icon_char="\u2234",  # therefore (dots)
         category="exploration",
+        active_ability={
+            "name": "Nanite Storm",
+            "desc": "Upgrade 3 random cards in your deck.",
+            "charges": 1,
+            "effect_type": "upgrade_random3",
+        },
     ),
     "alteran_database": Relic(
         id="alteran_database",
@@ -127,6 +189,12 @@ RELICS = {
         description="+1 card choice on all reward screens",
         icon_char="\u2261",  # triple bar
         category="exploration",
+        active_ability={
+            "name": "Archive Query",
+            "desc": "Reveal every faction's deck for your next 2 battles.",
+            "charges": 1,
+            "effect_type": "intel_bank",
+        },
     ),
     "quantum_mirror": Relic(
         id="quantum_mirror",
@@ -134,6 +202,12 @@ RELICS = {
         description="See enemy hand size during battles",
         icon_char="\u2B2F",  # mirror
         category="exploration",
+        active_ability={
+            "name": "Strategic Glance",
+            "desc": "Reveal all AI intel (naq, doctrines, buildings) for 3 turns.",
+            "charges": 1,
+            "effect_type": "reveal_ai_intel",
+        },
     ),
     "teltak_transport": Relic(
         id="teltak_transport",
@@ -141,6 +215,12 @@ RELICS = {
         description="See defender power total before attacking",
         icon_char="\u2708",  # airplane
         category="exploration",
+        active_ability={
+            "name": "Cloaked Run",
+            "desc": "Recruit a free operative.",
+            "charges": 2,
+            "effect_type": "spawn_operative",
+        },
     ),
     "jaffa_tretonin": Relic(
         id="jaffa_tretonin",
@@ -148,6 +228,12 @@ RELICS = {
         description="Weather can't reduce your cards below 3 power",
         icon_char="\u2695",  # caduceus
         category="combat",
+        active_ability={
+            "name": "Field Triage",
+            "desc": "Upgrade your 2 strongest cards by +2.",
+            "charges": 1,
+            "effect_type": "upgrade_strongest2",
+        },
     ),
     "ancient_repository": Relic(
         id="ancient_repository",
@@ -155,6 +241,13 @@ RELICS = {
         description="+30 naq/turn if you control Atlantis",
         icon_char="\u2261",  # triple bar
         category="economy",
+        active_ability={
+            "name": "Knowledge Infusion",
+            "desc": "Gain 40 Wisdom instantly.",
+            "charges": 1,
+            "effect_type": "wisdom_burst",
+            "wisdom_amount": 40,
+        },
     ),
     "asgard_time_machine": Relic(
         id="asgard_time_machine",
@@ -176,8 +269,175 @@ RELICS = {
         description="+2 power to first card played each round",
         icon_char="\U0001F525",  # fire
         category="combat",
+        active_ability={
+            "name": "Pyre of the Ori",
+            "desc": "Purge your weakest card for +120 naquadah.",
+            "charges": 1,
+            "effect_type": "purge_for_naq",
+            "naq_amount": 120,
+        },
     ),
 }
+
+
+# ===========================================================================
+# Active relic dispatcher (12.0 — Pillar 4c expansion)
+# ===========================================================================
+#
+# Relics with ``active_ability`` are player-triggered map actions.  The
+# existing ``sarcophagus`` / ``asgard_time_machine`` both used bespoke
+# code paths in the controller; 12.0 adds a unified dispatcher so the
+# spellbook of actives stays in one place.
+#
+# Charges are tracked in ``state.relic_active_charges`` — a dict keyed
+# by ``relic_id``.  A fresh run seeds the charge count on first use so
+# we don't have to touch migration.
+
+def get_active_charges_remaining(state, relic_id: str) -> int:
+    """How many activations remain for *relic_id*.
+
+    Uses the pre-12 "remaining" convention: ``state.relic_active_charges``
+    stores the remaining count, seeded from ``active_ability['charges']``
+    on first query.  Returns 0 if the relic is not owned, has no
+    active, or is spent.
+    """
+    relic = RELICS.get(relic_id)
+    if relic is None or not relic.active_ability:
+        return 0
+    if relic_id not in state.relics:
+        return 0
+    starting = int(relic.active_ability.get("charges", 1))
+    return int(state.relic_active_charges.get(relic_id, starting))
+
+
+def _apply_relic_effect(state, galaxy, relic, effect: str, target, rng) -> str:
+    from cards import ALL_CARDS
+
+    if effect == "destroy_building":
+        if not target or target not in state.buildings:
+            return f"{relic.name}: no building to destroy."
+        name = state.buildings.pop(target)
+        state.building_levels.pop(target, None)
+        return f"{relic.name}: destroyed {name}."
+
+    if effect == "skip_all_counterattacks":
+        state.conquest_ability_data["skip_all_counterattacks"] = True
+        return f"{relic.name}: counterattacks cancelled this turn."
+
+    if effect == "fort_all_owned":
+        count = 0
+        for pid, owner in state.planet_ownership.items():
+            if owner == "player":
+                cur = state.fortification_levels.get(pid, 0)
+                if cur < 3:
+                    state.fortification_levels[pid] = cur + 1
+                    count += 1
+        return f"{relic.name}: +1 fort on {count} planet(s)."
+
+    if effect == "iris_lockdown":
+        state.conquest_ability_data["iris_lockdown_charges"] = \
+            state.conquest_ability_data.get("iris_lockdown_charges", 0) + 2
+        return f"{relic.name}: sleeper sabotages blocked (x2)."
+
+    if effect == "network_surge":
+        state.conquest_ability_data["network_surge_turns"] = 3
+        return f"{relic.name}: +1 network tier for 3 turns."
+
+    if effect == "skip_crisis":
+        state.pending_crisis = {}
+        state.crisis_cooldown = max(state.crisis_cooldown, 3)
+        return f"{relic.name}: crises suppressed for 3 turns."
+
+    if effect == "income_double":
+        state.conquest_ability_data["income_double_turns"] = 2
+        return f"{relic.name}: income doubled for 2 turns."
+
+    if effect == "naq_burst":
+        amt = int(relic.active_ability.get("naq_amount", 100))
+        state.add_naquadah(amt)
+        return f"{relic.name}: +{amt} naquadah."
+
+    if effect == "two_hop_bank":
+        state.conquest_ability_data["two_hop_attack_charges"] = \
+            state.conquest_ability_data.get("two_hop_attack_charges", 0) + 2
+        return f"{relic.name}: 2 extended-range attacks banked."
+
+    if effect == "upgrade_random3":
+        cards = [cid for cid in state.current_deck
+                 if ALL_CARDS.get(cid) and getattr(ALL_CARDS[cid], 'power', None)]
+        if not cards:
+            return f"{relic.name}: no cards to upgrade."
+        picks = rng.sample(cards, min(3, len(cards)))
+        for cid in picks:
+            state.upgrade_card(cid, 1)
+        names = [getattr(ALL_CARDS[c], 'name', c) for c in picks]
+        return f"{relic.name}: upgraded {', '.join(names)}."
+
+    if effect == "intel_bank":
+        state.conquest_ability_data["next_battle_intel_count"] = \
+            state.conquest_ability_data.get("next_battle_intel_count", 0) + 2
+        return f"{relic.name}: next 2 battles reveal enemy decks."
+
+    if effect == "reveal_ai_intel":
+        state.conquest_ability_data["ai_intel_turns"] = 3
+        return f"{relic.name}: AI intel visible for 3 turns."
+
+    if effect == "spawn_operative":
+        op_id = state.operative_next_id
+        state.operative_next_id += 1
+        state.operatives.append({
+            "id": op_id, "planet_id": None, "mission": None,
+            "turns_remaining": 0, "status": "idle",
+        })
+        return f"{relic.name}: new operative recruited."
+
+    if effect == "upgrade_strongest2":
+        cards = [cid for cid in state.current_deck
+                 if ALL_CARDS.get(cid) and getattr(ALL_CARDS[cid], 'power', None)]
+        if not cards:
+            return f"{relic.name}: no cards to upgrade."
+        cards.sort(key=lambda c: getattr(ALL_CARDS[c], 'power', 0), reverse=True)
+        for cid in cards[:2]:
+            state.upgrade_card(cid, 2)
+        names = [getattr(ALL_CARDS[c], 'name', c) for c in cards[:2]]
+        return f"{relic.name}: +2 power to {', '.join(names)}."
+
+    if effect == "wisdom_burst":
+        amt = int(relic.active_ability.get("wisdom_amount", 30))
+        state.wisdom = getattr(state, 'wisdom', 0) + amt
+        return f"{relic.name}: +{amt} wisdom."
+
+    if effect == "purge_for_naq":
+        cards = [cid for cid in state.current_deck
+                 if ALL_CARDS.get(cid) and getattr(ALL_CARDS[cid], 'power', None)]
+        if not cards:
+            return f"{relic.name}: no card to burn."
+        cards.sort(key=lambda c: getattr(ALL_CARDS[c], 'power', 0))
+        victim = cards[0]
+        state.remove_card(victim)
+        amt = int(relic.active_ability.get("naq_amount", 100))
+        state.add_naquadah(amt)
+        return f"{relic.name}: burned {getattr(ALL_CARDS[victim], 'name', victim)} for +{amt} naq."
+
+    # Legacy effects kept for parity with pre-12 wiring (controller
+    # already handles these through bespoke code, but we can fire them
+    # from the panel too).
+    if effect == "undo_last_planet_loss":
+        last = state.conquest_ability_data.get("_last_planet_lost")
+        if not last or not last.get("planet_id"):
+            return f"{relic.name}: no recent loss."
+        pid = last["planet_id"]
+        galaxy.transfer_ownership(pid, "player")
+        state.planet_ownership[pid] = "player"
+        state.add_naquadah(30)
+        state.conquest_ability_data["_last_planet_lost"] = None
+        return f"{relic.name}: planet restored."
+
+    if effect == "full_deck_heal":
+        state.cooldowns.clear()
+        return f"{relic.name}: all cooldowns cleared."
+
+    return f"{relic.name}: activated."
 
 
 # Guaranteed relic per conquered homeworld
@@ -256,73 +516,50 @@ RELIC_COMBOS = {
 
 
 # --- Relic active ability activation ---
+#
+# 12.0 consolidation: a single ``activate_relic`` covers every active
+# (legacy undo_last_planet_loss + full_deck_heal plus the 13 new
+# effect_types added in Pillar 4c).  Charge bookkeeping keeps the
+# pre-12 "remaining" convention so saves stay compatible.
 
 def get_active_relics(state):
-    """Return a list of (relic, charges_remaining) for every owned relic
-    that exposes an active ability with remaining charges."""
+    """Return a list of ``(relic_id, active_ability_dict)`` for every
+    owned relic whose active still has charges left.  (The relic
+    ACTIVES panel consumes this shape.)"""
     result = []
     for relic_id in state.relics:
         relic = RELICS.get(relic_id)
         if relic is None or relic.active_ability is None:
             continue
-        starting = relic.active_ability.get("charges", 1)
-        remaining = state.relic_active_charges.get(
-            relic_id,
-            starting,
-        )
-        result.append((relic, remaining))
+        if get_active_charges_remaining(state, relic_id) <= 0:
+            continue
+        result.append((relic_id, relic.active_ability))
     return result
 
 
-def activate_relic(state, galaxy, relic_id):
-    """Fire a relic active ability. Returns message on success, None on failure.
+def activate_relic(state, galaxy, relic_id, target=None, rng=None):
+    """Fire a relic active ability.  Returns message on success, ``None``
+    if the relic isn't owned / has no active / is out of charges.
 
-    This function handles ONLY out-of-battle actives — `undo_last_planet_loss`
-    and `full_deck_heal`. Charge bookkeeping lives on
-    state.relic_active_charges (migrated save field) so activations persist
-    across save/load.
+    Effect dispatch lives in ``_apply_relic_effect``; this wrapper
+    handles ownership + charge bookkeeping so every code path sees
+    the same deduction rules.
     """
+    import random as _random
     relic = RELICS.get(relic_id)
     if relic is None or relic.active_ability is None:
         return None
     if not state.has_relic(relic_id):
         return None
-    starting = relic.active_ability.get("charges", 1)
-    remaining = state.relic_active_charges.get(relic_id, starting)
+    remaining = get_active_charges_remaining(state, relic_id)
     if remaining <= 0:
         return "No charges remaining."
 
-    effect_type = relic.active_ability.get("effect_type")
-
-    if effect_type == "undo_last_planet_loss":
-        last_lost = state.conquest_ability_data.get("_last_planet_lost")
-        if not last_lost:
-            return "No recent planet loss to undo."
-        pid = last_lost.get("planet_id")
-        planet = galaxy.planets.get(pid) if pid else None
-        if not planet:
-            return "Lost planet data unavailable."
-        # Restore ownership
-        galaxy.transfer_ownership(pid, "player")
-        state.planet_ownership[pid] = "player"
-        del state.conquest_ability_data["_last_planet_lost"]
-        state.relic_active_charges[relic_id] = remaining - 1
-        return f"Temporal Rewind restored {planet.name}! ({remaining - 1} charges left)"
-
-    if effect_type == "full_deck_heal":
-        # Remove all card-upgrade penalties from prior crises/plagues and
-        # reset cooldowns — a clean slate between battles.
-        healed_count = 0
-        for cid, val in list(state.upgraded_cards.items()):
-            if val < 0:
-                state.upgraded_cards[cid] = 0
-                healed_count += 1
-        state.cooldowns.clear()
-        state.relic_active_charges[relic_id] = remaining - 1
-        return (f"Sarcophagus Chamber: cooldowns reset, {healed_count} cards "
-                f"restored. ({remaining - 1} charges left)")
-
-    return None
+    rng = rng or _random
+    effect = relic.active_ability.get("effect_type", "")
+    msg = _apply_relic_effect(state, galaxy, relic, effect, target, rng)
+    state.relic_active_charges[relic_id] = remaining - 1
+    return msg
 
 
 def get_active_combos(state):

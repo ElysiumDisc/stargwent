@@ -16,22 +16,31 @@ from .galaxy_map import ALL_FACTIONS
 
 # Ancient planets needed for Ascension victory
 ANCIENT_PLANETS = ["Atlantis", "Heliopolis", "Vis Uban", "Kheb", "Proclarush"]
-ASCENSION_ANCIENT_NEEDED = 3
+# 12.0 — tighten: all 5 ancient planets now required.  Previously 3 was
+# hit by mid-game, undercutting the climactic feel of Ascension.
+ASCENSION_ANCIENT_NEEDED = 5
 
 # Supergate turns to hold
 SUPERGATE_HOLD_TURNS = 5
 
-# Score fallback turn
-SCORE_FALLBACK_TURN = 30
+# Score fallback turn — pushed out from 30 to 35 so rebalanced economic/
+# cultural paths have more room before RNG decides things.
+SCORE_FALLBACK_TURN = 35
 
-# Economic victory thresholds (v11.0, G5)
+# Economic victory thresholds — 12.0 re-tuned for longer runs.
+#   income: 500 → 700 (harder to spike)
+#   streak: 3   → 5   (steadier dominance required)
 ECONOMIC_TERRITORY_FRACTION = 0.40
-ECONOMIC_INCOME_PER_TURN = 500
-ECONOMIC_CONSECUTIVE_TURNS = 3
+ECONOMIC_INCOME_PER_TURN = 700
+ECONOMIC_CONSECUTIVE_TURNS = 5
 
-# Cultural victory thresholds (v11.0, G5)
-CULTURAL_ALLY_MINOR_WORLDS = 4
-CULTURAL_RELICS_REQUIRED = 2
+# Cultural victory thresholds.  Ally minor worlds bumped up by one to
+# force real diplomatic investment rather than an ally + 2 trade runs.
+CULTURAL_ALLY_MINOR_WORLDS = 5
+CULTURAL_RELICS_REQUIRED = 3
+
+# 12.0 — Alliance victory also needs real favor, not just "allied" rel.
+ALLIANCE_FAVOR_MIN = 50
 
 # Victory type display names and colors
 VICTORY_INFO = {
@@ -99,31 +108,55 @@ def check_domination(state, galaxy):
     return galaxy.check_win()
 
 
+def _ascension_threshold(galaxy) -> int:
+    """How many Ancient planets a run's galaxy actually requires.
+
+    12.0 tightened the flat requirement from 3 to 5, but not every
+    generated galaxy includes all 5 Ancient names (the default
+    ``neutral_count=5`` exposes only 3).  Anchor the threshold to
+    whichever Ancients *this galaxy* contains, clamped to
+    [3, ASCENSION_ANCIENT_NEEDED] so small maps stay winnable and
+    large maps keep the climactic feel.
+    """
+    present = sum(1 for p in galaxy.planets.values()
+                  if p.name in ANCIENT_PLANETS)
+    return max(3, min(ASCENSION_ANCIENT_NEEDED, present))
+
+
 def check_ascension(state, galaxy):
-    """Check Ascension victory: completed Ascension doctrine tree + 3 Ancient planets owned."""
+    """Check Ascension victory: Ascension doctrine tree + threshold of
+    Ancient planets owned (scales with the galaxy — see
+    ``_ascension_threshold``)."""
     if "ascension" not in getattr(state, 'completed_doctrines', []):
         return False
     ancient_owned = sum(
         1 for p in galaxy.planets.values()
         if p.name in ANCIENT_PLANETS and p.owner == "player"
     )
-    return ancient_owned >= ASCENSION_ANCIENT_NEEDED
+    return ancient_owned >= _ascension_threshold(galaxy)
 
 
 def check_alliance(state, galaxy):
-    """Check Galactic Alliance: ALLIED with all surviving (non-eliminated) factions."""
+    """Check Galactic Alliance: ALLIED with every surviving faction AND
+    ``ALLIANCE_FAVOR_MIN`` favor with each.
+
+    12.0: raw "allied" relation isn't enough — the path now requires
+    genuine diplomatic investment so flip-flops and one-turn alliance
+    rushes don't win the game.
+    """
+    surviving = 0
     for faction in ALL_FACTIONS:
         if faction == state.player_faction:
             continue
-        # Skip eliminated factions
         if galaxy.get_faction_planet_count(faction) == 0:
             continue
+        surviving += 1
         rel = state.faction_relations.get(faction, "hostile")
         if rel != "allied":
             return False
-    # Must have at least one surviving faction to ally with
-    surviving = sum(1 for f in ALL_FACTIONS
-                    if f != state.player_faction and galaxy.get_faction_planet_count(f) > 0)
+        favor = state.diplomatic_favor.get(faction, 0)
+        if favor < ALLIANCE_FAVOR_MIN:
+            return False
     return surviving > 0
 
 
@@ -186,8 +219,24 @@ def check_economic(state, galaxy):
     return state.consecutive_high_income_turns >= ECONOMIC_CONSECUTIVE_TURNS
 
 
+def _cultural_ally_threshold(galaxy) -> int:
+    """How many ally minor worlds this galaxy actually requires.
+
+    Clamped to the number of neutral planets the run was generated
+    with — galaxies below the 12.0 baseline stay winnable by needing
+    every neutral to be allied.
+    """
+    neutral_count = sum(1 for p in galaxy.planets.values()
+                        if p.planet_type == "neutral")
+    return max(3, min(CULTURAL_ALLY_MINOR_WORLDS, neutral_count))
+
+
 def check_cultural(state, galaxy):
-    """Check Cultural Ascendancy: deep minor-world network + relic collection."""
+    """Check Cultural Ascendancy: deep minor-world network + relics.
+
+    12.0: ally threshold scales with the number of neutral planets
+    generated so small galaxies can still reach this path.
+    """
     try:
         from .minor_worlds import MinorWorldState, INFLUENCE_TIERS
     except ImportError:
@@ -199,10 +248,9 @@ def check_cultural(state, galaxy):
         except Exception:
             continue
         influence = getattr(mw, "influence", 0)
-        # Ally tier threshold (60 in the current minor_worlds balance)
         if influence >= 60:
             ally_count += 1
-    if ally_count < CULTURAL_ALLY_MINOR_WORLDS:
+    if ally_count < _cultural_ally_threshold(galaxy):
         return False
     return len(state.relics) >= CULTURAL_RELICS_REQUIRED
 
@@ -252,6 +300,67 @@ def tick_supergate(state, galaxy):
     return None
 
 
+def is_player_near_victory(state, galaxy) -> tuple[bool, str]:
+    """Return ``(near, path)`` — whether the player is one step away from
+    any victory, and which path is closest.
+
+    12.0: used by the emergency anti-coalition trigger so surviving
+    factions rally against a winning player instead of letting the run
+    coast to the finish line.
+    """
+    # Domination: only one enemy homeworld left standing
+    hw_remaining = [p for p in galaxy.planets.values()
+                    if p.planet_type == "homeworld"
+                    and p.owner not in ("player", "neutral")]
+    if len(hw_remaining) == 1:
+        return True, "domination"
+
+    # Ascension: doctrine complete + one shy of the per-galaxy threshold
+    if "ascension" in (state.completed_doctrines or []):
+        ancient_owned = sum(1 for p in galaxy.planets.values()
+                             if p.name in ANCIENT_PLANETS and p.owner == "player")
+        threshold = _ascension_threshold(galaxy)
+        if ancient_owned >= threshold - 1:
+            return True, "ascension"
+
+    # Supremacy: supergate built and close to holding long enough
+    sg = state.supergate_progress
+    if sg.get("built") and sg.get("turns_held", 0) >= SUPERGATE_HOLD_TURNS - 1:
+        return True, "supremacy"
+
+    # Economic: within one turn of the streak threshold
+    total = len(galaxy.planets)
+    if total > 0:
+        fraction = galaxy.get_player_planet_count() / total
+        income = _player_income_per_turn(state, galaxy)
+        if (fraction >= ECONOMIC_TERRITORY_FRACTION
+                and income >= ECONOMIC_INCOME_PER_TURN
+                and state.consecutive_high_income_turns >= ECONOMIC_CONSECUTIVE_TURNS - 1):
+            return True, "economic"
+
+    # Cultural: one ally or one relic shy
+    try:
+        from .minor_worlds import MinorWorldState
+        ally = 0
+        for _pid, _mw in state.minor_world_states.items():
+            try:
+                mw = MinorWorldState.from_dict(_mw)
+            except Exception:
+                continue
+            if getattr(mw, "influence", 0) >= 60:
+                ally += 1
+        ally_needed = _cultural_ally_threshold(galaxy)
+        if ally >= ally_needed - 1 \
+                and len(state.relics) >= CULTURAL_RELICS_REQUIRED - 1 \
+                and (ally >= ally_needed
+                     or len(state.relics) >= CULTURAL_RELICS_REQUIRED):
+            return True, "cultural"
+    except Exception:
+        pass
+
+    return False, ""
+
+
 def check_any_victory(state, galaxy):
     """Check all victory conditions.
 
@@ -295,15 +404,16 @@ def get_victory_progress(state, galaxy):
     else:
         progress.append(("domination", "Domination", "All captured", 1.0))
 
-    # Ascension: doctrine + ancient planets
+    # Ascension: doctrine + ancient planets (threshold scales with galaxy)
     asc_tree = 1 if "ascension" in getattr(state, 'completed_doctrines', []) else 0
     ancient_owned = sum(1 for p in galaxy.planets.values()
                         if p.name in ANCIENT_PLANETS and p.owner == "player")
-    asc_parts = asc_tree + min(ASCENSION_ANCIENT_NEEDED, ancient_owned)
-    asc_total = 1 + ASCENSION_ANCIENT_NEEDED
+    asc_needed = _ascension_threshold(galaxy)
+    asc_parts = asc_tree + min(asc_needed, ancient_owned)
+    asc_total = 1 + asc_needed
     tree_str = "Tree: Done" if asc_tree else "Tree: No"
     progress.append(("ascension", "Ascension",
-                      f"{tree_str} | Ancient: {ancient_owned}/{ASCENSION_ANCIENT_NEEDED}",
+                      f"{tree_str} | Ancient: {ancient_owned}/{asc_needed}",
                       asc_parts / asc_total))
 
     # Alliance: count allied surviving factions
@@ -353,14 +463,15 @@ def get_victory_progress(state, galaxy):
             except Exception:
                 continue
         relic_count = len(state.relics)
+        ally_needed = _cultural_ally_threshold(galaxy)
         parts_done = 0
-        if ally_count >= CULTURAL_ALLY_MINOR_WORLDS:
+        if ally_count >= ally_needed:
             parts_done += 1
         if relic_count >= CULTURAL_RELICS_REQUIRED:
             parts_done += 1
         progress.append((
             "cultural", "Cultural Ascendancy",
-            f"Ally MW {ally_count}/{CULTURAL_ALLY_MINOR_WORLDS} | "
+            f"Ally MW {ally_count}/{ally_needed} | "
             f"Relics {relic_count}/{CULTURAL_RELICS_REQUIRED}",
             parts_done / 2,
         ))

@@ -922,8 +922,11 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 hint_surf = _render_text(hint_font, hint_text, (180, 200, 220))
                 hint_x = (SCREEN_WIDTH - hint_surf.get_width()) // 2
                 hint_y = COMMAND_BAR_Y - hint_surf.get_height() - 8
-                hint_bg = pygame.Surface((hint_surf.get_width() + 16, hint_surf.get_height() + 8), pygame.SRCALPHA)
-                hint_bg.fill((20, 30, 50, 180))
+                hint_bg = _get_cached_panel(
+                    hint_surf.get_width() + 16,
+                    hint_surf.get_height() + 8,
+                    (20, 30, 50, 180),
+                    None)
                 screen.blit(hint_bg, (hint_x - 8, hint_y - 4))
                 screen.blit(hint_surf, (hint_x, hint_y))
 
@@ -1023,12 +1026,20 @@ def render_frame(state, game, screen, dt, drag_visual_state):
 
     # Draw visual feedback when dragging Ring Transport over valid targets
     if state.dragging_card and has_ability(state.dragging_card, Ability.RING_TRANSPORT):
-        # Highlight valid targets
+        # Golden glow around valid cards — cache the filled shape once
+        # per (w, h) and animate alpha with set_alpha() instead of
+        # re-drawing the rect into a fresh surface every frame.
+        glow_alpha = int(100 + 80 * math.sin(pygame.time.get_ticks() * 0.008))
         for card, rect in state.decoy_valid_targets:
-            # Golden glow around valid cards
-            glow_surf = pygame.Surface((rect.width + 20, rect.height + 20), pygame.SRCALPHA)
-            glow_alpha = int(100 + 80 * math.sin(pygame.time.get_ticks() * 0.008))
-            pygame.draw.rect(glow_surf, (100, 200, 255, glow_alpha), glow_surf.get_rect(), border_radius=8)
+            gw, gh = rect.width + 20, rect.height + 20
+            key = ("ring_glow", gw, gh)
+            glow_surf = _surface_cache.get(key)
+            if glow_surf is None:
+                glow_surf = pygame.Surface((gw, gh), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (100, 200, 255, 255),
+                                  glow_surf.get_rect(), border_radius=8)
+                _surface_cache[key] = glow_surf
+            glow_surf.set_alpha(glow_alpha)
             screen.blit(glow_surf, (rect.x - 10, rect.y - 10))
 
         # Draw laser beam to hovered target

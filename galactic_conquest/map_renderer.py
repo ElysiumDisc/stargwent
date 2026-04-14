@@ -9,6 +9,10 @@ import pygame
 import math
 import os
 
+from . import leader_command
+from . import relic_actives_panel
+from .activity_sidebar import ActivitySidebar
+
 
 # Planet visual sizes
 PLANET_RADIUS_HOMEWORLD = 22
@@ -43,6 +47,61 @@ def _get_dim_overlay(w, h, alpha):
         surf.set_alpha(alpha)
         _dim_overlay_cache[key] = surf
     return surf
+
+
+# --- Per-planet glow / marker cache -----------------------------------------
+# These get drawn once per planet per frame; the underlying shapes only
+# depend on radius, so cache the filled surface and animate alpha via
+# set_alpha() at blit time.
+_planet_glow_cache = {}
+
+
+def _get_attackable_glow(radius):
+    """Cached bluish glow disk for attackable planets (size = radius*6)."""
+    key = ("attackable", radius)
+    surf = _planet_glow_cache.get(key)
+    if surf is None:
+        side = radius * 6
+        surf = pygame.Surface((side, side), pygame.SRCALPHA)
+        pygame.draw.circle(surf, (*COLOR_LANE_ATTACKABLE, 40),
+                           (side // 2, side // 2), side // 2)
+        _planet_glow_cache[key] = surf
+    return surf
+
+
+def _get_homeworld_ring(radius, color):
+    """Cached hollow faction-coloured ring for enemy homeworlds."""
+    key = ("hw_ring", radius, color)
+    surf = _planet_glow_cache.get(key)
+    if surf is None:
+        side = radius * 8
+        surf = pygame.Surface((side, side), pygame.SRCALPHA)
+        # Draw at full alpha; caller animates via set_alpha().
+        pygame.draw.circle(surf, (*color, 255),
+                           (side // 2, side // 2), side // 2, 3)
+        _planet_glow_cache[key] = surf
+    return surf
+
+
+def _get_star_sprite(color):
+    """Cached 16x16 star sprite drawn at full alpha.  Animate via set_alpha()."""
+    key = ("star", color)
+    surf = _planet_glow_cache.get(key)
+    if surf is None:
+        surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+        _draw_star(surf, 8, 8, 6, (*color, 255))
+        _planet_glow_cache[key] = surf
+    return surf
+
+
+def _draw_star(surf, cx, cy, r, color):
+    """Draw a 5-point star centered at (cx, cy).  Alpha-aware."""
+    pts = []
+    for i in range(10):
+        ang = math.pi / 2 + i * math.pi / 5
+        rr = r if i % 2 == 0 else r * 0.45
+        pts.append((cx + math.cos(ang) * rr, cy - math.sin(ang) * rr))
+    pygame.draw.polygon(surf, color, pts)
 
 
 FACTION_COLORS = {
@@ -99,6 +158,9 @@ class MapScreen:
         # Side panel cache
         self._panel_cache = None  # (cache_key, surface)
 
+        # 12.0: Activity log sidebar (right-edge slide-out, L to toggle)
+        self.activity_sidebar = ActivitySidebar()
+
         # Calculate layout
         self._recalculate_layout()
 
@@ -152,6 +214,86 @@ class MapScreen:
     def _get_planet_color(self, planet):
         return FACTION_COLORS.get(planet.owner, (150, 150, 150))
 
+    # ------------------------------------------------------------------
+    # 12.0 lookups: rival arc hideouts and narrative arc planet status
+    # ------------------------------------------------------------------
+    def _rival_arc_for_planet(self, campaign_state, planet_id):
+        """Return the active rival arc dict whose hideout is this planet,
+        or ``None``.  Cheap linear scan — ``rival_arcs`` stays small."""
+        for arc in getattr(campaign_state, "rival_arcs", []) or []:
+            if arc.get("phase") == "resolved":
+                continue
+            if arc.get("hideout_planet_id") == planet_id:
+                return arc
+        return None
+
+    def _lane_diplo_color(self, state, a, b):
+        """Return a diplomatic tint for the lane between planets *a* and *b*,
+        or ``None`` if this lane has no relation colour to show.
+
+        Only lanes that touch a player-owned planet get a relation
+        colour — lanes between two AI factions would be noisy to paint
+        across the whole map.  Colours::
+
+            allied    → green
+            trading   → soft blue
+            nap       → amber
+            coalition → pulsing red
+            hostile   → dull red
+        """
+        if a.owner == "player" and b.owner == "player":
+            return None
+        # Decide which side is the "other" faction.
+        if a.owner == "player":
+            other = b.owner
+        elif b.owner == "player":
+            other = a.owner
+        else:
+            return None
+        if other in ("player", "neutral"):
+            return None
+
+        # Coalition membership wins — pulse attention-red.
+        coalition = getattr(state, "coalition", {}) or {}
+        if coalition.get("active") and other in (coalition.get("members") or []):
+            pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.005)
+            return (200 + int(40 * pulse), 40, 40)
+
+        rel = (state.faction_relations or {}).get(other, "neutral")
+        if rel == "allied":
+            return (60, 180, 90)
+        if rel == "trading":
+            return (90, 150, 220)
+
+        # NAP treaty?
+        for t in getattr(state, "treaties", []) or []:
+            if t.get("faction") == other and t.get("type") == "nap" \
+                    and t.get("turns_remaining", 0) > 0:
+                return (220, 180, 60)
+
+        if rel == "hostile":
+            return (150, 60, 60)
+        return None
+
+    def _narrative_arc_state(self, campaign_state, planet_name):
+        """Return ``"active"`` / ``"complete"`` / ``None`` for a planet.
+
+        - ``"active"``   — planet is on an unfinished arc's required list.
+        - ``"complete"`` — planet belongs to a fully-progressed arc.
+        - ``None``       — no arc involvement.
+        """
+        from .narrative_arcs import NARRATIVE_ARCS
+        progress = getattr(campaign_state, "narrative_progress", {}) or {}
+        any_active = False
+        for arc_id, arc in NARRATIVE_ARCS.items():
+            if planet_name not in getattr(arc, "required_planets", []):
+                continue
+            conquered = set(progress.get(arc_id, []))
+            if len(conquered) >= len(arc.required_planets):
+                return "complete"
+            any_active = True
+        return "active" if any_active else None
+
     def _get_planet_radius(self, planet):
         if planet.planet_type == "homeworld":
             return PLANET_RADIUS_HOMEWORLD
@@ -180,12 +322,19 @@ class MapScreen:
                     cx, cy = self._world_to_screen(conn.position)
                     is_attackable = (pid in attackable_ids or conn_id in attackable_ids)
                     both_player = (planet.owner == "player" and conn.owner == "player")
+                    # 12.0: lanes touching the player's territory carry a
+                    # diplomatic tint so coalition / trade / NAP / hostile
+                    # relations are legible at a glance.
+                    diplo_color = self._lane_diplo_color(campaign_state, planet, conn)
                     if is_attackable:
                         color = COLOR_LANE_ATTACKABLE
                         width = 2
                     elif both_player:
                         pulse_val = int(80 + 60 * lane_pulse)
                         color = (pulse_val, int(pulse_val * 1.5), pulse_val)
+                        width = 2
+                    elif diplo_color is not None:
+                        color = diplo_color
                         width = 2
                     else:
                         color = COLOR_LANE
@@ -197,6 +346,33 @@ class MapScreen:
         from .diplomacy import get_adjacency_bonus_factions
         allied_factions = get_adjacency_bonus_factions(campaign_state)
         unsupplied = get_disconnected_planets(galaxy_map, campaign_state.player_faction, allied_factions)
+
+        # Pre-compute operative counts per planet once per frame; the old
+        # code called get_operative_summary() inside the per-planet loop.
+        from .espionage import get_operative_summary
+        _ops_by_pid = {}
+        for _o in get_operative_summary(campaign_state):
+            _o_pid = _o[3]
+            if _o_pid and _o[2] not in ("idle", "dead"):
+                _ops_by_pid[_o_pid] = _ops_by_pid.get(_o_pid, 0) + 1
+
+        # Pre-compute narrative-arc state per planet once per frame.
+        # Old code ran the full NARRATIVE_ARCS scan inside the draw loop.
+        from .narrative_arcs import NARRATIVE_ARCS
+        _progress = getattr(campaign_state, "narrative_progress", {}) or {}
+        _arc_state_by_name: dict[str, str] = {}
+        for _arc_id, _arc in NARRATIVE_ARCS.items():
+            _req = getattr(_arc, "required_planets", []) or []
+            if not _req:
+                continue
+            _conquered = len(set(_progress.get(_arc_id, [])))
+            _state = "complete" if _conquered >= len(_req) else "active"
+            for _pname in _req:
+                prev = _arc_state_by_name.get(_pname)
+                # "complete" wins over "active" if any arc containing this
+                # planet is finished (mirrors original method's early return).
+                if prev != "complete":
+                    _arc_state_by_name[_pname] = _state
 
         # Draw planets
         for pid, planet in galaxy_map.planets.items():
@@ -210,9 +386,7 @@ class MapScreen:
 
             is_attackable = pid in attackable_ids and not is_cooldown
             if is_attackable:
-                glow_surf = pygame.Surface((radius * 6, radius * 6), pygame.SRCALPHA)
-                pygame.draw.circle(glow_surf, (*COLOR_LANE_ATTACKABLE, 40),
-                                   (radius * 3, radius * 3), radius * 3)
+                glow_surf = _get_attackable_glow(radius)
                 screen.blit(glow_surf, (sx - radius * 3, sy - radius * 3))
 
             pygame.draw.circle(screen, color, (sx, sy), radius)
@@ -268,23 +442,41 @@ class MapScreen:
                     "\u2666" * fort_level, True, (100, 200, 255))
                 screen.blit(shield_text, (sx - shield_text.get_width() // 2, sy - radius - 14))
 
-            # Operative indicator (small diamond)
-            from .espionage import get_operative_summary
-            _ops = get_operative_summary(campaign_state)
-            _op_here = sum(1 for o in _ops if o[3] == pid and o[2] not in ("idle", "dead"))
+            # Operative indicator (small diamond) — count pre-aggregated above
+            _op_here = _ops_by_pid.get(pid, 0)
             if _op_here > 0:
                 op_text = self.font_info.render(
                     "\u25C6" * _op_here, True, (200, 150, 255))
                 screen.blit(op_text, (sx - op_text.get_width() // 2, sy + radius + 16))
 
-            # Enemy homeworld glow ring
+            # Enemy homeworld glow ring (cached shape, animated alpha)
             if planet.planet_type == "homeworld" and planet.owner not in ("player", "neutral"):
                 hw_color = FACTION_COLORS.get(planet.owner, (200, 50, 50))
+                glow_surf = _get_homeworld_ring(radius, hw_color)
                 glow_alpha = int(120 + 60 * math.sin(pygame.time.get_ticks() * 0.003))
-                glow_surf = pygame.Surface((radius * 8, radius * 8), pygame.SRCALPHA)
-                pygame.draw.circle(glow_surf, (*hw_color, min(255, glow_alpha)),
-                                   (radius * 4, radius * 4), radius * 4, 3)
+                glow_surf.set_alpha(min(255, glow_alpha))
                 screen.blit(glow_surf, (sx - radius * 4, sy - radius * 4))
+
+            # 12.0: Rival arc hideout marker (blood-red ghost glyph)
+            rival_here = self._rival_arc_for_planet(campaign_state, pid)
+            if rival_here is not None:
+                ghost_text = self.font_info.render("\u2620", True, (220, 80, 80))
+                screen.blit(ghost_text,
+                            (sx + radius - 2, sy - radius - ghost_text.get_height()))
+
+            # 12.0: Narrative arc marker (golden star) on planets tied to
+            # an arc that has not yet completed.  Shape cached, alpha animated.
+            arc_state = _arc_state_by_name.get(planet.name)
+            if arc_state == "active":
+                pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.004)
+                star_alpha = int(120 + 100 * pulse)
+                star_surf = _get_star_sprite((255, 210, 80))
+                star_surf.set_alpha(star_alpha)
+                screen.blit(star_surf, (sx - radius - 10, sy - radius - 10))
+            elif arc_state == "complete":
+                star_surf = _get_star_sprite((255, 220, 150))
+                star_surf.set_alpha(220)
+                screen.blit(star_surf, (sx - radius - 10, sy - radius - 10))
 
             self.planet_rects[pid] = pygame.Rect(sx - radius, sy - radius,
                                                   radius * 2, radius * 2)
@@ -399,6 +591,19 @@ class MapScreen:
                                      True, (80, 90, 120))
         screen.blit(hint, (int(self.sw * 0.03),
                            self.sh - self.bottom_hud_h + int(self.sh * 0.005)))
+
+        # 12.0: Leader Command panel (top-left of map area)
+        leader_command.draw_panel(screen, campaign_state, galaxy_map, self)
+        # 12.0: Relic Actives panel (directly below leader command)
+        relic_actives_panel.draw_panel(screen, campaign_state, galaxy_map, self)
+
+        # 12.0: hover tooltip for whichever planet the cursor is on
+        if self.hovered_planet and self.hovered_planet in galaxy_map.planets:
+            self._draw_hover_tooltip(screen, galaxy_map, campaign_state,
+                                     self.hovered_planet)
+
+        # 12.0: activity log sidebar (above everything — it's modal-ish)
+        self.activity_sidebar.draw(screen, self, campaign_state)
 
         # Status message (above bottom HUD)
         if message:
@@ -822,8 +1027,110 @@ class MapScreen:
         screen.blit(label, (rect.centerx - label.get_width() // 2,
                             rect.centery - label.get_height() // 2))
 
+    def _draw_hover_tooltip(self, screen, galaxy_map, state, pid):
+        """Compose and render a floating info card for the hovered planet.
+
+        Aggregates data that used to require clicking the planet and
+        reading the side panel.  Positioned next to the planet but
+        clamped to the map area so it never overflows the HUD.
+        """
+        planet = galaxy_map.planets[pid]
+        lines: list[tuple[str, tuple]] = []
+
+        # Header
+        owner_txt = planet.owner if planet.owner else "neutral"
+        lines.append((f"{planet.name}", (255, 220, 150)))
+        lines.append((f"Owner: {owner_txt}", (200, 200, 230)))
+        if planet.planet_type == "homeworld":
+            lines.append(("Homeworld", (255, 180, 120)))
+
+        # Fort + cooldown
+        fort = (state.fortification_levels or {}).get(pid, 0)
+        if fort > 0:
+            lines.append((f"Fortification: {fort}/3", (120, 200, 255)))
+        cd = (state.cooldowns or {}).get(pid, 0)
+        if cd > 0:
+            lines.append((f"Cooldown: {cd}t", (255, 140, 140)))
+
+        # Building
+        bld = (state.buildings or {}).get(pid)
+        if bld:
+            lvl = (state.building_levels or {}).get(pid, 1)
+            lines.append((f"Building: {bld} L{lvl}", (220, 200, 120)))
+
+        # Weather
+        if getattr(planet, "weather_preset", None):
+            lines.append((f"Weather: {planet.weather_preset}", (180, 220, 220)))
+
+        # Operatives here
+        try:
+            from .espionage import get_operative_summary
+            ops_here = [o for o in get_operative_summary(state)
+                        if o[3] == pid and o[2] not in ("idle", "dead")]
+            if ops_here:
+                lines.append((f"Operatives: {len(ops_here)}", (200, 150, 255)))
+        except Exception:
+            pass
+
+        # Rival arc hideout
+        rival = self._rival_arc_for_planet(state, pid)
+        if rival:
+            lines.append(
+                (f"Rival: {rival.get('rival_name', '?')} ({rival.get('phase', '?')})",
+                 (230, 110, 110)))
+
+        # Narrative arc progress
+        arc_state = self._narrative_arc_state(state, planet.name)
+        if arc_state == "active":
+            lines.append(("Narrative arc in progress", (255, 220, 120)))
+        elif arc_state == "complete":
+            lines.append(("Arc complete", (200, 230, 150)))
+
+        # Passives (brief — show first 2 only)
+        try:
+            from .planet_passives import PLANET_PASSIVES
+            passives = PLANET_PASSIVES.get(planet.name, {})
+            shown = 0
+            for key, val in passives.items():
+                if shown >= 2:
+                    break
+                lines.append((f"  {key}: {val}", (180, 200, 180)))
+                shown += 1
+        except Exception:
+            pass
+
+        # Layout
+        pad = 8
+        font = self.font_info
+        surfaces = [font.render(t, True, c) for t, c in lines]
+        w = max(s.get_width() for s in surfaces) + pad * 2
+        h = sum(s.get_height() for s in surfaces) + pad * 2 + 2 * (len(surfaces) - 1)
+
+        # Place next to planet but keep inside map_rect
+        sx, sy = self._world_to_screen(planet.position)
+        radius = self._get_planet_radius(planet)
+        tx = sx + radius + 12
+        ty = sy - h // 2
+        if tx + w > self.map_rect.right:
+            tx = sx - radius - 12 - w
+        ty = max(self.map_rect.y + 4, min(ty, self.map_rect.bottom - h - 4))
+
+        tip = pygame.Surface((w, h), pygame.SRCALPHA)
+        tip.fill((15, 20, 35, 230))
+        pygame.draw.rect(tip, (120, 160, 220), tip.get_rect(), 1)
+        y = pad
+        for s in surfaces:
+            tip.blit(s, (pad, y))
+            y += s.get_height() + 2
+        screen.blit(tip, (tx, ty))
+
     def handle_event(self, event, galaxy_map, campaign_state, attackable_ids):
         """Handle mouse events. Returns action string or None."""
+        # 12.0: activity log sidebar gets first dibs — it consumes key L,
+        # clicks on its tab/panel, and scroll wheel events inside it.
+        if self.activity_sidebar.handle_event(event, self):
+            return None
+
         if event.type == pygame.MOUSEMOTION:
             mx, my = event.pos
             self.hovered_planet = None
@@ -834,6 +1141,18 @@ class MapScreen:
 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos
+
+            # 12.0: Leader Command button hit-test (takes priority over
+            # planet clicks so the strip stays usable when planets are dense)
+            _lc_action = leader_command.hit_test(self, (mx, my))
+            if _lc_action:
+                return f"leader_action:{_lc_action}"
+
+            # 12.0: Relic actives panel sits beneath the leader command
+            # strip; same priority principle.
+            _relic_action = relic_actives_panel.hit_test(self, (mx, my))
+            if _relic_action:
+                return f"relic_active:{_relic_action}"
 
             # Check panel toggle button
             if self.panel_toggle_btn_rect and self.panel_toggle_btn_rect.collidepoint(mx, my):
@@ -900,6 +1219,8 @@ class MapScreen:
                 return "view_deck"
             elif event.key == pygame.K_i:
                 return "run_info"
+            elif event.key == pygame.K_s:
+                return "spy_report"
             elif event.key == pygame.K_TAB:
                 self.panel_visible = not self.panel_visible
                 self._recalculate_layout()

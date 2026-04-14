@@ -14,10 +14,57 @@ CAMPAIGN_SAVE_FILENAME = "galactic_conquest_save.json"
 CAMPAIGN_V10_BACKUP_FILENAME = "galactic_conquest_save.json.v10.bak"
 CONQUEST_SETTINGS_FILENAME = "conquest_settings.json"
 
+# 12.0 — Multi-save slots (Pillar 5d).
+# Slot 0 keeps the legacy filename (``galactic_conquest_save.json``) so
+# existing 11.x saves are automatically the "Slot 1" campaign after
+# upgrade — no migration needed.
+NUM_SAVE_SLOTS = 3
+_SLOT_FILENAMES = {
+    0: CAMPAIGN_SAVE_FILENAME,
+    1: "galactic_conquest_save_slot2.json",
+    2: "galactic_conquest_save_slot3.json",
+}
 
-def get_campaign_save_path() -> str:
-    """Get the full path to the campaign save file."""
-    return os.path.join(get_data_dir(), CAMPAIGN_SAVE_FILENAME)
+
+def get_campaign_save_path(slot: int = 0) -> str:
+    """Get the full path to the campaign save file for a given slot."""
+    filename = _SLOT_FILENAMES.get(slot, CAMPAIGN_SAVE_FILENAME)
+    return os.path.join(get_data_dir(), filename)
+
+
+def list_save_slots() -> list[dict]:
+    """Return metadata for each save slot, in slot order.
+
+    Each entry has ``{slot, exists, faction, turn, planets, player_name}``.
+    Missing slots return ``exists=False`` and default values — suitable
+    for rendering a picker screen.
+    """
+    slots = []
+    for slot in range(NUM_SAVE_SLOTS):
+        path = get_campaign_save_path(slot)
+        info = {
+            "slot": slot,
+            "exists": os.path.exists(path),
+            "faction": None,
+            "turn": 0,
+            "planets": 0,
+            "player_name": None,
+        }
+        if info["exists"]:
+            try:
+                with open(path, "r") as f:
+                    data = json.load(f)
+                info["faction"] = data.get("player_faction")
+                info["turn"] = data.get("turn_number", 0)
+                info["planets"] = sum(
+                    1 for v in data.get("planet_ownership", {}).values()
+                    if v == "player")
+                leader = data.get("player_leader") or {}
+                info["player_name"] = leader.get("name")
+            except (IOError, OSError, json.JSONDecodeError):
+                pass
+        slots.append(info)
+    return slots
 
 
 def _backup_pre_11_save_if_needed(path: str) -> None:
@@ -43,14 +90,19 @@ def _backup_pre_11_save_if_needed(path: str) -> None:
         print(f"[conquest] Pre-11 backup skipped: {e}")
 
 
-def save_campaign(state) -> bool:
+def save_campaign(state, slot: int | None = None) -> bool:
     """Save campaign state to disk atomically. Returns True on success.
 
     Atomic write ensures the on-disk save can't be corrupted by a SIGKILL
     (or power loss) mid-write — a half-written .tmp is left behind instead
     of clobbering the prior good save.
+
+    If *slot* is omitted, the slot is taken from ``state.save_slot``
+    (12.0 field, default 0).
     """
-    path = get_campaign_save_path()
+    if slot is None:
+        slot = getattr(state, "save_slot", 0)
+    path = get_campaign_save_path(slot)
     try:
         _backup_pre_11_save_if_needed(path)
         data = state.to_dict()
@@ -64,16 +116,17 @@ def save_campaign(state) -> bool:
     return False
 
 
-def load_campaign():
+def load_campaign(slot: int = 0):
     """Load campaign state from disk. Returns CampaignState or None."""
     from .campaign_state import CampaignState
-    path = get_campaign_save_path()
+    path = get_campaign_save_path(slot)
     if not os.path.exists(path):
         return None
     try:
         with open(path, "r") as f:
             data = json.load(f)
         state = CampaignState.from_dict(data)
+        state.save_slot = slot
         print(f"[conquest] Campaign loaded from {path}")
         return state
     except (IOError, OSError, json.JSONDecodeError, KeyError) as e:
@@ -81,9 +134,9 @@ def load_campaign():
         return None
 
 
-def clear_campaign() -> bool:
+def clear_campaign(slot: int = 0) -> bool:
     """Delete the campaign save file. Returns True on success."""
-    path = get_campaign_save_path()
+    path = get_campaign_save_path(slot)
     if os.path.exists(path):
         try:
             os.remove(path)
@@ -95,9 +148,16 @@ def clear_campaign() -> bool:
     return True
 
 
-def has_campaign_save() -> bool:
-    """Check if a campaign save file exists."""
-    return os.path.exists(get_campaign_save_path())
+def has_campaign_save(slot: int | None = None) -> bool:
+    """Check if a campaign save file exists.
+
+    When *slot* is omitted, returns True if **any** slot has a save —
+    the legacy single-save behaviour used by the main menu.
+    """
+    if slot is not None:
+        return os.path.exists(get_campaign_save_path(slot))
+    return any(os.path.exists(get_campaign_save_path(s))
+               for s in range(NUM_SAVE_SLOTS))
 
 
 # --- Conquest Run Settings (persist between sessions) ---

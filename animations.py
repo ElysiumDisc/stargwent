@@ -2,7 +2,7 @@ import pygame
 import math
 import random
 import sys
-from collections import deque
+from collections import deque, OrderedDict
 import display_manager
 
 _IS_WEB = sys.platform == "emscripten"
@@ -10,22 +10,26 @@ _IS_WEB = sys.platform == "emscripten"
 # ============================================================================
 # PARTICLE SPRITE CACHE — avoids per-frame SRCALPHA surface creation
 # ============================================================================
-_particle_sprite_cache = {}
-_MAX_PARTICLE_CACHE = 300
+# True LRU: move_to_end on hit, popitem(last=False) evicts least-recently-used.
+_particle_sprite_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
+_MAX_PARTICLE_CACHE = 150
+_PARTICLE_CACHE_EVICT = 30
 
 
 def _get_circle_sprite(size, color, alpha=255):
     """Return a cached SRCALPHA circle surface. Avoids malloc every frame."""
     key = (size, color, alpha)
     s = _particle_sprite_cache.get(key)
-    if s is None:
-        if len(_particle_sprite_cache) >= _MAX_PARTICLE_CACHE:
-            # LRU eviction: remove oldest 60 entries instead of clearing all
-            keys_to_remove = list(_particle_sprite_cache.keys())[:60]
-            for k in keys_to_remove:
-                del _particle_sprite_cache[k]
-        s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, (*color, alpha) if len(color) == 3 else color, (size, size), size)
+    if s is not None:
+        _particle_sprite_cache.move_to_end(key)
+        return s
+    if len(_particle_sprite_cache) >= _MAX_PARTICLE_CACHE:
+        for _ in range(_PARTICLE_CACHE_EVICT):
+            _particle_sprite_cache.popitem(last=False)
+    s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+    pygame.draw.circle(s,
+                       (*color, alpha) if len(color) == 3 else color,
+                       (size, size), size)
     _particle_sprite_cache[key] = s
     return s
 
@@ -573,15 +577,19 @@ class AbilityBurstEffect:
         # Expand ring
         self.ring_radius = self.max_ring_radius * self.ease_out_cubic(min(progress * 1.5, 1.0))
 
-        # Update particles
-        for particle in self.particles[:]:
-            particle['x'] += particle['vx'] * (dt / 16.0)
-            particle['y'] += particle['vy'] * (dt / 16.0)
+        # Update particles (mark-and-sweep)
+        life_decay = dt / self.duration
+        dt16 = dt / 16.0
+        alive = []
+        for particle in self.particles:
+            particle['x'] += particle['vx'] * dt16
+            particle['y'] += particle['vy'] * dt16
             particle['vx'] *= 0.96
             particle['vy'] *= 0.96
-            particle['life'] -= dt / self.duration
-            if particle['life'] <= 0:
-                self.particles.remove(particle)
+            particle['life'] -= life_decay
+            if particle['life'] > 0:
+                alive.append(particle)
+        self.particles = alive
 
         return True
 
@@ -812,12 +820,16 @@ class ParticleEffect:
     
     def update(self, dt):
         """Update all particles."""
-        for particle in self.particles[:]:
-            particle['pos'] += particle['vel'] * (dt / 16.0)  # Normalize to 60fps
-            particle['life'] -= dt / 1000.0
+        dt16 = dt / 16.0
+        life_decay = dt / 1000.0
+        alive = []
+        for particle in self.particles:
+            particle['pos'] += particle['vel'] * dt16  # Normalize to 60fps
+            particle['life'] -= life_decay
             particle['vel'] *= 0.98  # Slow down
-            if particle['life'] <= 0:
-                self.particles.remove(particle)
+            if particle['life'] > 0:
+                alive.append(particle)
+        self.particles = alive
         return len(self.particles) > 0
     
     def draw(self, surface):
@@ -1150,14 +1162,19 @@ class NaquadahExplosionEffect:
         else:
             self.shake_intensity = 0
 
-        # Update particles
-        for particle in self.particles[:]:
-            speed_mult = 1.5 if particle['type'] == 'fast' else 0.8
-            particle['pos'] += particle['vel'] * (dt / 16.0) * speed_mult
-            particle['life'] -= (dt / self.duration) * (1.2 if particle['type'] == 'fast' else 0.9)
+        # Update particles (mark-and-sweep)
+        dt16 = dt / 16.0
+        life_base = dt / self.duration
+        alive = []
+        for particle in self.particles:
+            is_fast = particle['type'] == 'fast'
+            speed_mult = 1.5 if is_fast else 0.8
+            particle['pos'] += particle['vel'] * dt16 * speed_mult
+            particle['life'] -= life_base * (1.2 if is_fast else 0.9)
             particle['vel'] *= 0.97  # Slow down over time
-            if particle['life'] <= 0:
-                self.particles.remove(particle)
+            if particle['life'] > 0:
+                alive.append(particle)
+        self.particles = alive
 
         # Update lightning arcs (fade out quickly)
         for arc in self.lightning_arcs[:]:
@@ -1293,14 +1310,18 @@ class ScorchEffect:
             self.finished = True
             return False
         
-        for particle in self.particles[:]:
-            particle['pos'] += particle['vel'] * (dt / 16.0)
-            particle['life'] -= dt / self.duration
-            if particle['life'] <= 0:
-                self.particles.remove(particle)
-        
+        dt16 = dt / 16.0
+        life_decay = dt / self.duration
+        alive = []
+        for particle in self.particles:
+            particle['pos'] += particle['vel'] * dt16
+            particle['life'] -= life_decay
+            if particle['life'] > 0:
+                alive.append(particle)
+        self.particles = alive
+
         return True
-    
+
     def draw(self, surface):
         """Draw fire particles."""
         for particle in self.particles:
@@ -1620,17 +1641,19 @@ class RowPowerSurgeEffect:
                 'size': random.randint(2, 5),
             })
 
-        # Update particles
-        for p in self.particles[:]:
+        # Update particles — mark-and-sweep avoids O(N) list.remove per kill.
+        life_decay = dt / (self.duration * 0.6)
+        alive = []
+        for p in self.particles:
             p['x'] += p['vx'] * dt_factor
             p['y'] += p['vy'] * dt_factor
-            p['life'] -= dt / (self.duration * 0.6)
-            if p['life'] <= 0:
-                self.particles.remove(p)
-
-        # Cap particles
-        if len(self.particles) > MAX_GENERAL_PARTICLES:
-            self.particles = self.particles[-MAX_GENERAL_PARTICLES:]
+            p['life'] -= life_decay
+            if p['life'] > 0:
+                alive.append(p)
+        # Cap particles (keep newest)
+        if len(alive) > MAX_GENERAL_PARTICLES:
+            alive = alive[-MAX_GENERAL_PARTICLES:]
+        self.particles = alive
 
         return True
 
@@ -3713,17 +3736,19 @@ class StargateOpeningEffect:
         # Stage C: Stabilization (After 13.5s)
         # Gentle ripples handled in draw
 
-        # Update Particles
-        for p in self.particles[:]:
+        # Update Particles (mark-and-sweep)
+        cx2 = self.center_x * 2
+        cy2 = self.center_y * 2
+        alive = []
+        for p in self.particles:
             p['x'] += p['vx']
             p['y'] += p['vy']
             p['life'] -= p.get('decay', 0.02)
-            
-            # Remove dead or off-screen
-            if p['life'] <= 0 or \
-               p['x'] < 0 or p['x'] > self.center_x * 2 or \
-               p['y'] < 0 or p['y'] > self.center_y * 2:
-                self.particles.remove(p)
+            if (p['life'] > 0
+                    and 0 <= p['x'] <= cx2
+                    and 0 <= p['y'] <= cy2):
+                alive.append(p)
+        self.particles = alive
 
     def draw(self, surface):
         """
@@ -5990,12 +6015,15 @@ class WraithCullingBeamAnimation(Animation):
                 'size': random.randint(2, 5)
             })
 
-        # Update particles
-        for p in self.particles[:]:
+        # Update particles (mark-and-sweep)
+        y_limit = self.target_y + 50
+        alive = []
+        for p in self.particles:
             p['y'] += p['vy']
             p['alpha'] -= 3
-            if p['alpha'] <= 0 or p['y'] > self.target_y + 50:
-                self.particles.remove(p)
+            if p['alpha'] > 0 and p['y'] <= y_limit:
+                alive.append(p)
+        self.particles = alive
 
         return active
 

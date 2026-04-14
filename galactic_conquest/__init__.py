@@ -137,7 +137,12 @@ async def run_galactic_conquest(screen, unlock_system, toggle_fullscreen_callbac
 
 
 async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=None):
-    """Start a fresh campaign: faction select -> generate galaxy -> begin."""
+    """Start a fresh campaign: slot pick -> faction select -> generate galaxy -> begin."""
+    # 12.0: pick a save slot when more than one option is available.
+    slot = await _pick_new_slot(screen)
+    if slot is None:
+        return "back"
+
     # Faction + leader + deck selection (supports custom decks)
     setup = await run_faction_setup(screen, unlock_system, toggle_fullscreen_callback)
     screen = display_manager.screen  # Refresh after potential fullscreen toggle
@@ -190,6 +195,7 @@ async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=
         neutral_count=neutral_count,
         enemy_leaders=enemy_leaders,
         difficulty=difficulty,
+        save_slot=slot,
     )
 
     # Apply meta-progression perks to the new campaign
@@ -218,9 +224,9 @@ async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=
         if chosen:
             state.add_relic(chosen)
 
-    # Clear any old save and save new campaign
-    clear_campaign()
-    save_campaign(state)
+    # Clear any old save in this slot and save new campaign
+    clear_campaign(slot)
+    save_campaign(state, slot=slot)
 
     # Run campaign
     controller = CampaignController(screen, state)
@@ -228,10 +234,26 @@ async def _start_new_campaign(screen, unlock_system, toggle_fullscreen_callback=
 
 
 async def _resume_campaign(screen):
-    """Resume a saved campaign."""
-    state = load_campaign()
+    """Resume a saved campaign — pops the slot picker when multiple exist."""
+    from .slot_picker import pick_slot
+    slot = await pick_slot(screen, "resume")
+    if slot is None:
+        return "back"
+
+    state = load_campaign(slot)
     if not state:
         return "back"
 
     controller = CampaignController(screen, state)
     return await controller.run()
+
+
+async def _pick_new_slot(screen):
+    """Slot picker for NEW CAMPAIGN — auto-picks slot 0 when every slot
+    is empty (keeps the old single-save UX for first-run players)."""
+    from .slot_picker import pick_slot
+    from .campaign_persistence import list_save_slots
+    slots = list_save_slots()
+    if not any(s["exists"] for s in slots):
+        return 0
+    return await pick_slot(screen, "new")

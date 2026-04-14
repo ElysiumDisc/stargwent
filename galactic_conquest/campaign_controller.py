@@ -64,6 +64,7 @@ from .victory_conditions import (check_any_victory, tick_supergate, VICTORY_INFO
                                    _player_income_per_turn,
                                    ECONOMIC_TERRITORY_FRACTION,
                                    ECONOMIC_INCOME_PER_TURN)
+from . import activity_log, leader_toolkits, rival_arcs
 
 
 # AI counterattack chance per faction with adjacent border (now overridden by difficulty)
@@ -282,6 +283,10 @@ class CampaignController:
                 await self._show_doctrines()
             elif action == "operatives":
                 await self._show_operatives()
+            elif action == "spy_report":
+                from .spy_report import show_spy_report
+                await show_spy_report(self.screen, self.state, self.galaxy)
+                self._refresh_after_battle()
             elif action and action.startswith("build_"):
                 building_id = action[6:]  # strip "build_" prefix
                 planet_id = self.map_screen.selected_planet
@@ -315,6 +320,18 @@ class CampaignController:
                 msg = use_wisdom_action(self.state, action_id, self.galaxy, self.rng)
                 if msg:
                     self.message = msg
+            elif action and action.startswith("leader_action:"):
+                leader_action_id = action[len("leader_action:"):]
+                msg = await self._handle_leader_action(leader_action_id)
+                if msg:
+                    self.message = msg
+                    self._flash_message(msg, 1500)
+            elif action and action.startswith("relic_active:"):
+                relic_id = action[len("relic_active:"):]
+                msg = await self._handle_relic_active(relic_id)
+                if msg:
+                    self.message = msg
+                    self._flash_message(msg, 1500)
             elif action == "attack":
                 planet_id = self.map_screen.selected_planet
                 if planet_id:
@@ -348,6 +365,27 @@ class CampaignController:
                 # Advance turn
                 self.state.turn_number += 1
                 self.state.tick_cooldowns()
+                # 12.0: tick leader action cooldowns
+                leader_toolkits.tick_cooldowns(self.state)
+                # 12.0: tick turn-counted flags (relic actives / scripted
+                # crises).  Each flag decrements until 0 and is then
+                # removed; consumers just read the value.
+                for _flag in (
+                        "ai_intel_turns",
+                        "network_surge_turns",
+                        "income_double_turns",
+                        "apophis_declaration_turns",
+                        "stargate_lockdown_turns",
+                        "fake_identity_turns",
+                        "operatives_visible_turns",
+                ):
+                    if self.state.conquest_ability_data.get(_flag, 0) > 0:
+                        self.state.conquest_ability_data[_flag] -= 1
+                        if self.state.conquest_ability_data[_flag] <= 0:
+                            del self.state.conquest_ability_data[_flag]
+                # Clear one-shot "this turn only" flags
+                self.state.conquest_ability_data.pop(
+                    "skip_all_counterattacks", None)
                 # Apply cooldown reduction passive
                 cd_reduce = get_cooldown_reduction(self.galaxy)
                 if cd_reduce > 0:
@@ -356,6 +394,15 @@ class CampaignController:
                     # Clean up expired
                     self.state.cooldowns = {k: v for k, v in self.state.cooldowns.items() if v > 0}
                 self.rng = random.Random(self.state.seed + self.state.turn_number)
+
+                # 12.0: advance rival leader arcs (exile → guerrilla → resurgence → showdown)
+                for _arc_msg in rival_arcs.advance_all(self.state, self.galaxy, self.rng):
+                    self._flash_message(_arc_msg, 1800)
+                # 12.0: any rival that just hit SHOWDOWN gets a confrontation prompt
+                for arc in rival_arcs.pending_showdowns(self.state):
+                    showdown_result = await self._run_rival_showdown(arc)
+                    if showdown_result == "quit":
+                        return "quit"
 
                 # Turn summary display — brief animated income breakdown
                 await self._show_turn_summary()
@@ -520,6 +567,27 @@ class CampaignController:
 
                 # G3: Coalition against player — trust update, form, break
                 update_coalition_trust(self.state, self.galaxy)
+                # 12.0: emergency coalition if player is 1 step from victory
+                from .victory_conditions import is_player_near_victory
+                near, victory_path = is_player_near_victory(self.state, self.galaxy)
+                if near and not self.state.coalition.get("active"):
+                    from .diplomacy import (COALITION_DURATION,
+                                              COALITION_FORM_THRESHOLD)
+                    survivors = [f for f in self.galaxy.get_active_factions()
+                                 if f != self.state.player_faction
+                                 and self.galaxy.get_faction_planet_count(f) > 0]
+                    trust = self.state.coalition.setdefault("trust", {})
+                    for f in survivors:
+                        trust[f] = COALITION_FORM_THRESHOLD
+                    self._flash_message(
+                        f"The galaxy rallies to stop your {victory_path.upper()} victory!",
+                        2500)
+                    activity_log.log(
+                        self.state, activity_log.CAT_DIPLOMACY,
+                        f"Emergency coalition forming against "
+                        f"your {victory_path} ambitions.",
+                        icon="coalition",
+                    )
                 coalition_form_msg = check_coalition_formation(self.state, self.galaxy)
                 if coalition_form_msg:
                     turn_msg += f" | {coalition_form_msg}"
@@ -554,7 +622,7 @@ class CampaignController:
                 # Crisis events: 10% chance after turn 5 (or forced via dev shim F6)
                 if self._debug_force_crisis or should_trigger_crisis(self.state):
                     self._debug_force_crisis = False
-                    crisis = pick_crisis(self.state)
+                    crisis = pick_crisis(self.state, self.galaxy)
                     if crisis:
                         choices = CRISIS_CHOICES.get(crisis["effect"])
                         has_c = check_crisis_option_c(self.state, self.galaxy, crisis["effect"])
@@ -720,10 +788,15 @@ class CampaignController:
             self.message = f"Retreated from {planet.name}."
             return "done"
 
+        # 12.0: brief hyperspace warp into battle
+        self._map_to_battle_transition("out", 550)
+
         card_result = await self._run_card_battle(planet, ai_elite_bonus=ai_elite_bonus,
                                                    ai_extra_cards=ai_extra_cards,
                                                    override_leader=battle_leader)
         self._refresh_after_battle()
+        # 12.0: and drop back out on the way home
+        self._map_to_battle_transition("in", 450)
         if card_result == "quit":
             return "quit"
 
@@ -868,6 +941,18 @@ class CampaignController:
                                             source_text=f"Conquered {planet.faction} Homeworld")
                         self._refresh_after_battle()
 
+                # 12.0: spawn a rival leader arc for the defeated commander
+                rival_arcs.spawn_on_homeworld_capture(
+                    self.state, self.galaxy, defeated_faction_name,
+                    planet.defender_leader)
+
+            # 12.0: log the victory
+            activity_log.log(
+                self.state, activity_log.CAT_BATTLE,
+                f"Conquered {planet.name} from {defeated_faction_name}.",
+                icon="victory", faction=defeated_faction_name, planet=planet_id,
+            )
+
             # Check narrative arc progress
             await self._check_narrative_arcs(planet.name)
         elif card_result == "draw":
@@ -911,6 +996,165 @@ class CampaignController:
             self.state.attacks_this_turn += 1
 
         return "done"
+
+    def _map_to_battle_transition(self, direction: str = "out",
+                                    duration_ms: int = 700) -> None:
+        """Short hyperspace warp transition from the map into a battle.
+
+        Uses the existing ``hyperspace`` shader so we don't ship new
+        GPU assets.  The map frame is frozen, the warp uniform ramps
+        from 0 → 1 over *duration_ms* (or 1 → 0 on the way back if
+        ``direction == 'in'``).  Non-async to stay simple; blocking for
+        ~0.7s is fine at battle boundaries.
+        """
+        try:
+            from transitions import _get_gpu, _enable_effect, _set_effect_uniform
+        except Exception:
+            return
+        gpu = _get_gpu()
+        if not gpu:
+            return
+
+        _enable_effect(gpu, "hyperspace")
+        _set_effect_uniform(gpu, "hyperspace", "center", (0.5, 0.5))
+        _set_effect_uniform(gpu, "hyperspace", "direction",
+                              1.0 if direction == "out" else -1.0)
+
+        start = pygame.time.get_ticks()
+        while True:
+            now = pygame.time.get_ticks()
+            elapsed = now - start
+            if elapsed >= duration_ms:
+                break
+            # Drain events so the window stays responsive
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    break
+            p = elapsed / duration_ms
+            warp = p if direction == "out" else (1.0 - p)
+            _set_effect_uniform(gpu, "hyperspace", "warp_factor", max(0.0, min(1.0, warp)))
+            _set_effect_uniform(gpu, "hyperspace", "time", gpu.time)
+            # Leave the frame as-is — the shader post-processes it
+            display_manager.gpu_flip()
+            pygame.time.wait(16)
+
+        # Leave hyperspace off after transition.
+        _set_effect_uniform(gpu, "hyperspace", "warp_factor", 0.0)
+        try:
+            gpu.set_effect_enabled("hyperspace", False)
+        except Exception:
+            pass
+
+    async def _run_rival_showdown(self, arc: dict):
+        """Climactic card battle against a rival leader in SHOWDOWN phase.
+
+        Flow:
+          1. Prompt player: ENGAGE or DEFER (staying in SHOWDOWN).
+          2. On engage: build a card battle with the rival's faction +
+             leader, scaled harder by ``arc['difficulty_tier']``.
+          3. Win → ``rival_arcs.resolve`` + trophy (relic + naq).
+             Loss → ``rival_arcs.rearm_after_loss`` (bumps difficulty).
+
+        Returns ``"quit"`` if the battle window is closed, else
+        ``"done"``.
+        """
+        rival_name = arc.get("rival_name", "Rival")
+        faction = arc.get("rival_faction", "")
+
+        # Build the rival's leader entry for the AI side.  Reuse
+        # content_registry to pull the card_id's canonical dict.
+        from content_registry import get_all_leaders_for_faction
+        rival_leader = None
+        for entry in get_all_leaders_for_faction(faction) or []:
+            if entry.get("card_id") == arc.get("rival_card_id"):
+                rival_leader = dict(entry)
+                rival_leader.setdefault("faction", faction)
+                break
+        if rival_leader is None:
+            rival_leader = {
+                "name": rival_name,
+                "card_id": arc.get("rival_card_id", ""),
+                "faction": faction,
+            }
+
+        tagline = ""
+        scripted = rival_arcs.SCRIPTED_ARCS.get(
+            (self.state.player_leader.get("card_id", ""), rival_leader.get("card_id", "")))
+        if scripted:
+            tagline = scripted.get("tagline", "")
+
+        prompt = (f"{rival_name} has emerged. "
+                  f"{tagline or 'This ends now.'}").strip()
+        proceed = await self._show_trade_proposal(
+            faction, prompt, accept_label="Engage", reject_label="Defer")
+        if proceed is None:  # window closed
+            return "quit"
+        if not proceed:
+            activity_log.log(
+                self.state, activity_log.CAT_RIVAL_ARC,
+                f"You deferred {rival_name}'s challenge.",
+                icon="rival", faction=faction,
+            )
+            return "done"
+
+        # Buff the rival by difficulty tier + homeworld-equivalent bias.
+        tier = int(arc.get("difficulty_tier", 0))
+        ai_elite_bonus = 2 + tier
+        ai_extra_cards = 1 + tier
+
+        self._music_stop()
+        result = await run_card_battle(
+            self.screen,
+            player_faction=self.state.player_faction,
+            player_leader=self.state.player_leader,
+            player_deck_ids=list(self.state.current_deck),
+            ai_faction=faction,
+            ai_leader=rival_leader,
+            exempt_penalties=True,
+            starting_weather=None,
+            upgraded_cards=self.state.upgraded_cards,
+            ai_elite_bonus=ai_elite_bonus,
+            ai_extra_cards=ai_extra_cards,
+            relics=getattr(self.state, "relics", []),
+        )
+        self._refresh_after_battle()
+        if result == "quit":
+            return "quit"
+
+        if result == "player_win":
+            rival_arcs.resolve(self.state, arc, player_won=True)
+            # Trophy: faction-themed relic + naq bounty scaling with tier
+            trophy = self._rival_showdown_trophy(faction, tier)
+            if trophy and not self.state.has_relic(trophy):
+                self.state.add_relic(trophy)
+            self.state.add_naquadah(80 + 40 * tier)
+            self._flash_message(
+                f"{rival_name} defeated! Trophy relic + {80 + 40 * tier} naq.",
+                2200)
+        else:
+            rival_arcs.rearm_after_loss(self.state, self.galaxy, arc, self.rng)
+            self.state.add_naquadah(-40)
+            self._flash_message(
+                f"{rival_name} escapes, stronger for having lived. -40 naq.",
+                2200)
+        return "done"
+
+    @staticmethod
+    def _rival_showdown_trophy(faction: str, tier: int) -> str | None:
+        """Pick a trophy relic appropriate to the defeated rival's faction.
+
+        Falls back through a fixed table — relic IDs are validated at
+        ``add_relic`` time so an unknown ID is silently skipped.
+        """
+        table = {
+            "Tau'ri": "alteran_database",
+            "Goa'uld": "staff_of_ra",
+            "Jaffa Rebellion": "kara_kesh",
+            "Lucian Alliance": "kull_armor",
+            "Asgard": "thors_hammer",
+            "Alteran": "ancient_zpm",
+        }
+        return table.get(faction)
 
     async def _run_card_battle(self, planet, ai_elite_bonus=0, ai_extra_cards=0,
                                override_leader=None):
@@ -1014,6 +1258,16 @@ class CampaignController:
         diplomatic_immunity = (has_perk("diplomatic_immunity")
                                and not self.state.conquest_ability_data.get("diplomatic_immunity_used"))
 
+        # 12.0: relic / leader action one-turn block on all counterattacks
+        if self.state.conquest_ability_data.get("skip_all_counterattacks"):
+            self._flash_message("All counterattacks suppressed this turn.",
+                                  1500)
+            activity_log.log(
+                self.state, activity_log.CAT_COUNTERATTACK,
+                "All counterattacks suppressed.",
+            )
+            return "done"
+
         allied = get_adjacency_bonus_factions(self.state)
 
         enemy_factions = set()
@@ -1028,6 +1282,20 @@ class CampaignController:
                 continue
             targets = self.galaxy.get_ai_attack_targets(faction)
             if not targets:
+                continue
+
+            # 12.0 leader action: SG-1 Strike cancels next counterattack from this faction
+            sg1_blocks = self.state.conquest_ability_data.get("sg1_strike_block", {})
+            if sg1_blocks.get(faction, 0) > 0:
+                sg1_blocks[faction] -= 1
+                if sg1_blocks[faction] <= 0:
+                    del sg1_blocks[faction]
+                self._flash_message(f"SG-1 Strike neutralised {faction}'s counterattack!", 1800)
+                activity_log.log(
+                    self.state, activity_log.CAT_LEADER_ACTION,
+                    f"SG-1 Strike cancelled {faction}'s counterattack.",
+                    faction=faction,
+                )
                 continue
 
             # Base chance from difficulty, reduced by passives + network tier
@@ -1216,6 +1484,11 @@ class CampaignController:
                 for _qpid, _qmsg in notify_quest_event(self.state, "defend"):
                     self._flash_message(_qmsg, 1200)
                 self.message = f"Defended {target.name}! +40 Naquadah{defense_bonus}"
+                activity_log.log(
+                    self.state, activity_log.CAT_COUNTERATTACK,
+                    f"Defended {target.name} against {faction}.",
+                    icon="shield", faction=faction, planet=target_id,
+                )
             else:
                 # Track defense loss
                 from deck_persistence import get_persistence
@@ -1229,6 +1502,11 @@ class CampaignController:
                 self.state.planet_ownership[target_id] = faction
                 self.state.add_naquadah(-30)
                 self.message = f"{target.name} lost to {faction}!"
+                activity_log.log(
+                    self.state, activity_log.CAT_COUNTERATTACK,
+                    f"{target.name} lost to {faction}.",
+                    icon="breach", faction=faction, planet=target_id,
+                )
                 # G7: record for Asgard Time Machine manual activation path.
                 self.state.conquest_ability_data["_last_planet_lost"] = {
                     "planet_id": target_id,
@@ -1306,10 +1584,19 @@ class CampaignController:
 
             if self.rng.random() < success_chance:
                 # Capture!
+                self._animate_ai_war_arc(faction, target_id, success=True)
                 self.galaxy.transfer_ownership(target_id, faction)
                 self.state.planet_ownership[target_id] = faction
                 self._flash_message(f"{faction} captured {target.name} from {defender_faction}!", 1500)
+                activity_log.log(
+                    self.state, activity_log.CAT_AI_WAR,
+                    f"{faction} captured {target.name} from {defender_faction}.",
+                    icon="war", faction=faction, planet=target_id,
+                )
                 lost_planets.setdefault(defender_faction, True)
+            else:
+                # War happened but defender held — visual only, no capture.
+                self._animate_ai_war_arc(faction, target_id, success=False)
 
                 # Check if a faction was eliminated
                 if self.galaxy.get_faction_planet_count(defender_faction) == 0:
@@ -2012,7 +2299,13 @@ class CampaignController:
                     return
 
     def _flash_message(self, text, duration_ms=2000):
-        """Show a message overlay for a brief duration."""
+        """Show a message overlay; interruptible by Space/Enter/Esc/LMB.
+
+        12.0: replaces the old blocking ``pygame.time.wait`` with an
+        event-pumping loop so players can blast through stacks of
+        messages with Space or a click.  The visual is identical to
+        keep the rest of the controller code unchanged.
+        """
         sw, sh = self.screen.get_width(), self.screen.get_height()
         font = pygame.font.SysFont("Impact, Arial", max(36, sh // 25), bold=True)
         overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
@@ -2021,8 +2314,95 @@ class CampaignController:
         msg_surf = font.render(text, True, (255, 200, 100))
         self.screen.blit(msg_surf, (sw // 2 - msg_surf.get_width() // 2,
                                      sh // 2 - msg_surf.get_height() // 2))
+        # Skip hint in smaller font, bottom centre
+        hint_font = pygame.font.SysFont("Arial", max(14, sh // 60))
+        hint = hint_font.render("Space / click to skip", True, (180, 180, 200))
+        self.screen.blit(hint, (sw // 2 - hint.get_width() // 2,
+                                 sh - hint.get_height() - 16))
         display_manager.gpu_flip()
-        pygame.time.wait(duration_ms)
+
+        skip_keys = {pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE}
+        end_at = pygame.time.get_ticks() + duration_ms
+        while pygame.time.get_ticks() < end_at:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
+                if event.type == pygame.KEYDOWN and event.key in skip_keys:
+                    return
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    return
+            pygame.time.wait(16)
+
+    def _animate_ai_war_arc(self, attacker_faction: str, target_id,
+                             *, success: bool, duration_ms: int = 500):
+        """Brief visual beat for an AI-vs-AI war.
+
+        Draws a faction-coloured travelling pulse from one of the
+        attacker's planets to the target.  Blocking, but short — about
+        half a second per resolved war.  The map is redrawn every frame
+        so icons, borders, and the activity sidebar stay coherent.
+        """
+        if target_id not in self.galaxy.planets:
+            return
+        # Pick a source planet owned by the attacker (closest to target for flavor)
+        target = self.galaxy.planets[target_id]
+        sources = [pid for pid, p in self.galaxy.planets.items()
+                   if p.owner == attacker_faction]
+        if not sources:
+            return
+        from .map_renderer import FACTION_COLORS
+        color = FACTION_COLORS.get(attacker_faction, (200, 200, 200))
+
+        # Pick the attacker planet with shortest distance to target.
+        def _dist(pid):
+            p = self.galaxy.planets[pid]
+            return (p.position[0] - target.position[0]) ** 2 + \
+                   (p.position[1] - target.position[1]) ** 2
+        src_id = min(sources, key=_dist)
+        src = self.galaxy.planets[src_id]
+
+        sx, sy = self.map_screen._world_to_screen(src.position)
+        tx, ty = self.map_screen._world_to_screen(target.position)
+
+        start = pygame.time.get_ticks()
+        attackable = []  # no selection concerns during animation
+        while True:
+            now = pygame.time.get_ticks()
+            elapsed = now - start
+            if elapsed >= duration_ms:
+                break
+            # Pump events so the window stays responsive / skippable
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    return
+
+            progress = elapsed / duration_ms
+            # Redraw map under the animation so icons stay live.
+            self.map_screen.draw(self.screen, self.galaxy, self.state,
+                                  attackable, message=None)
+
+            # Streak line
+            pygame.draw.line(self.screen, color, (sx, sy), (tx, ty), 2)
+            # Travelling pulse
+            px = int(sx + (tx - sx) * progress)
+            py = int(sy + (ty - sy) * progress)
+            pygame.draw.circle(self.screen, color, (px, py), 7)
+            pygame.draw.circle(self.screen, (255, 255, 255), (px, py), 3)
+
+            # Impact flash on the last 20% of the animation
+            if progress > 0.8:
+                flash_alpha = int(200 * (progress - 0.8) / 0.2)
+                flash_color = color if success else (120, 120, 140)
+                flash_surf = pygame.Surface((64, 64), pygame.SRCALPHA)
+                pygame.draw.circle(flash_surf,
+                                    (*flash_color, flash_alpha),
+                                    (32, 32), 32)
+                self.screen.blit(flash_surf, (tx - 32, ty - 32))
+
+            display_manager.gpu_flip()
+            pygame.time.wait(16)
 
     def _handle_cede_territory(self, faction):
         """Handle Hathor's cede_territory ability: pick a random planet from
@@ -2047,6 +2427,158 @@ class CampaignController:
         self.galaxy.transfer_ownership(target_id, "player")
         self.state.planet_ownership[target_id] = "player"
         return target.name
+
+    async def _handle_relic_active(self, relic_id: str) -> str | None:
+        """Fire a relic active ability.  Resolves ``target_kind`` the
+        same way ``_handle_leader_action`` does so target-needing
+        relics (e.g. Staff of Ra → enemy planet) play nicely with the
+        selected-planet flow.
+        """
+        from .relics import get_relic, activate_relic, get_active_charges_remaining
+        relic = get_relic(relic_id)
+        if relic is None or not relic.active_ability:
+            return None
+        if get_active_charges_remaining(self.state, relic_id) <= 0:
+            return "No charges remaining."
+
+        ability = relic.active_ability
+        target_kind = ability.get("target_kind", "none")
+
+        target = None
+        if target_kind == "faction":
+            target = await self._pick_faction_for_action(ability.get("name", relic.name))
+            if target is None:
+                return None
+        elif target_kind in ("own_planet", "enemy_planet", "any_planet"):
+            pid = self.map_screen.selected_planet
+            if not pid or pid not in self.galaxy.planets:
+                return f"Select a {self._target_kind_hint(target_kind)} first."
+            planet = self.galaxy.planets[pid]
+            if target_kind == "own_planet" and planet.owner != "player":
+                return "Select one of your planets first."
+            if target_kind == "enemy_planet" and planet.owner in ("player", "neutral"):
+                return "Select an enemy planet first."
+            target = pid
+
+        msg = activate_relic(self.state, self.galaxy, relic_id, target=target, rng=self.rng)
+        if msg:
+            activity_log.log(
+                self.state, activity_log.CAT_LEADER_ACTION,
+                msg, icon="relic",
+                faction=getattr(self.state, "player_faction", ""),
+            )
+        return msg
+
+    async def _handle_leader_action(self, action_id: str) -> str | None:
+        """Execute a leader toolkit action, resolving its target.
+
+        Returns a short message to flash, or ``None``.
+        """
+        action = leader_toolkits.get_action(self.state, action_id)
+        if action is None:
+            return None
+
+        ok, reason = leader_toolkits.can_use(self.state, self.galaxy, action_id)
+        if not ok:
+            return reason or "Action unavailable"
+
+        target = None
+        if action.target_kind == "faction":
+            target = await self._pick_faction_for_action(action.name)
+            if target is None:
+                return None  # player cancelled
+        elif action.target_kind in ("own_planet", "enemy_planet", "any_planet"):
+            pid = self.map_screen.selected_planet
+            if not pid or pid not in self.galaxy.planets:
+                return f"Select a {self._target_kind_hint(action.target_kind)} first."
+            planet = self.galaxy.planets[pid]
+            if action.target_kind == "own_planet" and planet.owner != "player":
+                return "Select one of your planets first."
+            if action.target_kind == "enemy_planet" and planet.owner in ("player", "neutral"):
+                return "Select an enemy planet first."
+            target = pid
+
+        return leader_toolkits.execute(self.state, self.galaxy, action_id,
+                                       target=target, rng=self.rng)
+
+    @staticmethod
+    def _target_kind_hint(kind: str) -> str:
+        return {"own_planet": "planet of yours",
+                "enemy_planet": "enemy planet",
+                "any_planet": "planet"}.get(kind, "target")
+
+    async def _pick_faction_for_action(self, action_name: str):
+        """Pop a small modal asking which faction to target.
+
+        Returns the faction name or ``None`` if cancelled.  Lists every
+        faction that still holds at least one planet and is not the
+        player's own or friendly faction.
+        """
+        factions = sorted({p.owner for p in self.galaxy.planets.values()
+                           if p.owner not in ("player", "neutral",
+                                               self.state.friendly_faction)})
+        if not factions:
+            return None
+
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        font_title = pygame.font.SysFont("Impact, Arial", max(26, sh // 36), bold=True)
+        font_btn = pygame.font.SysFont("Arial", max(18, sh // 50), bold=True)
+        btn_w = int(sw * 0.28)
+        btn_h = int(sh * 0.06)
+        gap = int(sh * 0.015)
+        total_h = btn_h * len(factions) + gap * (len(factions) - 1)
+        top = (sh - total_h) // 2 + int(sh * 0.04)
+
+        rects = []
+        for i, f in enumerate(factions):
+            rects.append((pygame.Rect((sw - btn_w) // 2,
+                                       top + i * (btn_h + gap),
+                                       btn_w, btn_h), f))
+        cancel_rect = pygame.Rect((sw - btn_w) // 2,
+                                   top + len(factions) * (btn_h + gap),
+                                   btn_w, btn_h)
+
+        while True:
+            await asyncio.sleep(0)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return None
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    return None
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for rect, f in rects:
+                        if rect.collidepoint(event.pos):
+                            return f
+                    if cancel_rect.collidepoint(event.pos):
+                        return None
+
+            overlay = pygame.Surface((sw, sh))
+            overlay.fill((0, 0, 0))
+            overlay.set_alpha(200)
+            self.screen.blit(overlay, (0, 0))
+            title = font_title.render(f"{action_name} — Choose a faction",
+                                       True, (255, 210, 130))
+            self.screen.blit(title, ((sw - title.get_width()) // 2,
+                                     top - title.get_height() - int(sh * 0.02)))
+            mx, my = pygame.mouse.get_pos()
+            for rect, f in rects:
+                hovered = rect.collidepoint(mx, my)
+                pygame.draw.rect(self.screen,
+                                 (40, 60, 100) if not hovered else (70, 110, 170),
+                                 rect)
+                pygame.draw.rect(self.screen, (150, 180, 220), rect, 2)
+                lbl = font_btn.render(f, True, (235, 235, 245))
+                self.screen.blit(lbl, (rect.centerx - lbl.get_width() // 2,
+                                        rect.centery - lbl.get_height() // 2))
+            hovered = cancel_rect.collidepoint(mx, my)
+            pygame.draw.rect(self.screen,
+                             (80, 40, 40) if not hovered else (120, 60, 60),
+                             cancel_rect)
+            pygame.draw.rect(self.screen, (180, 120, 120), cancel_rect, 2)
+            lbl = font_btn.render("Cancel", True, (235, 235, 245))
+            self.screen.blit(lbl, (cancel_rect.centerx - lbl.get_width() // 2,
+                                    cancel_rect.centery - lbl.get_height() // 2))
+            display_manager.gpu_flip()
 
     async def _show_trade_proposal(self, faction, message,
                                      accept_label="Accept", reject_label="Decline"):
