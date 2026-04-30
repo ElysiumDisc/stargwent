@@ -86,10 +86,14 @@ def _migrate_11_to_12(data: dict) -> dict:
     in-flight arcs, no logged history, act phase derived from turn.
     """
     data = dict(data)
-    data.setdefault("leader_action_state", {})
-    data.setdefault("rival_arcs", [])
-    data.setdefault("activity_log", [])
-    data.setdefault("save_slot", 0)
+    # Use `or default` so an explicit-None field from a partial pre-12 save
+    # gets a usable empty container instead of None (which would crash
+    # downstream code expecting dict / list).
+    data["leader_action_state"] = data.get("leader_action_state") or {}
+    data["rival_arcs"] = data.get("rival_arcs") or []
+    data["activity_log"] = data.get("activity_log") or []
+    if data.get("save_slot") is None:
+        data["save_slot"] = 0
     return data
 
 
@@ -304,9 +308,14 @@ class CampaignState:
         for pid in expired:
             del self.cooldowns[pid]
 
+    # Sane upper bound — caps stacked relic / passive income at a value
+    # that fits comfortably in the UI and prevents int-overflow surprises
+    # in any downstream calculation. Far above any legitimate game total.
+    NAQUADAH_MAX = 10_000_000
+
     def add_naquadah(self, amount: int):
-        """Add (or subtract) naquadah, clamped to 0."""
-        self.naquadah = max(0, self.naquadah + amount)
+        """Add (or subtract) naquadah, clamped to [0, NAQUADAH_MAX]."""
+        self.naquadah = max(0, min(self.NAQUADAH_MAX, self.naquadah + amount))
 
     def upgrade_card(self, card_id: str, bonus: int = 1):
         """Permanently upgrade a card's power for this run."""

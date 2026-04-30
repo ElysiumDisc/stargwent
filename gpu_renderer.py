@@ -94,6 +94,20 @@ class FBOPool:
                 tex.release()
         self._pool.clear()
 
+    def cleanup_stale(self, current_width, current_height):
+        """Release pooled FBOs that don't match the current resolution.
+
+        Called after a resolution change (e.g. fullscreen toggle, window
+        resize) to prevent GPU memory leaks from stale buckets.
+        """
+        active = (current_width, current_height)
+        stale_keys = [k for k in self._pool if k != active]
+        for k in stale_keys:
+            for fbo, tex in self._pool[k]:
+                fbo.release()
+                tex.release()
+            del self._pool[k]
+
 
 class ShaderPass:
     """Base class for a single GPU post-processing pass."""

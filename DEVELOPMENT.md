@@ -416,7 +416,18 @@ transitions, multi-save slots. **v12.1** is an audit pass on top of
 that rollout: the operative `state`/`status` field schism is fixed
 (espionage code now reads the same key the writers use), the activity
 sidebar + spy report cache their render surfaces, and six particle
-update loops switched to mark-and-sweep. Per-version detail in
+update loops switched to mark-and-sweep. **v12.2** is a deeper,
+whole-project audit covering every subsystem (card core, GPU pipeline,
+animations, LAN, conquest, arcade): `spatial_grid` collision sites
+deduplicated, particle/lightning/score-pop allocations cached, AI auto-aim
+rewritten on squared distances, conquest save migration hardened,
+naquadah upper-bound clamped, co-op snapshot truncation prioritised by
+distance to the nearer player. **v12.2.3** is a targeted follow-up
+patch: fixes a `NameError` crash in Galactic Conquest turn-advance when
+rival events fire, hardens `construct_building` against double-build,
+clamps `get_building_level` to a valid range, prevents a `LanSession`
+close stall under concurrent keepalive sends, and closes a `Supergate`
+freeze when a boss dies during gate activation. Per-version detail in
 [CHANGELOG.md](CHANGELOG.md).
 
 | File | Description |

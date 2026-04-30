@@ -3,6 +3,29 @@
 import pygame
 import math
 import random
+from collections import OrderedDict
+
+
+# Cached circle sprites — avoids per-frame SRCALPHA allocation in particle draws.
+_circle_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
+_CIRCLE_CACHE_MAX = 192
+
+
+def _get_cached_circle(size, rgb, alpha):
+    """Return a cached SRCALPHA circle. Quantizes alpha to bound cache size."""
+    alpha_q = (alpha >> 4) << 4
+    key = (size, rgb, alpha_q)
+    s = _circle_cache.get(key)
+    if s is not None:
+        _circle_cache.move_to_end(key)
+        return s
+    if len(_circle_cache) >= _CIRCLE_CACHE_MAX:
+        for _ in range(32):
+            _circle_cache.popitem(last=False)
+    s = pygame.Surface((size * 2 + 2, size * 2 + 2), pygame.SRCALPHA)
+    pygame.draw.circle(s, (*rgb, alpha_q), (size + 1, size + 1), size)
+    _circle_cache[key] = s
+    return s
 
 
 class StarField:
@@ -227,22 +250,35 @@ class ParticleTrail:
         })
         ParticleTrail._global_count += 1
 
-    def update(self):
-        """Update all particles."""
-        to_remove = []
-        for i, p in enumerate(self.particles):
+    def update(self, dt=None):
+        """Update all particles. dt is in seconds; defaults to 1/60 for back-compat."""
+        # Default to 60 FPS step if caller hasn't been migrated yet.
+        if dt is None:
+            decay = 1.0 / 60.0
+        else:
+            decay = dt
+        # In-place filter to avoid double-pass (build to_remove + reverse pop).
+        write = 0
+        particles = self.particles
+        for read in range(len(particles)):
+            p = particles[read]
             p['x'] += p['vx']
             p['y'] += p['vy']
-            p['life'] -= 1.0 / 60.0  # Assuming 60 FPS
+            p['life'] -= decay
             p['size'] *= 0.97
-            if p['life'] <= 0:
-                to_remove.append(i)
-        for i in reversed(to_remove):
-            self.particles.pop(i)
-            ParticleTrail._global_count -= 1
+            if p['life'] > 0:
+                if write != read:
+                    particles[write] = p
+                write += 1
+            else:
+                ParticleTrail._global_count -= 1
+        if write != len(particles):
+            del particles[write:]
 
     def draw(self, surface, camera=None):
-        """Draw all particles."""
+        """Draw all particles using cached circle sprites."""
+        # Quantize size to limit cache pressure. Size buckets at integer steps
+        # are already coarse (size = max(1, int(p['size']))), nothing extra to do.
         for p in self.particles:
             if camera:
                 sx, sy = camera.world_to_screen(p['x'], p['y'])
@@ -253,10 +289,12 @@ class ParticleTrail:
                 continue
             progress = p['life'] / p['max_life']
             alpha = max(0, int(progress * 200))
+            if alpha <= 0:
+                continue
             size = max(1, int(p['size']))
-            r = min(255, self.color[0] + int(80 * progress))
-            g = min(255, self.color[1] + int(60 * progress))
-            b = min(255, self.color[2] + int(40 * progress))
-            p_surf = pygame.Surface((size * 2 + 2, size * 2 + 2), pygame.SRCALPHA)
-            pygame.draw.circle(p_surf, (r, g, b, alpha), (size + 1, size + 1), size)
-            surface.blit(p_surf, (int(sx) - size - 1, int(sy) - size - 1))
+            # Quantize r/g/b deltas to coarse buckets so cache hits often.
+            r = min(255, self.color[0] + ((int(80 * progress) >> 4) << 4))
+            g = min(255, self.color[1] + ((int(60 * progress) >> 4) << 4))
+            b = min(255, self.color[2] + ((int(40 * progress) >> 4) << 4))
+            sprite = _get_cached_circle(size, (r, g, b), alpha)
+            surface.blit(sprite, (int(sx) - size - 1, int(sy) - size - 1))

@@ -467,6 +467,7 @@ class CampaignController:
                 ai_court_minor_worlds(self.state, self.galaxy, self.rng)
                 # G6: rival courtship — pick a suitor for each minor world,
                 # tick their influence, fire lockouts if they beat the player.
+                turn_msg = f"Turn {self.state.turn_number}"
                 rival_events = update_rival_courtship(self.state, self.galaxy, self.rng)
                 for _pid, rival_msg in rival_events:
                     turn_msg += f" | {rival_msg}"
@@ -499,7 +500,6 @@ class CampaignController:
                 turn_ability_result = trigger_ability(
                     self.state, self.galaxy, "on_turn_end",
                     {"rng": self.rng})
-                turn_msg = f"Turn {self.state.turn_number}"
                 if naq_income > 0:
                     turn_msg += f" | +{naq_income} Naquadah"
                 elif naq_income < 0:
@@ -2393,7 +2393,7 @@ class CampaignController:
 
             # Impact flash on the last 20% of the animation
             if progress > 0.8:
-                flash_alpha = int(200 * (progress - 0.8) / 0.2)
+                flash_alpha = min(255, int(200 * (progress - 0.8) / 0.2))
                 flash_color = color if success else (120, 120, 140)
                 flash_surf = pygame.Surface((64, 64), pygame.SRCALPHA)
                 pygame.draw.circle(flash_surf,

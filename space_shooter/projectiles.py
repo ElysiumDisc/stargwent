@@ -20,6 +20,17 @@ def _remove_particle():
     _trail_particle_count = max(0, _trail_particle_count - 1)
 
 
+def reset_trail_particle_count():
+    """Reset the global trail-particle counter.
+
+    Call on game restart so a previous game's leftover count (e.g. from a
+    crashed run that didn't tear down particles cleanly) doesn't starve
+    the new game of the particle budget.
+    """
+    global _trail_particle_count
+    _trail_particle_count = 0
+
+
 class Projectile:
     """Base class for all projectiles."""
     def __init__(self, x, y, direction, color, speed=15, damage=15):
@@ -152,8 +163,9 @@ class AncientDrone(Projectile):
         for _ in removed:
             _remove_particle()
 
-        # Slight wobble perpendicular to direction (organic flight feel)
-        self.wobble += 0.4
+        # Slight wobble perpendicular to direction (organic flight feel).
+        # Modulo keeps the value bounded across long-lived projectiles.
+        self.wobble = (self.wobble + 0.4) % (2 * math.pi)
         dx, dy = self.direction
         perp_x, perp_y = -dy, dx  # perpendicular
         wobble_amt = math.sin(self.wobble) * 0.8

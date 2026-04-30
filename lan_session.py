@@ -398,8 +398,8 @@ class LanSession:
         return peer
 
     def close(self):
+        self.stop_event.set()
         with self._sock_lock:
-            self.stop_event.set()
             sock = self.sock
             self.sock = None
         # Wake any handshake waiter so it doesn't sit on its 250ms tick.

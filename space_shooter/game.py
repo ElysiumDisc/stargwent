@@ -298,6 +298,10 @@ class SpaceShooterGame:
         self.projectiles = []
         self.explosions = []
         self.asteroids = []
+        # Reset module-global trail-particle counter so a previous run's
+        # leftover count doesn't starve this run of the particle budget.
+        from .projectiles import reset_trail_particle_count
+        reset_trail_particle_count()
         self.starfield = StarField(screen_width, screen_height)
 
         # Asteroid spawning
@@ -1766,32 +1770,49 @@ class SpaceShooterGame:
         Uses target hysteresis (sticks to current target if close enough)
         and direction lerping to prevent jerky aim transitions.
         Falls back to player facing direction if no enemies within range.
+
+        Performance: compares squared distances (no sqrt) and only computes
+        the unit-vector for the chosen enemy.
         """
         px = self.player_ship.x + self.player_ship.width // 2
         py = self.player_ship.y
-        best_dist = 800  # Max auto-aim range
-        best_dir = None
+        AIM_RANGE = 800.0
+        AIM_RANGE_SQ = AIM_RANGE * AIM_RANGE
+        best_dist_sq = AIM_RANGE_SQ
         best_enemy = None
+        best_ex = best_ey = 0
         for enemy in self.ai_ships:
             if getattr(enemy, 'is_friendly', False):
                 continue
             ex = enemy.x + enemy.width // 2
             ey = enemy.y
-            dist = math.hypot(ex - px, ey - py)
-            if dist < best_dist and dist > 5:
-                best_dist = dist
-                dx = (ex - px) / dist
-                dy = (ey - py) / dist
-                best_dir = (dx, dy)
+            dx = ex - px
+            dy = ey - py
+            d_sq = dx * dx + dy * dy
+            if d_sq < best_dist_sq and d_sq > 25:
+                best_dist_sq = d_sq
                 best_enemy = enemy
+                best_ex = ex
+                best_ey = ey
+
+        if best_enemy is not None:
+            best_dist = math.sqrt(best_dist_sq)
+            best_dir = ((best_ex - px) / best_dist, (best_ey - py) / best_dist)
+        else:
+            best_dist = AIM_RANGE
+            best_dir = None
 
         # Target hysteresis: stick to current target if still within 1.5x best
         if self._aim_target and self._aim_target in self.ai_ships:
             ex = self._aim_target.x + self._aim_target.width // 2
             ey = self._aim_target.y
-            cur_dist = math.hypot(ex - px, ey - py)
-            if cur_dist < best_dist * 1.5 and cur_dist < 800 and cur_dist > 5:
-                best_dir = ((ex - px) / cur_dist, (ey - py) / cur_dist)
+            dx = ex - px
+            dy = ey - py
+            cur_dist_sq = dx * dx + dy * dy
+            hysteresis_sq = best_dist * 1.5 * best_dist * 1.5
+            if cur_dist_sq < hysteresis_sq and cur_dist_sq < AIM_RANGE_SQ and cur_dist_sq > 25:
+                cur_dist = math.sqrt(cur_dist_sq)
+                best_dir = (dx / cur_dist, dy / cur_dist)
                 best_enemy = self._aim_target
 
         self._aim_target = best_enemy
@@ -3083,7 +3104,7 @@ class SpaceShooterGame:
                 continue
             source = getattr(proj, '_source_ship', None)
             proj_rect = pygame.Rect(int(proj.x - 4), int(proj.y - 4), 8, 8)
-            nearby = self.spatial_grid.query(proj.x, proj.y, 60)
+            nearby = self.spatial_grid.query_unique(proj.x, proj.y, 60)
             for ai_ship in nearby:
                 if ai_ship is source or not isinstance(ai_ship, Ship):
                     continue
@@ -3472,7 +3493,7 @@ class SpaceShooterGame:
 
             if proj.is_player_proj:
                 hit = False
-                nearby_enemies = self.spatial_grid.query(proj.x, proj.y, 60)
+                nearby_enemies = self.spatial_grid.query_unique(proj.x, proj.y, 60)
                 for ai_ship in nearby_enemies:
                     if isinstance(ai_ship, Asteroid):
                         continue
@@ -3673,7 +3694,7 @@ class SpaceShooterGame:
                     continue
 
             # Projectile vs asteroids (spatial grid query)
-            nearby_rocks = self.spatial_grid.query(proj.x, proj.y, 60)
+            nearby_rocks = self.spatial_grid.query_unique(proj.x, proj.y, 60)
             for asteroid in nearby_rocks:
                 if not isinstance(asteroid, Asteroid):
                     continue

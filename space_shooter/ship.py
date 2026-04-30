@@ -1176,7 +1176,7 @@ class Ship:
         # --- Asteroid dodge (use spatial grid if available) ---
         dodge_x, dodge_y = 0.0, 0.0
         closest_threat_dist = float('inf')
-        nearby_asteroids = spatial_grid.query(self.x, self.y, 400) if spatial_grid else asteroids
+        nearby_asteroids = spatial_grid.query_unique(self.x, self.y, 400) if spatial_grid else asteroids
         for asteroid in nearby_asteroids:
             if not hasattr(asteroid, 'size'):
                 continue
@@ -1198,7 +1198,7 @@ class Ship:
 
         # --- Separation (use spatial grid if available) ---
         sep_x, sep_y = 0.0, 0.0
-        nearby_ships = spatial_grid.query(self.x, self.y, 180) if spatial_grid else (other_ships or [])
+        nearby_ships = spatial_grid.query_unique(self.x, self.y, 180) if spatial_grid else (other_ships or [])
         if nearby_ships:
             for other in nearby_ships:
                 if other is self:

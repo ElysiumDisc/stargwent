@@ -674,9 +674,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                     button_width + panel_padding * 2,
                     quit_button.bottom - rematch_button.top + panel_padding * 2
                 )
-                panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
-                panel_surface.fill((0, 0, 0, 140))
-                pygame.draw.rect(panel_surface, (60, 60, 80, 200), panel_surface.get_rect(), 2, border_radius=8)
+                panel_surface = _get_cached_panel(panel_rect.width, panel_rect.height, (0, 0, 0, 140), (60, 60, 80, 200))
                 screen.blit(panel_surface, panel_rect.topleft)
 
                 # Draw Stargwent-styled buttons

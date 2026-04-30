@@ -1012,7 +1012,17 @@ class LegendaryLightningEffect(Animation):
         alpha = int(220 * (1.0 - self.get_progress() * 0.4))
         if alpha <= 0:
             return
-        lightning_surface = pygame.Surface((rect.width + 20, rect.height + 20), pygame.SRCALPHA)
+        # Reuse a single SRCALPHA surface across frames; only realloc when the
+        # card rect resizes. Saves ~70 KB malloc/frame per active strike.
+        surf_w = rect.width + 20
+        surf_h = rect.height + 20
+        cached = getattr(self, '_lightning_surface', None)
+        if cached is None or cached.get_size() != (surf_w, surf_h):
+            cached = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
+            self._lightning_surface = cached
+        else:
+            cached.fill((0, 0, 0, 0))
+        lightning_surface = cached
         offset_points = [(p[0] - rect.left + 10, p[1] - rect.top + 10) for p in self.points]
         color = (200, 240, 255, alpha)
         pygame.draw.lines(lightning_surface, color, False, offset_points, 3)
@@ -1065,11 +1075,16 @@ class AICardPlayAnimation(Animation):
         if not self.card_image or self.finished:
             return
         width, height = self.card_image.get_size()
-        scaled_size = (
-            max(1, int(width * self.scale)),
-            max(1, int(height * self.scale))
-        )
-        scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
+        # Quantize scaled dimensions to nearest 4px so smoothscale is amortized
+        # across many frames instead of running every frame for sub-pixel diffs.
+        scaled_w = max(4, (int(width * self.scale) + 2) & ~3)
+        scaled_h = max(4, (int(height * self.scale) + 2) & ~3)
+        cached_size = getattr(self, '_cached_scaled_size', None)
+        if cached_size != (scaled_w, scaled_h) or getattr(self, '_cached_scaled_card', None) is None:
+            self._cached_scaled_card = pygame.transform.smoothscale(
+                self.card_image, (scaled_w, scaled_h))
+            self._cached_scaled_size = (scaled_w, scaled_h)
+        scaled_card = self._cached_scaled_card
         scaled_card.set_alpha(self.alpha)
         rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
         surface.blit(scaled_card, rect)
@@ -1326,12 +1341,16 @@ class ScorchEffect:
         """Draw fire particles."""
         for particle in self.particles:
             alpha = int(particle['life'] * 255)
-            color = (*particle['color'][:3], alpha)
-            pos = (int(particle['pos'].x), int(particle['pos'].y))
+            if alpha <= 0:
+                continue
+            # Quantize alpha (steps of 16) to bound cache size
+            alpha_q = (alpha >> 4) << 4
+            base_color = particle['color'][:3]
+            pos_x = int(particle['pos'].x)
+            pos_y = int(particle['pos'].y)
             size = max(1, int(particle['life'] * 8))
-            particle_surf = pygame.Surface((size*2, size*2), pygame.SRCALPHA)
-            pygame.draw.circle(particle_surf, color, (size, size), size)
-            surface.blit(particle_surf, (pos[0]-size, pos[1]-size))
+            sprite = _get_circle_sprite(size, base_color, alpha_q)
+            surface.blit(sprite, (pos_x - size, pos_y - size))
 
 
 class CardDisintegrationEffect:
@@ -1361,15 +1380,17 @@ class CardDisintegrationEffect:
             return
 
         cw, ch = card_image.get_size()
-        chunk_w = max(4, cw // 8)   # ~6-8 px wide
-        chunk_h = max(4, ch // 8)   # ~6-8 px tall
+        # Coarser chunks (~6 per axis) — cuts upfront subsurface().copy()
+        # cost from ~80 to ~36 without harming the visual disintegration.
+        chunk_w = max(8, cw // 6)
+        chunk_h = max(8, ch // 6)
         cx, cy = cw / 2.0, ch / 2.0  # card center (local coords)
         max_dist = math.hypot(cx, cy) or 1.0
 
         count = 0
         for gx in range(0, cw, chunk_w):
             for gy in range(0, ch, chunk_h):
-                if count >= 400:
+                if count >= 150:
                     break
                 w = min(chunk_w, cw - gx)
                 h = min(chunk_h, ch - gy)
@@ -2319,7 +2340,7 @@ class ScorePopAnimation(Animation):
         """Draw the animated score."""
         # Get current progress
         progress = self.get_progress()
-        
+
         # Determine color based on change
         if self.new_value > self.old_value:
             color = (100, 255, 100)  # Green for increase
@@ -2327,9 +2348,20 @@ class ScorePopAnimation(Animation):
             color = (255, 100, 100)  # Red for decrease
         else:
             color = (255, 255, 255)  # White for no change
-        
-        # Render score with current scale
-        base_text = font.render(str(self.current_value), True, color)
+
+        # Render score with current scale (cache by value+color so the
+        # font.render only runs once per integer step, not every frame)
+        cache = getattr(self, '_text_cache', None)
+        if cache is None:
+            cache = {}
+            self._text_cache = cache
+        cache_key = (int(self.current_value), color)
+        base_text = cache.get(cache_key)
+        if base_text is None:
+            base_text = font.render(str(self.current_value), True, color)
+            if len(cache) > 32:
+                cache.clear()
+            cache[cache_key] = base_text
         
         # Scale the text
         if self.scale != 1.0:

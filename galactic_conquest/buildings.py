@@ -106,11 +106,20 @@ def can_build(state, planet_id, building_id, galaxy):
 
 
 def construct_building(state, planet_id, building_id, galaxy=None):
-    """Build a building on a planet. Returns message or None."""
+    """Build a building on a planet. Returns message or None.
+
+    Defensive: re-checks funds and existing building even though callers
+    should call can_build() first. Prevents silent state corruption if a
+    caller skips the check (e.g. from a stale UI state).
+    """
     building = BUILDINGS.get(building_id)
     if not building:
         return None
+    if state.buildings.get(planet_id):
+        return None
     cost = _get_building_cost(building, state, planet_id, galaxy)
+    if state.naquadah < cost:
+        return None
     state.add_naquadah(-cost)
     state.buildings[planet_id] = building_id
     # Track building construction stat
@@ -124,7 +133,7 @@ def construct_building(state, planet_id, building_id, galaxy=None):
 
 def get_building_level(state, planet_id):
     """Get current building level (1-3). Defaults to 1 for existing buildings."""
-    return state.building_levels.get(planet_id, 1)
+    return max(1, min(3, state.building_levels.get(planet_id, 1)))
 
 
 def get_upgrade_cost(state, planet_id):

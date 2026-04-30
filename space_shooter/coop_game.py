@@ -1176,13 +1176,38 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         self._snapshot_id += 1
         enemies_trunc = len(self.ai_ships) > 60
         proj_trunc = len(self.projectiles) > 100
+
+        # Truncate by *closest to either player* rather than insertion order
+        # — distant entities matter less for client rendering and combat.
+        # Squared distance from the nearest player position is the rank key.
+        p1x = self.player_ship.x if self.p1_alive else 0
+        p1y = self.player_ship.y if self.p1_alive else 0
+        p2x = self.partner_ship.x if self.p2_alive else p1x
+        p2y = self.partner_ship.y if self.p2_alive else p1y
+
+        def _nearest_player_d2(ent):
+            ex = getattr(ent, 'x', 0)
+            ey = getattr(ent, 'y', 0)
+            d1 = (ex - p1x) ** 2 + (ey - p1y) ** 2
+            d2 = (ex - p2x) ** 2 + (ey - p2y) ** 2
+            return d1 if d1 < d2 else d2
+
+        enemies_for_send = (
+            sorted(self.ai_ships, key=_nearest_player_d2)[:60]
+            if enemies_trunc else self.ai_ships
+        )
+        proj_for_send = (
+            sorted(self.projectiles, key=_nearest_player_d2)[:100]
+            if proj_trunc else self.projectiles
+        )
+
         return {
             'snapshot_id': self._snapshot_id,
             'frame': self.survival_frames,
             'p1': ship_data(self.player_ship, self.p1_alive, self.p1_ghost),
             'p2': ship_data(self.partner_ship, self.p2_alive, self.p2_ghost),
-            'enemies': [entity_data(e) for e in self.ai_ships[:60]],
-            'projectiles': [proj_data(p) for p in self.projectiles[:100]],
+            'enemies': [entity_data(e) for e in enemies_for_send],
+            'projectiles': [proj_data(p) for p in proj_for_send],
             'powerups': [powerup_data(p) for p in self.powerups[:20]],
             'xp_orbs': [xp_data(o) for o in self.xp_orbs[:50]],
             'explosions': [explosion_data(e) for e in self.explosions[:20]],

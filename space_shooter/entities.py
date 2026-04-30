@@ -576,17 +576,20 @@ class PowerUp:
         else:
             draw_x, draw_y = self.x, self.y
 
-        # Draw particles
+        # Draw particles using shared cached-circle helper
+        from .effects import _get_cached_circle
+        base_color = self.props['color']
         for p in self.particles:
             if camera:
                 px, py = camera.world_to_screen(p['x'], p['y'])
             else:
                 px, py = p['x'], p['y']
             alpha = int(p['life'] * 150)
-            p_surf = pygame.Surface((p['size'] * 2, p['size'] * 2), pygame.SRCALPHA)
-            pygame.draw.circle(p_surf, (*self.props['color'], alpha),
-                             (p['size'], p['size']), p['size'])
-            surface.blit(p_surf, (int(px - p['size']), int(py - p['size'])))
+            if alpha <= 0:
+                continue
+            psize = p['size']
+            sprite = _get_cached_circle(psize, base_color, alpha)
+            surface.blit(sprite, (int(px - psize - 1), int(py - psize - 1)))
 
         # Pulsing glow effect
         rarity = self.props.get('rarity', 'common')
@@ -1659,7 +1662,7 @@ class Supergate:
 
     def close(self):
         """Trigger closing animation (called when the linked boss is killed)."""
-        if self.phase in (self.PHASE_HOLDING, self.PHASE_OPEN):
+        if self.phase in (self.PHASE_HOLDING, self.PHASE_OPEN, self.PHASE_ACTIVATING):
             self.phase = self.PHASE_CLOSING
             self.timer = 0
 

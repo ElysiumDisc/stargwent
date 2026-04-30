@@ -105,5 +105,8 @@ class Camera:
             d2 = max(abs(wx - p2_pos[0]) - half_w, abs(wy - p2_pos[1]) - half_h)
             if d1 > 100 and d2 > 100:
                 return wx, wy
-        # Fallback: just use camera center
+        # Fallback: just use camera center. Players spread far apart can hit
+        # this — the spawn ring may then be visible to one player. Logged so
+        # this shows up in profiling if it gets pathological.
+        print("[camera] coop spawn-ring fallback (players too spread out)")
         return self.get_spawn_ring(min_dist, max_dist)

@@ -167,7 +167,7 @@ class LanChatPanel:
 
     def _send_ack(self, msg_id: str):
         """Send acknowledgment for a received message."""
-        self.session.send("chat_ack", {"msg_id": msg_id})
+        self.session.send(LanMessageType.CHAT_ACK.value, {"msg_id": msg_id})
 
     def _mark_confirmed(self, msg_id: str):
         """Mark a message as confirmed."""
