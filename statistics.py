@@ -68,9 +68,11 @@ def get_faction_stats() -> Dict[str, Dict]:
     persistence = get_persistence()
     stats = persistence.get_stats()
     faction_wins = stats.get("faction_wins", {})
-
-    # Note: deck_persistence only tracks wins per faction, not total games
-    # We can estimate from matchup data if available
+    # 12.4.0+ persists per-faction games-played directly. Older saves only
+    # tracked wins, so we still fall back to matchups data when present;
+    # the previous wins*2 (50%-win-rate-guess) fallback is gone — it produced
+    # wildly wrong rates for skilled players.
+    faction_games_recorded = stats.get("faction_games", {})
     matchups = stats.get("matchups", {})
 
     result = {}
@@ -79,15 +81,18 @@ def get_faction_stats() -> Dict[str, Dict]:
     for faction in factions:
         wins = faction_wins.get(faction, 0)
 
-        # Try to get total games from matchups
-        games = 0
-        if faction in matchups:
+        # Prefer the direct counter (12.4.0+ saves)
+        games = faction_games_recorded.get(faction, 0)
+
+        # Older save: derive from matchups data when present
+        if games == 0 and faction in matchups:
             for opponent_data in matchups[faction].values():
                 games += opponent_data.get("games", 0)
 
-        if games == 0:
-            # Fallback: estimate from wins (assume ~50% win rate if unknown)
-            games = wins * 2 if wins > 0 else 0
+        # If still 0 and we have wins on record, we played at least as many
+        # games as we won. No more synthesising a fake 50% win rate.
+        if games == 0 and wins > 0:
+            games = wins
 
         win_rate = (wins / games * 100) if games > 0 else 0.0
 

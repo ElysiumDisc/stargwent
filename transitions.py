@@ -190,6 +190,19 @@ def create_hyperspace_transition(screen, screen_width, screen_height, round_numb
     # Animation duration: 90 frames (1.5 seconds)
     total_frames = 90
 
+    # Pre-allocate per-frame scratch surfaces — these were being created fresh
+    # each iteration of the inner ring loop (5 rings × 90 frames = 450 allocs/transition).
+    ring_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+    if round_number == 3:
+        _planet_radius = int(screen_height * 0.18)
+        planet_surf = pygame.Surface(
+            (_planet_radius * 2 + 40, _planet_radius * 2 + 40),
+            pygame.SRCALPHA,
+        )
+    else:
+        planet_surf = None
+        _planet_radius = 0
+
     for frame in range(total_frames):
         progress = frame / total_frames
 
@@ -213,28 +226,25 @@ def create_hyperspace_transition(screen, screen_width, screen_height, round_numb
         # Dark space background with slight blue tint
         screen.fill((2, 2, 12))
 
-        # Draw radial blur / whoosh rings (CPU, enhanced by GPU shader)
-        if round_number == 2:
+        # Draw radial blur / whoosh rings (CPU, enhanced by GPU shader).
+        # All rings share one scratch surface — fill once, draw, blit once.
+        if round_number == 2 or round_number == 3:
+            ring_surf.fill((0, 0, 0, 0))
+            ring_drawn = False
             for ring_idx in range(5):
-                ring_progress = (progress + ring_idx * 0.15) % 1.0
+                if round_number == 2:
+                    ring_progress = (progress + ring_idx * 0.15) % 1.0
+                    ring_alpha = int((1 - ring_progress) * 80)
+                else:  # round_number == 3
+                    ring_progress = (1 - progress + ring_idx * 0.15) % 1.0
+                    ring_alpha = int(ring_progress * 60)
                 ring_radius = int(ring_progress * max(screen_width, screen_height))
-                ring_alpha = int((1 - ring_progress) * 80)
                 if ring_alpha > 0 and ring_radius > 0:
-                    ring_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
                     pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha),
-                                      (center_x, center_y), ring_radius, width=3)
-                    screen.blit(ring_surf, (0, 0))
-
-        elif round_number == 3:
-            for ring_idx in range(5):
-                ring_progress = (1 - progress + ring_idx * 0.15) % 1.0
-                ring_radius = int(ring_progress * max(screen_width, screen_height))
-                ring_alpha = int(ring_progress * 60)
-                if ring_alpha > 0 and ring_radius > 0:
-                    ring_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-                    pygame.draw.circle(ring_surf, (100, 150, 255, ring_alpha),
-                                      (center_x, center_y), ring_radius, width=3)
-                    screen.blit(ring_surf, (0, 0))
+                                       (center_x, center_y), ring_radius, width=3)
+                    ring_drawn = True
+            if ring_drawn:
+                screen.blit(ring_surf, (0, 0))
 
         # Draw persistent star streaks
         for star in stars:
@@ -274,13 +284,14 @@ def create_hyperspace_transition(screen, screen_width, screen_height, round_numb
                 head_x, head_y = start_x, start_y
             pygame.draw.circle(screen, (255, 255, 255), (int(head_x), int(head_y)), star['thickness'] + 1)
 
-        # Planet appearing (round 3 only, in second half)
-        if round_number == 3 and progress > 0.5:
+        # Planet appearing (round 3 only, in second half) — reuses the
+        # pre-allocated planet_surf from above; cleared each frame.
+        if round_number == 3 and progress > 0.5 and planet_surf is not None:
             planet_progress = (progress - 0.5) * 2
             planet_alpha = int(planet_progress * 200)
-            planet_radius = int(screen_height * 0.18)
+            planet_radius = _planet_radius
 
-            planet_surf = pygame.Surface((planet_radius * 2 + 40, planet_radius * 2 + 40), pygame.SRCALPHA)
+            planet_surf.fill((0, 0, 0, 0))
             pygame.draw.circle(planet_surf, (60, 100, 180, planet_alpha // 3),
                              (planet_radius + 20, planet_radius + 20), planet_radius + 15)
             pygame.draw.circle(planet_surf, (40, 80, 160, planet_alpha),
@@ -434,6 +445,15 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
     board_width = min(800, int(screen_width * 0.6))
     board_height = min(380, int(screen_height * 0.4))
 
+    # Pre-allocate per-frame scratch surfaces (sizes are stable for the
+    # whole transition). Avoids ~3-4 SRCALPHA allocations per frame at 60fps.
+    _overlay_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+    _overlay_surf.fill((0, 0, 0, 200))  # static fill — never re-filled
+    _flash_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+    _board_surf = pygame.Surface((board_width, board_height), pygame.SRCALPHA)
+    _line_w = max(1, board_width - int(40 * scale))
+    _line_surf = pygame.Surface((_line_w, 2), pygame.SRCALPHA)
+
     # Column positions as percentages of board width
     name_col_width = int(board_width * 0.35)  # 35% for names
     round_col_width = int(board_width * 0.12)  # 12% each for R1, R2, R3
@@ -486,20 +506,17 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
         # Render to intermediate surface
         render_surface.fill((5, 5, 20))  # Dark space blue
 
-        # Dark overlay with gradient
-        overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
-        render_surface.blit(overlay, (0, 0))
+        # Dark overlay with gradient (reuse pre-allocated surface)
+        render_surface.blit(_overlay_surf, (0, 0))
 
         center_x = screen_width // 2
         center_y = screen_height // 2
 
-        # Impact flash effect (at very start)
+        # Impact flash effect (at very start) — reuse _flash_surf
         if progress < 0.1:
             flash_alpha = int((1 - progress / 0.1) * 150)
-            flash_surf = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-            flash_surf.fill((*winner_color[:3], flash_alpha))
-            render_surface.blit(flash_surf, (0, 0))
+            _flash_surf.fill((*winner_color[:3], flash_alpha))
+            render_surface.blit(_flash_surf, (0, 0))
 
         # Main winner text - slide in from top with slam effect
         if progress < 0.15:
@@ -559,8 +576,10 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
             board_x = center_x - board_width // 2
             board_y = center_y - int(30 * scale)
 
-            # Create scoreboard with styled border
-            board_surf = pygame.Surface((board_width, board_height), pygame.SRCALPHA)
+            # Create scoreboard with styled border (reuse _board_surf,
+            # clear before redrawing as set_alpha persists across frames).
+            board_surf = _board_surf
+            board_surf.fill((0, 0, 0, 0))
 
             # Background gradient
             for y in range(board_height):
@@ -618,10 +637,9 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
 
             y_offset += int(40 * scale)
 
-            # Draw separator line with glow
-            line_surf = pygame.Surface((board_width - int(40 * scale), 2), pygame.SRCALPHA)
-            line_surf.fill((100, 150, 200, board_alpha))
-            render_surface.blit(line_surf, (board_x + int(20 * scale), y_offset))
+            # Draw separator line with glow (reuse pre-allocated _line_surf)
+            _line_surf.fill((100, 150, 200, board_alpha))
+            render_surface.blit(_line_surf, (board_x + int(20 * scale), y_offset))
 
             y_offset += int(20 * scale)
 

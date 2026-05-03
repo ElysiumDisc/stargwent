@@ -248,7 +248,10 @@ class CardStealAnimation(Animation):
             max(1, int(height * self.scale))
         )
         if scaled_size != self._cached_scaled_size:
-            self._cached_scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
+            # Use plain scale (nearest-neighbour) — CardStealAnimation runs at
+            # a near-1.0 fixed scale (1.05) so the smoothscale → scale visual
+            # diff is invisible in motion, and we save a real cycle-cost.
+            self._cached_scaled_card = pygame.transform.scale(self.card_image, scaled_size)
             self._cached_scaled_size = scaled_size
         scaled_card = self._cached_scaled_card.copy()
         scaled_card.set_alpha(self.alpha)
@@ -261,6 +264,13 @@ class HathorStealAnimation(Animation):
     def __init__(self, card, start_pos, end_pos, duration=1200, on_finish=None):
         super().__init__(duration)
         self.card = card
+        # Snapshot the card image at init time. The original Card object's
+        # `image` field can be reassigned by reload_card_images() or other
+        # mid-game image swaps; using a copy keeps this animation visually
+        # stable even if the underlying card mutates or is removed from
+        # the board before the animation finishes. Matches the pattern in
+        # CardRevealAnimation.
+        self._card_image_snapshot = card.image.copy() if (card and card.image) else None
         self.start_x, self.start_y = start_pos
         self.end_x, self.end_y = end_pos
         self.current_x = self.start_x
@@ -357,18 +367,11 @@ class HathorStealAnimation(Animation):
             alpha = int(255 * heart['life'])
             self.draw_heart(surface, heart['x'], heart['y'], heart['size'], (*heart['color'], alpha))
         
-        # Draw the card with rotation
-        if self.card.image:
-            # Create a rotated surface
-            card_surface = pygame.transform.rotate(self.card.image, self.rotation)
-            
-            # Apply alpha
+        # Draw the card with rotation (using the init-time snapshot)
+        if self._card_image_snapshot:
+            card_surface = pygame.transform.rotate(self._card_image_snapshot, self.rotation)
             card_surface.set_alpha(self.alpha)
-            
-            # Get the rect and center it
             card_rect = card_surface.get_rect(center=(int(self.current_x), int(self.current_y)))
-            
-            # Draw the card
             surface.blit(card_surface, card_rect)
     
     def draw_heart(self, surface, x, y, size, color):
@@ -397,6 +400,10 @@ class CardRevealAnimation(Animation):
     def __init__(self, card, start_pos, end_pos, duration=500, on_complete=None):
         super().__init__(duration)
         self.card = card
+        # Snapshot the card image at init — see HathorStealAnimation for
+        # rationale. Reload-card-images or Hathor steals during this short
+        # reveal animation can otherwise yank the underlying surface.
+        self._card_image_snapshot = card.image.copy() if (card and card.image) else None
         self.start_x, self.start_y = start_pos
         self.end_x, self.end_y = end_pos
         self.current_x = self.start_x
@@ -482,14 +489,15 @@ class CardRevealAnimation(Animation):
                 pygame.draw.circle(sparkle_surf, (*sparkle['color'], alpha), (size, size), size)
                 surface.blit(sparkle_surf, (int(sparkle['x'] - size), int(sparkle['y'] - size)))
 
-        # Draw the card with flip effect
-        if self.card.image and self.scale_x > 0.05:
-            width = int(self.card.image.get_width() * self.scale_x)
-            height = int(self.card.image.get_height() * self.scale_y)
+        # Draw the card with flip effect (use init-time snapshot)
+        snap = self._card_image_snapshot
+        if snap and self.scale_x > 0.05:
+            width = int(snap.get_width() * self.scale_x)
+            height = int(snap.get_height() * self.scale_y)
             if width > 0 and height > 0:
                 # Use card back image for first half, card face for second half
-                if self.revealed and self.card.image:
-                    scaled_card = pygame.transform.scale(self.card.image, (width, height))
+                if self.revealed:
+                    scaled_card = pygame.transform.scale(snap, (width, height))
                 else:
                     # Create a simple card back
                     scaled_card = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -1057,7 +1065,10 @@ class AICardPlayAnimation(Animation):
         scaled_h = max(4, (int(height * self.scale) + 2) & ~3)
         cached_size = getattr(self, '_cached_scaled_size', None)
         if cached_size != (scaled_w, scaled_h) or getattr(self, '_cached_scaled_card', None) is None:
-            self._cached_scaled_card = pygame.transform.smoothscale(
+            # Plain scale instead of smoothscale — already 4px-quantised, so
+            # this only fires on real size changes; nearest-neighbour at
+            # >=4px steps is acceptable for transient AI play animations.
+            self._cached_scaled_card = pygame.transform.scale(
                 self.card_image, (scaled_w, scaled_h))
             self._cached_scaled_size = (scaled_w, scaled_h)
         scaled_card = self._cached_scaled_card.copy()

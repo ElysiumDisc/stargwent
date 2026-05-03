@@ -93,16 +93,41 @@ class DeckPersistence:
                 return self._get_default_deck_data()
         return self._get_default_deck_data()
     
+    # Bumped each time the unlock-data JSON schema changes in a way that
+    # warrants a one-shot migration on load. 1 = pre-12.4.0 (no version key);
+    # 2 = 12.4.0 added faction_games and an explicit schema_version field.
+    UNLOCK_SCHEMA_VERSION = 2
+
     def load_unlocks(self) -> Dict:
         """Load unlock progress"""
         if os.path.exists(UNLOCK_SAVE_FILE):
             try:
                 with open(UNLOCK_SAVE_FILE, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                return self._migrate_unlocks(data)
             except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
                 print(f"Error loading unlock data: {e}")
                 return self._get_default_unlock_data()
         return self._get_default_unlock_data()
+
+    def _migrate_unlocks(self, data: Dict) -> Dict:
+        """Apply forward-only migrations and stamp the current schema version.
+
+        v1 → v2: ensure faction_games dict exists. We don't backfill
+        historic counts (we don't have the data); statistics.py degrades
+        gracefully when faction_games is missing or zero.
+        """
+        version = data.get("schema_version", 1)
+        if version < 2:
+            data.setdefault("faction_games", {
+                "Tau'ri": 0,
+                "Goa'uld": 0,
+                "Jaffa Rebellion": 0,
+                "Lucian Alliance": 0,
+                "Asgard": 0,
+            })
+        data["schema_version"] = self.UNLOCK_SCHEMA_VERSION
+        return data
     
     def save_decks(self):
         """Save current deck configurations. Returns True on success, False on failure."""
@@ -147,12 +172,23 @@ class DeckPersistence:
     def _get_default_unlock_data(self) -> Dict:
         """Default unlock progress"""
         return {
+            "schema_version": self.UNLOCK_SCHEMA_VERSION,
             "unlocked_cards": [],
             "unlocked_leaders": [],
             "consecutive_wins": 0,
             "total_wins": 0,
             "total_games": 0,
             "faction_wins": {
+                "Tau'ri": 0,
+                "Goa'uld": 0,
+                "Jaffa Rebellion": 0,
+                "Lucian Alliance": 0,
+                "Asgard": 0
+            },
+            # Per-faction games-played counter, populated alongside faction_wins
+            # since 12.4.0. Older saves omit it; statistics.py treats missing
+            # entries as 0 and falls back to matchups data when available.
+            "faction_games": {
                 "Tau'ri": 0,
                 "Goa'uld": 0,
                 "Jaffa Rebellion": 0,
@@ -294,16 +330,20 @@ class DeckPersistence:
         games_key = f"{mode_key}_games"
         wins_key = f"{mode_key}_wins"
         self.unlock_data[games_key] = self.unlock_data.get(games_key, 0) + 1
-        
+
+        # Track faction-specific games played (always — independent of win/loss)
+        faction_games = self.unlock_data.setdefault("faction_games", {})
+        faction_games[faction] = faction_games.get(faction, 0) + 1
+
         if won:
             self.unlock_data["total_wins"] = self.unlock_data.get("total_wins", 0) + 1
             self.unlock_data["consecutive_wins"] = self.unlock_data.get("consecutive_wins", 0) + 1
             self.unlock_data[wins_key] = self.unlock_data.get(wins_key, 0) + 1
-            
+
             # Track faction-specific wins
             faction_wins = self.unlock_data.setdefault("faction_wins", {})
             faction_wins[faction] = faction_wins.get(faction, 0) + 1
-            
+
             print(f"✓ Win recorded! Consecutive wins: {self.unlock_data['consecutive_wins']}")
         else:
             self.unlock_data["consecutive_wins"] = 0
@@ -387,6 +427,7 @@ class DeckPersistence:
             "consecutive_wins": self.unlock_data.get("consecutive_wins", 0),
             "max_streak": self.unlock_data.get("max_streak", 0),
             "faction_wins": self.unlock_data.get("faction_wins", {}),
+            "faction_games": self.unlock_data.get("faction_games", {}),
             "unlocked_leaders": self.unlock_data.get("unlocked_leaders", []),
             "unlocked_cards": self.unlock_data.get("unlocked_cards", []),
             "leader_stats": self.unlock_data.get("leader_stats", {}),
@@ -411,6 +452,7 @@ class DeckPersistence:
         self.unlock_data["consecutive_wins"] = 0
         self.unlock_data["max_streak"] = 0
         self.unlock_data["faction_wins"] = {}
+        self.unlock_data["faction_games"] = {}
         self.unlock_data["ai_games"] = 0
         self.unlock_data["ai_wins"] = 0
         self.unlock_data["lan_games"] = 0

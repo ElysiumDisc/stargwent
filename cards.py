@@ -24,6 +24,15 @@ class Card:
         self.hover_image.fill((100, 100, 110))
         self.rect = pygame.Rect(0, 0, 80, 120)
 
+        # Per-play transient flags. Initialised here so calculate_score()
+        # paths that read them with `getattr` / `hasattr` can rely on the
+        # attribute existing rather than racing the lazy set in play_card().
+        # All four are cleared together at round reset in Game._end_round.
+        self.hammond_boosted = False
+        self.kalel_boosted = False
+        self.kiva_boosted = False
+        self.adria_boosted = False
+
     @property
     def naquadah_cost(self) -> int:
         """

@@ -2779,6 +2779,22 @@ def get_faction_card_pool(faction, unlock_system=None, unlock_override=False, ex
     return card_pool_ids
 
 
+# Module-level cache for get_cards_by_type_and_strength. The function is hit
+# many times per frame (scroll, accordion redraw, hover) with the same args; the
+# filter+sort is O(n log n) over ~500 cards. Keyed on id(list)+len so a
+# reassignment of `card_pool_ids` (which is what every call site does — there is
+# no in-place mutation) produces a different key. Returned lists are not mutated
+# by any caller (verified), so we can hand back the cached list directly.
+_FILTER_CACHE: dict = {}
+_FILTER_CACHE_MAX = 16
+
+
+def _filter_cache_clear():
+    """Clear the get_cards_by_type_and_strength cache. Call when ALL_CARDS
+    is reloaded (user content add/remove) or unlock state changes."""
+    _FILTER_CACHE.clear()
+
+
 def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     """
     Filter cards by type/keyword and sort by strength (power).
@@ -2786,6 +2802,11 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
     keyword can be: 'Spy', 'Medic', 'Hero' (Legendary Commander), or None.
     Returns sorted list of card IDs.
     """
+    cache_key = (id(card_id_list), len(card_id_list), card_type, keyword)
+    cached = _FILTER_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     filtered_ids = card_id_list
     
     # 1. Filter by Type
@@ -2803,14 +2824,17 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
         else:
             filtered_ids = [id for id in filtered_ids if ALL_CARDS[id].row == card_type]
     
-    # 2. Filter by Keyword
+    # 2. Filter by Keyword. Loop variable renamed `cid` so it doesn't shadow
+    # the `id` builtin we now need at the top of the function for the cache
+    # key (`for id in …` makes `id` a function-scope local, breaking
+    # `id(card_id_list)` even before the loop runs).
     if keyword:
         keyword_lower = keyword.lower()
         new_filtered = []
-        for id in filtered_ids:
-            card = ALL_CARDS[id]
+        for cid in filtered_ids:
+            card = ALL_CARDS[cid]
             ability = (card.ability or "").lower()
-            
+
             match = False
             if keyword_lower == "hero":
                 if "legendary commander" in ability or (card.power >= 10 and card.row not in ["special", "weather"]) or card.row == "special":
@@ -2830,9 +2854,9 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
             elif keyword_lower == "scorch":
                 if "naquadah overload" in ability:
                     match = True
-            
+
             if match:
-                new_filtered.append(id)
+                new_filtered.append(cid)
         filtered_ids = new_filtered
     
     # Sort by type first, then by power (descending)
@@ -2851,6 +2875,10 @@ def get_cards_by_type_and_strength(card_id_list, card_type=None, keyword=None):
         return (type_priority.get(card.row, 99), neutral_priority, -card.power)
     
     sorted_ids = sorted(filtered_ids, key=sort_key)
+    if len(_FILTER_CACHE) >= _FILTER_CACHE_MAX:
+        # FIFO eviction — keep the cache bounded
+        _FILTER_CACHE.pop(next(iter(_FILTER_CACHE)))
+    _FILTER_CACHE[cache_key] = sorted_ids
     return sorted_ids
 
 

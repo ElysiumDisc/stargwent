@@ -357,7 +357,11 @@ class NetworkController:
             # Send ACK for this action so sender knows it arrived
             msg_id = payload.get("msg_id")
 
-            # Validate turn token sequence (warn on gaps, don't disconnect)
+            # Validate turn token sequence: warn on small gaps, force a
+            # clean disconnect on severe ones (single >20-token jump or
+            # cumulative ≥10 lost actions). Continuing past that point
+            # almost certainly means the two boards have diverged in ways
+            # the score-verification ping won't catch.
             remote_token = payload.get("turn_token", "")
             if remote_token:
                 try:
@@ -368,7 +372,27 @@ class NetworkController:
                         self._token_gap_count += gap_size
                         print(f"[Network] Turn token gap: expected {self._expected_remote_token}, got {token_num} (total gaps: {self._token_gap_count})")
                         self._expected_remote_token = token_num  # Resync
-                        if self._token_gap_count >= 3:
+
+                        if gap_size >= 20 or self._token_gap_count >= 10:
+                            # Fatal desync — close the session so the game
+                            # loop's is_connected() polling ends the match.
+                            print(f"[Network] Fatal desync (single gap={gap_size}, total={self._token_gap_count}) — closing session.")
+                            self.desync_message = (
+                                f"Disconnecting: severe network desync ({self._token_gap_count} lost actions)",
+                                pygame.time.get_ticks() + 8000,
+                            )
+                            self.game.add_history_event(
+                                "system",
+                                f"Network disconnect: severe turn-token desync ({self._token_gap_count})",
+                                "ai",
+                                icon="!",
+                            )
+                            try:
+                                self.session.close()
+                            except Exception:
+                                pass
+                            return (None, None)
+                        elif self._token_gap_count >= 3:
                             self.desync_message = (
                                 f"Warning: {self._token_gap_count} network actions lost",
                                 pygame.time.get_ticks() + 5000

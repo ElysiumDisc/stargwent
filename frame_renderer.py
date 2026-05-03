@@ -62,6 +62,24 @@ def _get_cached_panel(w, h, fill, border):
     return surf
 
 
+def _get_cached_top_line_panel(w, h, fill, line_color):
+    """Variant of _get_cached_panel for surfaces that want a flat fill plus a
+    single 2px top line (no rounded border). Same LRU pool."""
+    key = ("top_line", w, h, fill, line_color)
+    surf = _panel_cache.get(key)
+    if surf is not None:
+        _panel_cache.move_to_end(key)
+        return surf
+    surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    surf.fill(fill)
+    if line_color:
+        pygame.draw.line(surf, line_color, (0, 0), (w, 0), 2)
+    _panel_cache[key] = surf
+    if len(_panel_cache) > _PANEL_CACHE_MAX:
+        _panel_cache.popitem(last=False)
+    return surf
+
+
 # --- Full-screen dim overlay cache (bounded LRU) ---
 _OVERLAY_CACHE_MAX = 16
 _overlay_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
@@ -868,11 +886,11 @@ def render_frame(state, game, screen, dt, drag_visual_state):
                 else:
                     state.ai_controller.desync_message = None
 
-        if not hasattr(render_frame, '_cmd_bar_surf') or render_frame._cmd_bar_surf.get_size() != (SCREEN_WIDTH, COMMAND_BAR_HEIGHT):
-            render_frame._cmd_bar_surf = pygame.Surface((SCREEN_WIDTH, COMMAND_BAR_HEIGHT), pygame.SRCALPHA)
-            render_frame._cmd_bar_surf.fill((10, 20, 35, 200))
-            pygame.draw.line(render_frame._cmd_bar_surf, (80, 120, 180), (0, 0), (SCREEN_WIDTH, 0), 2)
-        screen.blit(render_frame._cmd_bar_surf, (0, COMMAND_BAR_Y))
+        screen.blit(
+            _get_cached_top_line_panel(SCREEN_WIDTH, COMMAND_BAR_HEIGHT,
+                                       (10, 20, 35, 200), (80, 120, 180)),
+            (0, COMMAND_BAR_Y),
+        )
 
         board_renderer.draw_pass_button(screen, game, state.hud_pass_button_rect)
 
@@ -1055,7 +1073,7 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             pygame.draw.line(screen, beam_color, beam_start, beam_end, beam_width)
 
             # Draw glow along the beam
-            glow_surf = pygame.Surface((abs(beam_end[0] - beam_start[0]) + 40, 
+            glow_surf = pygame.Surface((abs(beam_end[0] - beam_start[0]) + 40,
                                        abs(beam_end[1] - beam_start[1]) + 40), pygame.SRCALPHA)
             glow_start = (20, 20) if beam_start[0] < beam_end[0] else (glow_surf.get_width() - 20, 20)
             glow_end = (glow_surf.get_width() - 20, glow_surf.get_height() - 20) if beam_start[0] < beam_end[0] else (20, glow_surf.get_height() - 20)
@@ -1065,9 +1083,9 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             # Draw glowing circle at target
             target_glow_size = int(20 + 10 * math.sin(pygame.time.get_ticks() * 0.015))
             target_glow = pygame.Surface((target_glow_size * 2, target_glow_size * 2), pygame.SRCALPHA)
-            pygame.draw.circle(target_glow, (*beam_color, int(150 * pulse)), 
+            pygame.draw.circle(target_glow, (*beam_color, int(150 * pulse)),
                              (target_glow_size, target_glow_size), target_glow_size)
-            screen.blit(target_glow, (state.decoy_drag_target.rect.centerx - target_glow_size, 
+            screen.blit(target_glow, (state.decoy_drag_target.rect.centerx - target_glow_size,
                                      state.decoy_drag_target.rect.centery - target_glow_size))
 
     # Draw card inspection overlay (on top of EVERYTHING)

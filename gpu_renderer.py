@@ -10,10 +10,13 @@ Graceful fallback: if moderngl is unavailable or GPU init fails,
 the game runs with pure Pygame rendering unchanged.
 """
 
+import logging
 import struct
 import sys
 
 import pygame
+
+logger = logging.getLogger(__name__)
 
 try:
     import moderngl
@@ -311,7 +314,7 @@ class GPURenderer:
                 self.fbo_pool.release(fbo, tex)
 
         except Exception as e:
-            print(f"[GPU] Runtime error, disabling GPU: {e}")
+            logger.exception("[GPU] Runtime error, disabling GPU: %s", e)
             self.enabled = False
             pygame.display.flip()
 

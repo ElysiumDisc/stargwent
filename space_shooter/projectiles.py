@@ -60,6 +60,91 @@ _EMBER_GOLD = _make_ember((255, 200, 50, 160))
 _EMBER_ORANGE = _make_ember((255, 120, 30, 140))
 
 
+# --- AncientDrone body cache ---
+# Drone bodies are deterministic for a given radius once we replace per-frame
+# random tail jitter with a seeded sequence. Rotation is quantised to 16 bins
+# (22.5° each) to bound the cache.
+_DRONE_ANGLE_BINS = 16
+_drone_rotated_cache: dict = {}
+_DRONE_CACHE_MAX = 128
+
+
+def _build_drone_body(radius: int) -> pygame.Surface:
+    """Build the unrotated drone body (glow + ellipse + core + tails).
+
+    Tails use a radius-seeded RNG so the cached surface is deterministic.
+    The output is the same on repeat calls with the same radius.
+    """
+    sz = radius * 4
+    surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    c = sz // 2
+
+    # Outer glow
+    pygame.draw.circle(surf, (255, 200, 50, 50), (c, c), radius + 5)
+
+    # Main body — elongated golden oval
+    body_w = int(radius * 2.2)
+    body_h = int(radius * 1.2)
+    pygame.draw.ellipse(surf, (255, 190, 30),
+                        (c - body_w // 2, c - body_h // 2, body_w, body_h))
+
+    # Bright yellow-white core
+    core_w = body_w // 2
+    core_h = body_h // 2
+    pygame.draw.ellipse(surf, (255, 255, 180),
+                        (c - core_w // 2, c - core_h // 2, core_w, core_h))
+
+    # Trailing "tentacles" — deterministic per-radius seed
+    rng = random.Random(radius * 7919)
+    for i in range(3):
+        offset = (i - 1) * 3
+        tail_len = rng.randint(4, 8)
+        tx1 = c - body_w // 2
+        ty1 = c + offset
+        tx2 = tx1 - tail_len
+        ty2 = ty1 + rng.randint(-2, 2)
+        pygame.draw.line(surf, (255, 220, 80, 140), (tx1, ty1), (tx2, ty2), 1)
+
+    return surf
+
+
+def _get_drone_rotated(radius: int, angle_deg: float) -> pygame.Surface:
+    """Return a rotated drone body surface, cached per (radius, angle_bin)."""
+    angle_bin = int(round(angle_deg / (360.0 / _DRONE_ANGLE_BINS))) % _DRONE_ANGLE_BINS
+    key = (radius, angle_bin)
+    surf = _drone_rotated_cache.get(key)
+    if surf is None:
+        if len(_drone_rotated_cache) >= _DRONE_CACHE_MAX:
+            _drone_rotated_cache.pop(next(iter(_drone_rotated_cache)))
+        body = _build_drone_body(radius)
+        bin_angle = angle_bin * (360.0 / _DRONE_ANGLE_BINS)
+        surf = pygame.transform.rotate(body, bin_angle)
+        _drone_rotated_cache[key] = surf
+    return surf
+
+
+# --- Missile trail composite cache ---
+# Trail particles are tiny two-circle composites. trail_r ranges 2..6 and
+# alpha is already capped per-frame; quantise alpha to 32 levels.
+_missile_trail_cache: dict = {}
+_MISSILE_TRAIL_CACHE_MAX = 64
+
+
+def _get_missile_trail_surf(trail_r: int, alpha: int) -> pygame.Surface:
+    alpha_q = (max(0, min(255, alpha)) // 8) * 8
+    key = (trail_r, alpha_q)
+    s = _missile_trail_cache.get(key)
+    if s is None:
+        if len(_missile_trail_cache) >= _MISSILE_TRAIL_CACHE_MAX:
+            _missile_trail_cache.pop(next(iter(_missile_trail_cache)))
+        s = pygame.Surface((trail_r * 2, trail_r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, (255, 150, 50, alpha_q), (trail_r, trail_r), trail_r)
+        pygame.draw.circle(s, (255, 255, 100, alpha_q // 2),
+                           (trail_r, trail_r), max(1, trail_r // 2))
+        _missile_trail_cache[key] = s
+    return s
+
+
 class Projectile:
     """Base class for all projectiles."""
     def __init__(self, x, y, direction, color, speed=15, damage=15):
@@ -224,37 +309,11 @@ class AncientDrone(Projectile):
         dx, dy = self.direction
         angle = math.atan2(-dy, dx)  # pygame Y-axis inverted
 
-        sz = self.radius * 4
-        drone_surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
-        c = sz // 2
-
-        # Outer glow
-        pygame.draw.circle(drone_surf, (255, 200, 50, 50), (c, c), self.radius + 5)
-
-        # Main body — elongated golden oval (squid shape)
-        body_w = int(self.radius * 2.2)
-        body_h = int(self.radius * 1.2)
-        body_rect = (c - body_w // 2, c - body_h // 2, body_w, body_h)
-        pygame.draw.ellipse(drone_surf, (255, 190, 30), body_rect)
-
-        # Bright yellow-white core
-        core_w = body_w // 2
-        core_h = body_h // 2
-        core_rect = (c - core_w // 2, c - core_h // 2, core_w, core_h)
-        pygame.draw.ellipse(drone_surf, (255, 255, 180), core_rect)
-
-        # Trailing "tentacles" — 3 small lines behind the drone
-        for i in range(3):
-            offset = (i - 1) * 3
-            tail_len = random.randint(4, 8)
-            tx1 = c - body_w // 2
-            ty1 = c + offset
-            tx2 = tx1 - tail_len
-            ty2 = ty1 + random.randint(-2, 2)
-            pygame.draw.line(drone_surf, (255, 220, 80, 140), (tx1, ty1), (tx2, ty2), 1)
-
-        # Rotate the drone surface to face direction of travel
-        rotated = pygame.transform.rotate(drone_surf, math.degrees(angle))
+        # Cached pre-rotated body (16-bin angle quantisation). Tails are
+        # baked deterministically into the cached surface — they no longer
+        # wiggle frame-to-frame, but the body is constant for a given radius
+        # so this is visually indistinguishable in motion.
+        rotated = _get_drone_rotated(self.radius, math.degrees(angle))
         rw, rh = rotated.get_size()
         surface.blit(rotated, (int(sx) - rw // 2, int(sy) - rh // 2))
 
@@ -333,11 +392,8 @@ class Missile(Projectile):
             # Smoke layer behind main trail
             surface.blit(_get_circle_surf(smoke_r, (160, 160, 160), alpha // 3),
                          (int(tx) - smoke_r, int(ty) - smoke_r))
-            # Main trail — two-circle composite, built fresh (highlight varies with radius)
-            trail_surf = pygame.Surface((trail_r * 2, trail_r * 2), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (255, 150, 50, alpha), (trail_r, trail_r), trail_r)
-            pygame.draw.circle(trail_surf, (255, 255, 100, alpha // 2),
-                               (trail_r, trail_r), max(1, trail_r // 2))
+            # Main trail — two-circle composite, cached by (radius, alpha)
+            trail_surf = _get_missile_trail_surf(trail_r, alpha)
             surface.blit(trail_surf, (int(tx) - trail_r, int(ty) - trail_r))
 
         if camera:

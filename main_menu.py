@@ -415,62 +415,93 @@ class MainMenu:
         fps_x = center_x + int(250 * scale)
         fps_gate_rect.center = (fps_x, fps_y)
 
-        def draw_stargate_toggle(active, rect, pulse_phase=0):
-            """Draw a Stargate-style toggle with animation."""
-            gate_surf = pygame.Surface(rect.size, pygame.SRCALPHA)
-            radius = rect.width // 2
+        # Stargate-toggle caches. The options menu draws this 3 times per
+        # frame (fullscreen, unlock, FPS toggles). The inactive form is
+        # fully static for a given size — cache and reuse. The active form
+        # has animated chevrons + event-horizon pulse, so we cache only the
+        # static skeleton (outer ring + ripple rings) and overlay animated
+        # bits on a per-frame copy.
+        _gate_inactive_cache: dict = {}
+        _gate_active_base_cache: dict = {}
+
+        def _build_inactive_gate(size):
+            radius = size[0] // 2
             center = (radius, radius)
-            
-            # Outer ring with gradient effect
-            pygame.draw.circle(gate_surf, (70, 75, 90), center, radius)
-            pygame.draw.circle(gate_surf, (50, 55, 65), center, radius - 4)
-            pygame.draw.circle(gate_surf, (90, 100, 120), center, radius, 3)
-            
-            # Chevrons (9) with glow when active
+            surf = pygame.Surface(size, pygame.SRCALPHA)
+            # Outer ring
+            pygame.draw.circle(surf, (70, 75, 90), center, radius)
+            pygame.draw.circle(surf, (50, 55, 65), center, radius - 4)
+            pygame.draw.circle(surf, (90, 100, 120), center, radius, 3)
+            # Dim chevrons (no animation when inactive)
             for i in range(9):
                 angle = (i / 9) * 2 * math.pi - math.pi / 2
                 cx = radius + int(math.cos(angle) * (radius - 8))
                 cy = radius + int(math.sin(angle) * (radius - 8))
-                
-                if active:
-                    # Glowing orange chevron
-                    glow_intensity = 0.7 + 0.3 * math.sin(pulse_phase + i * 0.5)
-                    glow_color = (int(255 * glow_intensity), int(120 * glow_intensity), 0)
-                    pygame.draw.circle(gate_surf, glow_color, (cx, cy), 7)
-                    pygame.draw.circle(gate_surf, (255, 180, 50), (cx, cy), 4)
-                else:
-                    # Dim chevron
-                    pygame.draw.circle(gate_surf, (80, 50, 50), (cx, cy), 6)
-                    pygame.draw.circle(gate_surf, (50, 35, 35), (cx, cy), 4)
-            
-            # Event horizon
-            if active:
-                # Animated watery blue effect
-                pulse = 0.8 + 0.2 * math.sin(pulse_phase * 2)
-                pygame.draw.circle(gate_surf, (0, int(80 * pulse), int(180 * pulse)), center, radius - 14)
-                pygame.draw.circle(gate_surf, (int(80 * pulse), int(180 * pulse), 255), center, radius - 22)
-                # Ripple rings
-                for r_offset in range(3):
-                    ring_r = radius - 30 - r_offset * 12
-                    if ring_r > 5:
-                        alpha = int(100 - r_offset * 30)
-                        ring_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                        pygame.draw.circle(ring_surf, (150, 220, 255, alpha), center, ring_r, 2)
-                        gate_surf.blit(ring_surf, (0, 0))
-            else:
-                # Closed iris
-                pygame.draw.circle(gate_surf, (20, 25, 35), center, radius - 14)
-                # Iris pattern (X)
-                iris_size = radius - 20
-                pygame.draw.line(gate_surf, (50, 55, 70), 
-                               (center[0] - iris_size // 2, center[1] - iris_size // 2),
-                               (center[0] + iris_size // 2, center[1] + iris_size // 2), 3)
-                pygame.draw.line(gate_surf, (50, 55, 70), 
-                               (center[0] + iris_size // 2, center[1] - iris_size // 2),
-                               (center[0] - iris_size // 2, center[1] + iris_size // 2), 3)
-                # Iris border
-                pygame.draw.circle(gate_surf, (60, 65, 80), center, radius - 14, 2)
-                
+                pygame.draw.circle(surf, (80, 50, 50), (cx, cy), 6)
+                pygame.draw.circle(surf, (50, 35, 35), (cx, cy), 4)
+            # Closed iris + X
+            pygame.draw.circle(surf, (20, 25, 35), center, radius - 14)
+            iris_size = radius - 20
+            pygame.draw.line(surf, (50, 55, 70),
+                             (center[0] - iris_size // 2, center[1] - iris_size // 2),
+                             (center[0] + iris_size // 2, center[1] + iris_size // 2), 3)
+            pygame.draw.line(surf, (50, 55, 70),
+                             (center[0] + iris_size // 2, center[1] - iris_size // 2),
+                             (center[0] - iris_size // 2, center[1] + iris_size // 2), 3)
+            pygame.draw.circle(surf, (60, 65, 80), center, radius - 14, 2)
+            return surf
+
+        def _build_active_base(size):
+            """Outer ring + the three static ripple rings shared across all
+            frames of the active animation (the chevron glow and event-horizon
+            disc are still drawn per-frame on top)."""
+            radius = size[0] // 2
+            center = (radius, radius)
+            surf = pygame.Surface(size, pygame.SRCALPHA)
+            pygame.draw.circle(surf, (70, 75, 90), center, radius)
+            pygame.draw.circle(surf, (50, 55, 65), center, radius - 4)
+            pygame.draw.circle(surf, (90, 100, 120), center, radius, 3)
+            for r_offset in range(3):
+                ring_r = radius - 30 - r_offset * 12
+                if ring_r > 5:
+                    alpha = int(100 - r_offset * 30)
+                    pygame.draw.circle(surf, (150, 220, 255, alpha), center, ring_r, 2)
+            return surf
+
+        def draw_stargate_toggle(active, rect, pulse_phase=0):
+            """Draw a Stargate-style toggle with animation."""
+            radius = rect.width // 2
+            center = (radius, radius)
+
+            if not active:
+                cached = _gate_inactive_cache.get(rect.size)
+                if cached is None:
+                    cached = _build_inactive_gate(rect.size)
+                    _gate_inactive_cache[rect.size] = cached
+                return cached
+
+            # Active path — start from the cached static base then overlay
+            # animated chevrons + event-horizon disc.
+            base = _gate_active_base_cache.get(rect.size)
+            if base is None:
+                base = _build_active_base(rect.size)
+                _gate_active_base_cache[rect.size] = base
+            gate_surf = base.copy()
+
+            # Animated chevrons (glow intensity depends on pulse_phase)
+            for i in range(9):
+                angle = (i / 9) * 2 * math.pi - math.pi / 2
+                cx = radius + int(math.cos(angle) * (radius - 8))
+                cy = radius + int(math.sin(angle) * (radius - 8))
+                glow_intensity = 0.7 + 0.3 * math.sin(pulse_phase + i * 0.5)
+                glow_color = (int(255 * glow_intensity), int(120 * glow_intensity), 0)
+                pygame.draw.circle(gate_surf, glow_color, (cx, cy), 7)
+                pygame.draw.circle(gate_surf, (255, 180, 50), (cx, cy), 4)
+
+            # Animated event horizon disc
+            pulse = 0.8 + 0.2 * math.sin(pulse_phase * 2)
+            pygame.draw.circle(gate_surf, (0, int(80 * pulse), int(180 * pulse)), center, radius - 14)
+            pygame.draw.circle(gate_surf, (int(80 * pulse), int(180 * pulse), 255), center, radius - 22)
             return gate_surf
 
         def get_slider_handle_pos(key):

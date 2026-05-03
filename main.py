@@ -4,8 +4,11 @@ import math
 import random
 import os
 import asyncio
+import logging
+from logging_config import setup_logging
 
-print("[INIT] main.py: core imports done")
+logger = setup_logging()
+logger.info("main.py: core imports done")
 
 # Ensure working directory matches the application directory.
 # PyInstaller (exe/dmg) doesn't cd to the app dir like our deb/AppImage launchers do.
@@ -110,7 +113,7 @@ import transitions
 import board_renderer
 import game_setup
 
-print("[INIT] main.py: game module imports done")
+logger.info("main.py: game module imports done")
 
 # ============================================================================
 # MODULE IMPORTS & INITIALIZATION
@@ -119,28 +122,28 @@ import display_manager
 import game_config as cfg
 import render_engine as re
 
-print("[INIT] main.py: display_manager imported, calling initialize_display()")
+logger.info("main.py: display_manager imported, calling initialize_display()")
 
 # Initialize display via the new manager
 display_manager.initialize_display()
 
-print("[INIT] main.py: display initialized, calling initialize_gpu()")
+logger.info("main.py: display initialized, calling initialize_gpu()")
 
 # Initialize GPU post-processing (graceful fallback if unavailable)
 display_manager.initialize_gpu()
 
-print("[INIT] main.py: GPU initialized")
+logger.info("main.py: GPU initialized")
 
 # Load user-created content (cards, leaders, factions)
 # This must happen early, before card images are loaded
 try:
     from user_content_loader import load_user_content
     load_user_content()
-    print("[INIT] User content loaded")
+    logger.info("User content loaded")
 except ImportError:
     pass  # user_content_loader not available
 except Exception as e:
-    print(f"[INIT] Warning: Could not load user content: {e}")
+    logger.warning(f"Could not load user content: {e}")
 
 # Calculate layout dimensions and fonts based on initialized display
 cfg.recalculate_dimensions()
@@ -748,7 +751,7 @@ async def main(lan_game_data=None):
     try:
         assets["board"] = pygame.image.load("assets/board_background.png").convert()
     except pygame.error as e:
-        print(f"Warning: Could not load board background. Using solid color. ({e})")
+        logger.warning(f"Could not load board background. Using solid color. ({e})")
         assets["board"] = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         assets["board"].fill((20, 20, 30))
 
@@ -757,7 +760,7 @@ async def main(lan_game_data=None):
         assets["mulligan_bg"] = pygame.image.load("assets/mulligan_bg.png").convert()
         assets["mulligan_bg"] = pygame.transform.smoothscale(assets["mulligan_bg"], (SCREEN_WIDTH, SCREEN_HEIGHT))
     except pygame.error as e:
-        print(f"Warning: Could not load mulligan background. Using solid color. ({e})")
+        logger.warning(f"Could not load mulligan background. Using solid color. ({e})")
         assets["mulligan_bg"] = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         assets["mulligan_bg"].fill((10, 15, 25))
 
@@ -809,7 +812,7 @@ async def main(lan_game_data=None):
                         # End mulligan phase
                         game.end_mulligan_phase()
                     else:
-                        print("Must select at least 2 cards for mulligan!")
+                        logger.info("Must select at least 2 cards for mulligan!")
                 else:
                     # Check card clicks
                     total_cards = len(game.player1.hand)
@@ -1034,7 +1037,7 @@ async def main(lan_game_data=None):
 
             # Check timeout
             if pygame.time.get_ticks() - state._mulligan_start_time > cfg.MULLIGAN_TIMEOUT:
-                print("WARNING: Mulligan timeout reached, proceeding without remote mulligan")
+                logger.warning("Mulligan timeout reached, proceeding without remote mulligan")
                 state.mulligan_remote_done = True
                 # Force state transition if still stuck in mulligan
                 if game.game_state == "mulligan":
@@ -1061,7 +1064,7 @@ async def main(lan_game_data=None):
                             try:
                                 LAN_CONTEXT.session.inbox.put_nowait(parsed)
                             except Exception:
-                                print("[LAN] Warning: inbox full, dropping non-mulligan message during mulligan phase")
+                                logger.warning("[LAN] inbox full, dropping non-mulligan message during mulligan phase")
                     except ValueError:
                         pass  # Skip malformed messages
 
@@ -1303,13 +1306,21 @@ async def main(lan_game_data=None):
             if ai_result == "thinking_done":
                 # AI has finished thinking, get the decision
                 ai_board_before = {row: len(cards) for row, cards in game.player2.board.items()}
-    
+
                 # Check if faction power was available before AI decision
                 ai_power_available_before = (game.player2.faction_power and
                                              game.player2.faction_power.is_available())
-    
-                # Get AI decision without executing it yet
-                card_to_play, row_to_play = state.ai_controller.choose_move()
+
+                # Get AI decision off the event loop. choose_move() is a
+                # pure-evaluation followed by at most a small mutation
+                # (pass_turn / faction_power.activate / add_history_event).
+                # Late-game evaluation can take 50–200ms; running it in a
+                # worker thread lets the main loop keep rendering during
+                # the spike. asyncio.to_thread is supported on Pygbag's
+                # asyncio shim as well as native CPython.
+                card_to_play, row_to_play = await asyncio.to_thread(
+                    state.ai_controller.choose_move
+                )
     
                 # Check if AI used faction power
                 ai_power_available_after = (game.player2.faction_power and
@@ -1785,13 +1796,13 @@ async def _show_tap_to_start_splash():
 
 async def run_game():
     """Entry point that loops on restart instead of recursing."""
-    print("[INIT] run_game() entered")
+    logger.info("run_game() entered")
     # On web platform, show splash to unlock browser audio context
     from touch_support import is_web_platform
     if is_web_platform():
-        print("[INIT] web platform detected, showing tap-to-start splash")
+        logger.info("web platform detected, showing tap-to-start splash")
         await _show_tap_to_start_splash()
-        print("[INIT] tap-to-start complete")
+        logger.info("tap-to-start complete")
 
     lan_game_data = None
     while True:
@@ -1807,9 +1818,9 @@ async def run_game():
 
 
 if __name__ == "__main__":
-    print("[INIT] main.py: calling asyncio.run(run_game())")
+    logger.info("main.py: calling asyncio.run(run_game())")
     asyncio.run(run_game())
-    print("[INIT] main.py: asyncio.run() returned")
+    logger.info("main.py: asyncio.run() returned")
     # On web (Pygbag), asyncio.run() may return immediately while the
     # coroutine continues on the browser event loop.  Do NOT call
     # pygame.quit() / sys.exit() on Emscripten — that would destroy

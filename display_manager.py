@@ -1,7 +1,10 @@
+import logging
 import pygame
 import sys
 import os
 from cards import reload_card_images
+
+logger = logging.getLogger(__name__)
 
 # ctypes and tempfile may not be available on Emscripten/WASM
 if sys.platform != "emscripten":
@@ -443,7 +446,7 @@ def _recreate_gpu_display(fullscreen_enabled, vsync_value):
             from shaders import register_all_effects
             register_all_effects(gpu_renderer)
         except Exception as e:
-            print(f"[GPU] Effect re-registration failed: {e}")
+            logger.exception("[GPU] Effect re-registration failed: %s", e)
         _apply_gpu_settings()
         _recalc_mouse_scale()
 

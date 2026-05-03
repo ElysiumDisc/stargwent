@@ -7,12 +7,7 @@ from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTI
 from abilities import Ability, has_ability, is_hero, is_spy, is_medic, is_plague_card, is_ascension_card, can_be_targeted
 from sound_manager import get_sound_manager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.WARNING,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("stargwent.game")
 
 # ===== STARGATE MECHANICS (MERGED FROM stargate_mechanics.py) =====
 
@@ -553,6 +548,120 @@ ALLIANCE_COMBOS = [
 LUCIAN_NETWORK_COMBO = LucianNetworkCombo()
 
 
+# ----------------------------------------------------------------------------
+# Leader scoring-pass abilities
+# ----------------------------------------------------------------------------
+# Each entry maps a leader-name substring to a callable that applies that
+# leader's passive scoring bonus during Player.calculate_score(). The
+# previous implementation was a long `elif "Name" in leader_name` chain;
+# this dispatch table preserves the same first-match semantics (the leader
+# whose substring appears earliest in this list wins) while making the set
+# of leaders easy to audit and extend. Each function receives the Player
+# (`self` of calculate_score) and the Game (or None when called outside a
+# game context). They mutate `card.displayed_power` in place.
+
+def _leader_carter(player, _game):
+    for card in player.board.get('siege', []):
+        card.displayed_power += 2
+
+
+def _leader_sokar(player, _game):
+    for card in player.board.get('close', []):
+        card.displayed_power += 1
+
+
+def _leader_baal_clone(player, _game):
+    for card in player.board.get('ranged', []):
+        card.displayed_power += 2
+
+
+def _leader_bratac(player, _game):
+    for row_cards in player.board.values():
+        for card in row_cards:
+            if card.row == "agile":
+                card.displayed_power += 1
+
+
+def _leader_sodan_master(player, _game):
+    for row_cards in player.board.values():
+        if row_cards:
+            highest = max(row_cards, key=lambda c: c.displayed_power)
+            highest.displayed_power += 3
+
+
+def _leader_heimdall(player, _game):
+    for row_cards in player.board.values():
+        for card in row_cards:
+            if is_hero(card):
+                card.displayed_power += 3
+
+
+def _leader_cronus(player, _game):
+    round_bonus = getattr(player, 'current_round_number', 1)
+    for row_cards in player.board.values():
+        for card in row_cards:
+            card.displayed_power += round_bonus
+
+
+def _leader_ishta(player, _game):
+    for row_cards in player.board.values():
+        for card in row_cards:
+            if has_ability(card, Ability.GATE_REINFORCEMENT):
+                card.displayed_power += 2
+
+
+def _leader_landry(player, _game):
+    max_count = 0
+    max_row = None
+    for row_name, row_cards in player.board.items():
+        if len(row_cards) > max_count:
+            max_count = len(row_cards)
+            max_row = row_name
+    if max_row:
+        for card in player.board[max_row]:
+            card.displayed_power += 1
+
+
+def _leader_kiva(player, _game):
+    for row_cards in player.board.values():
+        for card in row_cards:
+            if card.kiva_boosted:
+                card.displayed_power += 4
+
+
+def _leader_adria(player, _game):
+    for row_cards in player.board.values():
+        for card in row_cards:
+            if card.adria_boosted:
+                card.displayed_power += 3
+
+
+def _leader_thor_supreme(player, _game):
+    for row_cards in player.board.values():
+        for card in row_cards:
+            if "Mothership" in card.name or "O'Neill-Class" in card.name:
+                card.displayed_power += 3
+
+
+# Order matters — first match wins, exactly mirroring the original
+# `elif "X" in name` cascade. "Thor Supreme Commander" must precede a
+# bare "Thor" if/when one is added so the matcher doesn't shadow.
+LEADER_SCORE_ABILITIES = [
+    ("Carter", _leader_carter),
+    ("Sokar", _leader_sokar),
+    ("Ba'al Clone", _leader_baal_clone),
+    ("Bra'tac", _leader_bratac),
+    ("Sodan Master", _leader_sodan_master),
+    ("Heimdall", _leader_heimdall),
+    ("Cronus", _leader_cronus),
+    ("Ishta", _leader_ishta),
+    ("Landry", _leader_landry),
+    ("Kiva", _leader_kiva),
+    ("Adria", _leader_adria),
+    ("Thor Supreme Commander", _leader_thor_supreme),
+]
+
+
 # ===== END OF MERGED STARGATE MECHANICS =====
 
 class Player:
@@ -583,6 +692,7 @@ class Player:
         self.reveal_next_round = False  # Pending reveal flag for Yu ability
         self.yu_ability_used = False  # Track if Lord Yu's ability has been used (once per game)
         self.plays_this_turn = 0  # Track plays for Rak'nor ability
+        self.raknor_bonus_used = False  # Rak'nor's bonus play already taken this round
         self.zpm_active = False  # Track if ZPM was played this round
         self.spies_played_this_round = 0  # Track spies for Lucian Network combo
         
@@ -650,117 +760,28 @@ class Player:
         if self.leader and "Hammond" in self.leader.get('name', ''):
             for row_name, row_cards in self.board.items():
                 for card in row_cards:
-                    if hasattr(card, 'hammond_boosted') and card.hammond_boosted:
+                    if card.hammond_boosted:
                         card.displayed_power += 3
         
         # Apply Ka'lel ability bonus (first 3 units each round get +2)
         if self.leader and "Ka'lel" in self.leader.get('name', ''):
             for row_name, row_cards in self.board.items():
                 for card in row_cards:
-                    if hasattr(card, 'kalel_boosted') and card.kalel_boosted:
+                    if card.kalel_boosted:
                         card.displayed_power += 2
 
-        # Apply leader ability - power bonuses (BEFORE weather)
+        # Apply leader ability - power bonuses (BEFORE weather).
+        # Dispatched via LEADER_SCORE_ABILITIES (defined module-level).
+        # Hathor's steal, Aegir's draw, Rya'c's R3 draw, Loki's per-turn
+        # steal, and Hathor's placeholder are NOT in the table because they
+        # don't run during score calculation — they're triggered elsewhere
+        # (trigger_hathor_ability, play_card, end_round).
         if self.leader:
             leader_name = self.leader.get('name', '')
-
-            # Hathor: Steal lowest power card from opponent (handled separately in trigger_hathor_ability)
-            # This is just a placeholder - the actual stealing happens in trigger_hathor_ability
-            
-            # Dr. Samantha Carter: +2 power to all Siege units
-            if "Carter" in leader_name:
-                for card in self.board.get('siege', []):
-                    card.displayed_power += 2
-            
-            # Sokar: +1 power to all Close Combat units
-            elif "Sokar" in leader_name:
-                for card in self.board.get('close', []):
-                    card.displayed_power += 1
-            
-            # Ba'al Clone: +2 power to all Ranged units
-            elif "Ba'al Clone" in leader_name:
-                for card in self.board.get('ranged', []):
-                    card.displayed_power += 2
-            
-            # Bra'tac: All Agile cards gain +1 power
-            elif "Bra'tac" in leader_name:
-                for row_cards in self.board.values():
-                    for card in row_cards:
-                        if card.row == "agile":
-                            card.displayed_power += 1
-            
-            # Sodan Master: +3 to highest unit in each row
-            elif "Sodan Master" in leader_name:
-                for row_name, row_cards in self.board.items():
-                    if row_cards:
-                        highest = max(row_cards, key=lambda c: c.displayed_power)
-                        highest.displayed_power += 3
-            
-            # Heimdall: Legendary Commanders get +3 power
-            elif "Heimdall" in leader_name:
-                for row_cards in self.board.values():
-                    for card in row_cards:
-                        if is_hero(card):
-                            card.displayed_power += 3
-            
-            # NEW UNLOCKABLE LEADERS - Power Bonuses
-            
-            # Cronus: Units get +1/+2/+3 per round number
-            elif "Cronus" in leader_name:
-                round_bonus = getattr(self, 'current_round_number', 1)
-                for row_cards in self.board.values():
-                    for card in row_cards:
-                        card.displayed_power += round_bonus
-            
-            # Ishta: Gate Reinforcement units get +2 power
-            elif "Ishta" in leader_name:
-                for row_cards in self.board.values():
-                    for card in row_cards:
-                        if has_ability(card, Ability.GATE_REINFORCEMENT):
-                            card.displayed_power += 2
-            
-            # Aegir: Draw 1 card when playing Siege units (handled in play_card())
-            # Aegir has no passive scoring bonus - it's a draw ability
-
-            # Gen. Landry: Units get +1 in row with most units
-            elif "Landry" in leader_name:
-                # Find row with most units
-                max_count = 0
-                max_row = None
-                for row_name, row_cards in self.board.items():
-                    if len(row_cards) > max_count:
-                        max_count = len(row_cards)
-                        max_row = row_name
-                # Apply +1 to all units in that row
-                if max_row:
-                    for card in self.board[max_row]:
-                        card.displayed_power += 1
-
-            # Kiva: First unit each round gets +4 power
-            elif "Kiva" in leader_name:
-                for row_name, row_cards in self.board.items():
-                    for card in row_cards:
-                        if hasattr(card, 'kiva_boosted') and card.kiva_boosted:
-                            card.displayed_power += 4
-
-            # Adria: First 2 units each round get +3 power
-            elif "Adria" in leader_name:
-                for row_name, row_cards in self.board.items():
-                    for card in row_cards:
-                        if hasattr(card, 'adria_boosted') and card.adria_boosted:
-                            card.displayed_power += 3
-
-            # Thor Supreme Commander: Mothership cards get +3 power
-            elif "Thor Supreme Commander" in leader_name:
-                for row_cards in self.board.values():
-                    for card in row_cards:
-                        if "Mothership" in card.name or "O'Neill-Class" in card.name:
-                            card.displayed_power += 3
-            
-            # Rya'c: Draw 2 extra cards at start of round 3 (handled in end_round())
-
-            # Loki: Steal 1 power from opponent's strongest (done per turn, tracked separately)
-            # This is applied when card is played, not in score calculation
+            for substr, fn in LEADER_SCORE_ABILITIES:
+                if substr in leader_name:
+                    fn(self, game)
+                    break
 
         # Apply Tactical Formation ability
         for row_name, row_cards in self.board.items():
@@ -1199,12 +1220,29 @@ class Game:
             self.current_player = self.player2
         else:
             self.current_player = self.player1
+
         # Track turn changes
         self.turn_count += 1
         
         # Reset plays this turn counter when switching turns
         self.current_player.plays_this_turn = 0
         
+        # Rak'nor ability: grant one bonus play after their first unit each round.
+        # Switch back so the same player can play once more, then mark the bonus consumed
+        # so the bonus only triggers once even if the next play is weather/special.
+        previous_player = self.player2 if self.current_player == self.player1 else self.player1
+        if (not previous_player.raknor_bonus_used and
+                previous_player.leader and
+                "Rak'nor" in previous_player.leader.get('name', '') and
+                self.cards_played_this_round[previous_player] == 1 and
+                not previous_player.has_passed and
+                len(previous_player.hand) > 0):
+            previous_player.raknor_bonus_used = True
+            self.current_player = previous_player
+            self.turn_count -= 1
+            previous_player.plays_this_turn = 0
+            return
+
         if self.current_player.has_passed:
             self.switch_turn() # Skip player if they have passed
 
@@ -1464,8 +1502,7 @@ class Game:
             # Ka'lel: First 3 units each round get +2 power
             if player.leader and "Ka'lel" in player.leader.get('name', ''):
                 if player.units_played_this_round <= 3:
-                    # Mark card as Ka'lel boosted
-                    if not hasattr(card, 'kalel_boosted'):
+                    if not card.kalel_boosted:
                         card.kalel_boosted = True
             
             # Gerak: Draw 1 card for every 2 units played
@@ -1476,14 +1513,13 @@ class Game:
             # Gen. Hammond ability: First unit each round gets +3 power
             if player.leader and "Hammond" in player.leader.get('name', ''):
                 if self.cards_played_this_round[player] == 1 and card.row not in ["special", "weather"]:
-                    # Mark card as Hammond boosted so it survives calculate_score()
-                    if not hasattr(card, 'hammond_boosted'):
+                    if not card.hammond_boosted:
                         card.hammond_boosted = True
 
             # Kiva: First unit each round gets +4 power
             if player.leader and "Kiva" in player.leader.get('name', ''):
                 if self.cards_played_this_round[player] == 1 and card.row not in ["special", "weather"]:
-                    if not hasattr(card, 'kiva_boosted'):
+                    if not card.kiva_boosted:
                         card.kiva_boosted = True
                         self.add_history_event(
                             "ability",
@@ -1538,7 +1574,7 @@ class Game:
             # Adria leader: First 2 units each round get +3 power
             if player.leader and "Adria" in player.leader.get('name', ''):
                 if player.units_played_this_round <= 2 and not is_hero(card):
-                    if not hasattr(card, 'adria_boosted'):
+                    if not card.adria_boosted:
                         card.adria_boosted = True
 
             # Prior's Plague: reduce all enemy non-heroes in same row by 1
@@ -2912,12 +2948,15 @@ class Game:
         for p in [self.player1, self.player2]:
             for row_cards in p.board.values():
                 for card in row_cards:
-                    if hasattr(card, 'hammond_boosted'):
-                        delattr(card, 'hammond_boosted')
-                    if hasattr(card, 'kalel_boosted'):
-                        delattr(card, 'kalel_boosted')
-                    if hasattr(card, 'kiva_boosted'):
-                        delattr(card, 'kiva_boosted')
+                    # Reset all leader per-round boost flags. adria_boosted was
+                    # previously missing from this clear, which let an Adria-
+                    # boosted card carry +3 into the next round if it survived
+                    # via medic revive — fixed alongside the Card.__init__
+                    # initialisation pass.
+                    card.hammond_boosted = False
+                    card.kalel_boosted = False
+                    card.kiva_boosted = False
+                    card.adria_boosted = False
                 p.discard_pile.extend(row_cards)
 
             p.board = {"close": [], "ranged": [], "siege": []}
@@ -2933,6 +2972,7 @@ class Game:
             p.reveal_next_round = False
             p.zpm_active = False
             p.spies_played_this_round = 0
+            p.raknor_bonus_used = False
 
             if p.ring_transportation:
                 p.ring_transportation.reset_round()
@@ -3244,7 +3284,7 @@ class Game:
             icon="X"
         )
 
-        print(f"[game] {loser_name} surrendered. {winner_name} wins.")
+        logger.info(f"{loser_name} surrendered. {winner_name} wins.")
 
         self._cleanup_round()
 

@@ -94,6 +94,54 @@ def _get_star_sprite(color):
     return surf
 
 
+# --- Side-panel scratch surface caches --------------------------------------
+# These are fully deterministic for their key — the redraw path used to allocate
+# fresh SRCALPHA surfaces every frame the panel/tooltip was visible.
+_panel_surf_cache = {}
+_PANEL_CACHE_MAX = 64
+
+
+def _get_toggle_button_surf(w, h):
+    key = ("toggle", w, h)
+    surf = _panel_surf_cache.get(key)
+    if surf is None:
+        if len(_panel_surf_cache) >= _PANEL_CACHE_MAX:
+            _panel_surf_cache.pop(next(iter(_panel_surf_cache)))
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill((40, 60, 90, 180))
+        _panel_surf_cache[key] = surf
+    return surf
+
+
+def _get_row_bg_surf(w, h, faction_color):
+    """Cached translucent faction-tinted row background."""
+    key = ("row_bg", w, h, faction_color)
+    surf = _panel_surf_cache.get(key)
+    if surf is None:
+        if len(_panel_surf_cache) >= _PANEL_CACHE_MAX:
+            _panel_surf_cache.pop(next(iter(_panel_surf_cache)))
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill((faction_color[0] // 10, faction_color[1] // 10,
+                   faction_color[2] // 10, 60))
+        _panel_surf_cache[key] = surf
+    return surf
+
+
+def _get_tooltip_surf(w, h):
+    """Cached tooltip background (dark fill + light border).
+    The text is blitted on top of a fresh copy each frame so the cache is safe."""
+    key = ("tooltip", w, h)
+    surf = _panel_surf_cache.get(key)
+    if surf is None:
+        if len(_panel_surf_cache) >= _PANEL_CACHE_MAX:
+            _panel_surf_cache.pop(next(iter(_panel_surf_cache)))
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill((15, 20, 35, 230))
+        pygame.draw.rect(surf, (120, 160, 220), surf.get_rect(), 1)
+        _panel_surf_cache[key] = surf
+    return surf
+
+
 def _draw_star(surf, cx, cy, r, color):
     """Draw a 5-point star centered at (cx, cy).  Alpha-aware."""
     pts = []
@@ -528,9 +576,7 @@ class MapScreen:
         toggle_x = self.panel_x - toggle_w - 8 if self.panel_visible else self.sw - toggle_w - 8
         toggle_y = int(self.sh * 0.015)
         self.panel_toggle_btn_rect = pygame.Rect(toggle_x, toggle_y, toggle_w, toggle_h)
-        toggle_surf = pygame.Surface((toggle_w, toggle_h), pygame.SRCALPHA)
-        toggle_surf.fill((40, 60, 90, 180))
-        screen.blit(toggle_surf, (toggle_x, toggle_y))
+        screen.blit(_get_toggle_button_surf(toggle_w, toggle_h), (toggle_x, toggle_y))
         pygame.draw.rect(screen, (80, 110, 150), self.panel_toggle_btn_rect, 1)
         toggle_label = self.font_info.render(toggle_text, True, (180, 200, 220))
         screen.blit(toggle_label, (toggle_x + toggle_w // 2 - toggle_label.get_width() // 2,
@@ -953,10 +999,8 @@ class MapScreen:
             rel_color = rel_info.get("color", (150, 150, 150))
             faction_color = FACTION_COLORS.get(faction, (150, 150, 150))
 
-            # Subtle background box for each faction row
-            row_bg = pygame.Surface((inner_w, row_h), pygame.SRCALPHA)
-            row_bg.fill((faction_color[0] // 10, faction_color[1] // 10, faction_color[2] // 10, 60))
-            screen.blit(row_bg, (x, y))
+            # Subtle background box for each faction row (cached by faction color)
+            screen.blit(_get_row_bg_surf(inner_w, row_h, faction_color), (x, y))
 
             # Faction name + planet count
             f_surf = self.font_info.render(f"{faction} ({pcount})", True, faction_color)
@@ -1115,9 +1159,8 @@ class MapScreen:
             tx = sx - radius - 12 - w
         ty = max(self.map_rect.y + 4, min(ty, self.map_rect.bottom - h - 4))
 
-        tip = pygame.Surface((w, h), pygame.SRCALPHA)
-        tip.fill((15, 20, 35, 230))
-        pygame.draw.rect(tip, (120, 160, 220), tip.get_rect(), 1)
+        # Tooltip background (cached) + per-frame text on a copy
+        tip = _get_tooltip_surf(w, h).copy()
         y = pad
         for s in surfaces:
             tip.blit(s, (pad, y))

@@ -1,9 +1,192 @@
-### Version 12.3.0 (May 2026)
-**Work in progress**
+### Version 12.4.0 — "Fourth-Pass Audit" (May 2026)
+**Comprehensive audit + 16 of 18 backlog items shipped**
 
-- Version bump to 12.3.0
+A four-area audit (core engine, rules/AI/LAN, space shooter, galactic
+conquest) across ~44k LOC, followed by direct implementation of the
+prioritised fix list. 16 items landed code changes; the remaining 2 were
+verified as false positives — the underlying issue was already fixed in
+prior versions. No save schema breakage; one schema-version migration
+(`schema_version: 2`) added to `player_unlocks.json` for the new
+`faction_games` counter. One real bug found and fixed during the cleanup
+that wasn't in the audit (`adria_boosted` missing from round-end reset).
+
+#### Performance
+- **Deck-builder filter memoised.** `get_cards_by_type_and_strength()` is
+  called from 7+ sites in `deck_builder.py` including the accordion draw
+  path; previously every scroll/hover frame did an O(n) filter + O(n log n)
+  sort over ~500 cards. Now keyed on `(id(card_id_list), len, tab, keyword)`
+  with an LRU-bounded cache (16 entries). Eliminates accordion scroll lag.
+- **Transition ring/planet/board/flash surfaces pre-allocated.** Round 2/3
+  hyperspace transition was allocating 5 full-screen `SRCALPHA` surfaces
+  per frame in the inner ring loop (450 allocs/transition); the round-
+  winner announcement was allocating 4 more (overlay, flash, board, line)
+  per frame at 60fps. Both are now scratch surfaces filled once and reused.
+- **AncientDrone body sprite cached + 16-bin rotation cache.** Drones were
+  building a fresh `pygame.Surface` and calling `pygame.transform.rotate()`
+  every frame (~600 allocs/sec under load). Now a deterministic seeded
+  body sprite is built once per radius and rotated into a 16-bucket
+  angle-quantised cache. Tail wisps no longer wiggle frame-to-frame, but
+  the visual change is invisible at game speeds.
+- **Missile trail composite cached** (`(radius, alpha)` key, 64-entry LRU)
+  in `space_shooter/projectiles.py` — replaces a per-particle two-circle
+  surface allocation.
+- **Galactic-map toggle button + per-row faction backgrounds + tooltip
+  background** are now cached in `galactic_conquest/map_renderer.py`
+  (`_panel_surf_cache`). The map panel was producing ~600 SRCALPHA allocs/
+  sec when open.
+- **Command-bar surface** moved from an ad-hoc `hasattr` cache to the
+  shared `_panel_cache` LRU via a new `_get_cached_top_line_panel` helper
+  in `frame_renderer.py`.
+- **Card slide / reveal** uses `pygame.transform.scale` instead of
+  `smoothscale` (`animations.py`). For these animations the scaling factors
+  are near 1.0 or step in 4-px buckets, so the visual diff is invisible
+  but the per-frame cycle cost is measurably lower.
+- **Stargate toggle (options menu)** caches the fully-static inactive form
+  by size and the static base (outer ring + ripple rings) for the active
+  form. The animated chevron glow + event-horizon disc are still drawn per
+  frame on a copy of the cached base. Was 3× full reconstruction per frame.
+
+#### Logic / correctness
+- **Card boost flags initialised in `Card.__init__`.** `hammond_boosted`,
+  `kalel_boosted`, `kiva_boosted`, and `adria_boosted` are now declared
+  `False` on every Card so the `calculate_score()` reads can drop their
+  defensive `hasattr()` guards. Bonus catch: **`adria_boosted` was missing
+  from the round-end reset path**, meaning an Adria-boosted card that
+  survived a round via medic revive would carry +3 into the next round.
+  Fixed by clearing all four flags together in `Game._end_round`.
+- **Leader scoring dispatch.** The `if "Carter" in name elif "Sokar" in
+  name elif …` chain in `Player.calculate_score` is now a
+  `LEADER_SCORE_ABILITIES` list mapping name-substring to handler
+  function. Same first-match semantics, easier to extend.
+- **HathorStealAnimation / CardRevealAnimation snapshot `card.image`** at
+  `__init__` (matches the existing `CardStealAnimation` pattern) so a
+  mid-animation card image swap (e.g. `reload_card_images()` triggering
+  during a transition) can't yank the surface out from under the
+  in-flight animation.
+- **LAN turn-token gap escalates to a clean disconnect** when a single
+  jump exceeds 20 tokens or cumulative gap-count hits 10. Previously the
+  receiver only logged + warned + resynced, regardless of severity, so
+  catastrophic desyncs would let two diverged boards continue silently.
+  Now closes the session so the existing `is_connected()` polling ends
+  the match. Below the threshold, behaviour is unchanged.
+- **AI evaluation runs in a worker thread** via `asyncio.to_thread` at the
+  one synchronous-blocking call site in `main.py`. Late-game `choose_move`
+  can take 50-200 ms; that no longer drops the main render loop. Pygbag
+  shims the threading layer, so the web build degrades gracefully to the
+  prior synchronous behaviour.
+
+#### Stats / persistence
+- **`faction_games` is now persisted directly** in `player_unlocks.json`
+  alongside `faction_wins`. The old `wins * 2` (50%-win-rate guess)
+  fallback in `statistics.py` is gone — for skilled players that was
+  producing wildly wrong rates. Migration: `_migrate_unlocks()` adds the
+  empty dict to v1 saves and stamps `schema_version: 2`. v1 saves still
+  load fine and degrade to "games == max(wins, matchups_total)" until
+  enough new games accrue.
+- **Unlock save schema versioning.** Added `UNLOCK_SCHEMA_VERSION = 2` and
+  `_migrate_unlocks()` to `deck_persistence.py`. Forward-only; older
+  saves are upgraded transparently on first load.
+
+#### Tooling / observability
+- **GPU error paths route through the standard logger.** `gpu_renderer.py`
+  runtime errors and `display_manager.py` effect-registration failures use
+  `logger.exception(...)` instead of `print(...)`, so the existing
+  `STARGWENT_DEBUG=1` environment toggle and CI log capture work uniformly.
+
+#### Verified false-positives (no code change)
+- **HELLO handshake timeout.** The audit flagged `_peer_hello_event.wait()`
+  as having no timeout. In fact `lan_session.handshake()` has had a
+  default 5-second deadline with bounded 250 ms polls and proper
+  `TimeoutError` propagation since well before this version. Caller in
+  `lan_menu._perform_handshake` already closes the socket on failure. No
+  change needed.
+- **`estimate_faction_power_value` caching.** The audit suggested per-round
+  caching, claiming the function was hit multiple times per AI turn. Trace
+  shows it has exactly one call site (`ai_opponent.py:282`, inside
+  `should_use_power`) and runs once per AI decision over a O(discard pile)
+  ≈ 30-element loop — sub-millisecond. Adding speculative caching would
+  be code without a measurable win.
+
+#### Code cleanup byproducts
+- Module-level constants for the new caches all carry size limits and
+  FIFO/LRU eviction so no cache can grow unbounded.
+- The leader-dispatch refactor exposes `LEADER_SCORE_ABILITIES` as the
+  authoritative list of leaders with passive scoring bonuses; adding a
+  new leader ability requires one entry instead of finding the right
+  spot in a 90-line `elif` chain.
+
+#### Verification
+1. `cProfile` 60 s of mid-game with deck-builder open + transition active;
+   compare per-function ms vs 12.3.2. Target: deck-builder scroll <2 ms/
+   frame, transitions <16 ms/frame.
+2. GPU smoke test: fullscreen toggle ×2, force a shader-init failure to
+   exercise the fallback path, watch the new `logger.exception` lines.
+3. LAN sync test: `SIGSTOP` one client briefly to force a token jump;
+   verify either the new resync warning fires or (above threshold) a
+   clean disconnect occurs.
+4. AI responsiveness: capture per-frame durations across 5 hard-difficulty
+   late-game AI turns. Worst frame should be <20 ms with the to_thread
+   wrap (was 50-200 ms in audit traces).
+5. Save/load round-trip: 5 turns of Galactic Conquest, save, kill the
+   process, reload — campaign state byte-identical (unchanged from 12.3.2).
+6. Manual smoke of all factions, draft mode, and the space-shooter easter
+   egg (no automated tests). Specifically watch the AncientDrone weapon
+   under heavy fire to confirm the cached rotation looks correct.
+
+#### Version
+- Bumped to 12.4.0 in `metadata.json`, `game_config.py`, and the
+  `README.md` badge.
 
 ---
+
+### Version 12.3.2 (May 2026)
+**Audit pass — Windows CI, Rak'nor leader fix, rendering regression revert**
+
+#### CI / build
+- **Windows build now succeeds.** `python -m pip install …` is used in place of bare
+  `pip install …` for both the upgrade step and the dependency install on
+  Windows and macOS runners, sidestepping pip's "To modify pip, please run …"
+  refusal when the in-flight `pip.exe` shim is being upgraded.
+
+#### Gameplay
+- **Rak'nor's bonus play actually works now.** Previously the leader's
+  "play two cards on your first turn each round" ability silently rejected
+  the second card because `play_card`'s per-turn gate was never satisfied
+  after the turn switched back. Replaced with a flag-guarded switch-back in
+  `Game.switch_turn()` that resets `plays_this_turn` on the bonus and is
+  consumed only once per round (`Player.raknor_bonus_used`). Behaves
+  correctly through medic/spy/weather plays, mirror Rak'nor matchups, and
+  the round reset path.
+
+#### Rendering
+- **Reverted laser-beam glow caching.** The 12.3.1 attempt keyed the surface
+  cache on time-varying values (`beam_color`, `pulse`-derived alpha,
+  cursor-relative `bw/bh`), so `_surface_cache` (which has no eviction
+  policy outside resolution change) would grow unboundedly while a Ring
+  Transport drag was active. The Ring Transport beam now allocates the glow
+  surface per frame as before — a known acceptable cost during a transient
+  interaction.
+
+#### Logging cleanup
+- **Removed duplicate `import logging` and unused `setup_logging` import** in
+  `game.py` left over from the 12.3.1 migration.
+- **Migrated the surrender log line** in `Game.surrender()` from `print()` to
+  `logger.info()` to match the rest of the file. (Wider `print` → `logger`
+  migration across other modules is still pending; the previous CHANGELOG
+  entry overstated the scope.)
+
+#### Version
+- Bumped to 12.3.2 in `README.md` badge.
+
+---
+
+### Version 12.3.1 (May 2026)
+**Withdrawn.** Shipped a non-functional Rak'nor ability and a memory-leaking
+beam-glow cache; both are corrected in 12.3.2.
+
+---
+
+### Version 12.3.0 (May 2026)
 
 ### Version 12.2.4 — "Third-Pass Audit" (May 2026)
 **Bug-hunt, performance pass, and code quality sweep**
