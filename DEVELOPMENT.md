@@ -422,7 +422,7 @@ animations, LAN, conquest, arcade): `spatial_grid` collision sites
 deduplicated, particle/lightning/score-pop allocations cached, AI auto-aim
 rewritten on squared distances, conquest save migration hardened,
 naquadah upper-bound clamped, co-op snapshot truncation prioritised by
-distance to the nearer player. **v12.2.3** is a targeted follow-up
+distance to the nearer player. **v12.3.0** is a targeted follow-up
 patch: fixes a `NameError` crash in Galactic Conquest turn-advance when
 rival events fire, hardens `construct_building` against double-build,
 clamps `get_building_level` to a valid range, prevents a `LanSession`

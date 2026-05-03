@@ -1,5 +1,6 @@
 {
   "title": "Stargwent",
+  "version": "12.3.0",
   "short_text": "A Stargate SG-1 themed Gwent card game",
   "type": "default",
   "classification": "game",
@@ -13,7 +14,7 @@
     "osx": true,
     "web": true
   },
-  "cover_image": "assets/backgrounds/main_menu_bg.png",
+  "cover_image": "assets/menu_background.png",
   "genre": "card_game",
   "tags": [
     "card-game",

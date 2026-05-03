@@ -98,7 +98,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install pygame-ce moderngl Pillow pyinstaller
 
       - name: Generate icon
@@ -164,7 +164,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install pygame-ce moderngl Pillow pyinstaller
 
       - name: Generate icon

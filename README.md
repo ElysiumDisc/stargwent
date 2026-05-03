@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-12.2.3-blue)
+![Version](https://img.shields.io/badge/version-12.3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -70,8 +70,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 
 ### 🎮 Complete Card Game Experience
 - **100% Fully Implemented** - All mechanics, powers, animations, persistence, LAN multiplayer, and Draft Mode
-- **287 Cards** across 6 factions + Neutral cards with 20+ Stargate-themed abilities
-- **35 Unique Leaders** (15 base + 20 unlockable) each with special abilities
+- **288 Cards** across 6 factions + Neutral cards with 20+ Stargate-themed abilities
+- **40 Unique Leaders** (20 base + 20 unlockable) each with special abilities
 - **25+ Hero Animations** - Unique cinematic entry effects for legendary commanders
 - **Legendary Commander Voice Clips** - Character quotes play when heroes are deployed
 - **Granular Audio Control** - 4 volume sliders (Master, Music, Voice, Effects) — master applies as multiplier. Card effect animations (Replicator Swarm, Asgard Beam, etc.) use **Effects** slider; Commander voice snippets use **Voice** slider. All game sounds respect settings including space shooter SFX
@@ -252,38 +252,38 @@ All abilities renamed and themed around Stargate lore:
 #### **Tau'ri** (Earth Forces) 🌎
 *Human ingenuity and determination*
 - **Style**: Balanced units, strong heroes
-- **Leaders**: Col. O'Neill, Gen. Hammond, Dr. Carter, Dr. Jackson, Teal'c
+- **Base Leaders**: Col. O'Neill, Gen. Hammond, Dr. Carter
 - **Signature Twist**: Col. Jack O'Neill now summons a temporary 6-power clone at the start of every round—perfect disposable muscle that vaporizes after three of your turns.
 - **Unlockable**: Jonas Quinn, Catherine Langford, Gen. Landry, Dr. McKay
 
 #### **Goa'uld** (System Lords) 👑
 *Ancient parasitic overlords*
 - **Style**: Overwhelming numbers, powerful abilities
-- **Leaders**: Apophis, Yu the Great, Sokar, Ba'al, Hathor
+- **Base Leaders**: Apophis, Lord Yu, Sokar
 - **Apophis Ability**: If the enemy stacks 4+ ships in Siege, he beams one onto your board
-- **Unlockable**: Ba'al (Clone), Cronus, Anubis, Kvasir
+- **Unlockable**: Ba'al, Cronus, Anubis, Hathor
 
 #### **Jaffa** (Free Jaffa Nation) ⚔️
 *Warriors seeking freedom*
 - **Style**: Tactical combat, unit synergy
-- **Starter Leaders**: Teal'c, Bra'tac, Rak'nor
+- **Base Leaders**: Teal'c, Bra'tac, Rak'nor
 - **Unlockable**: Ka'lel, Gerak, Ishta, Rya'c (Teal'c's son)
 
 #### **Lucian Alliance** (Pirates & Smugglers) 💀
 *Cunning outlaws and mercenaries*
-- **Leaders**: Varro, Sodan Master, Ba'al Clone
+- **Base Leaders**: Varro, Sodan Master, Ba'al Clone
 - **Unlockable**: Netan, Vala Mal Doran, Anateo, Kiva
 
 #### **Asgard** (Ancient Allies) 👽
 *Advanced technology and wisdom*
-- **Leaders**: Thor, Freyr (2 weather blocks/game), Penegal, Aegir, Heimdall
-- **Unlockable**: Thor (Supreme Commander), Hermiod, Loki
+- **Base Leaders**: Freyr, Loki, Heimdall
+- **Unlockable**: Thor, Hermiod, Penegal, Aegir
 
 #### **Alteran** (Ori & Ancients) 🔥 — UNLOCKABLE
 *Ascended beings — faith empowers the faithful*
 - **Unlock**: Win at least one game with each of the 5 base factions
 - **Passive**: "Flames of Enlightenment" — First 3 non-hero units each round gain +1 power per Alteran card on board (max +3)
-- **Leaders**: Adria (The Orici), The Doci, Merlin (Moros), Morgan Le Fay, Oma Desala
+- **Base Leaders**: Adria (The Orici), The Doci, Merlin (Moros), Morgan Le Fay, Oma Desala
 - **Unique Abilities**: Prior's Plague (debuff enemy row — toxic green miasma GPU shader), Ascension (buff allies on death — golden ascending light GPU shader)
 - **40 cards** spanning both Ori crusaders (Priors, Warships, Supergate) and Ancient scientists (Janus, Orlin, Chaya Sar)
 

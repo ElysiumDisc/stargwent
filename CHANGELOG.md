@@ -1,3 +1,10 @@
+### Version 12.3.0 (May 2026)
+**Work in progress**
+
+- Version bump to 12.3.0
+
+---
+
 ### Version 12.2.4 — "Third-Pass Audit" (May 2026)
 **Bug-hunt, performance pass, and code quality sweep**
 
