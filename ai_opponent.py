@@ -263,7 +263,7 @@ class AIStrategy:
         avg_power = total_power / len(self.ai_player.hand) if self.ai_player.hand else 0
 
         return {
-            'too_many_heroes': hero_count > 3,
+            'too_many_heroes': hero_count,
             'no_units': unit_count == 0,
             'all_weak': avg_power < 3,
             'has_synergy': has_synergy,

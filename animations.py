@@ -250,7 +250,7 @@ class CardStealAnimation(Animation):
         if scaled_size != self._cached_scaled_size:
             self._cached_scaled_card = pygame.transform.smoothscale(self.card_image, scaled_size)
             self._cached_scaled_size = scaled_size
-        scaled_card = self._cached_scaled_card
+        scaled_card = self._cached_scaled_card.copy()
         scaled_card.set_alpha(self.alpha)
         rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
         surface.blit(scaled_card, rect)
@@ -390,30 +390,6 @@ class HathorStealAnimation(Animation):
         # Blit the heart to the surface
         surface.blit(heart_surface, (x - size, y - size))
 
-
-class CardFlipAnimation(Animation):
-    """Flips a card (scale effect)."""
-    def __init__(self, duration=400):
-        super().__init__(duration)
-        self.scale = 1.0
-    
-    def update(self, dt):
-        super().update(dt)
-        progress = self.get_progress()
-        # Scale down then up for flip effect
-        if progress < 0.5:
-            self.scale = 1.0 - (progress * 2) * 0.3  # Scale to 0.7
-        else:
-            self.scale = 0.7 + ((progress - 0.5) * 2) * 0.3  # Scale back to 1.0
-        return not self.finished
-    
-    def apply_to_image(self, image):
-        """Returns scaled image for flip effect."""
-        width = int(image.get_width() * self.scale)
-        height = image.get_height()
-        if width <= 0:
-            width = 1
-        return pygame.transform.scale(image, (width, height))
 
 
 class CardRevealAnimation(Animation):
@@ -1084,7 +1060,7 @@ class AICardPlayAnimation(Animation):
             self._cached_scaled_card = pygame.transform.smoothscale(
                 self.card_image, (scaled_w, scaled_h))
             self._cached_scaled_size = (scaled_w, scaled_h)
-        scaled_card = self._cached_scaled_card
+        scaled_card = self._cached_scaled_card.copy()
         scaled_card.set_alpha(self.alpha)
         rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
         surface.blit(scaled_card, rect)

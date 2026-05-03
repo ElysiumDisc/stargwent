@@ -1,3 +1,43 @@
+### Version 12.2.4 — "Third-Pass Audit" (May 2026)
+**Bug-hunt, performance pass, and code quality sweep**
+
+A full three-agent audit covering all major subsystems. Fixes two confirmed
+logic bugs, eliminates the largest per-frame surface-allocation hot spots in
+the space shooter, and removes dead code. No gameplay changes; no save schema
+changes; all 12.x saves load cleanly.
+
+#### Bug fixes
+- **AI mulligan hero adjustment never triggered.** `analyze_hand_composition()`
+  stored `too_many_heroes` as a boolean (`hero_count > 3`). The check at
+  `decide_mulligan()` compared the boolean against `> 3`, which is always
+  `False` (True == 1). Now stores the raw count so the adjustment correctly
+  fires when the AI holds 4+ hero cards.
+- **`set_alpha()` mutated cached card surface.** `CardStealAnimation.draw()`
+  and a second animation class called `set_alpha()` directly on the
+  instance-cached scaled surface, so the cached copy's alpha was permanently
+  updated. Any frame that reused the cache before the next rescale would blit
+  at the wrong alpha. Fixed by copying the cached surface before setting alpha.
+
+#### Performance — Space Shooter
+- **Eliminated ~10 per-frame `pygame.Surface` allocations per projectile.**
+  Added a module-level `_get_circle_surf(radius, color, alpha)` cache
+  (alpha quantized to 32 levels) and two pre-built ember constants
+  (`_EMBER_GOLD`, `_EMBER_ORANGE`). Replaced inline `pygame.Surface()`
+  calls in: `Laser`, `AncientDrone`, `Missile`, `BlastProjectile`,
+  `RailgunShot`, and `TunnelBolt` draw methods.
+- **Cached per-instance static body surfaces.** `Laser` glow surface,
+  `Missile` body+nosecone, and `RailgunShot` bolt are now built once on
+  first draw and reused every subsequent frame (shapes are deterministic).
+
+#### Code quality
+- **Removed dead `CardFlipAnimation` class** (`animations.py`) — defined but
+  never instantiated anywhere in the codebase.
+
+#### Save-compat
+- Save schema unchanged. All 12.x saves load cleanly.
+
+---
+
 ### Version 12.2.3 — "Audit Follow-up" (April 2026)
 **Targeted correctness fixes from second-pass audit verification**
 

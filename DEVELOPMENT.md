@@ -528,6 +528,12 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 | `coop_ui.py` | 130 | Dual health bars, partner arrow, revival |
 | `virtual_keys.py` | 55 | Network input translation |
 
+### Projectile Draw Performance
+- **Surface cache**: `projectiles.py` exports `_get_circle_surf(radius, color_rgb, alpha)` — a module-level dict that caches circle surfaces keyed by `(radius, color, alpha//8*8)`. Use this instead of `pygame.Surface()` for any fixed-radius circle in a draw method.
+- **Pre-built embers**: `_EMBER_GOLD` and `_EMBER_ORANGE` are module-level constants (6×6 surfaces). Blit these directly instead of allocating per-frame.
+- **Per-instance body caches**: Static projectile body surfaces (Laser glow, Missile body, RailgunShot bolt) are built once on first draw and stored on the instance as `self._glow_surf`, `self._body_surf`, `self._bolt_surf`. Follow this pattern for any new deterministic projectile body.
+- **Do not** use `pygame.Surface()` inside any draw method that runs every frame unless the surface dimensions or contents change each frame (e.g. TunnelBolt pulsing body).
+
 ### Key Systems
 - **Ship Variants**: Data-driven `SHIP_VARIANTS` dict per faction with weapon, secondary, passive configs
 - **Supergate Bosses**: At 3 min, single Supergate (40k HP) spawns → bosses emerge one at a time (Ori Mothership / Wraith Hive). Song plays when gate opens. Gate stays until all bosses spawned AND killed. Damageable by projectiles, asteroids (500), wormhole (2000) — immune to touch contact. Boss events never stack

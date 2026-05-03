@@ -31,6 +31,35 @@ def reset_trail_particle_count():
     _trail_particle_count = 0
 
 
+# --- Surface cache for projectile draw methods ---
+# Avoids per-frame pygame.Surface allocation in hot draw paths.
+_surf_cache: dict = {}
+
+
+def _get_circle_surf(radius: int, color_rgb: tuple, alpha: int) -> pygame.Surface:
+    """Cached circle surface. Alpha is quantized to 32 levels to bound cache size."""
+    alpha_q = (max(0, min(255, alpha)) // 8) * 8
+    key = (radius, color_rgb, alpha_q)
+    s = _surf_cache.get(key)
+    if s is None:
+        sz = radius * 2
+        s = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        pygame.draw.circle(s, (*color_rgb, alpha_q), (radius, radius), radius)
+        _surf_cache[key] = s
+    return s
+
+
+def _make_ember(color_rgba: tuple) -> pygame.Surface:
+    s = pygame.Surface((6, 6), pygame.SRCALPHA)
+    pygame.draw.circle(s, color_rgba, (3, 3), 2)
+    return s
+
+
+# Pre-built constant ember surfaces shared across all projectile draw calls.
+_EMBER_GOLD = _make_ember((255, 200, 50, 160))
+_EMBER_ORANGE = _make_ember((255, 120, 30, 140))
+
+
 class Projectile:
     """Base class for all projectiles."""
     def __init__(self, x, y, direction, color, speed=15, damage=15):
@@ -72,6 +101,7 @@ class Laser(Projectile):
             self.width = 35
             self.height = 6
         self.trail = []
+        self._glow_surf = None
 
     def update(self):
         # Golden afterglow trail
@@ -106,31 +136,28 @@ class Laser(Projectile):
             else:
                 tx, ty = t['x'], t['y']
             a = max(0, t['alpha'])
-            trail_s = pygame.Surface((10, 10), pygame.SRCALPHA)
-            pygame.draw.circle(trail_s, (255, 200, 50, a), (5, 5), 4)
-            surface.blit(trail_s, (int(tx) - 5, int(ty) - 5))
+            trail_s = _get_circle_surf(4, (255, 200, 50), a)
+            surface.blit(trail_s, (int(tx) - 4, int(ty) - 4))
 
-        # Glowing laser effect
-        glow_surf = pygame.Surface((self.width + 10, self.height + 10), pygame.SRCALPHA)
-        pygame.draw.rect(glow_surf, (*self.color[:3], 100), (5, 5, self.width, self.height))
-        pygame.draw.rect(glow_surf, (*self.color[:3], 255), (5, 5, self.width, self.height))
-        # Bright core
-        if self.is_vertical:
-            pygame.draw.rect(glow_surf, (255, 255, 255),
-                             (5 + self.width // 4, 5, self.width // 2, self.height))
-        else:
-            pygame.draw.rect(glow_surf, (255, 255, 255),
-                             (5, 5 + self.height // 4, self.width, self.height // 2))
-        surface.blit(glow_surf, (int(sx) - self.width // 2 - 5,
-                                 int(sy) - self.height // 2 - 5))
+        # Glowing laser effect (cached per instance — same shape every frame)
+        if self._glow_surf is None:
+            self._glow_surf = pygame.Surface((self.width + 10, self.height + 10), pygame.SRCALPHA)
+            pygame.draw.rect(self._glow_surf, (*self.color[:3], 100), (5, 5, self.width, self.height))
+            pygame.draw.rect(self._glow_surf, (*self.color[:3], 255), (5, 5, self.width, self.height))
+            if self.is_vertical:
+                pygame.draw.rect(self._glow_surf, (255, 255, 255),
+                                 (5 + self.width // 4, 5, self.width // 2, self.height))
+            else:
+                pygame.draw.rect(self._glow_surf, (255, 255, 255),
+                                 (5, 5 + self.height // 4, self.width, self.height // 2))
+        surface.blit(self._glow_surf, (int(sx) - self.width // 2 - 5,
+                                       int(sy) - self.height // 2 - 5))
 
         # Tiny ember dots (20% chance)
         if random.random() < 0.2:
             ember_x = int(sx) + random.randint(-6, 6)
             ember_y = int(sy) + random.randint(-6, 6)
-            ember_s = pygame.Surface((6, 6), pygame.SRCALPHA)
-            pygame.draw.circle(ember_s, (255, 200, 50, 160), (3, 3), 2)
-            surface.blit(ember_s, (ember_x - 3, ember_y - 3))
+            surface.blit(_EMBER_GOLD, (ember_x - 3, ember_y - 3))
 
 
 class AncientDrone(Projectile):
@@ -190,10 +217,8 @@ class AncientDrone(Projectile):
                 tx, ty = t['x'], t['y']
             a = max(0, t['alpha'])
             trail_r = max(1, int(4 * a / 180))
-            trail_surf = pygame.Surface((trail_r * 2 + 4, trail_r * 2 + 4), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (255, 200, 50, a),
-                              (trail_r + 2, trail_r + 2), trail_r)
-            surface.blit(trail_surf, (int(tx) - trail_r - 2, int(ty) - trail_r - 2))
+            trail_surf = _get_circle_surf(trail_r, (255, 200, 50), a)
+            surface.blit(trail_surf, (int(tx) - trail_r, int(ty) - trail_r))
 
         # Compute heading angle for oriented drawing
         dx, dy = self.direction
@@ -245,9 +270,7 @@ class AncientDrone(Projectile):
                     hx, hy = camera.world_to_screen(hx, hy)
                 alpha = max(0, t.get('alpha', 100))
                 if alpha > 10:
-                    s = pygame.Surface((6, 6), pygame.SRCALPHA)
-                    pygame.draw.circle(s, (255, 215, 80, alpha), (3, 3), 3)
-                    surface.blit(s, (hx - 3, hy - 3))
+                    surface.blit(_get_circle_surf(3, (255, 215, 80), alpha), (hx - 3, hy - 3))
 
 
 class Missile(Projectile):
@@ -264,6 +287,7 @@ class Missile(Projectile):
             self.height = 8
         self.trail = []
         self.wobble = 0
+        self._body_surf = None
 
     def update(self):
         # Add trail particle
@@ -307,45 +331,42 @@ class Missile(Projectile):
             trail_r = max(2, 4 + int(math.sin(self.wobble + i * 0.3) * 2))
             smoke_r = trail_r + 2
             # Smoke layer behind main trail
-            smoke_surf = pygame.Surface((smoke_r * 2 + 4, smoke_r * 2 + 4), pygame.SRCALPHA)
-            pygame.draw.circle(smoke_surf, (160, 160, 160, alpha // 3),
-                             (smoke_r + 2, smoke_r + 2), smoke_r)
-            surface.blit(smoke_surf, (int(tx) - smoke_r - 2, int(ty) - smoke_r - 2))
-            # Main trail
-            trail_surf = pygame.Surface((trail_r * 2 + 4, trail_r * 2 + 4), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (255, 150, 50, alpha),
-                             (trail_r + 2, trail_r + 2), trail_r)
+            surface.blit(_get_circle_surf(smoke_r, (160, 160, 160), alpha // 3),
+                         (int(tx) - smoke_r, int(ty) - smoke_r))
+            # Main trail — two-circle composite, built fresh (highlight varies with radius)
+            trail_surf = pygame.Surface((trail_r * 2, trail_r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surf, (255, 150, 50, alpha), (trail_r, trail_r), trail_r)
             pygame.draw.circle(trail_surf, (255, 255, 100, alpha // 2),
-                             (trail_r + 2, trail_r + 2), max(1, trail_r // 2))
-            surface.blit(trail_surf, (int(tx) - trail_r - 2, int(ty) - trail_r - 2))
+                               (trail_r, trail_r), max(1, trail_r // 2))
+            surface.blit(trail_surf, (int(tx) - trail_r, int(ty) - trail_r))
 
         if camera:
             sx, sy = camera.world_to_screen(self.x, self.y)
         else:
             sx, sy = self.x, self.y
 
-        # Draw missile body
-        missile_surf = pygame.Surface((self.width + 10, self.height + 10), pygame.SRCALPHA)
-        pygame.draw.ellipse(missile_surf, self.color, (5, 5, self.width, self.height))
-        # Nose cone points in travel direction
-        dx, dy = self.direction
-        cx = 5 + self.width // 2
-        cy = 5 + self.height // 2
-        if self.is_vertical:
-            nose_y = 5 + self.height if dy == 1 else 0
-            pygame.draw.polygon(missile_surf, (200, 200, 200), [
-                (cx, nose_y),
-                (5, nose_y - 5 * dy),
-                (5 + self.width, nose_y - 5 * dy)
-            ])
-        else:
-            nose_x = 5 + self.width if dx == 1 else 0
-            pygame.draw.polygon(missile_surf, (200, 200, 200), [
-                (nose_x, cy),
-                (nose_x - 5 * dx, 5),
-                (nose_x - 5 * dx, 5 + self.height)
-            ])
-        surface.blit(missile_surf, (int(sx) - self.width // 2 - 5, int(sy) - self.height // 2 - 5))
+        # Draw missile body (cached per instance — shape is deterministic)
+        if self._body_surf is None:
+            self._body_surf = pygame.Surface((self.width + 10, self.height + 10), pygame.SRCALPHA)
+            pygame.draw.ellipse(self._body_surf, self.color, (5, 5, self.width, self.height))
+            dx, dy = self.direction
+            cx = 5 + self.width // 2
+            cy = 5 + self.height // 2
+            if self.is_vertical:
+                nose_y = 5 + self.height if dy == 1 else 0
+                pygame.draw.polygon(self._body_surf, (200, 200, 200), [
+                    (cx, nose_y),
+                    (5, nose_y - 5 * dy),
+                    (5 + self.width, nose_y - 5 * dy)
+                ])
+            else:
+                nose_x = 5 + self.width if dx == 1 else 0
+                pygame.draw.polygon(self._body_surf, (200, 200, 200), [
+                    (nose_x, cy),
+                    (nose_x - 5 * dx, 5),
+                    (nose_x - 5 * dx, 5 + self.height)
+                ])
+        surface.blit(self._body_surf, (int(sx) - self.width // 2 - 5, int(sy) - self.height // 2 - 5))
 
 
 class ContinuousBeam:
@@ -576,9 +597,7 @@ class JaffaStaffBlast(Projectile):
             for _ in range(random.randint(1, 2)):
                 ember_x = int(sx) + random.randint(-8, 8)
                 ember_y = int(sy) + random.randint(-8, 8)
-                ember_s = pygame.Surface((6, 6), pygame.SRCALPHA)
-                pygame.draw.circle(ember_s, (255, 120, 30, 140), (3, 3), 2)
-                surface.blit(ember_s, (ember_x - 3, ember_y - 3))
+                surface.blit(_EMBER_ORANGE, (ember_x - 3, ember_y - 3))
 
 
 class RailgunShot(Projectile):
@@ -595,6 +614,7 @@ class RailgunShot(Projectile):
             self.height = 4
         self.trail = []
         self.piercing = True  # Flag for collision system to not remove on hit
+        self._bolt_surf = None
 
     def update(self):
         self.trail.append({'x': self.x, 'y': self.y, 'alpha': 255})
@@ -617,32 +637,28 @@ class RailgunShot(Projectile):
             else:
                 tx, ty = t['x'], t['y']
             alpha = max(0, t['alpha'])
-            trail_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (100, 200, 255, alpha), (4, 4), 3)
-            surface.blit(trail_surf, (int(tx) - 4, int(ty) - 4))
+            surface.blit(_get_circle_surf(3, (100, 200, 255), alpha), (int(tx) - 3, int(ty) - 3))
 
         if camera:
             sx, sy = camera.world_to_screen(self.x, self.y)
         else:
             sx, sy = self.x, self.y
 
-        # Bright blue-white bolt
-        bolt_surf = pygame.Surface((self.width + 12, self.height + 12), pygame.SRCALPHA)
+        # Bright blue-white bolt (cached per instance — shape is deterministic)
+        if self._bolt_surf is None:
+            self._bolt_surf = pygame.Surface((self.width + 12, self.height + 12), pygame.SRCALPHA)
+            pygame.draw.rect(self._bolt_surf, (80, 160, 255, 100),
+                            (3, 3, self.width + 6, self.height + 6))
+            pygame.draw.rect(self._bolt_surf, (150, 220, 255), (6, 6, self.width, self.height))
+            if self.is_vertical:
+                pygame.draw.rect(self._bolt_surf, (255, 255, 255),
+                               (6 + self.width // 4, 6, self.width // 2, self.height))
+            else:
+                pygame.draw.rect(self._bolt_surf, (255, 255, 255),
+                               (6, 6 + self.height // 4, self.width, self.height // 2))
         cx = self.width // 2 + 6
         cy = self.height // 2 + 6
-        # Outer glow
-        pygame.draw.rect(bolt_surf, (80, 160, 255, 100),
-                        (6 - 3, 6 - 3, self.width + 6, self.height + 6))
-        # Core
-        pygame.draw.rect(bolt_surf, (150, 220, 255), (6, 6, self.width, self.height))
-        # White center
-        if self.is_vertical:
-            pygame.draw.rect(bolt_surf, (255, 255, 255),
-                           (6 + self.width // 4, 6, self.width // 2, self.height))
-        else:
-            pygame.draw.rect(bolt_surf, (255, 255, 255),
-                           (6, 6 + self.height // 4, self.width, self.height // 2))
-        surface.blit(bolt_surf, (int(sx) - cx, int(sy) - cy))
+        surface.blit(self._bolt_surf, (int(sx) - cx, int(sy) - cy))
 
 
 class ProximityMine:
@@ -888,9 +904,7 @@ class PlasmaLance(Projectile):
             else:
                 tx, ty = t["x"], t["y"]
             alpha = max(0, t["alpha"])
-            trail_surf = pygame.Surface((16, 16), pygame.SRCALPHA)
-            pygame.draw.circle(trail_surf, (0, 200, 255, alpha), (8, 8), 6)
-            surface.blit(trail_surf, (int(tx) - 8, int(ty) - 8))
+            surface.blit(_get_circle_surf(6, (0, 200, 255), alpha), (int(tx) - 6, int(ty) - 6))
 
             # Electric arc particles along trail (40% chance per particle)
             if random.random() < 0.4:
@@ -1195,9 +1209,7 @@ class WraithCullingBeam(ContinuousBeam):
                 wx = int(base_x + perp_x * sin_off)
                 wy = int(base_y + perp_y * sin_off)
                 wisp_alpha = int(80 + 40 * abs(math.sin(self.pulse + i)))
-                wisp_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
-                pygame.draw.circle(wisp_surf, (100, 255, 100, wisp_alpha), (4, 4), 3)
-                surface.blit(wisp_surf, (wx - 4, wy - 4))
+                surface.blit(_get_circle_surf(3, (100, 255, 100), wisp_alpha), (wx - 3, wy - 3))
 
 
 class TunnelCrystal(Projectile):
