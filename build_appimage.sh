@@ -27,18 +27,41 @@ mkdir -p "$STAGING_ROOT" "$RELEASE_ROOT"
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR"
 
-# Download appimagetool if not present
-APPIMAGETOOL="$BUILD_ROOT/appimagetool-x86_64.AppImage"
+# Download appimagetool (new AppImage/appimagetool repo, static FUSE3 runtime).
+# The old AppImageKit/appimagetool is FUSE2-only and produces AppImages that
+# fail to launch on Ubuntu 26.04+ (no libfuse2t64 by default; AppArmor userns
+# restrictions). Use a distinct filename so any stale 2023-era cached tool
+# under the old name is naturally orphaned.
+APPIMAGETOOL="$BUILD_ROOT/appimagetool-static-x86_64.AppImage"
 if [[ ! -x "$APPIMAGETOOL" ]]; then
-    echo "Downloading appimagetool..."
-    wget -q -O "$APPIMAGETOOL" "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    echo "Downloading appimagetool (AppImage/appimagetool static)..."
+    wget -q -O "$APPIMAGETOOL" "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
     chmod +x "$APPIMAGETOOL"
-    # Sanity check: downloaded file should be at least 1MB
-    if [ $(stat -c%s "$APPIMAGETOOL") -lt 1000000 ]; then
+    if [ "$(stat -c%s "$APPIMAGETOOL")" -lt 1000000 ]; then
         echo "ERROR: Downloaded appimagetool is suspiciously small"
         exit 1
     fi
 fi
+
+# Download the type2 static runtime that will be embedded in the produced
+# AppImage. This runtime has built-in FUSE3 support and falls back to
+# squashfuse_ll, so the resulting AppImage launches on 26.04 (no libfuse2t64
+# required) and on older distros.
+RUNTIME_FILE="$BUILD_ROOT/runtime-x86_64"
+if [[ ! -s "$RUNTIME_FILE" ]]; then
+    echo "Downloading type2-runtime (static FUSE3)..."
+    wget -q -O "$RUNTIME_FILE" "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64"
+    if [ "$(stat -c%s "$RUNTIME_FILE")" -lt 100000 ]; then
+        echo "ERROR: Downloaded runtime is suspiciously small"
+        exit 1
+    fi
+fi
+
+# Excludelist of host libraries that must not be bundled — the host's copy
+# (matched to its glibc) should resolve these at runtime. Without this, an
+# AppImage built on Ubuntu 22.04 can ship libstdc++/libssl that conflicts
+# with the host's loader on a different distro.
+EXCLUDE_FILE="$ROOT_DIR/build/appimage.excludelist"
 
 # Create AppDir structure
 APP_DIR="$APPDIR/usr/share/$PKG_NAME"
@@ -127,10 +150,13 @@ echo "Bundling Python runtime..."
 cp -r "$PYTHON_APPIMAGE_DIR/python/"* "$APPDIR/"
 rm -f "$APPDIR/AppRun"
 
-# Install Python dependencies into the bundled runtime
+# Install Python dependencies into the bundled runtime, pinned via
+# requirements.txt for reproducible builds.
 echo "Installing Python dependencies..."
-"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --quiet --target="$APPDIR/usr/lib/python3/site-packages" pygame-ce moderngl Pillow
-echo "    Installed: pygame-ce, moderngl, Pillow"
+"$APPDIR/opt/python${PYTHON_VERSION}/bin/python${PYTHON_VERSION}" -m pip install --quiet \
+    --target="$APPDIR/usr/lib/python3/site-packages" \
+    -r "$ROOT_DIR/requirements.txt"
+echo "    Installed pinned runtime deps from requirements.txt"
 
 # Create launcher script
 cat <<LAUNCHER > "$APPDIR/AppRun"
@@ -169,9 +195,16 @@ Terminal=false
 Keywords=Stargate;Card;Strategy;Game;
 EOF
 
-# Build AppImage
+# Build AppImage. Run appimagetool via --appimage-extract-and-run so the
+# build host does NOT need libfuse installed (matters for fresh CI runners
+# and Ubuntu 26.04 build environments). Embed the static type2 runtime so
+# the produced AppImage doesn't need FUSE2 on the user's system either.
 OUTPUT="$RELEASE_ROOT/Stargwent-${VERSION}-linux-x86_64.AppImage"
 echo "Building AppImage..."
-ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT" >/dev/null
+ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run \
+    --no-appstream \
+    --runtime-file "$RUNTIME_FILE" \
+    --exclude-file "$EXCLUDE_FILE" \
+    "$APPDIR" "$OUTPUT" >/dev/null
 
 echo "AppImage created: $OUTPUT"

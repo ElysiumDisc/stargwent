@@ -11,6 +11,8 @@ on:
     tags:
       - 'v*'
 
+# A tag push that arrives while a manual dispatch is still running will cancel
+# the dispatch. Intentional: the tag is the canonical build.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -37,25 +39,76 @@ jobs:
             exit 1
           fi
           echo "version=$VER" >> "$GITHUB_OUTPUT"
-      - run: echo "Building version ${{ steps.get_version.outputs.version }}"
+          echo "## Building Stargwent v$VER" >> "$GITHUB_STEP_SUMMARY"
+          # Verify a CHANGELOG.md entry exists for this version (warn, don't fail).
+          # CHANGELOG uses '### Version X.Y.Z' headers (not '## vX.Y.Z').
+          if grep -qE "^### Version ${VER//./\\.}( |\$|—)" CHANGELOG.md; then
+            echo "✓ CHANGELOG entry found for v$VER" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::No '### Version $VER' entry in CHANGELOG.md — release notes will be empty"
+            echo "⚠ No CHANGELOG entry for v$VER" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ── Lint smoke test on minor Python versions we claim to support ──
+  lint:
+    needs: version
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      - name: Install runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Import-time smoke test
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: |
+          python -c "import game_config; print('GAME_VERSION =', game_config.GAME_VERSION)"
+          python -c "import gpu_renderer; import display_manager"
 
   # ── Linux: .deb + AppImage ────────────────────────────────────
+  # Matrix: 22.04 is a regression sentinel; only the 24.04 leg uploads the
+  # canonical artifacts. When ubuntu-26.04 becomes a hosted runner, add it.
   linux:
     needs: version
-    runs-on: ubuntu-22.04
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev fuse libfuse2
+          # libfuse2 was renamed libfuse2t64 in 24.04 (t64 transition).
+          # FUSE on the build host is only needed if appimagetool is run
+          # without --appimage-extract-and-run; build_appimage.sh uses that
+          # flag, so install is precautionary.
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+            sudo apt-get install -y dpkg-dev fuse libfuse2 desktop-file-utils file
+          else
+            sudo apt-get install -y dpkg-dev fuse3 libfuse2t64 desktop-file-utils file
+          fi
 
       - name: Build .deb
         run: ./build_deb.sh "${{ needs.version.outputs.version }}"
@@ -63,8 +116,10 @@ jobs:
       - name: Build AppImage
         run: ./build_appimage.sh "${{ needs.version.outputs.version }}"
 
+      # Only the ubuntu-24.04 leg uploads — it's the canonical release build.
+      # The 22.04 leg is a regression sentinel (build must succeed there too).
       - name: Upload artifact (manual dispatch)
-        if: "!startsWith(github.ref, 'refs/tags/v')"
+        if: matrix.os == 'ubuntu-24.04' && !startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v5
         with:
           name: Stargwent-${{ needs.version.outputs.version }}-linux
@@ -72,7 +127,7 @@ jobs:
           retention-days: 1
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: matrix.os == 'ubuntu-24.04' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3.0.0
         with:
           draft: true
@@ -83,7 +138,7 @@ jobs:
   # ── Windows: .exe ─────────────────────────────────────────────
   windows:
     needs: version
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: write
     defaults:
@@ -95,11 +150,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: requirements-build.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pygame-ce moderngl Pillow pyinstaller
+          python -m pip install -r requirements-build.txt
 
       - name: Generate icon
         run: |
@@ -108,6 +165,9 @@ jobs:
           img = Image.open('assets/tauri_oneill.png')
           img.save('stargwent.ico', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
           "
+
+      - name: Ensure user_content exists
+        run: mkdir -p user_content
 
       - name: Build with PyInstaller
         run: |
@@ -150,7 +210,7 @@ jobs:
   # ── macOS: .dmg ──────────────────────────────────────────────
   macos:
     needs: version
-    runs-on: macos-latest
+    runs-on: macos-14
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
     permissions:
@@ -161,11 +221,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: requirements-build.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pygame-ce moderngl Pillow pyinstaller
+          python -m pip install -r requirements-build.txt
 
       - name: Generate icon
         run: |
@@ -178,6 +240,9 @@ jobs:
             sips -z $DOUBLE $DOUBLE assets/tauri_oneill.png --out stargwent.iconset/icon_${SIZE}x${SIZE}@2x.png
           done
           iconutil -c icns stargwent.iconset -o stargwent.icns
+
+      - name: Ensure user_content exists
+        run: mkdir -p user_content
 
       - name: Build with PyInstaller
         run: |
@@ -246,6 +311,31 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+
+      - name: Extract CHANGELOG section for this version
+        id: changelog
+        env:
+          VER: ${{ needs.version.outputs.version }}
+        run: |
+          # Pull everything between "### Version ${VER}" and the next
+          # "### Version" heading. CHANGELOG uses this format, not
+          # "## vX.Y.Z".
+          BODY=$(awk -v v="${VER}" '
+            $0 ~ "^### Version "v"( |$|—)" { f=1; next }
+            f && /^### Version [0-9]/ { exit }
+            f { print }
+          ' CHANGELOG.md)
+          if [[ -z "$(echo "$BODY" | tr -d '[:space:]')" ]]; then
+            BODY="(no changelog entry found for v${VER})"
+          fi
+          # Multi-line output via heredoc delimiter.
+          {
+            echo "body<<CHANGELOG_EOF"
+            echo "$BODY"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Set release description
         uses: softprops/action-gh-release@v3.0.0
         with:
@@ -263,3 +353,7 @@ jobs:
             | macOS | `.dmg` | Open and drag to Applications |
 
             All builds support LAN multiplayer cross-play between platforms.
+
+            ### What's new
+
+            ${{ steps.changelog.outputs.body }}

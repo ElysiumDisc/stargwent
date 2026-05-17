@@ -2,6 +2,7 @@ import json
 import time
 from collections import deque
 
+from lan_protocol import MAX_PAYLOAD_BYTES
 from touch_support import is_web_platform
 
 if not is_web_platform():
@@ -38,8 +39,13 @@ class LanSession:
         self.keepalive_thread = None
         # deque with maxlen auto-drops oldest on overflow; append/popleft are
         # atomic under CPython's GIL (single-producer reader thread pattern).
-        self.inbox = deque(maxlen=1000)
-        self.chat_inbox = queue.Queue(maxsize=100)  # Bounded to prevent memory growth
+        self.inbox = deque(maxlen=500)
+        # Bounded to prevent memory growth from a slow chat consumer; aligned
+        # with inbox so chat and game queues age out at the same rate.
+        self.chat_inbox = queue.Queue(maxsize=500)
+        # Drop telemetry — incremented when chat_inbox.put_nowait fails.
+        # Exposed via get_chat_drop_count() so the UI can surface it.
+        self._chat_drop_count = 0
         self.stop_event = threading.Event()
         self.last_received = 0
         self.connection_timeout = 30  # seconds without message = disconnect
@@ -172,10 +178,21 @@ class LanSession:
                 print(f"[LanSession] Socket error: {e}")
                 break
 
-            while b"\n" in buffer:
-                line, buffer = buffer.split(b"\n", 1)
+            while True:
+                idx = buffer.find(b"\n")
+                if idx == -1:
+                    break
+                line = buffer[:idx]
+                buffer = buffer[idx + 1:]
                 if not line:
                     continue
+                # Reject oversized frames before JSON parse — guards CPU/RAM
+                # against a peer streaming a single huge line just under the
+                # buffer ceiling.
+                if len(line) > MAX_PAYLOAD_BYTES:
+                    print(f"[LanSession] Oversized frame ({len(line)} bytes) — disconnecting")
+                    self.stop_event.set()
+                    break
                 try:
                     payload = json.loads(line.decode("utf-8"))
                     # Reset error counter on successful parse
@@ -215,15 +232,20 @@ class LanSession:
                         try:
                             self.chat_inbox.put_nowait(payload)
                         except queue.Full:
-                            pass  # Discard overflow — stale chat messages are acceptable to drop
+                            self._chat_drop_count += 1
+                            # Rate-limited log so a slow consumer doesn't
+                            # spam stdout on every dropped message.
+                            if self._chat_drop_count == 1 or self._chat_drop_count % 100 == 0:
+                                print(f"[LanSession] chat queue full — dropped {self._chat_drop_count} messages so far")
                     else:
                         self.inbox.append(payload)
                 except json.JSONDecodeError as e:
                     with self._sock_lock:
                         self.parse_error_count += 1
                         error_count = self.parse_error_count
-                    # Log corrupted data for debugging (truncated to avoid spam)
-                    corrupted_preview = line[:100].decode("utf-8", errors="replace")
+                    # Log corrupted data for debugging (truncated and repr'd to
+                    # neutralize control chars / ANSI escapes from a malicious peer).
+                    corrupted_preview = repr(line[:100])
                     print(f"[LanSession] JSON parse error #{error_count}: {e}")
                     print(f"[LanSession] Corrupted data preview: {corrupted_preview}...")
 
@@ -297,6 +319,10 @@ class LanSession:
     def get_latency(self):
         """Get the current round-trip time in milliseconds."""
         return self.current_rtt
+
+    def get_chat_drop_count(self):
+        """Total chat messages discarded because chat_inbox was full."""
+        return self._chat_drop_count
 
     def get_latency_status(self):
         """Get latency status as a tuple (color, label).

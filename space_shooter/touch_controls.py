@@ -202,9 +202,12 @@ class SpaceShooterTouchOverlay:
 
     def _to_px(self, fx, fy):
         """Normalized finger coords -> screen pixels."""
-        import display_manager
-        sw = display_manager.SCREEN_WIDTH or 1280
-        sh = display_manager.SCREEN_HEIGHT or 720
+        try:
+            import display_manager
+            sw = display_manager.SCREEN_WIDTH or 1280
+            sh = display_manager.SCREEN_HEIGHT or 720
+        except ImportError:
+            sw, sh = 1280, 720
         return int(fx * sw), int(fy * sh)
 
     def get_virtual_keys_dict(self):

@@ -48,11 +48,15 @@ class DeckPersistence:
     def _migrate_card_ids(self, deck_data: Dict) -> tuple:
         """Migrate old card IDs to new ones. Returns (data, was_migrated)."""
         migrated = False
-        # Import ALL_CARDS for validation (fail gracefully if unavailable)
+        # Import ALL_CARDS for validation. If unavailable, skip migration
+        # entirely — silently accepting any migration without validation
+        # would mask a fundamental setup failure and could write nonsense
+        # card IDs back to disk.
         try:
             from cards import ALL_CARDS
         except ImportError:
-            ALL_CARDS = None
+            print("⚠ Deck migration skipped: cards.ALL_CARDS unavailable")
+            return deck_data, False
 
         for faction, faction_data in deck_data.items():
             if isinstance(faction_data, dict) and "cards" in faction_data:
@@ -61,7 +65,7 @@ class DeckPersistence:
                     if card_id in self.CARD_ID_MIGRATIONS:
                         new_id = self.CARD_ID_MIGRATIONS[card_id]
                         # Validate target ID exists before migrating
-                        if ALL_CARDS is None or new_id in ALL_CARDS:
+                        if new_id in ALL_CARDS:
                             new_cards.append(new_id)
                             print(f"  Migrated card ID: {card_id} -> {new_id}")
                             migrated = True

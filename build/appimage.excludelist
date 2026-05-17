@@ -1,0 +1,84 @@
+# Stargwent AppImage excludelist
+#
+# Libraries listed here will NOT be bundled into the AppImage. The host
+# system's copy will be used instead. This is correct for low-level libs
+# (libc, libstdc++, libssl, FUSE, GL, X11/Wayland) where bundling a
+# specific version causes ABI mismatch with the host's dynamic loader
+# on different distros.
+#
+# Format: one filename pattern per line (matched against basenames).
+
+# Glibc and toolchain — must match the running kernel/loader.
+libc.so.*
+libdl.so.*
+libm.so.*
+libpthread.so.*
+libresolv.so.*
+librt.so.*
+libutil.so.*
+libnsl.so.*
+libBrokenLocale.so.*
+libanl.so.*
+
+# C++ runtime
+libstdc++.so.*
+libgcc_s.so.*
+
+# Crypto / TLS — host's CA store is paired with host's openssl
+libssl.so.*
+libcrypto.so.*
+
+# FUSE — host kernel module / userspace must match
+libfuse.so.*
+libfuse3.so.*
+
+# OpenGL / EGL / GBM / DRM — must use host's GPU drivers
+libGL.so.*
+libGLX.so.*
+libGLdispatch.so.*
+libEGL.so.*
+libGLESv1_CM.so.*
+libGLESv2.so.*
+libgbm.so.*
+libdrm.so.*
+libdrm_*.so.*
+
+# X11 / Wayland — must match the host display server
+libX11.so.*
+libXext.so.*
+libXrandr.so.*
+libXrender.so.*
+libXcursor.so.*
+libXi.so.*
+libXfixes.so.*
+libXdamage.so.*
+libXcomposite.so.*
+libxcb.so.*
+libxcb-*.so.*
+libxkbcommon.so.*
+libxkbcommon-x11.so.*
+libwayland-client.so.*
+libwayland-cursor.so.*
+libwayland-egl.so.*
+libwayland-server.so.*
+
+# Audio — host's PulseAudio/PipeWire/ALSA is paired with host's hardware
+libpulse.so.*
+libpulse-simple.so.*
+libpulsecommon-*.so
+libasound.so.*
+libpipewire-*.so.*
+libjack.so.*
+
+# DBus — host's bus daemon
+libdbus-1.so.*
+
+# systemd
+libsystemd.so.*
+libudev.so.*
+
+# zlib / lzma / bz2 / zstd — host has its own; ABI-stable but skip to keep image small
+libz.so.*
+liblzma.so.*
+libbz2.so.*
+libzstd.so.*

@@ -92,11 +92,25 @@ def has_ability(card: "Card", *abilities: Ability) -> bool:
     if not card or not card.ability:
         return False
 
-    ability_str = card.ability
-    for ability in abilities:
-        if ability.value in ability_str:
-            return True
-    return False
+    tokens = _ability_tokens(card.ability)
+    return any(a.value in tokens for a in abilities)
+
+
+def _ability_tokens(ability_str: str) -> set[str]:
+    """Split a card's ability field into discrete ability tokens.
+
+    Cards encode abilities as comma-separated lists with optional
+    "Name: descriptive text" suffixes (e.g. "Ring Transport: ..."). We
+    split on ", ", strip the descriptive tail, and compare exact tokens
+    so a future ability whose name is a substring of another can't
+    silently match.
+    """
+    tokens = set()
+    for raw in ability_str.split(","):
+        token = raw.strip().split(":", 1)[0].strip()
+        if token:
+            tokens.add(token)
+    return tokens
 
 
 def get_abilities(card: "Card") -> list[Ability]:
@@ -112,12 +126,8 @@ def get_abilities(card: "Card") -> list[Ability]:
     if not card or not card.ability:
         return []
 
-    result = []
-    ability_str = card.ability
-    for ability in Ability:
-        if ability.value in ability_str:
-            result.append(ability)
-    return result
+    tokens = _ability_tokens(card.ability)
+    return [a for a in Ability if a.value in tokens]
 
 
 def is_hero(card: "Card") -> bool:

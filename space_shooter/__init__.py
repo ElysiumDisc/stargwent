@@ -264,6 +264,8 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
                     action = payload.get("action")
                     if action == "secondary":
                         game.fire_partner_secondary()
+                    elif action == "wormhole":
+                        game.activate_partner_wormhole()
                 elif mtype == CoopMsg.DISCONNECT:
                     # Client disconnected gracefully — continue as solo
                     game.p2_alive = False
@@ -331,7 +333,7 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
             except Exception:
                 client.host_disconnected = True
 
-            # Send secondary fire action on E press
+            # Send secondary fire action on E press, wormhole on Q press (edge-triggered)
             keys = pygame.key.get_pressed()
             if keys[pygame.K_e] and not getattr(client, '_e_was_pressed', False):
                 try:
@@ -340,6 +342,12 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
                 except Exception:
                     pass
             client._e_was_pressed = keys[pygame.K_e]
+            if keys[pygame.K_q] and not getattr(client, '_q_was_pressed', False):
+                try:
+                    session.send(CoopMsg.ACTION, {"action": "wormhole", "data": {}})
+                except Exception:
+                    pass
+            client._q_was_pressed = keys[pygame.K_q]
 
             # Receive state snapshots
             msg = session.receive()

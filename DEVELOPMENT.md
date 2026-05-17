@@ -243,7 +243,7 @@ Hybrid rendering: Pygame draws to offscreen surface → uploaded to ModernGL for
 | `gpu_renderer.py` | `GPURenderer`, `ShaderPass`, `FBOPool` — ModernGL backend (GLSL 330) |
 | `webgl_renderer.py` | PyOpenGL/raw GL ES backend for web (GLSL 300 es) |
 | `shaders/__init__.py` | Effect registry, `glsl_version_header()` for desktop/web |
-| `shaders/*.py` | 14 effects: bloom, vignette, CRT, distortion, event_horizon, kawoosh, hyperspace, shockwave, asgard_beam, zpm_surge, shield_bubble, black_hole, ascension, priors_plague |
+| `shaders/*.py` | 15 effects: bloom, vignette, CRT, distortion, event_horizon, kawoosh, hyperspace, shockwave, asgard_beam, zpm_surge, shield_bubble, black_hole, ascension, priors_plague, replicator_swarm |
 
 **Rendering flow:** Game → `display_manager.screen` → `gpu_flip()` → `tobytes()` → texture upload → shader chain → `ctx.screen` → `pygame.display.flip()`
 
@@ -288,6 +288,45 @@ Version is read from the README.md badge.
 ```
 
 Output: `builds/releases/`. Staging: `builds/staging/` (auto-cleaned).
+
+### Ubuntu 26.04 support
+
+v12.6.0+ AppImages launch on Ubuntu 26.04 "Resolute Raccoon" out of the
+box. The build now uses the `AppImage/appimagetool` static runtime and
+embeds the type2-runtime via `--runtime-file`, so the produced AppImage
+ships its own FUSE3 support and no longer requires `libfuse2t64` on the
+target system. The build script also runs appimagetool itself via
+`--appimage-extract-and-run`, so a fresh CI runner without FUSE
+installed can still build the AppImage.
+
+If a 26.04 host has AppArmor's unprivileged userns restriction enabled
+(`kernel.apparmor_restrict_unprivileged_userns=1`), the AppImage may
+still fail to mount its embedded squashfs. Fallback:
+
+```bash
+./Stargwent-12.6.0-linux-x86_64.AppImage --appimage-extract-and-run
+```
+
+### Version bump procedure
+
+The version string lives in four files. The four build scripts and the
+GitHub Actions workflow all read it from the README badge — no further
+updates needed elsewhere.
+
+1. `metadata.json` — `"version": "X.Y.Z"`
+2. `README.md` — `![Version](https://img.shields.io/badge/version-X.Y.Z-blue)` badge line
+3. `game_config.py` — `GAME_VERSION = "X.Y.Z"`
+4. `CHANGELOG.md` — prepend new section: `### Version X.Y.Z — "<codename>" (<Month YYYY>)`
+
+After editing, sanity-check there are no stale strings:
+
+```bash
+grep -rn "OLD_VERSION" . --exclude-dir=.git --exclude-dir=builds --exclude=CHANGELOG.md
+```
+
+The CI workflow (`.github/workflows/build.yml`) validates that a matching
+`### Version X.Y.Z` entry exists in CHANGELOG.md before building, and
+auto-fills the GitHub Release body with the matching section.
 
 ### Web Build (PWA via Pygbag)
 
@@ -361,7 +400,7 @@ to `main` that touches `.py`, `assets/`, `shaders/`, or `build/web/`.
 | `ModuleNotFoundError: moderngl` | Add `--hidden-import moderngl --hidden-import glcontext` to PyInstaller |
 | Assets not found | Verify `--add-data` paths (`:` on Linux/macOS, `;` on Windows) |
 | OpenGL errors in AppImage | `sudo apt install mesa-utils` |
-| AppImage won't run | `sudo apt install fuse libfuse2` or `--appimage-extract` |
+| AppImage won't run (22.04/24.04) | `sudo apt install libfuse2t64` (24.04+) or `libfuse2` (22.04); fallback: `./Stargwent-*.AppImage --appimage-extract-and-run`. v12.6.0+ builds embed the static FUSE3 runtime and launch on 26.04 without any FUSE install. |
 | macOS "app is damaged" | `xattr -cr Stargwent.app` |
 | Save data location | `~/.local/share/stargwent/` (XDG) |
 

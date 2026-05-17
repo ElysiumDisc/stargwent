@@ -71,8 +71,8 @@ echo "[2/5] Creating bundled Python virtual environment..."
 VENV_DIR="$DATA_DIR/.venv"
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet pygame-ce moderngl Pillow
-echo "    Installed: pygame-ce, moderngl, Pillow"
+"$VENV_DIR/bin/pip" install --quiet -r "$ROOT_DIR/requirements.txt"
+echo "    Installed pinned runtime deps from requirements.txt"
 
 # ── Create launcher script ────────────────────────────────────
 echo "[3/5] Creating launcher..."
@@ -96,7 +96,7 @@ Architecture: amd64
 Depends: python3 (>= 3.8), libgl1, libsdl2-2.0-0, libsdl2-image-2.0-0, libsdl2-mixer-2.0-0, libsdl2-ttf-2.0-0
 Description: Stargwent - A Stargate-themed card game
  A strategic card game inspired by Gwent from The Witcher 3,
- set in the Stargate universe. Features 5 factions, 247 cards,
+ set in the Stargate universe. Features 6 factions, 287 cards,
  GPU-accelerated GLSL post-processing (bloom, vignette, distortion),
  LAN multiplayer, draft mode, and a full card unlock system.
  .

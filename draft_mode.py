@@ -45,14 +45,63 @@ class DraftPool:
             if leader['card_id'] in unlocked_leaders
         ]
 
-        # Ensure we have enough content
+        # Ensure we have enough content AND that no single faction
+        # dominates the pool when filling from the global cardlist. Without
+        # this, a fresh-account player drafts mostly Neutrals because that
+        # tends to be the largest faction by default.
         if len(self.available_cards) < 90:  # Need 3 options * 30 picks
-            # Fallback: include all cards if player hasn't unlocked enough
-            self.available_cards = list(ALL_CARDS.values())
+            self.available_cards = self._build_balanced_fallback_pool()
 
         if len(self.available_leaders) < 3:
             # Fallback: include all leaders
             self.available_leaders = list(LEADER_REGISTRY)
+
+    def _build_balanced_fallback_pool(self) -> List[Card]:
+        """Build a pool that guarantees per-faction baseline coverage.
+
+        Starts from whatever the player has unlocked, then tops up each
+        faction to a minimum of MIN_PER_FACTION cheap commons before
+        falling back to global cards. Keeps the draft from collapsing
+        into a Neutral-heavy single-faction soup for early accounts.
+        """
+        MIN_PER_FACTION = 6
+        MAX_COMMON_COST = 3
+
+        by_faction: Dict[str, List[Card]] = {}
+        for card in self.available_cards:
+            by_faction.setdefault(card.faction, []).append(card)
+
+        # Top up each faction from the global pool. Prefer low-cost cards
+        # (treated as "commons") so the baseline doesn't smuggle in the
+        # game's strongest units.
+        for faction in {c.faction for c in ALL_CARDS.values()}:
+            existing = by_faction.setdefault(faction, [])
+            if len(existing) >= MIN_PER_FACTION:
+                continue
+            existing_ids = {c.id for c in existing}
+            candidates = sorted(
+                (c for c in ALL_CARDS.values()
+                 if c.faction == faction
+                 and c.id not in existing_ids
+                 and getattr(c, "naquadah_cost", getattr(c, "power", 0)) <= MAX_COMMON_COST),
+                key=lambda c: getattr(c, "naquadah_cost", getattr(c, "power", 0)),
+            )
+            existing.extend(candidates[: MIN_PER_FACTION - len(existing)])
+
+        pool: List[Card] = []
+        for cards in by_faction.values():
+            pool.extend(cards)
+
+        # If we still don't have 90, fall through to ALL_CARDS — better
+        # than crashing the draft. By construction the per-faction floor
+        # is preserved so the pool stays varied even when topped up.
+        if len(pool) < 90:
+            seen = {c.id for c in pool}
+            for card in ALL_CARDS.values():
+                if card.id not in seen:
+                    pool.append(card)
+                    seen.add(card.id)
+        return pool
 
     def get_leader_choices(self, count: int = 3) -> List[Dict]:
         """

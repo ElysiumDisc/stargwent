@@ -1,4 +1,5 @@
 import random
+import secrets
 import asyncio
 import pygame
 import display_manager
@@ -105,11 +106,22 @@ async def run_lan_setup(screen, unlock_system, session: LanSession, role: str, t
             print(f"[LAN] Warning: Remote deck suspiciously small ({len(remote_deck_ids)} cards)")
 
     if role == "host":
-        seed = random.randint(0, 2**32 - 1)
+        # Use OS entropy via secrets — random.randint without an explicit
+        # seed inherits process-level state, which on a quick app restart
+        # can produce near-identical seeds and undermine the shared-RNG
+        # property both peers rely on for deterministic shuffles.
+        seed = secrets.randbits(32)
         session.send(LanMessageType.SEED.value, {"seed": seed})
     else:
         payload = await wait_for_message(session, LanMessageType.SEED.value)
-        seed = payload.get("seed", 0)
+        raw_seed = payload.get("seed", 0)
+        try:
+            seed = int(raw_seed)
+            if not (0 <= seed < 2**32):
+                raise ValueError
+        except (TypeError, ValueError):
+            print(f"[LAN] Warning: invalid seed {raw_seed!r}, falling back to 0")
+            seed = 0
     local_leader = find_leader(local_payload["faction"], local_payload["leader_id"])
     remote_leader = find_leader(remote_payload["faction"], remote_payload["leader_id"])
     

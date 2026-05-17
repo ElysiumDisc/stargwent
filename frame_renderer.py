@@ -1069,16 +1069,15 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             beam_color = (int(150 * pulse), int(220 * pulse), int(255 * pulse))
             beam_width = int(4 + 2 * math.sin(pygame.time.get_ticks() * 0.01))
 
-            # Draw main beam
+            # Draw glow band underneath, then the main beam. Previously
+            # the glow was drawn into a per-frame SRCALPHA surface sized
+            # to the beam's bounding box — at 2560×1440 with cards on
+            # opposite sides of the screen that's ~10MB allocated every
+            # frame during drag. Drawing two lines directly to the screen
+            # gives a similar visual without any per-frame allocation.
+            glow_color = (int(beam_color[0] * 0.6), int(beam_color[1] * 0.7), int(beam_color[2] * 0.9))
+            pygame.draw.line(screen, glow_color, beam_start, beam_end, beam_width + 6)
             pygame.draw.line(screen, beam_color, beam_start, beam_end, beam_width)
-
-            # Draw glow along the beam
-            glow_surf = pygame.Surface((abs(beam_end[0] - beam_start[0]) + 40,
-                                       abs(beam_end[1] - beam_start[1]) + 40), pygame.SRCALPHA)
-            glow_start = (20, 20) if beam_start[0] < beam_end[0] else (glow_surf.get_width() - 20, 20)
-            glow_end = (glow_surf.get_width() - 20, glow_surf.get_height() - 20) if beam_start[0] < beam_end[0] else (20, glow_surf.get_height() - 20)
-            pygame.draw.line(glow_surf, (*beam_color, int(100 * pulse)), glow_start, glow_end, beam_width + 6)
-            screen.blit(glow_surf, (min(beam_start[0], beam_end[0]) - 20, min(beam_start[1], beam_end[1]) - 20))
 
             # Draw glowing circle at target
             target_glow_size = int(20 + 10 * math.sin(pygame.time.get_ticks() * 0.015))

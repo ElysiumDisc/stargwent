@@ -12,7 +12,7 @@ class AIStrategy:
     def __init__(self, game, ai_player):
         self.game = game
         self.ai_player = ai_player
-        self.opponent = game.player1  # Assume AI is always player2
+        self.opponent = game.player2 if ai_player is game.player1 else game.player1
         self.difficulty = "hard"  # Currently always hard; easy/medium branches exist but are unused
         self.power_used = False  # Track if faction power has been used
         self.rng = getattr(game, "rng", random)
@@ -577,6 +577,12 @@ class AIStrategy:
         if not candidates:
             return None
 
+        # Precompute per-row total power once instead of recomputing per candidate.
+        row_power_by_row = {
+            row_name: sum(c.power for c in row_cards)
+            for row_name, row_cards in self.opponent.board.items()
+        }
+
         # Score each candidate
         best_card = None
         best_score = -1
@@ -602,8 +608,7 @@ class AIStrategy:
                     score += 2  # Spy already used, but still decent
 
             # Consider row synergy - steal from rows opponent is strong in
-            row_power = sum(c.power for c in self.opponent.board.get(card.row, []))
-            if row_power >= 20:
+            if row_power_by_row.get(card.row, 0) >= 20:
                 score += 2  # Weakening their strong row
 
             # Horn/Weather considerations

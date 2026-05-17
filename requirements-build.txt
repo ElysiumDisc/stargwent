@@ -1,0 +1,6 @@
+# Build-time dependencies (CI only). Used by build_exe.sh / build_dmg.sh
+# and the windows + macos GitHub Actions jobs. Not bundled into the
+# distributions themselves.
+-r requirements.txt
+pyinstaller>=6.5,<7
+pygbag>=0.9,<1

@@ -1,3 +1,614 @@
+### Version 12.6.0 — "Resolute Raccoon" (May 2026)
+**Ubuntu 26.04 compat + full-stack audit pass**
+
+The headline fix is AppImage support on Ubuntu 26.04. Alongside that, an
+end-to-end audit of LAN networking, core card battle, rendering, side
+modes, build system, and documentation landed real fixes where issues
+were verified and skipped a meaningful pile of agent-flagged "bugs" that
+turned out to be either already-correct code or intentional game
+mechanics.
+
+**Packaging — Ubuntu 26.04 AppImage support**
+- `build_appimage.sh` switched from the old `AppImageKit` appimagetool
+  (FUSE2-only, March 2023 binary) to the new `AppImage/appimagetool`
+  release. The produced AppImage now uses the **type2-runtime static
+  FUSE3 runtime** via `--runtime-file`, so it launches on Ubuntu 26.04
+  without manual `libfuse2t64` install.
+- Added `build/appimage.excludelist`: keeps host-bundled libc, libssl,
+  libstdc++, libGL, libX11/wayland, FUSE, audio libs out of the AppImage
+  so they resolve against the user's host (matched to host glibc).
+- `appimagetool` itself now runs via `--appimage-extract-and-run`, so
+  the build host doesn't need FUSE installed either.
+- `requirements.txt` + `requirements-build.txt` introduced; both
+  `build_appimage.sh` and `build_deb.sh` install from pinned requirements
+  for reproducible builds.
+
+**CI — `.github/workflows/build.yml` overhaul**
+- Linux job runs on a matrix `[ubuntu-22.04, ubuntu-24.04]`; canonical
+  release artifacts upload from the 24.04 leg, 22.04 is a regression
+  sentinel.
+- 22.04 leg installs `libfuse2`, 24.04 leg installs `libfuse2t64`
+  (t64 rename). Both include `desktop-file-utils` + `file` for
+  appimagetool validation.
+- New `lint` job runs an import smoke test on Python 3.11 / 3.12 / 3.13
+  so the README's "3.11+" support claim is actually tested.
+- macOS pinned to `macos-14`, Windows pinned to `windows-2022` (no more
+  `*-latest` surprises).
+- All jobs use pip cache via `actions/setup-python@v6` keyed on
+  `requirements*.txt`.
+- Release job extracts the matching `### Version X.Y.Z` section out of
+  CHANGELOG.md and injects it into the GitHub Release body. Pre-build
+  step warns when no changelog entry exists for the target version.
+
+**LAN networking (real desync / security fixes)**
+- `lan_game.py`: host shared-RNG seed now generated with
+  `secrets.randbits(32)` instead of unseeded `random.randint`, so a
+  rapid-restart of the host can't produce near-identical seeds and
+  undermine the deterministic-shuffle contract both peers rely on.
+- `lan_protocol.py`: `parse_message()` extended with schema validation
+  for `GAME_ACTION` (whitelisted action names, integer score bounds,
+  target_id length cap), `SEED` (uint32 range check), and `MULLIGAN`
+  (index range check). A malicious peer can no longer feed negative
+  scores, path-traversal target IDs, or unknown action types through.
+- `lan_context.py`: `next_turn_token()` now wraps its increment in a
+  `threading.Lock`. Without it the UI thread, network reader, and game
+  loop could collide and hand out duplicate tokens — the very thing the
+  desync detector treats as fatal.
+- `lan_session.py`: chat queue maxsize raised from 100 to 500 (aligned
+  with the game inbox at 500), with a rate-limited dropped-count log
+  and a `get_chat_drop_count()` accessor so the UI can surface
+  saturation.
+
+**Core card battle**
+- `game.py` `_cleanup_round`: per-round leader-boost flags
+  (`hammond_boosted`, `kalel_boosted`, `kiva_boosted`, `adria_boosted`)
+  now cleared across discard + hand zones in addition to the board. A
+  Hammond-boosted card that died mid-round and was later revived by
+  Medic no longer carries undeserved +3 into the next round.
+- `game.py` `switch_turn`: when the next player has already passed, the
+  function now swaps in-line instead of tail-calling itself. The
+  recursion would never have unwound on a "both passed" edge case.
+- `FACTION_ABILITIES` (singleton dict, dead code) replaced with
+  `FACTION_ABILITY_CLASSES` (class registry). `Player.__init__` was
+  already creating fresh per-player instances; this removes the parallel
+  inline class table and the shared-instance footgun for good.
+- `dhd_button.py`: radial gradient now scales its ellipses to the
+  button's actual aspect ratio. Previously fixed at 2:1 regardless of
+  size, producing visibly squashed gradients on near-square buttons.
+- `deck_persistence.py`: card-id migration now refuses to run if
+  `cards.ALL_CARDS` failed to import, instead of silently accepting
+  every migration with no validation.
+- `draft_mode.py`: new `_build_balanced_fallback_pool()` ensures each
+  faction has at least 6 cheap-common cards in the pool when player
+  unlocks are sparse. Stops the early-account draft from collapsing
+  into a Neutral-heavy single-faction soup.
+- `cards.py`: hero-cost check now uses `abilities.is_hero()` instead of
+  a hand-rolled `"Legendary Commander" in self.ability` string scan.
+
+**Rendering / GPU**
+- `gpu_renderer.py` `present()`: before releasing the old input texture
+  on a resize, calls `ctx.finish()` to drain in-flight GPU work (avoids
+  texture leaks on some Intel/AMD drivers) and invalidates stale FBO
+  pool buckets via `fbo_pool.cleanup_stale()`.
+- `gpu_renderer.py` `resize()`: same `ctx.finish()` + `cleanup_stale()`
+  treatment, plus the method now actually wires `cleanup_stale()` in
+  (the method existed but was never called).
+- `gpu_renderer.py` `present()`: clears the screen FBO with `ctx.clear`
+  before the final composite blit — prevents uncleared garbage in
+  margin areas on the first frame after a window resize.
+- `frame_renderer.py`: Ring Transport drag laser glow replaced with two
+  `pygame.draw.line` calls direct to screen. Previously allocated a
+  full bounding-box SRCALPHA surface every frame during drag — up to
+  ~10MB/frame at 2560×1440 with cards on opposite sides of the board.
+
+**Side modes**
+- `space_shooter/projectiles.py`: `OriBossBeam.line_circle_intersect`
+  now guards against zero-length beams before dividing by `2*a`
+  (would have crashed or produced inf on a degenerate beam).
+- `space_shooter/game.py`: Prior Plague spreads to up to 3 nearby
+  enemies per 4-second cycle instead of just 1. The old single-target
+  `break` made the visual outbreak barely noticeable on dense waves.
+
+**Documentation**
+- README card count corrected: 288 → 287 (actual `ALL_CARDS` entries).
+- README Python badge corrected: 3.8+ → 3.11+ (matches what CI tests).
+- DEVELOPMENT.md shader count corrected: 14 → 15 (added
+  `replicator_swarm` to the list).
+- DEVELOPMENT.md: new "Ubuntu 26.04 support" subsection explains the
+  static FUSE3 runtime change and the `--appimage-extract-and-run`
+  fallback for AppArmor-restricted hosts.
+- DEVELOPMENT.md: new "Version bump procedure" subsection enumerates
+  the four files that hold the version string and the grep command to
+  audit for stale references.
+- AppImage install troubleshooting updated for the libfuse2/libfuse2t64
+  rename and the new no-FUSE-needed v12.6.0 builds.
+- `build_deb.sh` package description card count corrected: 247 → 287.
+
+**Skipped (verified to be non-issues during the audit)**
+- Newline-delimited LAN framing: safe because `json.dumps` escapes
+  embedded `\n` as `\\n` text — the actual newline byte never appears
+  in the encoded output.
+- Weather + Survival Instinct power overwrite: behaviour matches
+  Gwent's canonical weather rule (weather obliterates buffs) — both
+  the survival and non-survival branches behave consistently.
+- LAN handshake message race: HELLO is already special-cased in the
+  reader and never enters the regular inbox.
+- LAN session close ordering: `close()` already sets `stop_event`
+  before `join()` and uses `sock.shutdown` to break blocking recv.
+- Galactic Conquest battle state contamination: each card battle
+  constructs a fresh `Game()` instance, so leftover state from a
+  previous battle is structurally impossible.
+- LanLobby state reset between matches: lobby is re-instantiated on
+  each `run_lan_lobby` call, so flags start fresh every time.
+- Several other agent findings (faction ability shared singletons via
+  dead `FACTION_ABILITIES` dict reads, `_refresh_after_battle` clearing
+  space-shooter properties on a card-battle controller, etc.) turned
+  out to reference code paths that don't actually run.
+
+### Version 12.5.2 — "Seventh-Pass Audit" (May 2026)
+**Audit verification + 11 fixes shipped, 12 false positives rejected**
+
+A seventh-pass audit covering ~30 reported issues across `game.py`,
+`galactic_conquest/card_battle.py`, `galactic_conquest/campaign_controller.py`,
+`space_shooter/game.py`, and the `lan_*.py` networking files. Each finding
+was verified against current source before any code change: **16 held up,
+4 were partially accurate, and 12 were false positives** where the cited
+"bug" was either correct logic the reporter misread or code that never
+executes. The 11 highest-value fixes were applied; the remaining real-but-
+minor items are documented below for future passes.
+
+#### Multiplayer determinism (RNG correctness)
+- **`game.py:237` DHD fell through to global `random` when no rng arg
+  was passed.** `DHDMechanic.use(self, player, rng=None)` had
+  `rand = rng or random`, so any caller that forgot to thread the game
+  rng would silently desync LAN matches. Switched the fallback to
+  `getattr(player, "_rng", random)` — `Player._rng` is already wired to
+  `Game.rng` at construction (line 673), so seeded matches now stay
+  deterministic even when the call site is sloppy. Note: no production
+  call site invokes `.use()` today (the DHD button is a UI back-button,
+  unrelated), so this is a defensive fix against future wiring.
+- **`game.py:3066-3068` Sarcophagus relic bypassed `Game.rng` entirely.**
+  The Conquest Sarcophagus revive block did
+  `import random as _rng; _rng.choice(self.player1.discard_pile)`,
+  reaching for the module-global RNG instead of the seeded
+  `self.rng.choice` used everywhere else on the round-advance path.
+  Replaced with `self.rng.choice(...)` and dropped the local import.
+
+#### Networking hardening (LAN multiplayer attack surface)
+- **`lan_protocol.py` had no payload size caps.** Added
+  `MAX_DECK_IDS = 40` (matches `deck_builder.MAX_DECK_SIZE`),
+  `MAX_CHAT_LEN = 512`, and `MAX_PAYLOAD_BYTES = 65536`. Builders
+  reject/truncate before send (`build_deck_message` raises
+  `ValueError` on oversized lists; `build_chat_message` truncates).
+  `parse_message` re-validates on the receive side so a hostile peer
+  using their own builder can't bypass the check.
+- **`lan_session.py:175` second-pass buffer scan + no per-frame size
+  cap.** The recv loop did `while b"\n" in buffer:` followed by
+  `buffer.split(b"\n", 1)`, scanning the buffer twice per iteration.
+  Replaced with a single `buffer.find(b"\n")` then slice. Also added a
+  pre-JSON `len(line) > MAX_PAYLOAD_BYTES` check so a peer streaming a
+  single huge line just under the 1 MB session ceiling gets dropped
+  instead of feeding `json.loads`.
+- **`lan_session.py:228` log injection via corrupted data.** The JSON
+  parse-error branch logged `line[:100].decode("utf-8", errors="replace")`
+  directly to stdout, letting a peer inject ANSI escape sequences,
+  carriage returns, or terminal control codes into the host's terminal
+  / log file. Switched to `repr(line[:100])` so non-printable bytes are
+  rendered as `\x1b` rather than executed by the terminal.
+- **`lan_game.py:112` seed taken from peer with zero validation.**
+  `seed = payload.get("seed", 0)` was fed straight to `random.seed()`,
+  so a malicious peer could send `seed: "haha"` (TypeError mid-match)
+  or `seed: <huge bigint>`. Wrapped in `int()` with bounds check
+  `0 <= seed < 2**32`; falls back to 0 with a warning on bad input.
+
+#### Game features
+- **`space_shooter/game.py:386-388` mission restart silently dropped
+  mission config.** Pressing R after death called
+  `self.__init__(...)` without forwarding `mission_type` or
+  `mission_target`, so any restart from a campaign mission dumped the
+  player into the default infinite-survival scenario. Threaded both
+  arguments through the re-init call.
+
+#### Performance
+- **`game.py:744` `Player.build_deck` deep-copied through every
+  `ALL_CARDS.values()` filter on every Player construction.** Two
+  Players are built per match plus mid-match Sarcophagus/clone paths
+  that may re-instantiate. Added a module-level `_FACTION_CARD_POOL`
+  built once at import (faction → list of card refs); `build_deck`
+  now deepcopies from the cached list. Filter scan cost amortises to
+  zero; deepcopy cost (the dominant term) is unchanged because card
+  state still has to be per-player.
+- **`game.py:964, 1040-1042` `self.history.pop(0)` was O(n).** History
+  was a plain list with a `if len > 200: pop(0)` ring-buffer hack —
+  every overflow shifted up to 200 entries. Switched to
+  `collections.deque(maxlen=200)`; appends now evict the oldest entry
+  in O(1) and the manual length check disappears. Verified all
+  consumers (render_engine.py iteration + `entries[-1]` slice) work
+  unchanged on `deque`.
+- **`galactic_conquest/card_battle.py:113-152` three identical
+  `ALL_CARDS.items()` filter comprehensions.** The Elite-defenders,
+  Ancient-ZPM, and Extra-defense paths each rebuilt the same
+  faction-filtered list (excluding Legendary Commanders + weather).
+  Extracted a `_faction_pool(faction)` helper with a
+  `_FACTION_POOL_CACHE` dict so each faction's pool is computed once
+  per process. Also collapses the three `getattr(c, …)` ladders.
+
+#### Code robustness
+- **`abilities.py:92-98` substring matching was permissive.**
+  `has_ability` did `if ability.value in ability_str:`, which works
+  today only because no two ability names are substrings of each
+  other — a fragile invariant. Added `_ability_tokens()` that splits
+  the comma-separated ability field, strips
+  `"Name: descriptive text"` suffixes (e.g. `"Ring Transport: Return
+  to hand"` → `"Ring Transport"`), and returns a set; `has_ability`
+  and `get_abilities` now do exact membership. All 41 distinct
+  ability strings in `cards.py` round-trip through the new tokeniser
+  to the same enum members as before. Future-proofs against any
+  ability name that's a substring of another.
+
+#### Audit findings verified false (no code change)
+- **`game.py:1350-1351` "Doci Spy conversion loses +5 power after
+  scoring."** False. The conversion sets both `card.power = 5` and
+  `card.displayed_power = 5`; `calculate_score` Pass 1 resets
+  `displayed_power` to `power` (preserving the 5), and Pass 2
+  bonuses are additive on top.
+- **`game.py:1221` "Hathor ability infinite-loops when both players
+  pass."** False. Line 1189 short-circuits with an early `return`
+  when `player1.has_passed and player2.has_passed`, so the recursive
+  `switch_turn()` at 1221 can never fire in the both-passed state.
+- **`game.py:906, 3449` "Clone token discards go to wrong player's
+  pile."** False. `Player.decrement_clone_tokens` appends to
+  `self.discard_pile` (correct owner — it's a method on `Player`).
+  `Game.decrement_all_clone_tokens` calls
+  `self.discard_card(player, card, …)` with an explicit player
+  argument, so routing is correct.
+- **`game.py:798-802` "Tactical Formation Pass 3 breaks additive
+  bonuses."** False. The pass computes
+  `bonuses_applied = displayed_power - power`, applies the
+  multiplier to base `power`, then re-adds `bonuses_applied`.
+  Additive bonuses survive the multiplier exactly as the comment at
+  line 759 documents.
+- **"Faction powers missing `game=self` parameter — artifact bonuses
+  don't apply after row swaps."** False. `apply_to_score(player)`
+  doesn't reference game state; artifacts (which do) already receive
+  `game` via `artifact.apply_effect(game, self)` at line 826.
+- **`galactic_conquest/card_battle.py:142-145` "Weaken enemy hits
+  Legendary Commanders."** False. Leaders aren't in `current_deck` —
+  they're stored as a separate `Player.leader` attribute, so
+  `ai_deck.pop(random.randrange(len(ai_deck)))` can't touch them.
+- **`galactic_conquest/card_battle.py:123-130` "Kull Armor ordering
+  inconsistent."** False. The ordering — apply elite bonus first,
+  then `_apply_relic_combat_modifiers` (which subtracts Kull Armor)
+  — is intentional. Boost-then-weaken matches the documented
+  intent.
+- **`galactic_conquest/campaign_controller.py:367 + 390-395`
+  "Duplicate cooldown processing."** False. Line 367's
+  `tick_cooldowns()` is the standard per-turn decrement; lines
+  390-395 apply an additional cooldown-reduction *passive* on top.
+  Two distinct effects, sequenced correctly.
+- **"Network cache staleness on same-turn ownership changes."**
+  False. No such cache exists in `campaign_controller.py`; territory
+  ownership and faction relations are read live from `self.state`.
+- **"`campaign_controller.py` repeats ALL_CARDS iteration in
+  multiple functions."** Two iterations, not three; serve different
+  purposes (faction bonus at 1963, defense bonus at 2013). Not
+  redundant.
+- **"`campaign_controller.py` multiple `faction_relations`
+  iterations per turn."** Two iterations, both necessary (income
+  phase at 446, reward selection at 864). Not redundant.
+- **`space_shooter/game.py:1972` "Supergate projectile damage
+  capped at 1/frame."** False. The hit applies full `proj.damage`;
+  the 1-per-frame is a per-supergate-projectile cap, not a global
+  damage rate.
+- **`space_shooter/game.py:1867-1869` "Time unit mismatch (frames
+  vs seconds)."** False. Every comparison in the block uses
+  `survival_seconds` consistently.
+- **`lan_game.py:38-47` "Busy-wait polling in `wait_for_message`."**
+  False. The loop already includes `await asyncio.sleep(0.05)`.
+
+#### Deferred (real but low-value)
+Documented for a future audit pass; no urgency:
+- `card_battle.py:140` AI deck never shuffled after passive-card
+  insertions. Player deck is shuffled at 89; impact on randomness is
+  small because draws are still random.
+- `card_battle.py:192` weather-row validation only checks dict-key
+  presence — silent no-op on a typo, but no user-facing path can
+  trigger it today.
+- `deck_builder.FACTION_LEADERS` access via `.get(faction, [])`
+  silently returns empty on bad faction; only fails on dev typo.
+- `card_battle.run_card_battle` returns outcome strings only; no
+  battle statistics export. Feature work, not a bug.
+- `lan_session.py` has no peer authentication. Design decision
+  pending — only relevant if anyone plays on hostile networks.
+- `lan_game.py:113-114` direct `remote_payload["faction"]` /
+  `["leader_id"]` access without try/except. Some upstream
+  validation at 99-104 narrows the risk.
+- `lan_game.py:156-157` mutates `game_main.LAN_MODE` /
+  `LAN_CONTEXT` module globals. Cleaner state-management pending.
+
+#### Manual test plan
+1. **RNG determinism**: host + join a LAN match with a fixed peer
+   seed; trigger Sarcophagus revive at round-advance and confirm
+   both peers select the same revived card.
+2. **LAN size cap**: have a peer (or test harness) emit a deck
+   message with 100 deck_ids; receiver should disconnect cleanly
+   with "Oversized frame" log, no OOM.
+3. **Seed validation**: emit `{"type":"seed","payload":{"seed":"x"}}`
+   from peer; client should warn and fall back to seed 0 without
+   crashing.
+4. **Mission restart**: enter Galactic Conquest mission, die, press
+   R — same mission should reload (kill counter resets, mission
+   target preserved).
+5. **History scroll**: play a long match (>200 events) and scroll
+   the history panel — oldest entries should evict cleanly with no
+   visual hitch.
+6. **Card abilities**: play any Lucian Alliance Medical Evac and
+   confirm the medic UI opens (verifies tokeniser preserves
+   `"Medical Evac"` matching). Play Puddle Jumper and confirm Ring
+   Transport prompt appears (`"Ring Transport: Return to hand"`
+   → token `"Ring Transport"`).
+
+#### Version
+- Bumped to 12.5.2 in `metadata.json`, `game_config.py`, and the
+  `README.md` badge.
+
+---
+
+### Version 12.5.1 — "Sixth-Pass Audit" (May 2026)
+
+
+
+#### Crash / logic
+- **`game.py:1467-1472` Mothership/Prometheus name-substring matching
+  drew cards for the wrong cards.** The played-card draw trigger used
+  `"Prometheus" in card.name` and `"Mothership" in card.name` (with an
+  unguarded fallback), so playing **Ha'tak Mothership** (Goa'uld,
+  power 6, ability `Gate Reinforcement`), **Alliance Mothership**
+  (Lucian, power 10, no draw ability), or **O'Neill-Class Mothership**
+  (Asgard, power 8, ability `Command Network`) all silently triggered
+  `draw_cards(2)` despite none of them having a draw ability. The basic
+  `tauri_prometheus_1/2` ("X-303 Prometheus", power 6, ability `None`)
+  were similarly drawing 1 despite having no ability text — only
+  `prometheus_x303` (power 8, "Draw 1 card when played") was supposed
+  to. Replaced both substring matches with an explicit `card.id` →
+  `draw_count` dict containing only `prometheus_x303` (1) and
+  `asgard_mothership` (2). A `card.ability` substring approach was
+  considered and rejected — `"Draw 1"` and `"Draw 2"` would both match
+  any `"Draw"` enum, putting us right back where we started.
+
+#### Audit findings verified false (no code change)
+- **`draft_mode.py:260` "syntax error in min() call"** — code is valid
+  Python; the reporter's "broken" and "fixed" snippets were identical
+  strings.
+- **`ai_opponent.py:17` "power_used never reset between rounds"** —
+  faction power is **once per game** by design (see comment at
+  `game.py:738`: `# Track faction power usage (once per game)`). Both
+  player and AI follow this rule; `AIStrategy.power_used` mirrors
+  `Player.power_used` correctly.
+- **`game.py:2555-2559` "Sodan trigger inconsistent"** — works
+  correctly. Only `sodan_warrior` carries the matched ability string,
+  so the dual `name AND ability` check resolves to exactly one card.
+- **`cards.py:381` "Puddle Jumper colon syntax fragile"** — the
+  ability `"Ring Transport: Return to hand to replay"` matches
+  `Ability.RING_TRANSPORT` ("Ring Transport") via the existing
+  substring search. The colon-suffix pattern is the established
+  convention for descriptive abilities.
+- **"`abilities.py:96-98` is O(26) per call"** — misread.
+  `has_ability(card, *abilities)` iterates the **variadic args**
+  (typically 1–5), not the 26-member `Ability` enum. Only
+  `get_abilities()` (line 117) iterates the full enum, and it is not
+  on a hot path.
+- **"`game.py:788-802` 5-pass score calculation is slow"** — the pass
+  ordering (reset → additive → Tactical Formation → Horn/ZPM →
+  Weather + sum) is required for correctness. Collapsing passes would
+  break the `bonuses_applied = displayed_power - power` invariant that
+  Tactical Formation relies on. Already optimised in v12.5.0 from ~10
+  passes to 5.
+
+#### Manual test plan
+1. Goa'uld vs. Asgard skirmish: play Ha'tak Mothership — hand size
+   must **not** increase. Play Asgard Mothership — hand size must
+   increase by 2 (subject to deck/cap limits).
+2. Lucian skirmish: play Alliance Mothership — hand size must **not**
+   increase.
+3. Tau'ri skirmish: play `tauri_prometheus_1` (basic X-303 Prometheus,
+   power 6) — hand size must **not** increase. Play `prometheus_x303`
+   (Prometheus X-303, power 8) — hand size must increase by 1.
+4. Asgard skirmish: play O'Neill-Class Mothership — hand size must
+   **not** increase.
+
+#### Version
+- Bumped to 12.5.1 in `metadata.json`, `game_config.py`, and the
+  `README.md` badge.
+
+---
+
+### Version 12.5.0 — "Fifth-Pass Audit" (May 2026)
+**Audit verification + 13 of 18 backlog items shipped**
+
+A re-audit pass over the v12.4 backlog. Each of the 18 reported issues
+was verified against current source before any code change: 10 were
+accurate, 3 partially accurate, and **5 were false positives where the
+"bug" was either intended behaviour or already correct in the existing
+code**. The 13 verified fixes were then implemented under the prioritised
+order critical → performance → balance → low. No save schema changes;
+all 12.x saves load cleanly.
+
+#### Crash / logic
+- **`espionage.py:399` undefined `NEUTRAL` constant.** The
+  `forge_alliance` mission only imported `NEUTRAL_REL` from `diplomacy.py`
+  but compared against bare `NEUTRAL`, so the Hostile→Neutral→Trading
+  upgrade path raised `NameError` mid-mission for any player who actually
+  reached the Neutral tier. Replaced with `NEUTRAL_REL`.
+- **Counter-intel detection silently broken.** Operatives serialise via
+  `Operative.to_dict()` with key `"mission"`, but
+  `galactic_conquest/espionage.py:537,695` was reading and writing key
+  `"current_mission"`, which never existed in the dict. `op.get(...)`
+  always returned `None`, so AI espionage events never registered the
+  player's counter-intel operative as a threat. Fixed both call sites to
+  the canonical `"mission"` key. Symptom was invisible (operatives
+  appeared deployed and the player saw no error), so this had been live
+  for several versions.
+- **AI hardcoded to Player 2.** `ai_opponent.py:15` set
+  `self.opponent = game.player1` with a comment "Assume AI is always
+  player2", blocking any AI-controls-player1 mode (AI-vs-AI demos, swap-
+  sides debug, future spectator mode). Replaced with a parameterised
+  lookup: opponent is the *other* player relative to `ai_player`.
+- **`card_battle.py` returned `"draw"` on validation failure.** When a
+  player deck was below the 10-card minimum the function returned
+  `"draw"`, but the AI-deck-too-small branch on the very next line
+  returned `"player_win"`. The asymmetry meant a player who somehow
+  shipped a busted deck got a free draw instead of a proper loss. Now
+  returns `"player_loss"` (already a handled case in
+  `campaign_controller._run_card_battle`).
+- **Defensive `rng.choice` guards in Apophis weather.**
+  `_activate_apophis_weather` calls `self.rng.choice(weather_rows)` and
+  `self.rng.choice(options)` on hardcoded lists. The current lists are
+  always non-empty so no real crash today, but a future refactor that
+  drove either list empty would crash on a leader power activation.
+  Added `if not weather_rows or not options: return None` belt-and-
+  suspenders. The other 7 `rng.choice` sites flagged in the audit
+  (`game.py:238, 1122, 1720, 1757, 2258, 3087, 3136`) were already
+  guarded — verified and left alone.
+
+#### Performance
+- **`Player.calculate_score` board sweeps reduced from ~10 → ~5.** This
+  is the inner loop of every `play_card` and `end_round`, and was doing
+  separate full-board iterations for: reset, Hammond +3, Ka'lel +2,
+  Tactical Formation, Inspiring Leadership, Horn ×2, ZPM ×2, weather,
+  and final sum. Merged:
+    - **reset + Hammond + Ka'lel + Inspiring Leadership** into one
+      additive sweep (IL moved before TF — semantically equivalent
+      because TF preserves additive bonuses via
+      `bonuses_applied = displayed - power`);
+    - **Horn + ZPM** into one multiplicative sweep guarded by the
+      existing `horn_multiplied` set so no card 4×-stacks;
+    - **weather + final sum** into one terminal sweep.
+  TF, leader-ability dispatch, alliance combos, and artifacts remain
+  separate — they have ordering dependencies on the additive bonuses
+  being fully applied first. Output identical for all tested boards
+  (Hammond + TF, Horn + ZPM siege, Weather + Survival Instinct).
+- **`select_hathor_target` row-power hoisted out of the candidate loop.**
+  `ai_opponent.py:605` was recomputing `sum(c.power for c in
+  self.opponent.board.get(card.row, []))` once per candidate inside the
+  scoring loop — O(n²) in board size. Pre-built a `row_power_by_row`
+  dict before the loop; per-candidate evaluation now O(1). Trivial impact
+  in absolute terms (boards top out around 30 cards) but meaningful for
+  Hathor turns at higher difficulties.
+- **`PowerUp.draw` glow surface cached.** `space_shooter/entities.py:601`
+  allocated a fresh `pygame.Surface(SRCALPHA)` every frame, every powerup.
+  Now cached on a class-level `_glow_cache` dict keyed by `glow_size`
+  (small integer domain from the pulse animation, ~10 distinct values),
+  cleared with `fill((0,0,0,0))` on reuse. Eliminates ~60 SRCALPHA allocs
+  per powerup per second under load.
+- **`XPOrb.draw` orb surface cached.** Same pattern, keyed by `pulse_r`.
+  Matters during boss kills and other XP-orb shower moments where the
+  on-screen orb count spikes.
+
+#### Balance (user-confirmed numbers)
+- **Fire-rate scaling switched from compounding to stack-additive.**
+  `space_shooter/game.py:1581` used `ship.fire_rate = max(5, int(
+  ship.fire_rate * 0.9))` — multiplicative 10%-per-stack on the live
+  field meant `rapid_capacitors` stacked extremely steeply (≈47 % faster
+  at 6 stacks, ≈77 % at 14). Wired up the previously-unused
+  `self.base_fire_rate` field (initialised at ship creation) and replaced
+  the formula with `max(5, int(base_fire_rate / (1 + 0.07 * stacks)))`.
+  Asymptotes toward zero — early stacks still feel impactful, late stacks
+  add diminishing returns instead of breaking the game.
+- **XP curve growth rate halved.**
+  `self.xp_to_next = int(480 * 1.25 ** (self.level - 1))` →
+  `int(480 * 1.15 ** (self.level - 1))`. Level 30 needs ~31 K XP instead
+  of ~388 K; the late-game grind is now reachable in a normal session.
+  Existing players' `xp_to_next` only recomputes on level-up, so live
+  saves transition smoothly.
+
+#### Co-op
+- **Player 2 wormhole escape ability.**
+  `space_shooter/coop_game.py` previously had a `# Wormhole (P1 only for
+  simplicity)` comment marking the asymmetry. P2 now has its own
+  independent wormhole on the same cooldown / transit-duration
+  constants:
+    - new `partner_wormhole_*` state on `CoopSpaceShooterGame.__init__`;
+    - `activate_partner_wormhole()` mirrors `_activate_wormhole()` but
+      teleports the partner ship instead of the host;
+    - `_update_partner_wormhole()` mirrors `_update_wormhole()` and
+      crucially does *not* snap the host camera (P2 has its own camera);
+    - new `"wormhole"` `CoopMsg.ACTION` dispatch in `space_shooter/
+      __init__.py` mirroring the existing `"secondary"` action;
+    - client side sends edge-triggered Q-presses (paired with the
+      existing `_e_was_pressed` pattern via a new `_q_was_pressed`).
+  P2 is now functionally symmetric with P1 for evasion.
+
+#### Robustness
+- **`touch_controls.py:205` import wrapped in try/except.** The
+  `_to_px(fx, fy)` helper does `import display_manager` inline; on
+  platforms where the module path differs (web build, embedded mobile),
+  an `ImportError` would crash the touch coordinate path. Now falls back
+  to `1280×720` if the import fails, mirroring the existing fallback for
+  `display_manager.SCREEN_WIDTH or 1280`.
+
+#### Verified false-positives (no code change)
+- **Space-shooter projectile collision claimed to use N×M loops.**
+  `space_shooter/game.py:3496` already uses
+  `self.spatial_grid.query_unique(proj.x, proj.y, 60)`; the
+  `SpatialGrid` is instantiated and rebuilt each frame. No N×M loop.
+- **Sensor-sweep marks claimed to "overwrite instead of extend."**
+  `enemy._sensor_marked = 480` resets the frame counter on every fresh
+  sweep — that is the intended refresh-on-resweep behaviour, not a bug.
+- **Co-op miniship targeting claimed to ignore the nearest player.**
+  Miniships are intentionally owner-bound (leashed to their summoner,
+  scoring by miniship-relative distance). Splitting aggro 50/50 would
+  be a design change, not a bug fix.
+- **Goa'uld bonus order claimed to apply before tactical formation.**
+  Already correct: the leader-ability dispatch (`LEADER_SCORE_ABILITIES`
+  at `game.py:779`) runs *before* the Tactical Formation sweep, and TF
+  preserves additive bonuses via `bonuses_applied`.
+- **`Planet.name` access claimed to need `getattr` safety.** `Planet`
+  is a `@dataclass` with `name: str` declared as a required attribute;
+  `to_dict()` always emits it. No `AttributeError` is reachable.
+
+#### Code cleanup byproducts
+- `_glow_cache` and `_orb_cache` are class-level dicts so they're shared
+  across all PowerUp / XPOrb instances; the integer keys (pulse-derived
+  ints) come from a small bounded domain so the cache cannot grow
+  unbounded.
+- The previously unused `self.base_fire_rate = None` field on
+  `SpaceShooterGame` (sitting at game.py:113 since v10) is now actually
+  populated and read.
+
+#### Verification
+1. Card battle full match (3 rounds), AI vs player. Specifically watch:
+   Tactical Formation cards combined with Hammond bonus on the same
+   card, Horn + ZPM stacking on siege, Weather + Survival Instinct.
+   Scores must match pre-refactor expectations — `calculate_score` is
+   the riskiest change.
+2. Galactic Conquest `forge_alliance` mission against each starting
+   relation tier (HOSTILE → NEUTRAL → TRADING → ALLIED). NEUTRAL tier
+   must no longer raise `NameError`.
+3. AI espionage event triggered while a counter-intel operative is on
+   the targeted planet — counter-intel detection should now fire.
+4. AI-as-player1 smoke test (debug toggle if available, otherwise
+   temporary swap in `Game.__init__`) — no `AttributeError`.
+5. Card battle with a forced sub-10 player deck — result string is
+   `"player_loss"`, not `"draw"`.
+6. Apophis leader power triggers without crash (sanity check on the
+   added guards).
+7. Space-shooter session, ≥5 minutes mid-game: observe FPS during
+   high-powerup-density and high-XP-orb-density moments. Profiler
+   should no longer flag PowerUp/XPOrb surface allocation as a hot path.
+8. Level 5/10/15 in space shooter: XP requirements feel reasonable;
+   `rapid_capacitors` at 6+ stacks still feels strong but not instant.
+9. Co-op session: P2 presses Q to wormhole-escape a swarm; the
+   partner ship teleports without affecting P1's camera.
+10. Touch-controls test (mobile/web): force `display_manager` import
+    failure; `_to_px` should fall back to 1280×720 instead of crashing.
+
+#### Version
+- Bumped to 12.5.0 in `metadata.json`, `game_config.py`, and the
+  `README.md` badge.
+
+---
+
 ### Version 12.4.0 — "Fourth-Pass Audit" (May 2026)
 **Comprehensive audit + 16 of 18 backlog items shipped**
 

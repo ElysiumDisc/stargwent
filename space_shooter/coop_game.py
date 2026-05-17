@@ -56,6 +56,14 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         # Partner input (VirtualKeys for network, real keys for local testing)
         self.partner_keys = VirtualKeys()
 
+        # P2 wormhole state — independent of P1's (which is inherited from base Game).
+        # Reuses the shared wormhole_max_cooldown / wormhole_transit_duration constants.
+        self.partner_wormhole_cooldown = 0
+        self.partner_wormhole_active = False
+        self.partner_wormhole_transit_timer = 0
+        self.partner_wormhole_exit_x = 0.0
+        self.partner_wormhole_exit_y = 0.0
+
         # Revival state
         self.p1_alive = True
         self.p2_alive = True
@@ -126,7 +134,7 @@ class CoopSpaceShooterGame(SpaceShooterGame):
             self._update_ship_facing(self.player_ship)
 
         # --- Update P2 ---
-        if self.p2_alive:
+        if self.p2_alive and not self.partner_wormhole_active:
             self.partner_ship.update(self.partner_keys)
             self._update_ship_facing(self.partner_ship)
 
@@ -140,11 +148,15 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         )
         self.leash_warning = dist > LEASH_WARNING_DIST
 
-        # --- Wormhole (P1 only for simplicity) ---
+        # --- Wormhole — P1 (inherited state) and P2 (partner_wormhole_*) ---
         if self.wormhole_cooldown > 0:
             self.wormhole_cooldown -= 1
         if self.wormhole_active:
             self._update_wormhole()
+        if self.partner_wormhole_cooldown > 0:
+            self.partner_wormhole_cooldown -= 1
+        if self.partner_wormhole_active:
+            self._update_partner_wormhole()
         self.wormhole_effects = [e for e in self.wormhole_effects if e.update()]
 
         # --- Spawner (scaled for 2 players) ---
@@ -925,6 +937,42 @@ class CoopSpaceShooterGame(SpaceShooterGame):
         if self.wormhole_transit_timer >= self.wormhole_transit_duration:
             self.wormhole_active = False
             self.wormhole_cooldown = self.wormhole_max_cooldown
+
+    def activate_partner_wormhole(self):
+        """Activate P2's wormhole escape. Called from network ACTION dispatch."""
+        if not self.p2_alive:
+            return
+        if self.partner_wormhole_cooldown > 0 or self.partner_wormhole_active:
+            return
+        from .entities import WormholeEffect
+        from .game import _get_sfx_vol
+        self.partner_wormhole_active = True
+        self.partner_wormhole_transit_timer = 0
+        if self.wormhole_sound:
+            self.wormhole_sound.set_volume(_get_sfx_vol() * 0.9)
+            self.wormhole_sound.play()
+        entry_x = self.partner_ship.x + self.partner_ship.width // 2
+        entry_y = self.partner_ship.y
+        self.wormhole_effects.append(WormholeEffect(entry_x, entry_y, is_entry=True))
+        angle = random.uniform(0, math.pi * 2)
+        dist = random.uniform(300, 500)
+        self.partner_wormhole_exit_x = self.partner_ship.x + math.cos(angle) * dist
+        self.partner_wormhole_exit_y = self.partner_ship.y + math.sin(angle) * dist
+        self.screen_shake.trigger(6, 10)
+
+    def _update_partner_wormhole(self):
+        """Tick P2's wormhole transit. Mirrors _update_wormhole for the partner."""
+        from .entities import WormholeEffect
+        self.partner_wormhole_transit_timer += 1
+        halfway = self.wormhole_transit_duration // 2
+        if self.partner_wormhole_transit_timer == halfway:
+            self.partner_ship.x = self.partner_wormhole_exit_x - self.partner_ship.width // 2
+            self.partner_ship.y = self.partner_wormhole_exit_y
+            self.wormhole_effects.append(
+                WormholeEffect(self.partner_wormhole_exit_x, self.partner_wormhole_exit_y, is_entry=False))
+        if self.partner_wormhole_transit_timer >= self.wormhole_transit_duration:
+            self.partner_wormhole_active = False
+            self.partner_wormhole_cooldown = self.wormhole_max_cooldown
 
     def fire_partner_secondary(self):
         """Fire P2's secondary weapon."""

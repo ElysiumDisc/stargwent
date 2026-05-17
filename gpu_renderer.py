@@ -259,9 +259,18 @@ class GPURenderer:
             # Upload frame to GPU texture
             raw = pygame.image.tobytes(pygame_surface, "RGBA", True)
             if (w, h) != (self.input_texture.width, self.input_texture.height):
+                # Wait for any in-flight GPU work referencing the old
+                # texture to drain before release. Without this, some
+                # Intel/AMD drivers can leak the texture or briefly
+                # display garbage when the pipeline is still using it.
+                self.ctx.finish()
                 self.input_texture.release()
                 self.input_texture = self.ctx.texture((w, h), 4)
                 self.input_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+                # Resize invalidates the FBO pool buckets sized to the
+                # old resolution; reclaim them now.
+                if self.fbo_pool:
+                    self.fbo_pool.cleanup_stale(w, h)
             self.input_texture.write(raw)
 
             # Reset blend state so previous Pygame/effect state can't leak in
@@ -293,6 +302,10 @@ class GPURenderer:
 
             # Render final result to default framebuffer (the display)
             self.ctx.screen.use()
+            # Clear the screen FBO before final composite — without this,
+            # the first frame after a window resize can show uncleared
+            # garbage in margin areas not covered by the fullscreen quad.
+            self.ctx.clear(0.0, 0.0, 0.0, 1.0)
             # Use get_window_size() — for OpenGL windows, get_surface().get_size()
             # may report the internal render resolution instead of the actual
             # display size (e.g. 2560x1440 instead of 3840x2160 in fullscreen)
@@ -323,9 +336,16 @@ class GPURenderer:
         self.width = width
         self.height = height
         if self.input_texture:
+            # Drain any in-flight GPU work before destroying the old
+            # texture (see present()'s resize branch for the same fix).
+            self.ctx.finish()
             self.input_texture.release()
             self.input_texture = self.ctx.texture((width, height), 4)
             self.input_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        if self.fbo_pool:
+            # Stale FBOs from the previous resolution would leak GPU
+            # memory if left in the pool — cleanup_stale() reclaims them.
+            self.fbo_pool.cleanup_stale(width, height)
 
     def cleanup(self):
         """Release all GPU resources."""

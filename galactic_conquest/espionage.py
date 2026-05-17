@@ -396,7 +396,7 @@ def _resolve_mission(state, op, galaxy, rng, effects):
             if rel == HOSTILE:
                 set_relation(state, faction, NEUTRAL_REL)
                 msg += f" {faction} relations improved to Neutral!"
-            elif rel == NEUTRAL:
+            elif rel == NEUTRAL_REL:
                 set_relation(state, faction, TRADING)
                 msg += f" {faction} relations improved to Trading!"
             elif rel == TRADING:
@@ -534,7 +534,7 @@ def generate_ai_espionage_events(state, galaxy, rng):
         # Check if player has counter-intel operative here
         has_counter = any(
             op.get("target_planet") == target_pid
-            and op.get("current_mission") == "counter_intel"
+            and op.get("mission") == "counter_intel"
             and op.get("status") == "active"
             for op in state.operatives
         )
@@ -692,7 +692,7 @@ def resolve_incident_choice(state, incident, choice, rng):
             if op.get("id") == incident["operative_id"]:
                 op["status"] = "idle"
                 op["target_planet"] = None
-                op["current_mission"] = None
+                op["mission"] = None
                 break
         return f"Recalled {op_name} from {planet_name}. No diplomatic damage."
 

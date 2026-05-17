@@ -23,6 +23,24 @@ _WEATHER_TYPE_MAP = {
 }
 
 
+# Faction → list of unit card IDs eligible for random "extra card" effects
+# (commanders and weather cards excluded). Built lazily and cached because
+# ALL_CARDS is static for the lifetime of the process.
+_FACTION_POOL_CACHE = {}
+
+
+def _faction_pool(faction):
+    """Return cached list of card IDs for a faction, excluding commanders & weather."""
+    pool = _FACTION_POOL_CACHE.get(faction)
+    if pool is None:
+        pool = [cid for cid, c in ALL_CARDS.items()
+                if getattr(c, 'faction', None) == faction
+                and getattr(c, 'card_type', '') != "Legendary Commander"
+                and getattr(c, 'row', '') != "weather"]
+        _FACTION_POOL_CACHE[faction] = pool
+    return pool
+
+
 def _apply_relic_combat_modifiers(relics, player_deck, ai_deck, player_faction):
     """Apply relic effects to decks before battle starts."""
     for card in player_deck:
@@ -110,10 +128,7 @@ async def run_card_battle(screen, player_faction, player_leader, player_deck_ids
 
     # Elite homeworld defenders: add extra cards to AI deck
     if ai_extra_cards > 0:
-        faction_pool = [cid for cid, c in ALL_CARDS.items()
-                        if getattr(c, 'faction', None) == ai_faction
-                        and getattr(c, 'card_type', '') != "Legendary Commander"
-                        and getattr(c, 'row', '') != "weather"]
+        faction_pool = _faction_pool(ai_faction)
         if faction_pool:
             for _ in range(ai_extra_cards):
                 cid = random.choice(faction_pool)
@@ -131,10 +146,7 @@ async def run_card_battle(screen, player_faction, player_leader, player_deck_ids
 
     # Ancient ZPM: +1 starting card (add extra card to player deck before Game creation)
     if relics and "ancient_zpm" in relics:
-        faction_pool = [cid for cid, c in ALL_CARDS.items()
-                        if getattr(c, 'faction', None) == player_faction
-                        and getattr(c, 'card_type', '') != "Legendary Commander"
-                        and getattr(c, 'row', '') != "weather"]
+        faction_pool = _faction_pool(player_faction)
         if faction_pool:
             extra_cid = random.choice(faction_pool)
             player_deck.append(copy.deepcopy(ALL_CARDS[extra_cid]))
@@ -146,10 +158,7 @@ async def run_card_battle(screen, player_faction, player_leader, player_deck_ids
 
     # Extra player cards for defense (extra_defense_card passive)
     if extra_player_cards and extra_player_cards > 0:
-        faction_pool = [cid for cid, c in ALL_CARDS.items()
-                        if getattr(c, 'faction', None) == player_faction
-                        and getattr(c, 'card_type', '') != "Legendary Commander"
-                        and getattr(c, 'row', '') != "weather"]
+        faction_pool = _faction_pool(player_faction)
         if faction_pool:
             for _ in range(extra_player_cards):
                 extra_cid = random.choice(faction_pool)
@@ -165,7 +174,7 @@ async def run_card_battle(screen, player_faction, player_leader, player_deck_ids
     MIN_DECK_SIZE = 10
     if len(player_deck) < MIN_DECK_SIZE:
         print(f"[CardBattle] WARNING: Player deck too small ({len(player_deck)} cards), aborting battle")
-        return "draw"
+        return "player_loss"
     if len(ai_deck) < MIN_DECK_SIZE:
         print(f"[CardBattle] WARNING: AI deck too small ({len(ai_deck)} cards), defaulting to player win")
         return "player_win"

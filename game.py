@@ -3,6 +3,7 @@ import copy
 import time
 import pygame
 import logging
+from collections import deque
 from cards import ALL_CARDS, FACTION_TAURI, FACTION_GOAULD, FACTION_JAFFA, FACTION_LUCIAN, FACTION_ASGARD, FACTION_ALTERAN, FACTION_NEUTRAL, Card
 from abilities import Ability, has_ability, is_hero, is_spy, is_medic, is_plague_card, is_ascension_card, can_be_targeted
 from sound_manager import get_sound_manager
@@ -198,15 +199,26 @@ class AlteranAbility(FactionAbility):
             self.units_boosted_this_round += 1
 
 
-# Faction ability mapping
-FACTION_ABILITIES = {
-    FACTION_TAURI: TauriAbility(),
-    FACTION_GOAULD: GoauldAbility(),
-    FACTION_JAFFA: JaffaAbility(),
-    FACTION_ASGARD: AsgardAbility(),
-    FACTION_LUCIAN: LucianAbility(),
-    FACTION_ALTERAN: AlteranAbility(),
+# Faction ability *classes* — instantiated per Player so two players of
+# the same faction don't share mutable counter state (e.g.
+# AlteranAbility.units_boosted_this_round). Player.__init__ resolves
+# faction → class → fresh instance.
+FACTION_ABILITY_CLASSES = {
+    FACTION_TAURI: TauriAbility,
+    FACTION_GOAULD: GoauldAbility,
+    FACTION_JAFFA: JaffaAbility,
+    FACTION_ASGARD: AsgardAbility,
+    FACTION_LUCIAN: LucianAbility,
+    FACTION_ALTERAN: AlteranAbility,
 }
+
+
+# Per-faction card pool, filtered once. Player.build_deck() deepcopies from
+# here instead of re-scanning ALL_CARDS on every Player construction.
+_FACTION_CARD_POOL = {}
+for _card in ALL_CARDS.values():
+    _FACTION_CARD_POOL.setdefault(_card.faction, []).append(_card)
+del _card
 
 
 # ===== DHD (DIAL HOME DEVICE) MECHANIC =====
@@ -234,7 +246,7 @@ class DHDMechanic:
                 if "Hero" not in (c.ability or "") and c.row not in ["special", "weather"]
             ]
             if eligible_cards:
-                rand = rng or random
+                rand = rng or getattr(player, "_rng", random)
                 card = rand.choice(eligible_cards)
                 player.discard_pile.remove(card)
                 player.hand.append(card)
@@ -696,16 +708,11 @@ class Player:
         self.zpm_active = False  # Track if ZPM was played this round
         self.spies_played_this_round = 0  # Track spies for Lucian Network combo
         
-        # Stargate mechanics - create fresh instances per player (avoid shared mutable state)
-        _ability_classes = {
-            FACTION_TAURI: TauriAbility,
-            FACTION_GOAULD: GoauldAbility,
-            FACTION_JAFFA: JaffaAbility,
-            FACTION_ASGARD: AsgardAbility,
-            FACTION_LUCIAN: LucianAbility,
-            FACTION_ALTERAN: AlteranAbility,
-        }
-        self.faction_ability = _ability_classes[faction]() if faction in _ability_classes else None
+        # Stargate mechanics — create a fresh ability instance per player
+        # so two players of the same faction don't share mutable counter
+        # state (see FACTION_ABILITY_CLASSES docstring).
+        ability_cls = FACTION_ABILITY_CLASSES.get(faction)
+        self.faction_ability = ability_cls() if ability_cls else None
         self.dhd_mechanic = DHDMechanic()
 
         # Check for Neutral Penalty (Mercenary Tax)
@@ -741,41 +748,43 @@ class Player:
     def build_deck(self):
         """Builds a starting deck for the player based on their faction."""
         # Deep copy cards to prevent shared state between players
-        deck = [copy.deepcopy(card) for card in ALL_CARDS.values() if card.faction == self.faction]
+        deck = [copy.deepcopy(card) for card in _FACTION_CARD_POOL.get(self.faction, ())]
         self._rng.shuffle(deck)
         return deck
 
     def calculate_score(self, game=None):
         """Calculates the player's total score, applying all abilities and effects.
         Returns list of activated alliance combos for history logging."""
-        # First, reset all card powers to their base value
+        # Pass 1: Reset all card powers to base values.
         for row_name, row_cards in self.board.items():
             for card in row_cards:
                 card.displayed_power = card.power
 
-        # Track activated alliance combos
         activated_combos = []
 
-        # Apply Hammond ability bonus (first unit each round gets +3)
-        if self.leader and "Hammond" in self.leader.get('name', ''):
-            for row_name, row_cards in self.board.items():
-                for card in row_cards:
-                    if card.hammond_boosted:
-                        card.displayed_power += 3
-        
-        # Apply Ka'lel ability bonus (first 3 units each round get +2)
-        if self.leader and "Ka'lel" in self.leader.get('name', ''):
-            for row_name, row_cards in self.board.items():
-                for card in row_cards:
-                    if card.kalel_boosted:
-                        card.displayed_power += 2
+        # Pass 2: Additive bonuses (Hammond, Ka'lel, Inspiring Leadership).
+        # IL moved before TF: TF preserves additive bonuses via bonuses_applied,
+        # so the final value is identical regardless of IL order.
+        has_hammond = bool(self.leader) and "Hammond" in self.leader.get('name', '')
+        has_kalel = bool(self.leader) and "Ka'lel" in self.leader.get('name', '')
+        for row_name, row_cards in self.board.items():
+            row_len = len(row_cards)
+            for idx, card in enumerate(row_cards):
+                if has_hammond and card.hammond_boosted:
+                    card.displayed_power += 3
+                if has_kalel and card.kalel_boosted:
+                    card.displayed_power += 2
+                if has_ability(card, Ability.INSPIRING_LEADERSHIP):
+                    if idx > 0:
+                        left_card = row_cards[idx - 1]
+                        if not is_hero(left_card):
+                            left_card.displayed_power += 1
+                    if idx < row_len - 1:
+                        right_card = row_cards[idx + 1]
+                        if not is_hero(right_card):
+                            right_card.displayed_power += 1
 
-        # Apply leader ability - power bonuses (BEFORE weather).
-        # Dispatched via LEADER_SCORE_ABILITIES (defined module-level).
-        # Hathor's steal, Aegir's draw, Rya'c's R3 draw, Loki's per-turn
-        # steal, and Hathor's placeholder are NOT in the table because they
-        # don't run during score calculation — they're triggered elsewhere
-        # (trigger_hathor_ability, play_card, end_round).
+        # Leader ability dispatch (Hathor steal etc. handled elsewhere).
         if self.leader:
             leader_name = self.leader.get('name', '')
             for substr, fn in LEADER_SCORE_ABILITIES:
@@ -783,7 +792,7 @@ class Player:
                     fn(self, game)
                     break
 
-        # Apply Tactical Formation ability
+        # Pass 3: Tactical Formation — must run after additive bonuses.
         for row_name, row_cards in self.board.items():
             bond_groups = {}
             for card in row_cards:
@@ -796,80 +805,52 @@ class Player:
                 if len(cards) > 1:
                     multiplier = len(cards)
                     for card in cards:
-                        # Tactical Formation multiplies the card's BASE power
-                        # We need to preserve bonuses already applied
                         bonuses_applied = card.displayed_power - card.power
                         card.displayed_power = (card.power * multiplier) + bonuses_applied
 
-        # Apply Inspiring Leadership adjacency bonus
-        for row_name, row_cards in self.board.items():
-            for idx, card in enumerate(row_cards):
-                if has_ability(card, Ability.INSPIRING_LEADERSHIP):
-                    if idx > 0:
-                        left_card = row_cards[idx - 1]
-                        if not is_hero(left_card):
-                            left_card.displayed_power += 1
-                    if idx < len(row_cards) - 1:
-                        right_card = row_cards[idx + 1]
-                        if not is_hero(right_card):
-                            right_card.displayed_power += 1
-
-        # Apply Commander's Horn (doubles non-Legendary Commander units)
-        # Track which cards have been multiplied to avoid double-stacking with ZPM
+        # Pass 4: Horn + ZPM combined. Horn doubles non-heroes per row.
+        # ZPM doubles siege cards not already horn-doubled (prevents 4x stack).
         horn_multiplied = set()
         for row_name, row_cards in self.board.items():
-            if self.horn_effects[row_name]:
-                for card in row_cards:
-                    if not is_hero(card):
-                        card.displayed_power *= 2
-                        horn_multiplied.add(id(card))
-
-        # Apply ZPM Power (doubles ALL siege units for the round)
-        # Skip cards already multiplied by horn to prevent 4x stacking
-        if self.zpm_active:
-            for card in self.board.get("siege", []):
-                if id(card) not in horn_multiplied:
+            horn_active = self.horn_effects[row_name]
+            is_siege_zpm = (row_name == "siege" and self.zpm_active)
+            for card in row_cards:
+                if horn_active and not is_hero(card):
                     card.displayed_power *= 2
-        
-        # Apply Faction Abilities that affect score
+                    horn_multiplied.add(id(card))
+                if is_siege_zpm and id(card) not in horn_multiplied:
+                    card.displayed_power *= 2
+
         if self.faction_ability:
             if hasattr(self.faction_ability, 'apply_to_score'):
                 self.faction_ability.apply_to_score(self)
-        
-        # Apply Alliance Combos
+
         for alliance in ALLIANCE_COMBOS:
             if alliance.apply_bonus(self):
                 activated_combos.append(alliance)
-        
-        # Apply Artifact Effects
+
         for artifact in self.artifacts:
             artifact.apply_effect(game, self)
 
-        # Apply weather effects last so nothing can override them
-        # Conquest relics: weather floor modifiers
-        # Ori Prior Staff: weather sets non-heroes to 3 instead of 1
-        # Jaffa Tretonin: weather can't reduce below 3
+        # Conquest relic weather floors.
         weather_min = 1
         if game and hasattr(game, 'conquest_relics'):
-            if self == game.player1:  # Only applies to player's cards
+            if self == game.player1:
                 if "ori_prior_staff" in game.conquest_relics:
                     weather_min = 3
                 if "jaffa_tretonin" in game.conquest_relics:
                     weather_min = max(weather_min, 3)
+
+        # Pass 5: Weather + final sum combined.
+        self.score = 0
         for row_name, row_cards in self.board.items():
-            if self.weather_effects[row_name]:
-                for card in row_cards:
-                    if is_hero(card):
-                        continue
+            weather_active = self.weather_effects[row_name]
+            for card in row_cards:
+                if weather_active and not is_hero(card):
                     if has_ability(card, Ability.SURVIVAL_INSTINCT):
                         card.displayed_power = card.power + 2
                     else:
                         card.displayed_power = weather_min
-
-        # Sum the final scores
-        self.score = 0
-        for row in self.board.values():
-            for card in row:
                 self.score += card.displayed_power
         
         # Apply Neutral Penalty (Mercenary Tax)
@@ -979,7 +960,7 @@ class Game:
         self.round_winner = None  # Track who won last round for missions
         self.round_history = []  # Track winner and scores for each round
         self.last_scorch_positions = []  # Track where Naquadah Overload destroyed cards (player, row_name)
-        self.history = []
+        self.history = deque(maxlen=200)
         self.history_dirty = False
         
         # Leader ability tracking
@@ -1056,8 +1037,6 @@ class Game:
         scores = (self.player1.score, self.player2.score)
         entry = GameHistoryEntry(event_type, description, owner, card_ref=card_ref, icon=icon, row=row, delta=delta, targets=targets, turn_number=self.turn_count, scores=scores)
         self.history.append(entry)
-        if len(self.history) > 200:
-            self.history.pop(0)
         self.history_dirty = True
         
         # Trigger external callback (e.g. for chat/narrator)
@@ -1244,7 +1223,14 @@ class Game:
             return
 
         if self.current_player.has_passed:
-            self.switch_turn() # Skip player if they have passed
+            # Skip past the passed player without recursing back into
+            # switch_turn — unbounded recursion would blow the stack if
+            # both players are passed (a state end_round() should catch
+            # upstream, but defend against the edge case anyway).
+            if self.current_player == self.player1:
+                self.current_player = self.player2
+            else:
+                self.current_player = self.player1
 
     def play_card(self, card, row_name, target_side=None, index=None):
         """Plays a card from the current player's hand to the board.
@@ -1489,13 +1475,16 @@ class Game:
             player.plays_this_turn += 1  # Track plays this turn for Rak'nor ability
             
             # === SIMPLE DRAW ABILITIES (when card is played) ===
-            # Prometheus BC-303: Draw 1 card when played
-            if "Prometheus" in card.name:
-                player.draw_cards(1)
-            
-            # Asgard Mothership: Draw 2 cards when played
-            elif "Asgard Mothership" in card.name or "Mothership" in card.name:
-                player.draw_cards(2)
+            # Only cards with an explicit "Draw N cards when played" ability
+            # entry in cards.py qualify. The basic tauri_prometheus_1/2 are
+            # power-6 generics with no ability and must not draw.
+            DRAW_ON_PLAY = {
+                "prometheus_x303":   1,
+                "asgard_mothership": 2,
+            }
+            draw_count = DRAW_ON_PLAY.get(card.id)
+            if draw_count:
+                player.draw_cards(draw_count)
             
             # === LEADER ABILITIES - PER UNIT ===
             
@@ -2242,12 +2231,16 @@ class Game:
     def _activate_apophis_weather(self, player):
         """Apophis: unleash a random battlefield weather once per game."""
         weather_rows = ["close", "ranged", "siege"]
+        if not weather_rows:
+            return None
         options = [
             ("Ice Planet Hazard", "close"),
             ("Nebula Interference", "ranged"),
             ("Asteroid Storm", "siege"),
             ("Electromagnetic Pulse", self.rng.choice(weather_rows))
         ]
+        if not options:
+            return None
         ability_name, chosen_row = self.rng.choice(options)
         template_candidates = [
             c for c in ALL_CARDS.values()
@@ -2946,18 +2939,24 @@ class Game:
         self.cards_played_this_round = {self.player1: 0, self.player2: 0}
 
         for p in [self.player1, self.player2]:
+            # Move board cards to discard first so a single pass over
+            # discard+hand covers EVERY zone where the card object may
+            # live. Without clearing discard, a boosted card that died
+            # mid-round could be revived next round by Medic with the
+            # +3 still attached. Same risk for cards bounced to hand by
+            # Ring Transport / Stargate effects.
             for row_cards in p.board.values():
-                for card in row_cards:
-                    # Reset all leader per-round boost flags. adria_boosted was
-                    # previously missing from this clear, which let an Adria-
-                    # boosted card carry +3 into the next round if it survived
-                    # via medic revive — fixed alongside the Card.__init__
-                    # initialisation pass.
-                    card.hammond_boosted = False
-                    card.kalel_boosted = False
-                    card.kiva_boosted = False
-                    card.adria_boosted = False
                 p.discard_pile.extend(row_cards)
+            for card in p.discard_pile:
+                card.hammond_boosted = False
+                card.kalel_boosted = False
+                card.kiva_boosted = False
+                card.adria_boosted = False
+            for card in p.hand:
+                card.hammond_boosted = False
+                card.kalel_boosted = False
+                card.kiva_boosted = False
+                card.adria_boosted = False
 
             p.board = {"close": [], "ranged": [], "siege": []}
             p.has_passed = False
@@ -3083,8 +3082,7 @@ class Game:
         conquest_relics = getattr(self, 'conquest_relics', [])
         if conquest_relics and "sarcophagus" in conquest_relics:
             if self.player1.discard_pile:
-                import random as _rng
-                revived = _rng.choice(self.player1.discard_pile)
+                revived = self.rng.choice(self.player1.discard_pile)
                 self.player1.discard_pile.remove(revived)
                 self.player1.hand.append(revived)
                 self.add_history_event(

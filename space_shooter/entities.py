@@ -118,6 +118,10 @@ def _load_icon(icon_name, size=40):
 class PowerUp:
     """Collectible power-up that grants temporary or instant effects."""
 
+    # Class-level cache for glow surfaces, keyed by integer glow_size.
+    # Domain is small (~10 distinct values from pulse animation).
+    _glow_cache: dict = {}
+
     # Power-up types with their properties
     TYPES = {
         "shield": {
@@ -597,9 +601,14 @@ class PowerUp:
         pulse_size = self.size + size_bonus + int(math.sin(self.pulse) * 5)
         bob_y = draw_y + math.sin(self.pulse * 0.5 + self.bob_offset) * 8
 
-        # Create glow surface
+        # Create glow surface (cached per glow_size to avoid per-frame allocation).
         glow_size = pulse_size + 15 + size_bonus
-        glow_surf = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+        glow_surf = PowerUp._glow_cache.get(glow_size)
+        if glow_surf is None:
+            glow_surf = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+            PowerUp._glow_cache[glow_size] = glow_surf
+        else:
+            glow_surf.fill((0, 0, 0, 0))
         center = glow_size
 
         # Rarity outer ring (epic = purple pulsing, legendary = golden rotating)
@@ -790,6 +799,10 @@ class Drone:
 
 class XPOrb:
     """XP orb dropped by enemies on death, drifts toward player."""
+
+    # Class-level cache for orb surfaces, keyed by integer pulse_r.
+    _orb_cache: dict = {}
+
     def __init__(self, x, y, value):
         self.x = x
         self.y = y
@@ -833,7 +846,12 @@ class XPOrb:
         else:
             sx, sy = self.x, self.y
         pulse_r = self.radius + int(math.sin(self.pulse) * 3)
-        orb_surf = pygame.Surface((pulse_r * 4, pulse_r * 4), pygame.SRCALPHA)
+        orb_surf = XPOrb._orb_cache.get(pulse_r)
+        if orb_surf is None:
+            orb_surf = pygame.Surface((pulse_r * 4, pulse_r * 4), pygame.SRCALPHA)
+            XPOrb._orb_cache[pulse_r] = orb_surf
+        else:
+            orb_surf.fill((0, 0, 0, 0))
         center = pulse_r * 2
         # Outer glow
         pygame.draw.circle(orb_surf, (50, 255, 50, 60), (center, center), pulse_r + 6)

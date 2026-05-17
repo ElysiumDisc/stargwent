@@ -281,6 +281,7 @@ class SpaceShooterGame:
         self.player_ship.health = 150
         self.player_ship.max_shields = 150
         self.player_ship.shields = 150
+        self.base_fire_rate = self.player_ship.fire_rate
 
         # Snap camera to player start
         self.camera.snap_to(self.player_ship.x + self.player_ship.width // 2,
@@ -384,7 +385,10 @@ class SpaceShooterGame:
             elif event.key == pygame.K_r and self.game_over:
                 self.__init__(self.screen_width, self.screen_height,
                             self.player_faction, self.ai_faction,
-                            session_scores=self.session_scores, variant=self.variant)
+                            session_scores=self.session_scores,
+                            mission_type=self.mission_type,
+                            mission_target=self.mission_target,
+                            variant=self.variant)
             # Facing is now derived from velocity in update() for smooth movement
 
     def _activate_wormhole(self):
@@ -1509,7 +1513,7 @@ class SpaceShooterGame:
         while self.xp >= self.xp_to_next:
             self.xp -= self.xp_to_next
             self.level += 1
-            self.xp_to_next = int(480 * 1.25 ** (self.level - 1))
+            self.xp_to_next = int(480 * 1.15 ** (self.level - 1))
             self.pending_level_ups += 1
             if self.level == 20:
                 self._apply_primary_mastery()
@@ -1578,7 +1582,10 @@ class SpaceShooterGame:
             ship.max_health += 20
             ship.health = min(ship.max_health, ship.health + 20)
         elif upgrade_name == "rapid_capacitors":
-            ship.fire_rate = max(5, int(ship.fire_rate * 0.9))
+            # Stack-based formula: base_fire_rate / (1 + 0.07 * stacks).
+            # Asymptotes toward 0 — early stacks are strong, late stacks soften.
+            base = self.base_fire_rate or ship.fire_rate
+            ship.fire_rate = max(5, int(base / (1 + 0.07 * stacks)))
         elif upgrade_name == "sublight_engines":
             ship.speed += 1
         elif upgrade_name == "shield_harmonics":
@@ -2758,6 +2765,11 @@ class SpaceShooterGame:
                 if data["spread_timer"] <= 0 and data["generation"] < 3:
                     data["spread_timer"] = 240  # 4 seconds between spreads
                     ex, ey = enemy.x + enemy.width // 2, enemy.y
+                    # Spread to up to 3 nearby enemies per cycle so the
+                    # visual outbreak roughly matches its narrative urgency.
+                    # Previously a single `break` capped this at 1 per
+                    # source per 4s — barely visible on dense waves.
+                    spread_count = 0
                     for target in self.ai_ships:
                         tid = id(target)
                         if tid not in self._plague_targets and tid not in plague_to_add:
@@ -2766,7 +2778,9 @@ class SpaceShooterGame:
                                 plague_to_add[tid] = {"timer": 480, "generation": data["generation"] + 1,
                                                        "spread_timer": 240}
                                 target._plagued = True
-                                break  # One spread per tick per source
+                                spread_count += 1
+                                if spread_count >= 3:
+                                    break
             self._plague_targets.update(plague_to_add)
 
         # Ancient Ascension: screen-wide XP magnet + all projectiles pierce

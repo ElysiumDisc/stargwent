@@ -1077,6 +1077,11 @@ class OriBossBeam:
         fx = self.x - cx
         fy = self.y - cy
         a = dx * dx + dy * dy
+        if a < 1e-6:
+            # Zero-length beam (length=0 or angle math degenerated). Fall
+            # back to point-vs-circle so we don't divide by zero below.
+            r = radius + self.width / 2
+            return (fx * fx + fy * fy) <= r * r
         b = 2 * (fx * dx + fy * dy)
         c = fx * fx + fy * fy - (radius + self.width / 2) ** 2
         discriminant = b * b - 4 * a * c

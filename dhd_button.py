@@ -189,9 +189,15 @@ class DHDButton:
             g = min(255, int(base_color[1] * (1 + 0.3 * (1 - progress))))
             b = min(255, int(base_color[2] * (1 + 0.5 * (1 - progress))))
 
+            # Scale ellipse to the button's actual aspect ratio. Previously
+            # the rect was fixed at width=2*i, height=i (always 2:1) which
+            # produced visibly squashed gradients on near-square buttons.
+            ew = max(1, int(size[0] * progress))
+            eh = max(1, int(size[1] * progress))
             pygame.draw.ellipse(surface, (r, g, b, alpha),
-                              pygame.Rect(center[0] - i, center[1] - i // 2,
-                                        i * 2, i))
+                              pygame.Rect(center[0] - ew // 2,
+                                          center[1] - eh // 2,
+                                          ew, eh))
         return surface
 
 

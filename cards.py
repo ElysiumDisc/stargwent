@@ -51,9 +51,10 @@ class Card:
         """
         base_cost = self.NAQUADAH_BASE + max(0, self.power - 1)
 
-        # Hero bonus
-        is_hero = self.ability and "Legendary Commander" in self.ability
-        if is_hero:
+        # Hero bonus — defer to the centralized helper so a rename of the
+        # Ability enum value can't silently break cost calculation here.
+        from abilities import is_hero as _is_hero
+        if _is_hero(self):
             base_cost += self.NAQUADAH_HERO_BONUS
 
         return base_cost
