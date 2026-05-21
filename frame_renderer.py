@@ -38,6 +38,30 @@ import battle_music
 _PANEL_CACHE_MAX = 64
 _panel_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
 
+# --- Ring Transport target-glow cache ---
+# 12.7.0 fixed the glow band along the beam by drawing two lines directly.
+# The pulsing target circle at the destination was still allocated as a
+# fresh SRCALPHA surface every frame during the drag.  Cache keyed on
+# (radius, color) and modulate alpha with set_alpha() each frame.
+_RING_GLOW_CACHE_MAX = 32
+_ring_glow_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
+
+
+def _get_ring_glow_surf(radius, color):
+    """Cached SRCALPHA circle for Ring Transport target. Per-frame alpha
+    via set_alpha() on the returned surface."""
+    key = (radius, color)
+    surf = _ring_glow_cache.get(key)
+    if surf is not None:
+        _ring_glow_cache.move_to_end(key)
+        return surf
+    if len(_ring_glow_cache) >= _RING_GLOW_CACHE_MAX:
+        _ring_glow_cache.popitem(last=False)
+    surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+    pygame.draw.circle(surf, (*color, 255), (radius, radius), radius)
+    _ring_glow_cache[key] = surf
+    return surf
+
 
 def _get_cached_panel(w, h, fill, border):
     """Return a cached SRCALPHA surface with fill + border rect.
@@ -1079,11 +1103,12 @@ def render_frame(state, game, screen, dt, drag_visual_state):
             pygame.draw.line(screen, glow_color, beam_start, beam_end, beam_width + 6)
             pygame.draw.line(screen, beam_color, beam_start, beam_end, beam_width)
 
-            # Draw glowing circle at target
+            # Draw glowing circle at target.  Cache the SRCALPHA surface
+            # by (radius, color) and animate via set_alpha() — see
+            # _get_ring_glow_surf at the top of this module.
             target_glow_size = int(20 + 10 * math.sin(pygame.time.get_ticks() * 0.015))
-            target_glow = pygame.Surface((target_glow_size * 2, target_glow_size * 2), pygame.SRCALPHA)
-            pygame.draw.circle(target_glow, (*beam_color, int(150 * pulse)),
-                             (target_glow_size, target_glow_size), target_glow_size)
+            target_glow = _get_ring_glow_surf(target_glow_size, beam_color)
+            target_glow.set_alpha(int(150 * pulse))
             screen.blit(target_glow, (state.decoy_drag_target.rect.centerx - target_glow_size,
                                      state.decoy_drag_target.rect.centery - target_glow_size))
 

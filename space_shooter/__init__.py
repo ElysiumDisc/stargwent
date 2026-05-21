@@ -217,7 +217,7 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
     Returns:
         True if survived >2 minutes, None if exited early
     """
-    from .coop_protocol import CoopMsg, build_input, build_state
+    from .coop_protocol import CoopMsg, build_input, build_state, pack_state_payload, unpack_state_payload
     from .coop_game import CoopSpaceShooterGame
     from .coop_client import CoopSpaceShooterClient
 
@@ -281,12 +281,14 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
             game.update()
             game.draw(screen)
 
-            # Send state snapshot every 3 frames (20 Hz)
+            # Send state snapshot every 3 frames (20 Hz).  12.8.0:
+            # snapshots above ~1 KB are zlib-compressed in pack_state_payload
+            # (typical wire size drops to ~25% of the verbose-JSON form).
             snapshot_counter += 1
             if snapshot_counter >= 3:
                 snapshot_counter = 0
                 snapshot = game.get_state_snapshot()
-                session.send(CoopMsg.STATE, snapshot)
+                session.send(CoopMsg.STATE, pack_state_payload(snapshot))
 
             display_manager.gpu_flip()
             clock.tick(60)
@@ -355,10 +357,13 @@ async def run_coop_space_shooter(screen, session, role, p1_faction=None, p2_fact
                 client.on_any_message()  # Reset disconnect timer on any message
                 mtype = msg.get("type")
                 if mtype == CoopMsg.STATE:
-                    client.apply_state(msg.get("payload", {}))
+                    client.apply_state(unpack_state_payload(msg.get("payload", {})))
                 elif mtype == CoopMsg.GAME_OVER:
                     client.game_over = True
-                    client.apply_state(msg.get("payload", {}))
+                    # GAME_OVER payload is a small stats dict, not a snapshot,
+                    # but route through unpack defensively in case a host
+                    # decides to compress it in a future protocol bump.
+                    client.apply_state(unpack_state_payload(msg.get("payload", {})))
                 elif mtype == CoopMsg.DISCONNECT:
                     client.host_disconnected = True
                 msg = session.receive()

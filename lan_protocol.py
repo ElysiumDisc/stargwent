@@ -20,7 +20,10 @@ from typing import Any, Dict, Optional
 # new required message types. Peers exchange this on the initial HELLO
 # handshake and disconnect with a clear error if they don't match. This
 # prevents silent cross-version desyncs — the scariest LAN failure mode.
-PROTOCOL_VERSION = 2
+#
+# v3 (12.8.0): co-op space shooter STATE snapshots above ~1 KB are now
+# transmitted as zlib+base64 envelopes (see coop_protocol.pack_state_payload).
+PROTOCOL_VERSION = 3
 
 # Caps to reject malicious or malformed payloads before they hit game logic.
 # MAX_DECK_IDS matches deck_builder.MAX_DECK_SIZE; MAX_PAYLOAD_BYTES sized for

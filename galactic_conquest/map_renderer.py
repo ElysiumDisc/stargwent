@@ -206,6 +206,14 @@ class MapScreen:
         # Side panel cache
         self._panel_cache = None  # (cache_key, surface)
 
+        # 12.8.0: Planet-name label cache.  font.render(planet.name, ...)
+        # used to fire once per planet per frame in the draw loop — for a
+        # 60-planet galaxy that's 60 CPU font rasterisations every frame.
+        # Names are stable for the lifetime of a MapScreen instance, so a
+        # plain dict keyed on (name, color) is sufficient.  Cleared on
+        # resolution change since the font sizes change too.
+        self._label_cache: dict[tuple, pygame.Surface] = {}
+
         # 12.0: Activity log sidebar (right-edge slide-out, L to toggle)
         self.activity_sidebar = ActivitySidebar()
 
@@ -349,6 +357,16 @@ class MapScreen:
             return PLANET_RADIUS_TERRITORY
         return PLANET_RADIUS_NEUTRAL
 
+    def _get_label(self, font, text, color):
+        """Cached font.render() for the map draw loop.  Returns the same
+        surface for repeat (text, color) on the same font."""
+        key = (id(font), text, color)
+        surf = self._label_cache.get(key)
+        if surf is None:
+            surf = font.render(text, True, color)
+            self._label_cache[key] = surf
+        return surf
+
     def draw(self, screen, galaxy_map, campaign_state, attackable_ids, message=None):
         """Render the full galaxy map view."""
         # Background
@@ -456,12 +474,12 @@ class MapScreen:
             if pid == self.hovered_planet and pid != self.selected_planet:
                 pygame.draw.circle(screen, (200, 200, 200), (sx, sy), radius + 4, 2)
 
-            label = self.font_name.render(planet.name, True, (220, 220, 220))
+            label = self._get_label(self.font_name, planet.name, (220, 220, 220))
             screen.blit(label, (sx - label.get_width() // 2, sy + radius + 4))
 
             if is_cooldown:
-                cd_text = self.font_info.render(
-                    f"{campaign_state.cooldowns[pid]}T", True, (255, 100, 100))
+                cd_text = self._get_label(
+                    self.font_info, f"{campaign_state.cooldowns[pid]}T", (255, 100, 100))
                 screen.blit(cd_text, (sx - cd_text.get_width() // 2, sy - radius - 16))
 
             # Unsupplied indicator (dashed red outline)
@@ -480,21 +498,21 @@ class MapScreen:
             building_info = get_planet_building_display(campaign_state, pid)
             if building_info and planet.owner == "player":
                 bname, bicon, bdesc = building_info
-                bld_text = self.font_info.render(bicon, True, (200, 180, 100))
+                bld_text = self._get_label(self.font_info, bicon, (200, 180, 100))
                 screen.blit(bld_text, (sx + radius + 3, sy - 8))
 
             # Fortification shields
             fort_level = getattr(campaign_state, 'fortification_levels', {}).get(pid, 0)
             if fort_level > 0 and planet.owner == "player":
-                shield_text = self.font_info.render(
-                    "\u2666" * fort_level, True, (100, 200, 255))
+                shield_text = self._get_label(
+                    self.font_info, "\u2666" * fort_level, (100, 200, 255))
                 screen.blit(shield_text, (sx - shield_text.get_width() // 2, sy - radius - 14))
 
             # Operative indicator (small diamond) — count pre-aggregated above
             _op_here = _ops_by_pid.get(pid, 0)
             if _op_here > 0:
-                op_text = self.font_info.render(
-                    "\u25C6" * _op_here, True, (200, 150, 255))
+                op_text = self._get_label(
+                    self.font_info, "\u25C6" * _op_here, (200, 150, 255))
                 screen.blit(op_text, (sx - op_text.get_width() // 2, sy + radius + 16))
 
             # Enemy homeworld glow ring (cached shape, animated alpha)
@@ -508,7 +526,7 @@ class MapScreen:
             # 12.0: Rival arc hideout marker (blood-red ghost glyph)
             rival_here = self._rival_arc_for_planet(campaign_state, pid)
             if rival_here is not None:
-                ghost_text = self.font_info.render("\u2620", True, (220, 80, 80))
+                ghost_text = self._get_label(self.font_info, "\u2620", (220, 80, 80))
                 screen.blit(ghost_text,
                             (sx + radius - 2, sy - radius - ghost_text.get_height()))
 
@@ -534,7 +552,7 @@ class MapScreen:
         hud_bg = _get_dim_overlay(self.panel_x, hud_h, COLOR_HUD_BG_ALPHA)
         screen.blit(hud_bg, (0, 0))
 
-        title = self.font_title.render("GALACTIC CONQUEST", True, (200, 220, 255))
+        title = self._get_label(self.font_title, "GALACTIC CONQUEST", (200, 220, 255))
         screen.blit(title, (int(self.sw * 0.03), int(self.sh * 0.012)))
 
         # Key stats — Turn, Naquadah, Wisdom (left side), Network + Planets (right)
@@ -632,9 +650,10 @@ class MapScreen:
                           (60, 180, 80) if can_attack else (60, 60, 60),
                           enabled=can_attack)
 
-        # ESC hint (bottom-left corner)
-        hint = self.font_info.render("ESC = Save & Quit  |  D = Deck  |  I = Info  |  TAB = Panel",
-                                     True, (80, 90, 120))
+        # ESC hint (bottom-left corner) — constant text, cached
+        hint = self._get_label(self.font_info,
+                               "ESC = Save & Quit  |  D = Deck  |  I = Info  |  TAB = Panel",
+                               (80, 90, 120))
         screen.blit(hint, (int(self.sw * 0.03),
                            self.sh - self.bottom_hud_h + int(self.sh * 0.005)))
 

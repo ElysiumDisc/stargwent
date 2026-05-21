@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 # Bump whenever we add fields to CampaignState. Paired with a
 # _migrate_{prev}_to_{new} function below.
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 def _migrate_10_to_11(data: dict) -> dict:
@@ -97,6 +97,23 @@ def _migrate_11_to_12(data: dict) -> dict:
     return data
 
 
+def _migrate_12_to_13(data: dict) -> dict:
+    """Seed the 12.8.0 AI-to-AI relations field.
+
+    Pre-13 saves had no AI-to-AI relation tracking — `diplomacy.py`
+    approximated faction-elimination consequences by giving every
+    survivor the same -15 favor penalty (see the resolved TODO at the
+    old `on_faction_eliminated`).  12.8.0 introduces real AI-to-AI
+    relations so factions that were already hostile to the eliminated
+    party get less of a penalty (relief) and former allies get more
+    (loss).  Start at the empty dict; relations build as the campaign
+    plays out.
+    """
+    data = dict(data)
+    data.setdefault("ai_to_ai_relations", {})
+    return data
+
+
 def _migrate(data: dict) -> dict:
     """Run all migrations needed to bring *data* up to SCHEMA_VERSION.
 
@@ -108,7 +125,9 @@ def _migrate(data: dict) -> dict:
         data = _migrate_10_to_11(data)
     if version < 12:
         data = _migrate_11_to_12(data)
-    if version >= 12:
+    if version < 13:
+        data = _migrate_12_to_13(data)
+    if version >= SCHEMA_VERSION:
         data = dict(data)
     data["schema_version"] = SCHEMA_VERSION
     return data
@@ -175,6 +194,12 @@ class CampaignState:
     activity_log: list = field(default_factory=list)                       # P3e: list of log entry dicts (capped)
     save_slot: int = 0                                                      # P5d: 0-2, which multi-save slot this is
 
+    # --- 12.8.0 AI-to-AI relations ---
+    # Symmetric pair key "faction_a__faction_b" (sorted) → favor int in
+    # [-100, 100]. Empty by default; populated as the campaign plays
+    # out (treaties, betrayals, faction eliminations).
+    ai_to_ai_relations: dict = field(default_factory=dict)
+
     def to_dict(self) -> dict:
         """Serialize campaign state to a JSON-friendly dictionary."""
         return {
@@ -232,6 +257,8 @@ class CampaignState:
             "rival_arcs": list(self.rival_arcs),
             "activity_log": list(self.activity_log),
             "save_slot": self.save_slot,
+            # --- 12.8.0 ---
+            "ai_to_ai_relations": dict(self.ai_to_ai_relations),
         }
 
     @classmethod
@@ -296,6 +323,8 @@ class CampaignState:
             rival_arcs=data["rival_arcs"],
             activity_log=data["activity_log"],
             save_slot=data.get("save_slot", 0),
+            # --- 12.8.0 (migration already seeded this) ---
+            ai_to_ai_relations=data["ai_to_ai_relations"],
         )
 
     def tick_cooldowns(self):

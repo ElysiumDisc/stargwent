@@ -3,6 +3,12 @@ STARGWENT - GALACTIC CONQUEST - Diplomacy System
 
 Faction relations: HOSTILE → NEUTRAL → TRADING → ALLIED
 Diplomatic favor, trade, alliance, betrayal, NAP, tribute, gifts, military aid.
+
+12.8.0 adds AI-to-AI relations (see helpers near the bottom of this file:
+get_ai_relation / adjust_ai_relation / is_ai_hostile_to_ai /
+is_ai_friendly_to_ai). Coalition formation creates AI bonds, gift-driven
+coalition breaks create AI grudges, and on_faction_eliminated branches
+its survivor-favor penalty on the relation with the eliminated party.
 """
 
 import random
@@ -100,6 +106,68 @@ def tick_favor_decay(state):
             state.diplomatic_favor[faction] = max(0, current - FAVOR_DECAY_PER_TURN)
         elif current < 0:
             state.diplomatic_favor[faction] = min(0, current + FAVOR_DECAY_PER_TURN)
+    # 12.8.0: AI-to-AI favor decays at half the player rate.  AI grudges
+    # and friendships should outlast player-vs-AI swings because the AI
+    # blocs don't have the constant interaction the player drives.
+    relations = getattr(state, "ai_to_ai_relations", None)
+    if relations:
+        for key in list(relations):
+            current = relations[key]
+            if current > 0:
+                relations[key] = max(0, current - (FAVOR_DECAY_PER_TURN // 2 or 1))
+            elif current < 0:
+                relations[key] = min(0, current + (FAVOR_DECAY_PER_TURN // 2 or 1))
+
+
+# =========================================================================
+# 12.8.0 AI-to-AI relations
+# =========================================================================
+# Tracks favor between AI factions independently of the player.  Stored
+# as a symmetric dict on CampaignState ("faction_a__faction_b" sorted
+# key → int in [-100, 100]).  Used by `on_faction_eliminated` to give
+# rival/ally factions context-appropriate reactions to losses, and
+# available for crisis / neutral-event eligibility predicates that
+# previously hardcoded "AI considers AI-B hostile".
+
+AI_REL_MIN = -100
+AI_REL_MAX = 100
+AI_REL_HOSTILE = -30
+AI_REL_FRIENDLY = 30
+
+
+def _ai_pair_key(faction_a: str, faction_b: str) -> str:
+    """Symmetric key for AI-to-AI relation lookup."""
+    return f"{faction_a}__{faction_b}" if faction_a < faction_b else f"{faction_b}__{faction_a}"
+
+
+def get_ai_relation(state, faction_a: str, faction_b: str) -> int:
+    """AI-to-AI favor in [-100, +100].  Defaults to 0 (neutral)."""
+    if faction_a == faction_b:
+        return 0
+    rels = getattr(state, "ai_to_ai_relations", None) or {}
+    return rels.get(_ai_pair_key(faction_a, faction_b), 0)
+
+
+def adjust_ai_relation(state, faction_a: str, faction_b: str, delta: int) -> None:
+    """Adjust AI-to-AI favor, clamped to [-100, +100]."""
+    if faction_a == faction_b:
+        return
+    rels = getattr(state, "ai_to_ai_relations", None)
+    if rels is None:
+        return
+    key = _ai_pair_key(faction_a, faction_b)
+    current = rels.get(key, 0)
+    rels[key] = max(AI_REL_MIN, min(AI_REL_MAX, current + delta))
+
+
+def is_ai_hostile_to_ai(state, faction_a: str, faction_b: str) -> bool:
+    """True if AI factions a and b are at or below the hostile threshold."""
+    return get_ai_relation(state, faction_a, faction_b) <= AI_REL_HOSTILE
+
+
+def is_ai_friendly_to_ai(state, faction_a: str, faction_b: str) -> bool:
+    """True if AI factions a and b are at or above the friendly threshold."""
+    return get_ai_relation(state, faction_a, faction_b) >= AI_REL_FRIENDLY
 
 
 def get_favor_cost_modifier(state, faction):
@@ -878,6 +946,11 @@ def check_coalition_formation(state, galaxy):
     for faction in members:
         set_relation(state, faction, HOSTILE)
         adjust_favor(state, faction, -30)
+    # 12.8.0: coalition members become AI-friendly to each other.
+    # This persists past the coalition's duration as a residual bond.
+    for i, fa in enumerate(members):
+        for fb in members[i + 1:]:
+            adjust_ai_relation(state, fa, fb, +25)
     member_list = ", ".join(members)
     return (f"COALITION FORMED — {member_list} have banded against you! "
             f"+50% counterattack for {COALITION_DURATION} turns.")
@@ -916,6 +989,16 @@ def check_coalition_break(state, galaxy):
     total = sum(g["amount"] for g in recent)
     if (total >= COALITION_GIFT_BREAK_TOTAL
             and len(factions_gifted) >= COALITION_GIFT_BREAK_MEMBERS):
+        # 12.8.0: members the player gifted to become AI-hostile to the
+        # members who weren't bribed — they feel sold out.  The flavour
+        # line below ("turn on each other") was always advertised but
+        # never actually backed by state until now.
+        former_members = list(state.coalition["members"])
+        bought_off = factions_gifted
+        loyal = [m for m in former_members if m not in bought_off]
+        for fa in bought_off:
+            for fb in loyal:
+                adjust_ai_relation(state, fa, fb, -40)
         state.coalition["active"] = False
         state.coalition["members"] = []
         state.coalition["trust"] = {}
@@ -1023,16 +1106,28 @@ def get_demand_retaliation_bonus(state, faction):
 def on_faction_eliminated(state, eliminated_faction):
     """Apply diplomatic consequences when a faction is eliminated.
 
-    All survivors lose -15 favor (galactic fear).
-    Factions that were hostile to the eliminated faction gain +10 (relief).
+    Default: -15 favor toward the player (galactic fear).  12.8.0:
+    factions whose AI-to-AI relation with the eliminated party was
+    hostile get only -5 (relief that a rival is gone); friendly
+    factions get an extra -10 on top (grief over a lost ally).
     """
     for faction, rel in list(state.faction_relations.items()):
         if faction == eliminated_faction:
             continue
-        adjust_favor(state, faction, -15)
-        # TODO: We don't track AI-to-AI relations, so approximate:
-        # Factions from the same "personality cluster" as eliminated get less penalty
-        # For now, all get the same -15
+        # Base "galactic fear" reaction
+        if is_ai_friendly_to_ai(state, faction, eliminated_faction):
+            penalty = -25  # lost an ally — extra resentment toward the player
+        elif is_ai_hostile_to_ai(state, faction, eliminated_faction):
+            penalty = -5   # relief that a rival is gone
+        else:
+            penalty = -15
+        adjust_favor(state, faction, penalty)
+        # Wipe stored relation rows touching the eliminated faction so
+        # they don't linger as zombie state in the save file.
+        rels = getattr(state, "ai_to_ai_relations", None)
+        if rels is not None:
+            key = _ai_pair_key(faction, eliminated_faction)
+            rels.pop(key, None)
 
 
 # =========================================================================

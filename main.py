@@ -997,6 +997,12 @@ async def main(lan_game_data=None):
         screen = display_manager.screen
         # Web browsers cap at 60 FPS; targeting 144 on Emscripten wastes budget
         dt = state.clock.tick(60 if sys.platform == "emscripten" else 144)
+        # Clamp to a 30 FPS floor — after pause/alt-tab/debugger break, the
+        # first tick can return 100ms+. Unclamped dt makes shader time
+        # uniforms (kawoosh, hyperspace, replicator_swarm) jump and
+        # multi-second hand-reveal timers expire in one frame.
+        if dt > 33:
+            dt = 33
         await asyncio.sleep(0)
         if display_manager.gpu_renderer:
             display_manager.gpu_renderer.update(dt)

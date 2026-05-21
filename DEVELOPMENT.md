@@ -304,7 +304,7 @@ If a 26.04 host has AppArmor's unprivileged userns restriction enabled
 still fail to mount its embedded squashfs. Fallback:
 
 ```bash
-./Stargwent-12.7.0-linux-x86_64.AppImage --appimage-extract-and-run
+./Stargwent-12.8.0-linux-x86_64.AppImage --appimage-extract-and-run
 ```
 
 ### Version bump procedure
@@ -374,9 +374,9 @@ methods:
 
 **Method 1 — Tag push (creates draft GitHub Release):**
 ```bash
-git tag v12.7.0
+git tag v12.8.0
 git push origin main
-git push origin v12.7.0
+git push origin v12.8.0
 ```
 Creates a **draft** GitHub Release with all 4 platform artifacts
 attached. Go to Releases to review and publish.

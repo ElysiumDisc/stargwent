@@ -1,3 +1,158 @@
+### Version 12.8.0 — "Ninth-Pass Audit + Living Galaxy II" (May 2026)
+**Audit pass plus three larger improvements pulled in from the
+deferred backlog: map-renderer label caching, AI-to-AI diplomatic
+relations (resolves a long-standing TODO), and zlib-compressed co-op
+snapshots.  ~90 candidate findings triaged, 5 verified-real fixes
+shipped, ~20 confirmed already-fixed or false positives.**
+
+Three Explore agents covered card-game core, rendering pipeline, the
+Space Shooter, and Galactic Conquest. As in 12.7.0, every finding was
+re-verified against current source before any code change — the
+agent reports are a hint, not the diff.
+
+**Core game — first-frame DT clamp**
+- `main.py` — `state.clock.tick(...)` can return 100ms+ on the first
+  frame after the user alt-tabs back in or returns from a debugger
+  break. Unclamped, that single huge `dt` value would step shader
+  time uniforms (kawoosh, hyperspace, replicator_swarm) by a full
+  frame's worth at once and could expire multi-second hand-reveal
+  timers in one tick. Clamped to 33 ms (a 30 FPS floor) at the
+  single source before fan-out to subsystems.
+
+**Frame renderer — Ring Transport target glow cache**
+- `frame_renderer.py` — 12.7.0 had fixed the glow band along the
+  Ring Transport beam by drawing two pygame lines directly, but the
+  pulsing target circle at the destination was still
+  `pygame.Surface(SRCALPHA)` allocated every frame during the drag.
+  New module-level cache `_get_ring_glow_surf(radius, color)`
+  mirrors the existing `_get_flash_surf` / `_get_halo_surf` /
+  `_get_plague_surf` pattern from `space_shooter/game.py`: cache by
+  (radius, color), animate alpha via `set_alpha()`. Bounded LRU at
+  32 entries.
+
+**Galactic Conquest map renderer — font label cache**
+- `galactic_conquest/map_renderer.py` — the planet-loop in
+  `draw()` called `self.font_name.render(planet.name, ...)` once per
+  planet per frame. On a 60-planet galaxy that's 60 CPU font
+  rasterisations every frame, plus more for fortification shields,
+  operative diamonds, building icons, the rival arc glyph, the
+  "GALACTIC CONQUEST" title, and the ESC hint. New per-instance
+  `_label_cache` dict keyed on `(id(font), text, color)`; replaces 7
+  font.render call sites. Cache lives with the MapScreen instance so
+  it's discarded on resolution change.
+
+**Galactic Conquest — AI-to-AI diplomatic relations (resolves TODO)**
+- `galactic_conquest/diplomacy.py:1033` had carried an explicit TODO
+  since pre-11.0: `on_faction_eliminated` gave every survivor the
+  same -15 favor penalty because there was no way to know how the
+  survivor felt about the eliminated party. 12.8.0 adds real AI-to-AI
+  relation tracking:
+  - `CampaignState.ai_to_ai_relations` — dict keyed on a sorted
+    `"faction_a__faction_b"` pair string, value is favor in
+    [-100, +100]. Schema bumped 12 → 13 with the seed-on-load
+    migration pattern that already exists.
+  - New helpers in `diplomacy.py`: `get_ai_relation`,
+    `adjust_ai_relation`, `is_ai_hostile_to_ai`,
+    `is_ai_friendly_to_ai`.
+  - `on_faction_eliminated` now branches: -5 penalty if the survivor
+    was hostile to the eliminated faction (relief), -15 default
+    reaction, -25 if they were friendly (lost an ally, blamed on the
+    player). Stale relation rows touching the dead faction are
+    purged so saves stay clean.
+  - Coalition formation now creates +25 AI-to-AI bonds between
+    every pair of coalition members; if the player breaks the
+    coalition with gifts, the bribed members take a -40 relation
+    hit with the loyalists (finally backing the flavour line
+    "they turn on each other" with state).
+  - `tick_favor_decay` decays AI-to-AI relations at half the player
+    rate so grudges and alliances between blocs outlast player-vs-AI
+    swings.
+
+**Space Shooter co-op — zlib-compressed state snapshots**
+- `space_shooter/coop_game.py` `get_state_snapshot()` was emitting
+  a full uncompressed dict every 3 frames (20 Hz host → client).
+  Typical wire size: 2–5 KB per snapshot, 40–100 KB/s upstream.
+- `space_shooter/coop_protocol.py` — new `pack_state_payload` /
+  `unpack_state_payload` helpers. Snapshots ≥ 1 KB are
+  `zlib.compress(..., level=1)` (host CPU-thread budget matters
+  more than maximum size) and wrapped in a `{"_z": True, "data":
+  "<base64>"}` envelope. Smaller snapshots pass through unchanged.
+- `space_shooter/__init__.py` — host wraps via `pack_state_payload`
+  before `session.send(CoopMsg.STATE, ...)`; client unwraps via
+  `unpack_state_payload` on receive.
+- `lan_protocol.py` — `PROTOCOL_VERSION` bumped 2 → 3 so older
+  clients are rejected at the HELLO handshake instead of trying to
+  parse the compressed envelope as a verbose-JSON snapshot.
+- Wire reduction: JSON's redundant key strings compress to ~25% of
+  their original size at level 1, so a 4 KB snapshot now flies as
+  ~1 KB.
+
+**Audit candidates checked but not shipped**
+
+Re-verifying agent findings against current source caught these as
+either already fixed, intentional design, or out of scope. Documented
+for the next audit pass.
+
+- *Space Shooter fire-rate not restored on powerup expiry* — already
+  correct. `space_shooter/game.py:1354-1398` (`_expire_powerup`)
+  restores `_saved_fire_rate` for rapid_fire, overcharge,
+  lucian_kassa_stash, and ancient_ascension, with overlap-aware
+  delete-on-last-expiry. Agent missed the function.
+- *Weather floor clobbers Tactical Formation / horn / ZPM bonuses* —
+  design intent. `docs/rules_menu_spec.md:55` explicitly states
+  "Weather reduces non-Hero units to 1 power unless they have
+  Survival Instinct". The 5-pass ordering in `game.py calculate_score`
+  applies weather last on purpose.
+- *Mulligan shuffle uses seeded `game.rng` but `game_setup.py:69,
+  214` and `deck_builder.py:2716` use plain `random.shuffle`* — not a
+  LAN-determinism bug. `lan_protocol.build_deck_message` transmits
+  `deck_ids` as an explicit list; each side shuffles its own deck
+  independently. Mulligan only needs determinism on a single side.
+- *`CampaignState.from_dict` hard-codes `data["act"]` etc. without
+  `.get()` defaults* — safe because `_migrate()` runs first and
+  seeds every v11+ and v12+ field with `setdefault`. Verified by
+  reading `_migrate_10_to_11` and `_migrate_11_to_12`. 12.8.0
+  follows the same pattern for the new `ai_to_ai_relations` field.
+- *`animations.py:2653` `pygame.image.load(...).convert_alpha()`
+  in `ShipFlywayAnimation.draw()`* — false positive. Line 2653 lives
+  inside `load_ship_image()` (defined at line 2631), which
+  `BattleShip.__init__` calls exactly once at line 2629. The image
+  is held on `self.raw_image`.
+- *`AnimationPool` clears `on_complete` callbacks when returning to
+  pool* — correct behaviour. Callbacks were already fired before the
+  pool-return path runs; clearing the reference is cleanup, not a
+  leak.
+- *`FactionAbility._boost_tracker` double-initialised at lines 175
+  and 180* — false positive. Line 175 is `__init__`, line 180 is
+  `reset_round`. Both intentional.
+- *AI difficulty hardcoded to `"hard"` (`ai_opponent.py:16`)* —
+  acknowledged dead code (medium/easy branches at lines 759, 763
+  exist but are unused). Out of scope for an audit release; the
+  comment is self-documenting and players can't currently change
+  it.
+- *Activity sidebar font.render on every panel rebuild
+  (`activity_sidebar.py`)* — already optimised. The panel cache
+  rebuilds only when scroll/count changes, and each entry is
+  rendered once per rebuild, not per frame.
+- *`gpu_renderer.py:260` `pygame.image.tobytes()` per frame* — known
+  bottleneck, but unavoidable without a complete render-pipeline
+  redesign (Pygame surfaces have no zero-copy GL interop on most
+  drivers). Documented for the future "render pipeline refresh"
+  release.
+- *AI passes/should_pass thresholds in `ai_opponent.py`* — tuning
+  values, not bugs. Adjusting them without playtest data would
+  change difficulty silently.
+
+**File / version surface bumps**
+- `game_config.py` `GAME_VERSION` 12.7.0 → 12.8.0
+- `metadata.json` `version` 12.7.0 → 12.8.0
+- `README.md` version badge → 12.8.0
+- `DEVELOPMENT.md` build-instruction example version strings → 12.8.0
+- `galactic_conquest/campaign_state.py` `SCHEMA_VERSION` 12 → 13
+- `lan_protocol.py` `PROTOCOL_VERSION` 2 → 3
+
+---
+
 ### Version 12.7.0 — "Eighth-Pass Audit" (May 2026)
 **Full-stack bug hunt + perf audit. ~20 candidate findings triaged,
 6 verified-real shipped, 11 confirmed already-fixed or false positives.**
