@@ -120,6 +120,12 @@ class DeckPersistence:
         v1 → v2: ensure faction_games dict exists. We don't backfill
         historic counts (we don't have the data); statistics.py degrades
         gracefully when faction_games is missing or zero.
+
+        Alteran is intentionally included in the seed dict so post-12.7
+        saves show all six factions in the stats UI even before the
+        player has unlocked Alteran. Pre-12.7 saves with the 5-faction
+        seed are still valid — record_faction_*() use setdefault when
+        recording a played faction, so missing keys self-heal at runtime.
         """
         version = data.get("schema_version", 1)
         if version < 2:
@@ -129,7 +135,14 @@ class DeckPersistence:
                 "Jaffa Rebellion": 0,
                 "Lucian Alliance": 0,
                 "Asgard": 0,
+                "Alteran": 0,
             })
+        # Backfill the Alteran key into existing dicts so the stats UI
+        # shows it as 0 instead of "missing" on already-migrated saves.
+        for key in ("faction_games", "faction_wins"):
+            section = data.get(key)
+            if isinstance(section, dict):
+                section.setdefault("Alteran", 0)
         data["schema_version"] = self.UNLOCK_SCHEMA_VERSION
         return data
     
@@ -149,7 +162,9 @@ class DeckPersistence:
             print(f"Error saving unlock data to {UNLOCK_SAVE_FILE}")
     
     def _get_default_deck_data(self) -> Dict:
-        """Default deck configuration"""
+        """Default deck configuration. Alteran ships with a default leader
+        so that, once the faction is unlocked, the deck builder has a
+        valid starting point without a special-case branch."""
         return {
             "Tau'ri": {
                 "leader": "tauri_oneill",  # Default leader
@@ -169,6 +184,10 @@ class DeckPersistence:
             },
             "Asgard": {
                 "leader": "asgard_freyr",
+                "cards": []
+            },
+            "Alteran": {
+                "leader": "alteran_adria",
                 "cards": []
             }
         }

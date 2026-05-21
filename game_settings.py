@@ -5,7 +5,11 @@ Handles persistent game settings like volume, controls, etc.
 import json
 import os
 import pygame
-import board_renderer
+# NOTE: board_renderer is imported lazily inside draw_back_button() to
+# break the transitive cycle game_settings → board_renderer →
+# display_manager → game_settings. Without the lazy import, module
+# initialisation order can deadlock on platforms where importlib
+# resolves the cycle non-deterministically.
 from save_paths import atomic_write_json, get_settings_path, ensure_migration, sync_saves
 from game_config import GAME_VERSION, GAME_LICENSE
 
@@ -266,6 +270,7 @@ def get_settings() -> GameSettings:
 
 def draw_back_button(surface, font=None):
     """Draw a DHD-style back button in top-left corner. Returns the button rect."""
+    import board_renderer  # lazy: see top-of-file note about the import cycle
     return board_renderer.draw_dhd_back_button(surface, 20, 20, 80)
 
 

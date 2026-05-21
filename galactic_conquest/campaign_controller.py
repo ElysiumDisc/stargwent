@@ -6,10 +6,13 @@ AI counterattacks, and campaign flow.
 """
 
 import asyncio
+import logging
 import pygame
 import random
 import os
 import display_manager
+
+logger = logging.getLogger(__name__)
 
 from .campaign_state import CampaignState
 from .campaign_persistence import save_campaign, load_campaign
@@ -1009,7 +1012,12 @@ class CampaignController:
         """
         try:
             from transitions import _get_gpu, _enable_effect, _set_effect_uniform
-        except Exception:
+        except Exception as exc:
+            # If the transitions module fails to import (e.g. shaders
+            # package missing on a minimal build), all Galactic Conquest
+            # battle transitions silently no-op. Log once so the missing
+            # effect isn't a complete mystery to a player or developer.
+            logger.warning("Galactic Conquest transition disabled: %r", exc)
             return
         gpu = _get_gpu()
         if not gpu:

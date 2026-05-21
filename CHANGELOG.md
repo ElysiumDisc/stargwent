@@ -1,3 +1,172 @@
+### Version 12.7.0 — "Eighth-Pass Audit" (May 2026)
+**Full-stack bug hunt + perf audit. ~20 candidate findings triaged,
+6 verified-real shipped, 11 confirmed already-fixed or false positives.**
+
+Three Explore agents produced ~50 audit candidates across rendering,
+core card battle, AI, Galactic Conquest, Space Shooter, networking,
+sound, settings, and persistence. Every finding was re-checked against
+current source before any code change — the established 12.5.x / 12.6.0
+discipline. Verified-real items shipped here; everything else is
+documented at the bottom of this entry so the agent reports can be
+trusted (or skipped) by the next audit pass.
+
+**Space Shooter — targeting + per-frame allocation fixes**
+- `space_shooter/game.py` `_naquadria_cascade_chain` — chain lightning
+  used `enemy.y` (top edge) for distance calculation while using
+  `enemy.x + width//2` (center) for the x component. The result was a
+  consistent half-height bias in target selection that preferred enemies
+  *below* the player. Switched both x and y to enemy centers
+  (`ecy = enemy.y + enemy.height // 2`) for the distance check and for
+  the bounce origin so the chain visibly arcs from where it just hit.
+- `space_shooter/game.py` `_naquadria_cascade_chain` — inner search
+  now queries `self.spatial_grid.query_unique(current_x, current_y, 600)`
+  instead of scanning every entry in `self.ai_ships`. Filters to `Ship`
+  instances (asteroids are also in the grid). Reuses the existing grid
+  populated each frame in `update()` — no new bookkeeping. With 50+
+  enemies on screen at high waves, the 15-bounce inner loop drops from
+  O(15·n) to O(15·k) where k is the count of enemies actually within the
+  600px bounce radius.
+- `space_shooter/game.py` halo + plague visuals — `pygame.Surface(...,
+  SRCALPHA)` was allocated **every frame** for both the player Ascension
+  halo ring (~one alloc/frame whenever ascension is active) and the
+  Prior's Plague enemy tint (one alloc/frame per plagued enemy). Both
+  now use module-level surface caches keyed on size, drawn once at full
+  alpha, and animated with `set_alpha()` per frame. New helpers:
+  `_get_halo_surf(halo_r)` and `_get_plague_surf(w, h)`, modelled on the
+  existing `_get_flash_surf` pattern with a 20/30-entry cap to keep the
+  caches bounded.
+
+**Deck persistence — Alteran completeness**
+- `deck_persistence.py` `_get_default_unlock_data` — `faction_wins` and
+  `faction_games` seed dicts now include `"Alteran": 0`. Pre-12.7 saves
+  were not broken (the `record_faction_*` helpers use `setdefault` at
+  runtime), but stats UI on a fresh install would show 5 factions
+  instead of 6 until the first Alteran game.
+- `deck_persistence.py` `_migrate_unlocks` v1→v2 — seed dict gains the
+  Alteran entry, plus a forward-looking backfill loop that
+  `setdefault`s `"Alteran"` into `faction_games` and `faction_wins` on
+  every load. Older 5-faction saves now self-heal to 6 factions on
+  first run after 12.7.
+- `deck_persistence.py` `_get_default_deck_data` — added an Alteran
+  entry with `alteran_adria` as the default leader (matches the
+  pattern used for every other faction). Lets the deck builder open
+  the Alteran tab on first unlock without a special-case branch.
+
+**Settings / circular import hygiene**
+- `game_settings.py` — moved `import board_renderer` from the top of
+  the module into `draw_back_button()` (the only function that uses
+  it). The top-level import created the cycle
+  `game_settings → board_renderer → display_manager → game_settings`,
+  which CLAUDE.md and the existing display_manager-side lazy imports
+  already worked around — game_settings was the one remaining piece.
+
+**Galactic Conquest — silent failure visibility**
+- `galactic_conquest/campaign_controller.py` — added a module-level
+  `logger`. The `from transitions import …` block inside
+  `_run_warp_transition` previously had a bare `except Exception: pass`
+  that silently disabled every GC battle hyperspace transition if the
+  shaders package failed to import (minimal builds, broken web build).
+  Now logs a warning so the missing visual isn't a complete mystery.
+  Other bare `except`s in the file (sound-load fallbacks, optional
+  effect-disable cleanup) were verified as appropriate silent
+  fallbacks and left alone.
+
+**Documentation**
+- `README.md` badge bumped to 12.7.0.
+- `metadata.json` version bumped to 12.7.0.
+- `game_config.py` `GAME_VERSION` bumped to 12.7.0.
+- `CHANGELOG.md` — this entry.
+- `DEVELOPMENT.md` — version-bump procedure example AppImage filename
+  and git tag example updated to 12.7.0.
+
+**Skipped (verified non-issues / already fixed in 12.5.x or 12.6.0)**
+- `FACTION_ABILITIES` singleton dict shared-instance footgun — already
+  removed in 12.6.0 (replaced with `FACTION_ABILITY_CLASSES` and
+  per-player instances).
+- `switch_turn()` infinite recursion on both-passed edge — already
+  fixed in 12.6.0 (recursion replaced with in-line swap).
+- Ring Transport drag-laser per-frame full-screen `SRCALPHA` surface
+  alloc — already fixed in 12.6.0 (two `pygame.draw.line` calls).
+- DHD radial gradient ellipse aspect ratio — already fixed in 12.6.0.
+- Sarcophagus relic bypassing seeded `Game.rng` — already fixed in
+  12.5.2.
+- `render_engine.py:832` "per-frame leader portrait `pygame.image.load`"
+  — false positive. Cache lookup at L823-824 hits first; load only
+  runs on cold cache, then the result is stored back into
+  `_leader_portrait_cache`. Steady-state hit rate is 100 %.
+- `frame_renderer.py:1030+` "_surface_cache key collision between
+  card_glow and ring_glow" — false positive. Keys are explicitly
+  namespaced (`("card_glow", w, h)` vs `("ring_glow", w, h)`) and the
+  color per namespace is constant, so no two effects share a cache slot.
+- `game.py:795-810` "Tactical Formation multiplier over-inflates
+  Hammond bonus" — false positive. Worked example: base 3 + Hammond
+  +3 → displayed_power 6; TF (2 copies) → bonuses_applied = 6 − 3 = 3;
+  displayed_power = (3 × 2) + 3 = 9. Not 18. The formula correctly
+  preserves additive bonuses across the multiplier and matches the
+  v12.5.1 "TF re-derivation" documentation.
+- `game.py:1576` "Prior's Plague mutates `card.power` permanently
+  across rounds" — verified intentional, matches the Life Force Drain
+  pattern documented in `docs/rules_menu_spec.md` ("steals base
+  power"). Plague is a permanent debuff by design; the rules entry
+  is "On play: inflicts -1 power to all enemy units in the same row"
+  with no per-round reset clause.
+- `game.py:2755` "Ascension only fires on red-variant discards (scorch),
+  not medic/decoy" — verified intentional. Ascension reads as
+  "trigger on **destroyed** units"; medic moves a card *out* of the
+  destroyed pool, decoy returns a card to hand (also not destroyed),
+  so neither should refire Ascension. Mirrors the rules_menu_spec
+  description ("on destroy: +1 to all remaining friendly units").
+- `ai_opponent.py:899-904` "AI medic crashes on empty discard" — false
+  positive. `select_best_medic_target` at L649-657 has explicit
+  `if not revivable: return None`, and the caller at L879-886 checks
+  for None before scoring.
+- `space_shooter/spatial_grid.py` "grid never inserted with enemy
+  positions" — false positive. Grid is populated each frame in
+  `SpaceShooterGame.update()` (`spatial_grid.clear()` then
+  `spatial_grid.insert(ai_ship, ...)` and asteroid insertions) and
+  queried by every hostile-all projectile collision pass. Chain
+  lightning was the one outlier that bypassed it — now fixed (above).
+- `sound_manager.py:46-73` "reserved channels can be empty → IndexError
+  in `get_critical_channel`" — false positive.
+  `get_critical_channel(index)` guards with
+  `if 0 <= index < len(self._reserved_channels): return …; return None`,
+  and every caller (`play_critical_sound`, etc.) checks for `None`
+  before using the channel.
+- `galactic_conquest/campaign_state.py:301-309` "`tick_cooldowns`
+  mutates dict during iteration" — false positive. Updating values
+  of *existing* keys during iteration is safe in Python; the separate
+  `expired` list defers actual key removal. The pattern is fine; a
+  dict comprehension would be equivalent.
+- `main_menu.py:240-252, 358-361, 600-603` "per-frame `pygame.font.SysFont`
+  allocations" — false positive. L240-252 is `__init__`-time (once per
+  MainMenu instance), L358-361 is `run_settings_menu` init (once per
+  settings open), L600-603 is the post-fullscreen-toggle geometry
+  refresh block (one-shot when window mode changes), not the draw loop.
+- `animations.py:78-83` "12 animation classes lack `reset()` so pool
+  reuse falls back to `__init__`" — verified all 66 classes lack
+  `reset()` by design. `__init__` reinitialises a small fixed number
+  of attributes; a hypothetical `reset()` would do the same work. The
+  pool's `return_animation` already clears retained references
+  (`card_image`, `trail`, `hearts`, `on_complete`, `_cached_scaled_*`)
+  to prevent leaks.
+- `gpu_renderer.py:260, 274` "per-frame full-surface CPU→GPU upload
+  via `pygame.image.tobytes`" — verified architectural cost, not a
+  bug. The Pygame surface is the canvas; gameplay touches arbitrary
+  pixels every frame, so dirty-rect tracking would require deep
+  integration with every renderer that touches the surface. At
+  2560×1440 RGBA the upload is ~14.7 MB/frame (~880 MB/s at 60 FPS),
+  ~0.5 ms on a modern PCIe 3.0+ system. Acceptable for now. Worth
+  revisiting if profiling on lower-end hardware shows it as the
+  primary frame-time consumer.
+- LAN keepalive heartbeat (PROTOCOL_VERSION bump 2→3) — deferred. The
+  v3 bump would silently break compatibility with v12.6.0 clients
+  even with backward-compat code, because v12.6.0 peers don't yet
+  know to ignore unknown opcodes. Will reconsider in a release that
+  also ships a version negotiation mechanism.
+
+- Bumped to 12.7.0 in `metadata.json`, `game_config.py`, and the
+  README badge.
+
 ### Version 12.6.0 — "Resolute Raccoon" (May 2026)
 **Ubuntu 26.04 compat + full-stack audit pass**
 

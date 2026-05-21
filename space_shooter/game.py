@@ -50,6 +50,37 @@ def _get_flash_surf(w, h):
     return surf
 
 
+_halo_surf_cache = {}  # halo_r -> SRCALPHA circle ring (alpha varied via set_alpha)
+
+
+def _get_halo_surf(halo_r):
+    """Cached ascension halo ring; vary alpha each frame with set_alpha()."""
+    surf = _halo_surf_cache.get(halo_r)
+    if surf is None:
+        if len(_halo_surf_cache) >= 20:
+            _halo_surf_cache.clear()
+        surf = pygame.Surface((halo_r * 2, halo_r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(surf, (255, 255, 200, 255), (halo_r, halo_r), halo_r, 3)
+        _halo_surf_cache[halo_r] = surf
+    return surf
+
+
+_plague_surf_cache = {}  # (w, h) -> SRCALPHA purple tint, alpha via set_alpha
+
+
+def _get_plague_surf(w, h):
+    """Cached prior-plague overlay; alpha pulse via set_alpha() each frame."""
+    key = (w, h)
+    surf = _plague_surf_cache.get(key)
+    if surf is None:
+        if len(_plague_surf_cache) >= 30:
+            _plague_surf_cache.clear()
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.fill((140, 20, 220, 255))
+        _plague_surf_cache[key] = surf
+    return surf
+
+
 # Grow-only reusable surfaces for ion pulse and orbital laser
 _ion_pulse_surf = None
 _orbital_surf = None
@@ -1287,10 +1318,21 @@ class SpaceShooterGame:
         for bounce in range(15):
             nearest = None
             nearest_dist = float('inf')
-            for enemy in self.ai_ships:
+            # Use the spatial grid to skip far-away enemies. 600 is the
+            # bounce range and matches the early-out below. Grid is
+            # populated each frame in update(); see spatial_grid.clear()
+            # / insert() calls there.
+            candidates = self.spatial_grid.query_unique(current_x, current_y, 600)
+            for enemy in candidates:
+                # Grid also contains asteroids — filter to Ship instances
+                # (same pattern as the hostile_all projectile loop above).
+                if not isinstance(enemy, Ship):
+                    continue
                 if id(enemy) in hit_set:
                     continue
-                dist = math.hypot(enemy.x + enemy.width // 2 - current_x, enemy.y - current_y)
+                ecx = enemy.x + enemy.width // 2
+                ecy = enemy.y + enemy.height // 2
+                dist = math.hypot(ecx - current_x, ecy - current_y)
                 if dist < nearest_dist:
                     nearest = enemy
                     nearest_dist = dist
@@ -1298,7 +1340,7 @@ class SpaceShooterGame:
                 break
             hit_set.add(id(nearest))
             ex = nearest.x + nearest.width // 2
-            ey = nearest.y
+            ey = nearest.y + nearest.height // 2
             self.chain_lightning_effects.append(
                 ChainLightning(current_x, current_y, [(ex, ey)], damage, max_chains=1))
             self.explosions.append(Explosion(ex, ey, tier="normal"))
@@ -4143,12 +4185,11 @@ class SpaceShooterGame:
                                       special_flags=pygame.BLEND_RGBA_ADD)
                         draw_surface.blit(glow_img, (int(sx),
                                                      int(sy - self.player_ship.height // 2)))
-                        # Halo ring
+                        # Halo ring — cached surface, alpha modulated per frame
                         halo_r = self.player_ship.width // 2 + 15
                         halo_alpha = int(60 + 30 * math.sin(time_tick * 0.1))
-                        halo_surf = pygame.Surface((halo_r * 2, halo_r * 2), pygame.SRCALPHA)
-                        pygame.draw.circle(halo_surf, (255, 255, 200, halo_alpha),
-                                          (halo_r, halo_r), halo_r, 3)
+                        halo_surf = _get_halo_surf(halo_r)
+                        halo_surf.set_alpha(halo_alpha)
                         draw_surface.blit(halo_surf,
                                          (int(sx) + self.player_ship.width // 2 - halo_r,
                                           int(sy) - halo_r))
@@ -4191,13 +4232,13 @@ class SpaceShooterGame:
                                             ai_ship.width, ai_ship.height)
                     draw_surface.blit(_get_flash_surf(ship_rect.width, ship_rect.height), ship_rect.topleft)
                     ai_ship.hit_flash = hit_flash - 1
-                # Prior Plague visual: purple tint overlay
+                # Prior Plague visual: purple tint overlay — cached surface,
+                # alpha pulse via set_alpha() so per-enemy allocation goes away.
                 if getattr(ai_ship, '_plagued', False):
                     sx, sy = cam.world_to_screen(ai_ship.x, ai_ship.y)
                     pw, ph = ai_ship.width + 8, ai_ship.height + 8
-                    plague_surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
-                    pulse = int(30 + 20 * math.sin(time_tick * 0.1))
-                    plague_surf.fill((140, 20, 220, pulse))
+                    plague_surf = _get_plague_surf(pw, ph)
+                    plague_surf.set_alpha(int(30 + 20 * math.sin(time_tick * 0.1)))
                     draw_surface.blit(plague_surf, (int(sx) - 4, int(sy) - ai_ship.height // 2 - 4))
 
         # Draw explosions
