@@ -253,10 +253,12 @@ class CardStealAnimation(Animation):
             # diff is invisible in motion, and we save a real cycle-cost.
             self._cached_scaled_card = pygame.transform.scale(self.card_image, scaled_size)
             self._cached_scaled_size = scaled_size
-        scaled_card = self._cached_scaled_card.copy()
-        scaled_card.set_alpha(self.alpha)
-        rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
-        surface.blit(scaled_card, rect)
+        # set_alpha is a surface-level flag (no pixel mutation) and the cached
+        # surface is used nowhere else, so apply it directly and skip a
+        # per-frame .copy().
+        self._cached_scaled_card.set_alpha(self.alpha)
+        rect = self._cached_scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
+        surface.blit(self._cached_scaled_card, rect)
 
 
 class HathorStealAnimation(Animation):
@@ -1071,10 +1073,12 @@ class AICardPlayAnimation(Animation):
             self._cached_scaled_card = pygame.transform.scale(
                 self.card_image, (scaled_w, scaled_h))
             self._cached_scaled_size = (scaled_w, scaled_h)
-        scaled_card = self._cached_scaled_card.copy()
-        scaled_card.set_alpha(self.alpha)
-        rect = scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
-        surface.blit(scaled_card, rect)
+        # set_alpha is a surface-level flag (no pixel mutation) and the cached
+        # surface is used nowhere else, so apply it directly and skip a
+        # per-frame .copy().
+        self._cached_scaled_card.set_alpha(self.alpha)
+        rect = self._cached_scaled_card.get_rect(center=(int(self.current_x), int(self.current_y)))
+        surface.blit(self._cached_scaled_card, rect)
 
 
 class NaquadahExplosionEffect:

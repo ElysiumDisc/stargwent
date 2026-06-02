@@ -19,6 +19,83 @@ def _get_gpu():
     return None
 
 
+# Vertical gradients used by the transition/game-over screens were previously
+# re-rasterised with a per-pixel `for y: draw.line()` loop every frame (hundreds
+# of draw calls per frame at the internal resolution). The colours are static,
+# so we pre-render each gradient once and reuse it. Bounded LRU keyed by
+# (size, colours, alpha) — mirrors the cache pattern used elsewhere in the code.
+_gradient_cache = {}
+_GRADIENT_CACHE_MAX = 32
+
+
+def _get_vgradient(width, height, top_color, bottom_color, alpha=255, per_pixel_alpha=True):
+    """Return a cached top→bottom vertical gradient surface.
+
+    With per_pixel_alpha=True the gradient bakes `alpha` into every pixel
+    (SRCALPHA). For an animated fade, pass per_pixel_alpha=False to get a plain
+    RGB surface and apply the changing alpha via set_alpha() at blit time.
+    """
+    width = max(1, int(width))
+    height = max(1, int(height))
+    key = (width, height, tuple(top_color), tuple(bottom_color), alpha, per_pixel_alpha)
+    surf = _gradient_cache.get(key)
+    if surf is not None:
+        return surf
+    surf = pygame.Surface((width, height), pygame.SRCALPHA) if per_pixel_alpha \
+        else pygame.Surface((width, height))
+    tr, tg, tb = top_color
+    br, bg, bb = bottom_color
+    for y in range(height):
+        ratio = y / height
+        r = int(tr + (br - tr) * ratio)
+        g = int(tg + (bg - tg) * ratio)
+        b = int(tb + (bb - tb) * ratio)
+        color = (r, g, b, alpha) if per_pixel_alpha else (r, g, b)
+        pygame.draw.line(surf, color, (0, y), (width, y))
+    if len(_gradient_cache) >= _GRADIENT_CACHE_MAX:
+        _gradient_cache.pop(next(iter(_gradient_cache)))
+    _gradient_cache[key] = surf
+    return surf
+
+
+# Several transition draw functions ran pygame.font.SysFont() at the top of a
+# per-frame draw (and one inside an animating scale loop), rebuilding the same
+# fonts every frame. Cache them by (family, size, bold). Bounded so the animated
+# scaling sizes can't grow the cache without limit.
+_font_cache = {}
+_FONT_CACHE_MAX = 128
+
+
+def _get_font(size, bold=False, family="Arial"):
+    """Return a cached pygame font for the given size/weight."""
+    size = max(1, int(size))
+    key = (family, size, bold)
+    f = _font_cache.get(key)
+    if f is None:
+        if len(_font_cache) >= _FONT_CACHE_MAX:
+            _font_cache.pop(next(iter(_font_cache)))
+        f = pygame.font.SysFont(family, size, bold=bold)
+        _font_cache[key] = f
+    return f
+
+
+# Reusable full-screen scratch overlay, keyed by (w, h). Callers MUST fill()
+# the whole surface before blitting (the buffer is shared and may hold a prior
+# frame's pixels). Only one transition draws at a time, so a single shared
+# scratch per resolution is safe and avoids a full-screen SRCALPHA alloc/frame.
+_scratch_overlay_cache = {}
+
+
+def _get_scratch_overlay(width, height):
+    """Return a cached full-screen SRCALPHA surface to fill-and-blit this frame."""
+    key = (width, height)
+    s = _scratch_overlay_cache.get(key)
+    if s is None:
+        s = pygame.Surface((width, height), pygame.SRCALPHA)
+        _scratch_overlay_cache[key] = s
+    return s
+
+
 def _enable_effect(gpu, name):
     """Safely enable a GPU effect."""
     if gpu:
@@ -151,7 +228,7 @@ def create_hyperspace_transition(screen, screen_width, screen_height, round_numb
     radial motion blur, chromatic aberration, and procedural speed lines.
     """
     clock = pygame.time.Clock()
-    transition_font = pygame.font.SysFont("Arial", 80, bold=True)
+    transition_font = _get_font(80, bold=True)
     gpu = _get_gpu()
 
     # Configure hyperspace shader direction
@@ -423,11 +500,11 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
     label_size = max(24, int(28 * scale))
 
     # Fonts
-    title_font = pygame.font.SysFont("Arial", title_size, bold=True)
-    name_font = pygame.font.SysFont("Arial", name_size, bold=True)
-    header_font = pygame.font.SysFont("Arial", header_size, bold=True)
-    score_font = pygame.font.SysFont("Arial", score_size, bold=True)
-    label_font = pygame.font.SysFont("Arial", label_size)
+    title_font = _get_font(title_size, bold=True)
+    name_font = _get_font(name_size, bold=True)
+    header_font = _get_font(header_size, bold=True)
+    score_font = _get_font(score_size, bold=True)
+    label_font = _get_font(label_size)
 
     clock = pygame.time.Clock()
     duration = 3000  # 3 seconds
@@ -531,7 +608,7 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
 
         # Render winner text with glow effect
         if text_scale != 1.0:
-            scaled_font = pygame.font.SysFont("Arial", int(title_size * text_scale), bold=True)
+            scaled_font = _get_font(int(title_size * text_scale), bold=True)
             winner_surface = scaled_font.render(winner_text, True, winner_color)
         else:
             winner_surface = title_font.render(winner_text, True, winner_color)
@@ -581,13 +658,11 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
             board_surf = _board_surf
             board_surf.fill((0, 0, 0, 0))
 
-            # Background gradient
-            for y in range(board_height):
-                ratio = y / board_height
-                r = int(15 + 15 * ratio)
-                g = int(25 + 15 * ratio)
-                b = int(45 + 20 * ratio)
-                pygame.draw.line(board_surf, (r, g, b, 240), (0, y), (board_width, y))
+            # Background gradient (cached; src-over onto the cleared surface
+            # reproduces the original per-row draw exactly).
+            board_surf.blit(
+                _get_vgradient(board_width, board_height, (15, 25, 45), (30, 40, 65), 240),
+                (0, 0))
 
             # Border with corner accents
             pygame.draw.rect(board_surf, (100, 150, 200), board_surf.get_rect(), width=3, border_radius=12)
@@ -733,7 +808,7 @@ def show_round_winner_announcement(screen, game, screen_width, screen_height):
         if progress > 0.4:
             pulse = 0.7 + 0.3 * math.sin(elapsed * 0.005)
             skip_alpha = int(text_alpha * pulse)
-            skip_font = pygame.font.SysFont("Arial", max(20, int(24 * scale)))
+            skip_font = _get_font(max(20, int(24 * scale)))
             skip_text = skip_font.render("[ PRESS SPACE TO CONTINUE ]", True, (150, 180, 200))
             skip_text.set_alpha(skip_alpha)
             skip_rect = skip_text.get_rect(center=(center_x, screen_height - int(60 * scale)))
@@ -767,8 +842,8 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
         color = (255, 100, 100)
 
     # Font
-    title_font = pygame.font.SysFont("Arial", 72, bold=True)
-    subtitle_font = pygame.font.SysFont("Arial", 36)
+    title_font = _get_font(72, bold=True)
+    subtitle_font = _get_font(36)
 
     clock = pygame.time.Clock()
 
@@ -802,8 +877,8 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
                 _set_effect_uniform(gpu, "shockwave", "distort_strength", 0.0)
                 _set_effect_uniform(gpu, "shockwave", "flash_intensity", 0.0)
         
-        # Dark semi-transparent overlay
-        overlay = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
+        # Dark semi-transparent overlay (reuse a cached scratch surface)
+        overlay = _get_scratch_overlay(screen_width, screen_height)
         overlay.fill((0, 0, 0, 200))
         screen.blit(overlay, (0, 0))
         
@@ -845,7 +920,7 @@ def show_game_start_animation(screen, game, screen_width, screen_height):
         
         # Skip instruction
         if progress > 0.5:
-            skip_font = pygame.font.SysFont("Arial", 20)
+            skip_font = _get_font(20)
             skip_text = skip_font.render("Press SPACE to skip", True, (150, 150, 150))
             skip_text.set_alpha(text_alpha)
             skip_rect = skip_text.get_rect(center=(center_x, screen_height - 50))
@@ -975,13 +1050,12 @@ class GameOverAnimation:
             base_color = (80, 80, 80)
             highlight = (120, 120, 120)
 
-        # Draw gradient background
-        for y in range(self.card_height):
-            ratio = y / self.card_height
-            r = int(base_color[0] + (highlight[0] - base_color[0]) * ratio * 0.5)
-            g = int(base_color[1] + (highlight[1] - base_color[1]) * ratio * 0.5)
-            b = int(base_color[2] + (highlight[2] - base_color[2]) * ratio * 0.5)
-            pygame.draw.line(surface, (r, g, b, 255), (0, y), (self.card_width, y))
+        # Draw gradient background (cached). Bottom colour interpolates halfway
+        # toward the highlight, matching the original per-row formula.
+        bottom = tuple(b + (h - b) * 0.5 for b, h in zip(base_color, highlight))
+        surface.blit(
+            _get_vgradient(self.card_width, self.card_height, base_color, bottom, 255),
+            (0, 0))
 
         # Draw border
         pygame.draw.rect(surface, (180, 180, 180), surface.get_rect(), max(2, int(3 * self.scale)), border_radius=self.border_radius)
@@ -1013,13 +1087,15 @@ class GameOverAnimation:
         # Create panel surface
         panel = pygame.Surface((self.panel_width, self.panel_height), pygame.SRCALPHA)
 
-        # Gradient background (dark blue to darker)
-        for y in range(self.panel_height):
-            ratio = y / self.panel_height
-            r = int(10 + 10 * (1 - ratio))
-            g = int(20 + 15 * (1 - ratio))
-            b = int(40 + 25 * (1 - ratio))
-            pygame.draw.line(panel, (r, g, b, panel_alpha), (0, y), (self.panel_width, y))
+        # Gradient background (dark blue to darker) — cached at full alpha, then
+        # the animated fade is applied by scaling only the alpha channel. This
+        # reproduces the original per-row (r, g, b, panel_alpha) exactly while
+        # avoiding the premultiplied-colour darkening of a set_alpha RGB blit.
+        panel.blit(
+            _get_vgradient(self.panel_width, self.panel_height, (20, 35, 65), (10, 20, 40), 255),
+            (0, 0))
+        if panel_alpha < 255:
+            panel.fill((255, 255, 255, panel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
 
         # Main border
         border_color = (100, 180, 255) if self.player_won else (255, 100, 100)

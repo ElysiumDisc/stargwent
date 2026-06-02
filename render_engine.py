@@ -290,6 +290,10 @@ def draw_hand(surface, player, selected_card, mulligan_selected=None, dragging_c
         if hand_bg_surface is None:
             hand_bg_surface = pygame.Surface((display_manager.SCREEN_WIDTH, hand_area_height), pygame.SRCALPHA)
             hand_bg_surface.fill(cfg.PLAYER_HAND_BG)
+            # Key space is tiny (resolution-dependent) but bound it for safety,
+            # consistent with the other caches in this module.
+            if len(_surface_cache) >= 32:
+                _surface_cache.pop(next(iter(_surface_cache)))
             _surface_cache[hbg_key] = hand_bg_surface
         surface.blit(hand_bg_surface, (0, cfg.player_hand_area_y))
 
@@ -1055,17 +1059,18 @@ def draw_leader_column(surface, player, area_rect, ability_ready=True, faction_p
     score_rect_width = max(0, column_right - (faction_rect.right + spacing))
     score_rect = pygame.Rect(faction_rect.right + spacing, faction_rect.y, score_rect_width, faction_rect.height)
     if score_rect.width > 20:
-        sb_key = ("score_box", score_rect.width, score_rect.height, faction_color)
+        # Cache the fully composited box+score keyed on the score value so the
+        # hot path is a single blit — no per-frame surface copy or text render.
+        sb_key = ("score_box", score_rect.width, score_rect.height, faction_color, player.score)
         score_surface = _slot_cache.get(sb_key)
         if score_surface is None:
             score_surface = pygame.Surface((score_rect.width, score_rect.height), pygame.SRCALPHA)
             score_surface.fill((20, 30, 50, 210))
             pygame.draw.rect(score_surface, faction_color, score_surface.get_rect(), width=3, border_radius=10)
+            score_font = _get_cached_font(max(20, int(24 * display_manager.SCALE_FACTOR)), bold=True)
+            score_text = _render_text(score_font, str(player.score), cfg.WHITE)
+            score_surface.blit(score_text, score_text.get_rect(center=score_surface.get_rect().center))
             _slot_cache[sb_key] = score_surface
-        score_surface = score_surface.copy()  # Need to draw dynamic text on it
-        score_font = _get_cached_font(max(20, int(24 * display_manager.SCALE_FACTOR)), bold=True)
-        score_text = _render_text(score_font, str(player.score), cfg.WHITE)
-        score_surface.blit(score_text, score_text.get_rect(center=score_surface.get_rect().center))
         surface.blit(score_surface, score_rect.topleft)
     else:
         score_rect = None

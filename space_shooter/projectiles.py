@@ -3,6 +3,7 @@
 import pygame
 import math
 import random
+from collections import OrderedDict
 
 _trail_particle_count = 0
 _TRAIL_PARTICLE_MAX = 800
@@ -65,7 +66,7 @@ _EMBER_ORANGE = _make_ember((255, 120, 30, 140))
 # random tail jitter with a seeded sequence. Rotation is quantised to 16 bins
 # (22.5° each) to bound the cache.
 _DRONE_ANGLE_BINS = 16
-_drone_rotated_cache: dict = {}
+_drone_rotated_cache: "OrderedDict[tuple, pygame.Surface]" = OrderedDict()
 _DRONE_CACHE_MAX = 128
 
 
@@ -113,13 +114,15 @@ def _get_drone_rotated(radius: int, angle_deg: float) -> pygame.Surface:
     angle_bin = int(round(angle_deg / (360.0 / _DRONE_ANGLE_BINS))) % _DRONE_ANGLE_BINS
     key = (radius, angle_bin)
     surf = _drone_rotated_cache.get(key)
-    if surf is None:
-        if len(_drone_rotated_cache) >= _DRONE_CACHE_MAX:
-            _drone_rotated_cache.pop(next(iter(_drone_rotated_cache)))
-        body = _build_drone_body(radius)
-        bin_angle = angle_bin * (360.0 / _DRONE_ANGLE_BINS)
-        surf = pygame.transform.rotate(body, bin_angle)
-        _drone_rotated_cache[key] = surf
+    if surf is not None:
+        _drone_rotated_cache.move_to_end(key)  # mark as most-recently used
+        return surf
+    if len(_drone_rotated_cache) >= _DRONE_CACHE_MAX:
+        _drone_rotated_cache.popitem(last=False)  # evict least-recently used
+    body = _build_drone_body(radius)
+    bin_angle = angle_bin * (360.0 / _DRONE_ANGLE_BINS)
+    surf = pygame.transform.rotate(body, bin_angle)
+    _drone_rotated_cache[key] = surf
     return surf
 
 
@@ -160,6 +163,10 @@ class Projectile:
         self.damage = damage
         self.active = True
         self.is_player_proj = True  # Set False for AI projectiles
+        self.trail = []
+        # Subclasses whose trail particles count against the global budget
+        # (_add_particle) set this True so release_trail() knows to refund them.
+        self._trail_counted = False
 
     def update(self):
         dx, dy = self.direction
@@ -171,6 +178,20 @@ class Projectile:
 
     def draw(self, surface, camera=None):
         pass
+
+    def release_trail(self):
+        """Refund this projectile's outstanding trail particles to the global
+        budget, then clear the trail.
+
+        Natural trail expiry already decrements the counter, but a projectile
+        removed mid-flight (off-screen cull, collision) keeps live particles in
+        self.trail that would otherwise leak the budget forever. Call this at
+        every removal site before dropping the projectile.
+        """
+        if self._trail_counted and self.trail:
+            for _ in range(len(self.trail)):
+                _remove_particle()
+        self.trail = []
 
 
 class Laser(Projectile):
@@ -186,6 +207,7 @@ class Laser(Projectile):
             self.width = 35
             self.height = 6
         self.trail = []
+        self._trail_counted = True
         self._glow_surf = None
 
     def update(self):
@@ -196,12 +218,15 @@ class Laser(Projectile):
         if len(self.trail) > 8:
             self.trail.pop(0)
             _remove_particle()
+        # Fade + prune in a single pass (refunding expired particles).
+        kept = []
         for t in self.trail:
             t['alpha'] -= 20
-        removed = [t for t in self.trail if t['alpha'] <= 0]
-        self.trail = [t for t in self.trail if t['alpha'] > 0]
-        for _ in removed:
-            _remove_particle()
+            if t['alpha'] > 0:
+                kept.append(t)
+            else:
+                _remove_particle()
+        self.trail = kept
         super().update()
 
     def get_rect(self):
@@ -258,6 +283,7 @@ class AncientDrone(Projectile):
         self.radius = 8
         self.wobble = random.uniform(0, math.pi * 2)
         self.trail = []
+        self._trail_counted = True
         self.homing_strength = 0.03  # Default slight tracking
 
     def update(self):
@@ -268,12 +294,15 @@ class AncientDrone(Projectile):
         if len(self.trail) > 10:
             self.trail.pop(0)
             _remove_particle()
+        # Fade + prune in a single pass (refunding expired particles).
+        kept = []
         for t in self.trail:
             t['alpha'] -= 20
-        removed = [t for t in self.trail if t['alpha'] <= 0]
-        self.trail = [t for t in self.trail if t['alpha'] > 0]
-        for _ in removed:
-            _remove_particle()
+            if t['alpha'] > 0:
+                kept.append(t)
+            else:
+                _remove_particle()
+        self.trail = kept
 
         # Slight wobble perpendicular to direction (organic flight feel).
         # Modulo keeps the value bounded across long-lived projectiles.
@@ -345,6 +374,7 @@ class Missile(Projectile):
             self.width = 20
             self.height = 8
         self.trail = []
+        self._trail_counted = True
         self.wobble = 0
         self._body_surf = None
 
@@ -357,13 +387,15 @@ class Missile(Projectile):
             self.trail.pop(0)
             _remove_particle()
 
-        # Update trail
+        # Fade + prune in a single pass (refunding expired particles).
+        kept = []
         for t in self.trail:
             t['alpha'] -= 15
-        removed = [t for t in self.trail if t['alpha'] <= 0]
-        self.trail = [t for t in self.trail if t['alpha'] > 0]
-        for _ in removed:
-            _remove_particle()
+            if t['alpha'] > 0:
+                kept.append(t)
+            else:
+                _remove_particle()
+        self.trail = kept
 
         # Slight wobble perpendicular to travel direction
         self.wobble += 0.3
@@ -434,6 +466,12 @@ class ContinuousBeam:
             self.direction = (direction, 0)
         else:
             self.direction = tuple(direction)
+        # Guard against a degenerate zero/near-zero direction (e.g. a failed
+        # auto-aim normalization passing (0, 0) or None-derived values). A
+        # zero-length beam has no orientation and produces a degenerate hitbox,
+        # so fall back to firing straight up (a handled cardinal direction).
+        if math.hypot(self.direction[0], self.direction[1]) < 1e-6:
+            self.direction = (0.0, -1.0)
         self.color = color
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -562,16 +600,18 @@ class EnergyBall(Projectile):
                           self.radius * 2, self.radius * 2)
 
     def draw(self, surface, camera=None):
+        from .effects import _get_cached_circle
         # Draw particles
         for p in self.particles:
             if camera:
                 px, py = camera.world_to_screen(p['x'], p['y'])
             else:
                 px, py = p['x'], p['y']
-            p_surf = pygame.Surface((p['size'] * 2, p['size'] * 2), pygame.SRCALPHA)
-            pygame.draw.circle(p_surf, (*self.color[:3], int(p['alpha'])),
-                             (p['size'], p['size']), p['size'])
-            surface.blit(p_surf, (int(px) - p['size'], int(py) - p['size']))
+            size = int(p['size'])
+            if size <= 0:
+                continue
+            p_surf = _get_cached_circle(size, self.color[:3], int(p['alpha']))
+            surface.blit(p_surf, (int(px) - size - 1, int(py) - size - 1))
 
         if camera:
             sx, sy = camera.world_to_screen(self.x, self.y)
@@ -926,6 +966,7 @@ class PlasmaLance(Projectile):
         self._pierce_count = 0
         self._max_pierce = 1
         self.trail = []
+        self._trail_counted = True
         self.pulse = 0
 
     def update(self):
@@ -936,12 +977,15 @@ class PlasmaLance(Projectile):
         if len(self.trail) > 12:
             self.trail.pop(0)
             _remove_particle()
+        # Fade + prune in a single pass (refunding expired particles).
+        kept = []
         for t in self.trail:
             t["alpha"] -= 18
-        removed = [t for t in self.trail if t["alpha"] <= 0]
-        self.trail = [t for t in self.trail if t["alpha"] > 0]
-        for _ in removed:
-            _remove_particle()
+            if t["alpha"] > 0:
+                kept.append(t)
+            else:
+                _remove_particle()
+        self.trail = kept
         super().update()
 
     def on_hit(self):

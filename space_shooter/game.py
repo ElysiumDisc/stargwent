@@ -139,7 +139,7 @@ class SpaceShooterGame:
         self.drones = []
         self.mines = []  # Lucian Alliance proximity mines
         self.tunnel_vortices = []  # Tok'ra tunnel crystal vortices
-        self._plague_targets = {}  # enemy id -> {timer, generation, spread_timer}
+        self._plague_targets = {}  # enemy -> {timer, generation, spread_timer}
         self.ion_pulse_effects = []  # Asgard ion pulse visual effects
         self.base_fire_rate = None
         self.base_damage_mult = 1.15  # Slight base damage bonus — player should feel powerful
@@ -236,6 +236,7 @@ class SpaceShooterGame:
 
         # Spatial grid for efficient collision queries
         self.spatial_grid = SpatialGrid(200)
+        self._ai_ship_set = set()  # rebuilt each frame alongside the grid
 
         # Auto-aim smoothing state
         self._aim_direction_smooth = None
@@ -627,7 +628,7 @@ class SpaceShooterGame:
                 py = self.player_ship.y
                 if self.ai_ships:
                     nearest = min(self.ai_ships,
-                                  key=lambda e: math.hypot(e.x - px, e.y - py))
+                                  key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2)
                     angle = random.uniform(0, math.pi * 2)
                     nearest.x = px + math.cos(angle) * 300
                     nearest.y = py + math.sin(angle) * 300
@@ -699,8 +700,8 @@ class SpaceShooterGame:
                 damage = data.get("damage", 35)
                 blast_r = data.get("blast_radius", 130)
                 sorted_enemies = sorted(self.ai_ships,
-                                        key=lambda e: math.hypot(
-                                            e.x + e.width // 2 - px, e.y - py))
+                                        key=lambda e: (e.x + e.width // 2 - px) ** 2
+                                                      + (e.y - py) ** 2)
                 for i in range(count):
                     if i < len(sorted_enemies):
                         tx = sorted_enemies[i].x + sorted_enemies[i].width // 2
@@ -1176,7 +1177,7 @@ class SpaceShooterGame:
             px = self.player_ship.x + self.player_ship.width // 2
             py = self.player_ship.y
             sorted_enemies = sorted(self.ai_ships,
-                                    key=lambda e: math.hypot(e.x - px, e.y - py))
+                                    key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2)
             for enemy in sorted_enemies[:5]:
                 xp_val = getattr(enemy, 'xp_value', 30) * 3
                 self.xp_orbs.append(XPOrb(enemy.x + enemy.width // 2, enemy.y, xp_val))
@@ -1237,7 +1238,7 @@ class SpaceShooterGame:
             py = self.player_ship.y
             if self.ai_ships:
                 nearest = min(self.ai_ships,
-                              key=lambda e: math.hypot(e.x - px, e.y - py))
+                              key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2)
                 target_type = getattr(nearest, 'enemy_type', 'regular')
                 same_type = [e for e in self.ai_ships
                              if getattr(e, 'enemy_type', 'regular') == target_type]
@@ -1282,9 +1283,11 @@ class SpaceShooterGame:
             px = self.player_ship.x + self.player_ship.width // 2
             py = self.player_ship.y
             sorted_enemies = sorted(self.ai_ships,
-                                    key=lambda e: math.hypot(e.x - px, e.y - py))
+                                    key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2)
             for enemy in sorted_enemies[:3]:
-                self._plague_targets[id(enemy)] = {"timer": 480, "generation": 0, "spread_timer": 240}
+                # Key by the enemy object (not id()) so dead enemies drop out
+                # naturally and there's no id()-reuse aliasing risk.
+                self._plague_targets[enemy] = {"timer": 480, "generation": 0, "spread_timer": 240}
                 enemy._plagued = True
             self.screen_shake.trigger(4, 8)
             self.popup_notifications.append(PopupNotification(
@@ -1435,6 +1438,8 @@ class SpaceShooterGame:
             self.ai_ships.remove(ai_ship)
 
         # --- Replicator split_on_death ---
+        # Gen cap of 2: original (gen 0) -> children (gen 1) -> grandchildren
+        # (gen 2) stop splitting. `< 2` is intentional, not off-by-one.
         behavior = getattr(ai_ship, '_behavior', None)
         if behavior == "split_on_death" and getattr(ai_ship, '_split_gen', 0) < 2:
             for _ in range(2):
@@ -1674,6 +1679,22 @@ class SpaceShooterGame:
         # Dual staff mastery: tell ship to fire 4 staffs
         if wtype == "dual_staff":
             self.player_ship._mastery_active = True
+
+    def _nearest_enemy(self, x, y, radius=700):
+        """Nearest ai_ship to (x, y) using the spatial grid.
+
+        Falls back to a full scan only when no enemy is within `radius`, so
+        the result is identical to a global min() while skipping the O(n) scan
+        in the common case of nearby targets.
+        """
+        if not self.ai_ships:
+            return None
+        candidates = self.spatial_grid.query_unique(x, y, radius)
+        # The grid also holds asteroids; keep only ships.
+        candidates = [e for e in candidates if e in self._ai_ship_set] if candidates else None
+        if not candidates:
+            candidates = self.ai_ships
+        return min(candidates, key=lambda e: (e.x - x) ** 2 + (e.y - y) ** 2)
 
     def _damage_enemy(self, enemy, amount):
         """Damage an enemy, handling behavior-specific shields (Ori). Returns True if killed."""
@@ -2013,6 +2034,8 @@ class SpaceShooterGame:
                     if sg.take_damage(dmg):
                         self._on_supergate_destroyed(sg)
                     if proj in self.projectiles:
+                        if hasattr(proj, 'release_trail'):
+                            proj.release_trail()
                         self.projectiles.remove(proj)
                     break  # One proj per supergate per frame
             # Asteroid damage
@@ -2399,7 +2422,7 @@ class SpaceShooterGame:
                 best_count = 0
                 for enemy in self.ai_ships:
                     count = sum(1 for e in self.ai_ships
-                                if math.hypot(e.x - enemy.x, e.y - enemy.y) < 200)
+                                if (e.x - enemy.x) ** 2 + (e.y - enemy.y) ** 2 < 200 * 200)
                     if count > best_count:
                         best_count = count
                         best_target = enemy
@@ -2586,18 +2609,22 @@ class SpaceShooterGame:
         self.ai_ships.extend(new_ships)
 
         # --- Despawn far-away entities ---
+        # Compare squared distances against squared radius — same result as
+        # hypot() < despawn_dist but without a per-entity sqrt every frame.
         despawn_dist = 2500
+        despawn_dist_sq = despawn_dist * despawn_dist
+        cam_x, cam_y = self.camera.x, self.camera.y
         self.ai_ships = [s for s in self.ai_ships
                          if s in self.ori_bosses or
-                         math.hypot(s.x - self.camera.x, s.y - self.camera.y) < despawn_dist]
+                         (s.x - cam_x) ** 2 + (s.y - cam_y) ** 2 < despawn_dist_sq]
         self.asteroids = [a for a in self.asteroids if a.active and
-                          math.hypot(a.x - self.camera.x, a.y - self.camera.y) < despawn_dist]
+                          (a.x - cam_x) ** 2 + (a.y - cam_y) ** 2 < despawn_dist_sq]
         self.xp_orbs = [o for o in self.xp_orbs if o.active and
-                        math.hypot(o.x - self.camera.x, o.y - self.camera.y) < despawn_dist]
+                        (o.x - cam_x) ** 2 + (o.y - cam_y) ** 2 < despawn_dist_sq]
         self.powerups = [p for p in self.powerups if p.active and
-                         math.hypot(p.x - self.camera.x, p.y - self.camera.y) < despawn_dist]
+                         (p.x - cam_x) ** 2 + (p.y - cam_y) ** 2 < despawn_dist_sq]
         self.area_bombs = [b for b in self.area_bombs if b.active and
-                           math.hypot(b.x - self.camera.x, b.y - self.camera.y) < despawn_dist]
+                           (b.x - cam_x) ** 2 + (b.y - cam_y) ** 2 < despawn_dist_sq]
 
         # Shield Bash (dash) logic
         bash_stacks = self.upgrades.get("shield_bash", 0)
@@ -2667,6 +2694,8 @@ class SpaceShooterGame:
                         dist = math.hypot(proj.x - px, proj.y - py)
                         if dist < 80:
                             self.explosions.append(Explosion(proj.x, proj.y, tier="small"))
+                            if hasattr(proj, 'release_trail'):
+                                proj.release_trail()
                             self.projectiles.pop(i)
                             break
 
@@ -2749,8 +2778,8 @@ class SpaceShooterGame:
             if self._railgun_barrage_timer >= 30 and self.ai_ships:  # Every 0.5s
                 self._railgun_barrage_timer = 0
                 nearest = min(self.ai_ships,
-                              key=lambda e: math.hypot(e.x - self.player_ship.x,
-                                                        e.y - self.player_ship.y))
+                              key=lambda e: (e.x - self.player_ship.x) ** 2 +
+                                            (e.y - self.player_ship.y) ** 2)
                 dx = nearest.x - self.player_ship.x
                 dy = nearest.y - self.player_ship.y
                 dist = math.hypot(dx, dy)
@@ -2788,20 +2817,17 @@ class SpaceShooterGame:
         # Prior Plague: tick spreading between enemies
         if self.active_powerups.get("prior_plague", 0) > 0:
             plague_to_add = {}
-            for eid in list(self._plague_targets):
-                data = self._plague_targets[eid]
-                enemy = None
-                for e in self.ai_ships:
-                    if id(e) == eid:
-                        enemy = e
-                        break
-                if not enemy:
-                    del self._plague_targets[eid]
+            alive = set(self.ai_ships)  # O(1) liveness checks for this tick
+            for enemy in list(self._plague_targets):
+                data = self._plague_targets[enemy]
+                if enemy not in alive:
+                    # Enemy died — drop the entry (no _plagued reset needed).
+                    del self._plague_targets[enemy]
                     continue
                 data["timer"] -= 1
                 data["spread_timer"] -= 1
                 if data["timer"] <= 0:
-                    del self._plague_targets[eid]
+                    del self._plague_targets[enemy]
                     enemy._plagued = False
                     continue
                 if data["spread_timer"] <= 0 and data["generation"] < 3:
@@ -2813,12 +2839,11 @@ class SpaceShooterGame:
                     # source per 4s — barely visible on dense waves.
                     spread_count = 0
                     for target in self.ai_ships:
-                        tid = id(target)
-                        if tid not in self._plague_targets and tid not in plague_to_add:
+                        if target not in self._plague_targets and target not in plague_to_add:
                             dist = math.hypot(target.x + target.width // 2 - ex, target.y - ey)
                             if dist < 100:
-                                plague_to_add[tid] = {"timer": 480, "generation": data["generation"] + 1,
-                                                       "spread_timer": 240}
+                                plague_to_add[target] = {"timer": 480, "generation": data["generation"] + 1,
+                                                         "spread_timer": 240}
                                 target._plagued = True
                                 spread_count += 1
                                 if spread_count >= 3:
@@ -2857,7 +2882,7 @@ class SpaceShooterGame:
                 px = self.player_ship.x + self.player_ship.width // 2
                 py = self.player_ship.y
                 nearest = min(self.ai_ships,
-                              key=lambda e: math.hypot(e.x - px, e.y - py))
+                              key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2)
                 dist = math.hypot(nearest.x + nearest.width // 2 - px, nearest.y - py)
                 if dist < 400:
                     drain = 2  # 2 DPS (per frame at 60fps = 120 DPS total... actually 2 per frame)
@@ -3174,7 +3199,14 @@ class SpaceShooterGame:
                     hostile_remove.add(id(proj))
                     break
         if hostile_remove:
-            self.projectiles = [p for p in self.projectiles if id(p) not in hostile_remove]
+            kept = []
+            for p in self.projectiles:
+                if id(p) in hostile_remove:
+                    if hasattr(p, 'release_trail'):
+                        p.release_trail()
+                else:
+                    kept.append(p)
+            self.projectiles = kept
 
         # Player auto-fire (with auto-aim toward nearest enemy)
         if not self.game_over:
@@ -3478,6 +3510,8 @@ class SpaceShooterGame:
 
         # Rebuild spatial grid for this frame
         self.spatial_grid.clear()
+        # Identity set so grid queries can distinguish ships from asteroids in O(1).
+        self._ai_ship_set = set(self.ai_ships)
         for ai_ship in self.ai_ships:
             cx = ai_ship.x + ai_ship.width // 2
             cy = ai_ship.y
@@ -3510,8 +3544,7 @@ class SpaceShooterGame:
             # Targeting Computer homing (also from Ancient Tech powerup)
             ancient_tech_homing = self.active_powerups.get("tauri_ancient_tech", 0) > 0
             if (tc_stacks > 0 or ancient_tech_homing) and proj.is_player_proj and self.ai_ships:
-                nearest = min(self.ai_ships,
-                              key=lambda e: math.hypot(e.x - proj.x, e.y - proj.y))
+                nearest = self._nearest_enemy(proj.x, proj.y)
                 max_adjust = max(tc_stacks * 2.0, 3.0 if ancient_tech_homing else 0)
                 pdx, pdy = proj.direction
                 if abs(pdx) > abs(pdy):
@@ -3526,8 +3559,7 @@ class SpaceShooterGame:
             # Built-in homing (e.g. Ancient drone_pulse projectiles)
             h_str = getattr(proj, 'homing_strength', 0)
             if h_str > 0 and self.ai_ships:
-                nearest = min(self.ai_ships,
-                              key=lambda e: math.hypot(e.x - proj.x, e.y - proj.y))
+                nearest = self._nearest_enemy(proj.x, proj.y)
                 tx = nearest.x + nearest.width // 2 - proj.x
                 ty = nearest.y - proj.y
                 dist = math.hypot(tx, ty)
@@ -3691,7 +3723,7 @@ class SpaceShooterGame:
                             px = self.player_ship.x + self.player_ship.width // 2
                             py = self.player_ship.y
                             nearest = min(self.ai_ships,
-                                          key=lambda e: math.hypot(e.x - px, e.y - py))
+                                          key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2)
                             reflect_dmg = int(absorbed * 0.5)
                             if reflect_dmg > 0:
                                 nearest.hit_flash = 5
@@ -3768,6 +3800,9 @@ class SpaceShooterGame:
         # Remove projectiles (reverse order to preserve indices)
         for idx in sorted(set(to_remove_projs), reverse=True):
             if idx < len(self.projectiles):
+                _proj = self.projectiles[idx]
+                if hasattr(_proj, 'release_trail'):
+                    _proj.release_trail()
                 self.projectiles.pop(idx)
 
         # Check beam collision (player) — supports arbitrary aim direction
@@ -3781,7 +3816,15 @@ class SpaceShooterGame:
             beam_hit_width = 20 * beam_width_bonus
 
             targets = []
-            for ai_ship in self.ai_ships:
+            # Gather enemy candidates from the grid: query a square centered on
+            # the beam midpoint that fully contains the segment (+margin for ship
+            # extent). Falls back to a full scan if the grid is empty.
+            half_seg = beam.max_range * 0.5
+            mid_x = beam_sx + bdx * half_seg
+            mid_y = beam_sy + bdy * half_seg
+            beam_cands = self.spatial_grid.query_unique(mid_x, mid_y, half_seg + 120)
+            beam_cands = [e for e in beam_cands if e in self._ai_ship_set] if beam_cands else self.ai_ships
+            for ai_ship in beam_cands:
                 ship_cx = ai_ship.x + ai_ship.width // 2
                 ship_cy = ai_ship.y
                 # Project target onto beam line to get perpendicular distance

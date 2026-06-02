@@ -141,7 +141,8 @@ class BloomCompositePass(ShaderPass):
         """Composite pass uses the bloom (blurred) texture and original."""
         fbo, out_tex = fbo_pool.acquire(width, height)
         fbo.use()
-        fbo.clear(0.0, 0.0, 0.0, 1.0)
+        if self.clears:
+            fbo.clear(0.0, 0.0, 0.0, 1.0)
 
         # Bind original scene to unit 0
         if self._original_tex:
@@ -177,6 +178,10 @@ class BloomEffect:
         self.enabled = True
         self.threshold = threshold
         self.intensity = intensity
+        # Every bloom pass writes a fullscreen quad with opaque alpha (a=1.0),
+        # so the per-pass FBO clear is redundant — skip it (v13.0.0).
+        for _p in (self.extract, self.blur_h, self.blur_v, self.composite):
+            _p.clears = False
 
     def apply(self, input_tex, fbo_pool, quad_vao, width, height):
         """Run full bloom pipeline: extract → blur_h → blur_v → composite."""

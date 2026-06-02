@@ -11,8 +11,11 @@ and moderngl is not available.
 import struct
 import sys
 import ctypes
+import time
 
 import pygame
+
+from gpu_renderer_base import GpuRendererBase
 
 # OpenGL ES 3.0 constants
 GL_TRUE = 1
@@ -69,6 +72,18 @@ in vec2 uv;
 out vec4 fragColor;
 void main() {
     fragColor = texture(tex, uv);
+}
+"""
+
+# Input-normalize pass — mirrors gpu_renderer.NORMALIZE_FRAG. Flips V and
+# swizzles BGR->RGB (forcing opaque alpha) so the zero-copy native-byte upload
+# matches the old tobytes(..., "RGBA", True) result. See gpu_renderer.py.
+NORMALIZE_FRAG = _glsl_version() + """
+uniform sampler2D tex;
+in vec2 uv;
+out vec4 fragColor;
+void main() {
+    fragColor = vec4(texture(tex, vec2(uv.x, 1.0 - uv.y)).bgr, 1.0);
 }
 """
 
@@ -206,21 +221,17 @@ class WebGLShaderPass:
             gl.glDeleteProgram(self.program)
 
 
-class WebGLRenderer:
+class WebGLRenderer(GpuRendererBase):
     """WebGL 2.0 renderer implementing the same interface as GPURenderer."""
 
+    _PASS_TYPE = WebGLShaderPass
+
     def __init__(self, width, height):
-        self.width = width
-        self.height = height
-        self.enabled = False
-        self.time = 0.0
-
-        self._effects = {}
-        self._effect_order = []
-        self._effect_enabled = {}
-
+        super().__init__(width, height)
         self._passthrough = None
+        self._normalize = None
         self._input_tex = 0
+        self._input_size = (width, height)  # current allocation of _input_tex
         self._fbos = {}  # (w,h) -> list of (fbo_id, tex_id)
 
     def initialize(self):
@@ -235,7 +246,13 @@ class WebGLRenderer:
                 print("[WebGL] Failed to compile passthrough shader")
                 return False
 
-            # Create input texture
+            self._normalize = WebGLShaderPass(NORMALIZE_FRAG)
+            if not self._normalize.program:
+                print("[WebGL] Failed to compile normalize shader")
+                return False
+
+            # Create input texture (allocated once; present() updates it in
+            # place with glTexSubImage2D rather than reallocating each frame)
             self._input_tex = gl.glGenTextures(1)
             gl.glBindTexture(GL_TEXTURE_2D, self._input_tex)
             gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
@@ -255,31 +272,8 @@ class WebGLRenderer:
             self.enabled = False
             return False
 
-    def add_effect(self, name, shader_passes, order=None):
-        if isinstance(shader_passes, WebGLShaderPass):
-            shader_passes = [shader_passes]
-        self._effects[name] = shader_passes
-        self._effect_enabled[name] = True
-        if order is not None:
-            self._effect_order.insert(order, name)
-        else:
-            self._effect_order.append(name)
-
-    def set_effect_enabled(self, name, enabled):
-        if name in self._effect_enabled:
-            self._effect_enabled[name] = enabled
-
-    def is_effect_enabled(self, name):
-        return self._effect_enabled.get(name, False)
-
-    def get_effect(self, name):
-        passes = self._effects.get(name)
-        if passes and len(passes) == 1:
-            return passes[0]
-        return passes
-
-    def update(self, dt_ms):
-        self.time += dt_ms / 1000.0
+    # Effect registry (add_effect/set_effect_enabled/is_effect_enabled/
+    # get_effect) and update() are inherited from GpuRendererBase.
 
     def _acquire_fbo(self, width, height):
         """Get or create an FBO + texture pair."""
@@ -312,15 +306,52 @@ class WebGLRenderer:
         try:
             w, h = pygame_surface.get_size()
 
-            # Upload frame to input texture
-            raw = pygame.image.tobytes(pygame_surface, "RGBA", True)
+            _t0 = time.perf_counter()
+
+            # Fast path mirrors the desktop renderer: a 32-bit BGRA surface is
+            # uploaded as its native bytes (no per-pixel RGBA conversion) and
+            # the normalize pass fixes channel order + orientation on the GPU.
+            # Any other format falls back to the old tobytes conversion.
+            # (NOTE: the web GPU path is currently dormant — initialize_gpu()
+            # uses the Pygbag canvas on web — so this is unverified on real
+            # Emscripten; the format guard keeps it safe either way.)
+            fast_upload = self.is_fast_upload(pygame_surface)
+            if fast_upload:
+                raw = pygame_surface.get_buffer().raw  # native BGRA bytes
+            else:
+                raw = pygame.image.tobytes(pygame_surface, "RGBA", True)
+
             gl.glBindTexture(GL_TEXTURE_2D, self._input_tex)
-            gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h,
-                           0, GL_RGBA, GL_UNSIGNED_BYTE, raw)
+            if (w, h) != self._input_size:
+                # Size changed — drain any in-flight GPU work still reading the
+                # old texture store before reallocating, then reallocate. This
+                # only runs on the rare resize, not the per-frame hot path.
+                if self._input_size is not None:
+                    gl.glFinish()
+                gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h,
+                               0, GL_RGBA, GL_UNSIGNED_BYTE, raw)
+                self._input_size = (w, h)
+            else:
+                # Reuse the existing allocation — avoids a full per-frame
+                # texture realloc (the old code called glTexImage2D every frame).
+                gl.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h,
+                                  GL_RGBA, GL_UNSIGNED_BYTE, raw)
+
+            _t_upload = time.perf_counter()
 
             # Run shader chain
-            current_tex = self._input_tex
             temp_resources = []
+            pass_count = 0
+
+            # Normalize the fast-path upload (flip V + BGR->RGB) so the chain
+            # matches the old tobytes path; the fallback is already RGBA+flipped.
+            if fast_upload:
+                norm_fbo, norm_tex = self._acquire_fbo(w, h)
+                self._normalize.apply(self._input_tex, norm_fbo, norm_tex, w, h)
+                temp_resources.append((norm_fbo, norm_tex, w, h))
+                current_tex = norm_tex
+            else:
+                current_tex = self._input_tex
 
             for name in self._effect_order:
                 if not self._effect_enabled.get(name, False):
@@ -333,6 +364,9 @@ class WebGLRenderer:
                     sp.apply(current_tex, fbo, out_tex, w, h)
                     temp_resources.append((fbo, out_tex, w, h))
                     current_tex = out_tex
+                    pass_count += 1
+
+            _t_chain = time.perf_counter()
 
             # Render to default framebuffer (screen)
             gl.glBindFramebuffer(GL_FRAMEBUFFER, 0)
@@ -352,6 +386,14 @@ class WebGLRenderer:
 
             pygame.display.flip()
 
+            _t_present = time.perf_counter()
+            self.last_timings = {
+                "upload": (_t_upload - _t0) * 1000.0,
+                "chain": (_t_chain - _t_upload) * 1000.0,
+                "present": (_t_present - _t_chain) * 1000.0,
+                "passes": pass_count,
+            }
+
             # Release temp FBOs
             for fbo, tex, tw, th in temp_resources:
                 self._release_fbo(fbo, tex, tw, th)
@@ -368,6 +410,7 @@ class WebGLRenderer:
             gl.glBindTexture(GL_TEXTURE_2D, self._input_tex)
             gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height,
                            0, GL_RGBA, GL_UNSIGNED_BYTE, None)
+            self._input_size = (width, height)
 
     def cleanup(self):
         if not _HAS_PYOPENGL:
@@ -379,6 +422,8 @@ class WebGLRenderer:
             self._effects.clear()
             if self._passthrough:
                 self._passthrough.cleanup()
+            if self._normalize:
+                self._normalize.cleanup()
             if self._input_tex:
                 gl.glDeleteTextures(1, [self._input_tex])
             for key, items in self._fbos.items():

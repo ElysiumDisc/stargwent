@@ -1026,17 +1026,16 @@ class Explosion:
             pygame.draw.circle(ring_surf, (255, 255, 200, ring_alpha // 2), (c, c), self.shockwave_radius, 1)
             surface.blit(ring_surf, (int(sx) - c, int(sy) - c))
 
+        from .effects import _get_cached_circle
         for p in self.particles:
             if camera:
                 px, py = camera.world_to_screen(p['x'], p['y'])
             else:
                 px, py = p['x'], p['y']
-            color = (*p['color'], alpha)
             size = int(p['size'] * (1 - self.timer / self.duration))
             if size > 0:
-                surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                pygame.draw.circle(surf, color, (size, size), size)
-                surface.blit(surf, (int(px - size), int(py - size)))
+                surf = _get_cached_circle(size, p['color'][:3], alpha)
+                surface.blit(surf, (int(px) - size - 1, int(py) - size - 1))
 
 
 class DamageNumber:
@@ -1096,6 +1095,10 @@ class PopupNotification:
         self.duration = 90  # 1.5s at 60fps
         self.active = True
         self.font = pygame.font.SysFont("Arial", 32, bold=True)
+        # Pre-render text once; per-frame we only adjust alpha.
+        self._text_surf = self.font.render(self.text, True, self.color)
+        self._text_w = self._text_surf.get_width()
+        self._text_h = self._text_surf.get_height()
 
     def update(self):
         self.timer += 1
@@ -1112,12 +1115,10 @@ class PopupNotification:
         else:
             sx, sy = self._world_x, self._world_y
         alpha = max(0, int(255 * (1 - self.timer / self.duration)))
-        text_surf = self.font.render(self.text, True, self.color)
-        alpha_surf = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
-        alpha_surf.blit(text_surf, (0, 0))
-        alpha_surf.set_alpha(alpha)
-        surface.blit(alpha_surf, (int(sx) - text_surf.get_width() // 2,
-                                  int(sy) - text_surf.get_height() // 2))
+        tmp = self._text_surf.copy()
+        tmp.set_alpha(alpha)
+        surface.blit(tmp, (int(sx) - self._text_w // 2,
+                           int(sy) - self._text_h // 2))
 
 
 class GravityWell:

@@ -1290,13 +1290,30 @@ def render_frame(state, game, screen, dt, drag_visual_state):
         screen.blit(wait_text, wait_rect)
 
     # Debug overlay: FPS counter and performance stats (v4.3.1)
+    # GPU pipeline timing breakdown added in v13.0.0 (pipeline refresh).
     if DEBUG_MODE:
         current_fps = state.clock.get_fps()
-        # FPS counter (top-left corner)
-        fps_text = _render_text(cfg.UI_FONT, f"FPS: {int(current_fps)}", (0, 255, 0))
-        fps_bg = re_mod._get_cached_panel(fps_text.get_width() + 10, fps_text.get_height() + 6, (0, 0, 0, 180))
+        lines = [(f"FPS: {int(current_fps)}", (0, 255, 0))]
+
+        gpu = getattr(display_manager, "gpu_renderer", None)
+        if gpu and getattr(gpu, "enabled", False):
+            t = getattr(gpu, "last_timings", None)
+            if t:
+                lines.append((
+                    f"GPU up:{t['upload']:.2f} chain:{t['chain']:.2f} "
+                    f"pres:{t['present']:.2f}ms x{t['passes']}",
+                    (120, 220, 255),
+                ))
+
+        rendered = [_render_text(cfg.UI_FONT, txt, color) for txt, color in lines]
+        panel_w = max(s.get_width() for s in rendered) + 10
+        panel_h = sum(s.get_height() for s in rendered) + 6
+        fps_bg = re_mod._get_cached_panel(panel_w, panel_h, (0, 0, 0, 180))
         screen.blit(fps_bg, (8, 8))
-        screen.blit(fps_text, (13, 11))
+        y = 11
+        for s in rendered:
+            screen.blit(s, (13, y))
+            y += s.get_height()
 
     # Pass GPU shader parameters from active effects before presenting
     _apply_gpu_params(state, screen)

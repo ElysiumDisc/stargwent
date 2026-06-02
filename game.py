@@ -556,8 +556,9 @@ ALLIANCE_COMBOS = [
     JaffaUprisingCombo(),  # 5+ Jaffa = +1 to ALL units
 ]
 
-# Special combo that triggers card draw (handled separately from score calculation)
-LUCIAN_NETWORK_COMBO = LucianNetworkCombo()
+# Lucian Network combo triggers a card draw (handled separately from score
+# calculation). Instantiated per-player on Player (not as a module singleton)
+# so the two players don't share the per-round "triggered" flag.
 
 
 # ----------------------------------------------------------------------------
@@ -707,7 +708,11 @@ class Player:
         self.raknor_bonus_used = False  # Rak'nor's bonus play already taken this round
         self.zpm_active = False  # Track if ZPM was played this round
         self.spies_played_this_round = 0  # Track spies for Lucian Network combo
-        
+        # Per-player Lucian Network combo state — a module-level singleton would
+        # let one player's "triggered" flag block the other player's draw in the
+        # same round (both players share the Lucian faction mechanic).
+        self.lucian_network_combo = LucianNetworkCombo()
+
         # Stargate mechanics — create a fresh ability instance per player
         # so two players of the same faction don't share mutable counter
         # state (see FACTION_ABILITY_CLASSES docstring).
@@ -755,10 +760,32 @@ class Player:
     def calculate_score(self, game=None):
         """Calculates the player's total score, applying all abilities and effects.
         Returns list of activated alliance combos for history logging."""
-        # Pass 1: Reset all card powers to base values.
+        # Weather floor (used as the per-card base when a row's weather is
+        # active). Conquest relics can raise the floor above 1.
+        weather_min = 1
+        if game and hasattr(game, 'conquest_relics'):
+            if self == game.player1:
+                if "ori_prior_staff" in game.conquest_relics:
+                    weather_min = 3
+                if "jaffa_tretonin" in game.conquest_relics:
+                    weather_min = max(weather_min, 3)
+
+        # Pass 1: Establish each card's effective base. Weather floors the base
+        # for non-hero units BEFORE bonuses, so horn/bond/morale layer on top of
+        # the floor (classic Gwent) instead of being erased by it. The base is
+        # stashed on the card for the Tactical Formation pass below.
         for row_name, row_cards in self.board.items():
+            weather_active = self.weather_effects[row_name]
             for card in row_cards:
-                card.displayed_power = card.power
+                if weather_active and not is_hero(card):
+                    if has_ability(card, Ability.SURVIVAL_INSTINCT):
+                        base = card.power + 2
+                    else:
+                        base = weather_min
+                else:
+                    base = card.power
+                card._score_base = base
+                card.displayed_power = base
 
         activated_combos = []
 
@@ -805,8 +832,8 @@ class Player:
                 if len(cards) > 1:
                     multiplier = len(cards)
                     for card in cards:
-                        bonuses_applied = card.displayed_power - card.power
-                        card.displayed_power = (card.power * multiplier) + bonuses_applied
+                        bonuses_applied = card.displayed_power - card._score_base
+                        card.displayed_power = (card._score_base * multiplier) + bonuses_applied
 
         # Pass 4: Horn + ZPM combined. Horn doubles non-heroes per row.
         # ZPM doubles siege cards not already horn-doubled (prevents 4x stack).
@@ -832,25 +859,11 @@ class Player:
         for artifact in self.artifacts:
             artifact.apply_effect(game, self)
 
-        # Conquest relic weather floors.
-        weather_min = 1
-        if game and hasattr(game, 'conquest_relics'):
-            if self == game.player1:
-                if "ori_prior_staff" in game.conquest_relics:
-                    weather_min = 3
-                if "jaffa_tretonin" in game.conquest_relics:
-                    weather_min = max(weather_min, 3)
-
-        # Pass 5: Weather + final sum combined.
+        # Pass 5: Final sum. Weather has already been folded into each card's
+        # base in Pass 1, so bonuses correctly layer on top of the floor here.
         self.score = 0
         for row_name, row_cards in self.board.items():
-            weather_active = self.weather_effects[row_name]
             for card in row_cards:
-                if weather_active and not is_hero(card):
-                    if has_ability(card, Ability.SURVIVAL_INSTINCT):
-                        card.displayed_power = card.power + 2
-                    else:
-                        card.displayed_power = weather_min
                 self.score += card.displayed_power
         
         # Apply Neutral Penalty (Mercenary Tax)
@@ -1213,7 +1226,7 @@ class Game:
         if (not previous_player.raknor_bonus_used and
                 previous_player.leader and
                 "Rak'nor" in previous_player.leader.get('name', '') and
-                self.cards_played_this_round[previous_player] == 1 and
+                self.cards_played_this_round.get(previous_player, 0) == 1 and
                 not previous_player.has_passed and
                 len(previous_player.hand) > 0):
             previous_player.raknor_bonus_used = True
@@ -1231,6 +1244,13 @@ class Game:
                 self.current_player = self.player2
             else:
                 self.current_player = self.player1
+            # The bounced-to player is the one actually taking this turn, so give
+            # them a fresh per-turn play allowance. The reset above only applied
+            # to the passed player; without this the active player's
+            # plays_this_turn stays >=1 and play_card()'s limit guard silently
+            # rejects every play after their first — an infinite AI loop once the
+            # opponent has passed.
+            self.current_player.plays_this_turn = 0
 
     def play_card(self, card, row_name, target_side=None, index=None):
         """Plays a card from the current player's hand to the board.
@@ -1249,7 +1269,7 @@ class Game:
         max_plays_this_turn = 1
         if player.leader and "Rak'nor" in player.leader.get('name', ''):
             # Allow 2 cards on first turn of each round
-            if self.cards_played_this_round[player] == 0:
+            if self.cards_played_this_round.get(player, 0) == 0:
                 max_plays_this_turn = 2
         
         # Check if player has reached play limit for this turn
@@ -1378,7 +1398,7 @@ class Game:
                         draw_amount = player.faction_ability.get_spy_draw_amount()
                     player.draw_cards(draw_amount)
                     self._log_card_play(player, card, row_name=row_name, note="Spy (Converted)")
-                    self.cards_played_this_round[player] += 1
+                    self.cards_played_this_round[player] = self.cards_played_this_round.get(player, 0) + 1
                     player.units_played_this_round += 1
                     player.plays_this_turn += 1
                     self.calculate_scores_and_log()
@@ -1408,8 +1428,8 @@ class Game:
                 player.spies_played_this_round += 1
 
                 # Check for Lucian Network combo (2+ spies = draw 1 extra card)
-                if LUCIAN_NETWORK_COMBO.check_active(player):
-                    LUCIAN_NETWORK_COMBO.apply_bonus(player)
+                if player.lucian_network_combo.check_active(player):
+                    player.lucian_network_combo.apply_bonus(player)
                     player.draw_cards(1)
                     self.add_history_event(
                         "combo",
@@ -1470,7 +1490,7 @@ class Game:
                 sound_manager.play_row_sound(row_name, volume=0.5)
 
             # Track cards played this round for leader abilities
-            self.cards_played_this_round[player] += 1
+            self.cards_played_this_round[player] = self.cards_played_this_round.get(player, 0) + 1
             player.units_played_this_round += 1
             player.plays_this_turn += 1  # Track plays this turn for Rak'nor ability
             
@@ -1501,13 +1521,13 @@ class Game:
             
             # Gen. Hammond ability: First unit each round gets +3 power
             if player.leader and "Hammond" in player.leader.get('name', ''):
-                if self.cards_played_this_round[player] == 1 and card.row not in ["special", "weather"]:
+                if self.cards_played_this_round.get(player, 0) == 1 and card.row not in ["special", "weather"]:
                     if not card.hammond_boosted:
                         card.hammond_boosted = True
 
             # Kiva: First unit each round gets +4 power
             if player.leader and "Kiva" in player.leader.get('name', ''):
-                if self.cards_played_this_round[player] == 1 and card.row not in ["special", "weather"]:
+                if self.cards_played_this_round.get(player, 0) == 1 and card.row not in ["special", "weather"]:
                     if not card.kiva_boosted:
                         card.kiva_boosted = True
                         self.add_history_event(
@@ -1654,17 +1674,26 @@ class Game:
         """Finds and plays all cards with the same name from hand and deck."""
         card_name_to_muster = played_card.name
         
-        # Gate Reinforcement from hand
+        # Gate Reinforcement from hand. Guard each removal so a card already
+        # pulled by a concurrent ability can't raise ValueError mid-muster.
         cards_from_hand = [c for c in player.hand if c.name == card_name_to_muster]
+        mustered_from_hand = []
         for card in cards_from_hand:
-            player.hand.remove(card)
-            player.board[row_name].append(card)
+            if card in player.hand:
+                player.hand.remove(card)
+                player.board[row_name].append(card)
+                mustered_from_hand.append(card)
 
         # Gate Reinforcement from deck
         cards_from_deck = [c for c in player.deck if c.name == card_name_to_muster]
+        mustered_from_deck = []
         for card in cards_from_deck:
-            player.deck.remove(card)
-            player.board[row_name].append(card)
+            if card in player.deck:
+                player.deck.remove(card)
+                player.board[row_name].append(card)
+                mustered_from_deck.append(card)
+        cards_from_hand = mustered_from_hand
+        cards_from_deck = mustered_from_deck
         
         total_mustered = len(cards_from_hand) + len(cards_from_deck) + 1
         
@@ -1745,8 +1774,10 @@ class Game:
                 break
             target = self.rng.choice(drainable_units)
             target.power = max(1, target.power - 1)
-            target.displayed_power = min(target.displayed_power, target.power)
-            
+            # displayed_power is recomputed from base on the next calculate_score()
+            # (Pass 1), so don't clobber it here — that only risks a transient
+            # bonus-stripped display if the UI reads between trigger and recalc.
+
             recipient = self.rng.choice(muster_group)
             recipient.power += 1
             recipient.displayed_power += 1
@@ -1759,7 +1790,8 @@ class Game:
                 continue
             new_power = max(1, card.power - 1)
             card.power = new_power
-            card.displayed_power = min(card.displayed_power, new_power)
+            # displayed_power is recomputed on the next calculate_score(); see
+            # trigger_life_force_drain for rationale.
     
     def trigger_summon_shield_maidens(self, player, row_name):
         """Deploy Clones: Add 2 Shield Maiden tokens (2 power each) to the row."""
@@ -2972,13 +3004,12 @@ class Game:
             p.zpm_active = False
             p.spies_played_this_round = 0
             p.raknor_bonus_used = False
+            p.lucian_network_combo.reset_round()
 
             if p.ring_transportation:
                 p.ring_transportation.reset_round()
 
             p.score = 0
-
-        LUCIAN_NETWORK_COMBO.reset_round()
 
         self.discard_active_weather_cards()
         self.weather_active = {"close": False, "ranged": False, "siege": False}

@@ -20,7 +20,7 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 ---
 
 <!-- VERSION: Update this badge to change the version everywhere (README, .deb package, GitHub) -->
-![Version](https://img.shields.io/badge/version-12.8.0-blue)
+![Version](https://img.shields.io/badge/version-13.2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![Pygame CE](https://img.shields.io/badge/pygame--ce-2.5.6+-red)
 ![ModernGL](https://img.shields.io/badge/moderngl-GPU%20effects-orange)
@@ -109,8 +109,8 @@ Battle with iconic characters and technology from the Tau'ri, Goa'uld, Jaffa, Lu
 - **Buttery Smooth Movement** - Velocity-based acceleration with friction, diagonal normalization, and thruster speed boost
 - **Wormhole Escape** - Press Q to vanish through a wormhole with siege.ogg sound effect, bigger gravity pull radius
 - **Level 20 Primary Fire Mastery** - At level 20, your weapon auto-evolves with a unique mastery: Overcharged Beam (wider + burn DoT), Plasma Detonation (120px AoE), Cascade Disruption (3 fragments), Focused Optics (full pierce), Staff Barrage (4 staffs), MIRV Warhead (3 homing sub-missiles), Drone Swarm (extra drones), Kree's Judgement (every 5th shot 3x), Unstable Naquadah (trail damage)
-- **26 Upgrades (4 Rarities)** - Common, Rare, Epic, and Legendary upgrades including 5 Evolution combos (Thor's Hammer, Bullet Hell, Black Hole, Ancient Outpost, Cluster Bomb)
-- **18 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 10 faction-specific (Epic & Legendary) with rarity glow effects
+- **27 Upgrades (4 Rarities)** - Common, Rare, Epic, and Legendary upgrades including 5 Evolution combos (Thor's Hammer, Bullet Hell, Black Hole, Ancient Outpost, Cluster Bomb)
+- **40 Power-Up Types** - 8 generic (Shield, Rapid Fire, Drone Swarm, Naquadah Core, Cloak, Overcharge, Time Warp, Magnetize) + 32 faction-specific & special power-ups across Epic, Legendary & rare tiers (spawned from your faction's pool) with rarity glow effects
 - **Multi-Directional Fire** - Multi-Targeting upgrade fires in all 4 quadrants at higher stacks
 - **15 Enemy Types** - Regular, Fast, Tank, Elite, Kamikaze + Stargate-themed (Wraith Dart, Replicator, Ori Fighter, Ancient Drone, Death Glider, Al'kesh Bomber, Wraith Miniship, Wraith Hive mini-boss, Ori Mothership boss, Wraith Supergate boss)
 - **Carrier-Style Miniship Escorts** - Tau'ri, Goa'uld, and Wraith players unlock autonomous interceptor miniships (StarCraft Carrier-inspired): orbit in formation, sortie to attack with smooth lerp movement, respawn on destruction. Native 120x120 sprites at x1 scale. Scales from 2 escorts at level 3 to 5 at level 15. Escort Overdrive and Escort Shields powerups
@@ -499,7 +499,7 @@ Each faction has a unique, **once-per-game** cinematic ability called a **Factio
 
 
 
-#### **35/35 Leader Abilities **
+#### **40/40 Leader Abilities **
 - ✅ Gen. Landry - "Homeworld Command": +1 to most populated row
 - ✅ Ba'al - "System Lord's Cunning": Resurrect unit from discard
 - ✅ Jonas Quinn - "Eidetic Memory": Copy opponent's drawn card

@@ -68,6 +68,42 @@ class UIState(Enum):
     THOR_MOVE_SELECT = auto()
     LAN_CHAT = auto()
 
+
+def _target_fps(game, state, lan_mode, is_web, competitive):
+    """Adaptive frame-rate target (v13.0.0).
+
+    Full fps for any visible motion or the human's interactive turn; throttled
+    for genuinely idle/non-interactive states (paused, AI thinking, waiting on
+    a remote player, static game-over) to save CPU/GPU/battery. Pure function —
+    no side effects — so it's unit-testable. The instant an animation starts or
+    it becomes the player's turn, the next frame returns to full fps.
+    """
+    base = 60 if is_web else 144
+    # Visible motion always renders at full rate.
+    anim_mgr = getattr(state, "anim_manager", None)
+    if anim_mgr is None or anim_mgr.has_active_animations():
+        return base
+    # Paused menu is a static screen — safe to throttle even in competitive mode.
+    if getattr(state, "ui_state", None) == UIState.PAUSED:
+        return 30
+    # Past here we trade a little latency for power; competitive (LAN) play
+    # keeps full fps for precise timing.
+    if competitive:
+        return base
+    # Waiting on the remote player — nothing local to drive.
+    if getattr(state, "waiting_for_opponent", False):
+        return 30
+    # Single-player AI turn: decisions have built-in pacing; 60 fps is ample.
+    if (not lan_mode and game.game_state == "playing"
+            and game.current_player == game.player2):
+        return 60
+    # Static game-over scoreboard.
+    if game.game_state == "game_over":
+        return 30
+    # Human's interactive turn — full fps for crisp hover/drag.
+    return base
+
+
 # LAN Mode globals - set by lan_game.py when running multiplayer
 LAN_MODE = False
 LAN_CONTEXT = None
@@ -995,8 +1031,15 @@ async def main(lan_game_data=None):
         sync_fullscreen_from_surface()
         # CRITICAL: Update screen reference every frame (gets recreated on fullscreen toggle)
         screen = display_manager.screen
-        # Web browsers cap at 60 FPS; targeting 144 on Emscripten wastes budget
-        dt = state.clock.tick(60 if sys.platform == "emscripten" else 144)
+        # Web browsers cap at 60 FPS; targeting 144 on Emscripten wastes budget.
+        # Adaptive pacing (v13.0.0): throttle idle/non-interactive states to
+        # save CPU/GPU/battery; full fps for animations and the player's turn.
+        target_fps = _target_fps(
+            game, state, LAN_MODE,
+            sys.platform == "emscripten",
+            display_manager.COMPETITIVE_MODE,
+        )
+        dt = state.clock.tick(target_fps)
         # Clamp to a 30 FPS floor — after pause/alt-tab/debugger break, the
         # first tick can return 100ms+. Unclamped dt makes shader time
         # uniforms (kawoosh, hyperspace, replicator_swarm) jump and
@@ -1243,10 +1286,14 @@ async def main(lan_game_data=None):
             blob["alpha"] -= dt * 0.35
             blob["width_scale"] += dt * 0.0008
             blob["height_scale"] += dt * 0.0006
-        state.drag_trail = [b for b in state.drag_trail if b["alpha"] > 0]
+        # Blobs share a fixed start alpha and uniform decay, so the faded-out
+        # ones are always the oldest at the front — pop them in place (O(1) each)
+        # instead of rebuilding the whole collection every frame.
+        while state.drag_trail and state.drag_trail[0]["alpha"] <= 0:
+            state.drag_trail.popleft()
         if state.dragging_card:
             if state.drag_trail_emit_ms <= 0:
-                # Cap trail length to prevent unbounded growth
+                # maxlen=50 deque caps growth; appending evicts the oldest blob.
                 if len(state.drag_trail) < 50:
                     state.drag_trail.append({
                         "pos": state.dragging_card.rect.center,
@@ -1297,8 +1344,12 @@ async def main(lan_game_data=None):
             # Thor: Move unit (once per round, manual trigger with T key)
         
         # Simple AI for Player 2 - WITH SMOOTH ANIMATIONS
-        # Skip AI animations in LAN mode - opponent is a real human
-        if game.current_player == game.player2 and game.game_state == "playing" and not LAN_MODE:
+        # Skip AI animations in LAN mode - opponent is a real human.
+        # Also pause the AI while a Hathor steal animation is mid-flight — it
+        # owns the turn switch via on_finish (frame_renderer), so the AI must not
+        # act again until the steal resolves and hathor_steal_info is cleared.
+        if (game.current_player == game.player2 and game.game_state == "playing"
+                and not LAN_MODE and not getattr(game, 'hathor_steal_info', None)):
             if not state.ai_turn_in_progress:
                 # Start AI turn animation
                 state.ai_turn_anim.start_thinking()
@@ -1375,13 +1426,22 @@ async def main(lan_game_data=None):
                             iris_anim = IrisClosingEffect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
                             state.anim_manager.add_effect(iris_anim)
     
-                    # AI passes or uses power
+                    # AI took a non-card action (pass / power / Hathor steal) or
+                    # produced no action at all. Advance the turn appropriately.
                     state.ai_turn_anim.finish()
-                    if not game.player2.has_passed:
-                        # Only switch turn if AI used power (not pass)
-                        # pass_turn() already calls switch_turn() internally
+                    steal_initiated = bool(getattr(game, 'hathor_steal_info', None))
+                    if game.player2.has_passed or steal_initiated:
+                        # pass_turn() already switched, or the steal animation's
+                        # on_finish (frame_renderer) will switch — don't double up.
+                        pass
+                    elif ai_used_faction_power:
+                        # Faction power consumes the turn; advance it.
                         game.last_turn_actor = game.player2
                         game.switch_turn()
+                    else:
+                        # No-op decision (e.g. an unhandled action type). Force a
+                        # pass so the AI can never spin on its own turn forever.
+                        game.pass_turn()
                     state.ai_turn_in_progress = False
             
             elif ai_result == "selecting_done":

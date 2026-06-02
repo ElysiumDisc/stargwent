@@ -13,8 +13,11 @@ the game runs with pure Pygame rendering unchanged.
 import logging
 import struct
 import sys
+import time
 
 import pygame
+
+from gpu_renderer_base import GpuRendererBase
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,9 @@ QUAD_VERTICES = [
 
 # Pre-packed VBO data — avoids struct.pack() on every ShaderPass / VAO creation
 _QUAD_VBO_DATA = struct.pack(f'{len(QUAD_VERTICES)}f', *QUAD_VERTICES)
+
+# Sentinel for the uniform write-cache (distinct from any real uniform value).
+_UNSET = object()
 
 def _glsl_version():
     """Return the GLSL version header for the current platform."""
@@ -59,6 +65,22 @@ in vec2 uv;
 out vec4 fragColor;
 void main() {
     fragColor = texture(tex, uv);
+}
+"""
+
+# Input-normalize pass (v13.0.0 pipeline refresh). The raw Pygame frame is
+# uploaded zero-copy as the surface's native bytes, which are:
+#   - BGRA in memory (32-bit surface masks R=0xFF0000 G=0xFF00 B=0xFF), and
+#   - stored top-row-first (Pygame origin), i.e. vertically inverted vs GL.
+# This pass flips V and swizzles BGR->RGB with a forced opaque alpha, producing
+# a texture identical to the old `tobytes(surface, "RGBA", True)` result so the
+# rest of the effect chain (and directional effects) behave pixel-identically.
+NORMALIZE_FRAG = _glsl_version() + """
+uniform sampler2D tex;
+in vec2 uv;
+out vec4 fragColor;
+void main() {
+    fragColor = vec4(texture(tex, vec2(uv.x, 1.0 - uv.y)).bgr, 1.0);
 }
 """
 
@@ -118,31 +140,45 @@ class ShaderPass:
     def __init__(self, ctx, fragment_source, vertex_source=PASSTHROUGH_VERT):
         self.ctx = ctx
         self.enabled = True
+        # Whether to clear the target FBO before drawing. A pass that draws a
+        # fullscreen quad with opaque alpha (a=1.0) fully replaces the target,
+        # so the clear is redundant — set clears=False on such passes to skip
+        # it (v13.0.0). Defaults True so unverified passes keep old behaviour.
+        self.clears = True
         self.program = ctx.program(
             vertex_shader=vertex_source,
             fragment_shader=fragment_source,
         )
         self._uniforms = {}
-        # Each pass gets its own VAO (program-specific attribute binding)
-        vbo = ctx.buffer(_QUAD_VBO_DATA)
+        self._written = {}  # last value pushed per uniform, to skip redundant sets
+        # Each pass gets its own VAO (program-specific attribute binding).
+        # Keep a reference to the VBO so cleanup() can release it (previously
+        # this was a local and leaked one buffer per pass on teardown).
+        self._vbo = ctx.buffer(_QUAD_VBO_DATA)
         self._vao = ctx.vertex_array(
             self.program,
-            [(vbo, '2f 2f', 'in_position', 'in_texcoord')],
+            [(self._vbo, '2f 2f', 'in_position', 'in_texcoord')],
         )
 
     def set_uniform(self, name, value):
         self._uniforms[name] = value
 
     def _write_uniforms(self):
+        # Skip uniforms whose value is unchanged since the last push — static
+        # uniforms (thresholds, intensities) are then set once, not every frame.
         for name, value in self._uniforms.items():
+            if self._written.get(name, _UNSET) == value:
+                continue
             if name in self.program:
                 self.program[name].value = value
+                self._written[name] = value
 
     def apply(self, input_tex, fbo_pool, quad_vao, width, height):
         """Apply this shader pass. Returns (fbo, output_texture)."""
         fbo, out_tex = fbo_pool.acquire(width, height)
         fbo.use()
-        fbo.clear(0.0, 0.0, 0.0, 1.0)
+        if self.clears:
+            fbo.clear(0.0, 0.0, 0.0, 1.0)
         input_tex.use(location=0)
         if 'tex' in self.program:
             self.program['tex'].value = 0
@@ -153,29 +189,27 @@ class ShaderPass:
     def cleanup(self):
         if self._vao:
             self._vao.release()
+        if self._vbo:
+            self._vbo.release()
         self.program.release()
 
 
-class GPURenderer:
+class GPURenderer(GpuRendererBase):
     """Core GPU rendering bridge using ModernGL shared context."""
 
-    def __init__(self, width, height):
-        self.width = width
-        self.height = height
-        self.ctx = None
-        self.enabled = False
-        self.time = 0.0
+    _PASS_TYPE = ShaderPass
 
-        # Shader effect chain
-        self._effects = {}  # name -> ShaderPass or list of ShaderPass
-        self._effect_order = []  # ordered names
-        self._effect_enabled = {}  # name -> bool
+    def __init__(self, width, height):
+        super().__init__(width, height)
+        self.ctx = None
 
         # GPU resources
         self.quad_vao = None
         self.fbo_pool = None
         self.input_texture = None
         self._passthrough = None
+        self._normalize = None
+        self._slow_upload_warned = False  # one-time guard for the tobytes warning
 
     def initialize(self):
         """Create ModernGL context sharing Pygame's OpenGL display."""
@@ -187,10 +221,21 @@ class GPURenderer:
 
             # Passthrough shader (used when no effects active, and for final output)
             self._passthrough = ShaderPass(self.ctx, PASSTHROUGH_FRAG)
+            # 'tex' always samples unit 0; bind the sampler once at init rather
+            # than re-setting the uniform every present().
+            if 'tex' in self._passthrough.program:
+                self._passthrough.program['tex'].value = 0
             self.quad_vao = self.ctx.vertex_array(
                 self._passthrough.program,
                 [(vbo, '2f 2f', 'in_position', 'in_texcoord')],
             )
+
+            # Input-normalize pass: turns the zero-copy raw upload (BGRA,
+            # top-row-first) into a GL-oriented RGBA texture the chain expects.
+            # It writes a fullscreen opaque quad, so the target clear is
+            # redundant — skip it.
+            self._normalize = ShaderPass(self.ctx, NORMALIZE_FRAG)
+            self._normalize.clears = False
 
             # FBO pool
             self.fbo_pool = FBOPool(self.ctx)
@@ -210,42 +255,8 @@ class GPURenderer:
             self.enabled = False
             return False
 
-    def _make_vao_for(self, program):
-        """Create a VAO for a given shader program using the quad VBO."""
-        vbo = self.ctx.buffer(_QUAD_VBO_DATA)
-        return self.ctx.vertex_array(
-            program,
-            [(vbo, '2f 2f', 'in_position', 'in_texcoord')],
-        )
-
-    def add_effect(self, name, shader_passes, order=None):
-        """Register a named effect (single ShaderPass or list of passes)."""
-        if isinstance(shader_passes, ShaderPass):
-            shader_passes = [shader_passes]
-        self._effects[name] = shader_passes
-        self._effect_enabled[name] = True
-        if order is not None:
-            self._effect_order.insert(order, name)
-        else:
-            self._effect_order.append(name)
-
-    def set_effect_enabled(self, name, enabled):
-        if name in self._effect_enabled:
-            self._effect_enabled[name] = enabled
-
-    def is_effect_enabled(self, name):
-        return self._effect_enabled.get(name, False)
-
-    def get_effect(self, name):
-        """Get the shader pass(es) for a named effect."""
-        passes = self._effects.get(name)
-        if passes and len(passes) == 1:
-            return passes[0]
-        return passes
-
-    def update(self, dt_ms):
-        """Advance time uniform for animated shaders."""
-        self.time += dt_ms / 1000.0
+    # Effect registry (add_effect/set_effect_enabled/is_effect_enabled/
+    # get_effect) and update() are inherited from GpuRendererBase.
 
     def present(self, pygame_surface):
         """Upload Pygame frame to GPU, run shader chain, render to screen.
@@ -256,8 +267,26 @@ class GPURenderer:
         try:
             w, h = pygame_surface.get_size()
 
-            # Upload frame to GPU texture
-            raw = pygame.image.tobytes(pygame_surface, "RGBA", True)
+            _t0 = time.perf_counter()
+
+            # Fast path: zero-copy upload of the surface's native byte buffer,
+            # skipping pygame.image.tobytes()'s per-pixel RGBA conversion
+            # (~12.5ms/frame at 2560x1440 — the dominant cost of the old
+            # pipeline). Valid only for a 32-bit BGRA surface; the bytes are
+            # BGRA + top-row-first and the normalize pass fixes channel order
+            # and orientation on the GPU. Any other format falls back to the
+            # old format-agnostic conversion (and skips normalize, since
+            # tobytes already yields RGBA + flipped).
+            fast_upload = self.is_fast_upload(pygame_surface)
+            if fast_upload:
+                raw = pygame_surface.get_buffer()
+            else:
+                if not self._slow_upload_warned:
+                    print("[GPU] WARNING: frame surface is not 32-bit BGRA; "
+                          "falling back to slow tobytes() upload (~12.5ms/frame "
+                          "at 1440p). Check display_manager.screen depth/masks.")
+                    self._slow_upload_warned = True
+                raw = pygame.image.tobytes(pygame_surface, "RGBA", True)
             if (w, h) != (self.input_texture.width, self.input_texture.height):
                 # Wait for any in-flight GPU work referencing the old
                 # texture to drain before release. Without this, some
@@ -277,9 +306,25 @@ class GPURenderer:
             self.ctx.enable(moderngl.BLEND)
             self.ctx.blend_func = (moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA)
 
+            _t_upload = time.perf_counter()
+
             # Run shader chain — early-out if every effect is disabled
-            current_tex = self.input_texture
             temp_resources = []
+            pass_count = 0
+
+            # Normalize the raw upload (flip V + BGR->RGB, force opaque) into the
+            # orientation/channel order the effect chain expects, so downstream
+            # behaviour matches the old tobytes(..., "RGBA", True) path exactly.
+            # Only needed on the fast path; the tobytes fallback is already
+            # RGBA + flipped.
+            if fast_upload:
+                norm_fbo, norm_tex = self._normalize.apply(
+                    self.input_texture, self.fbo_pool, self._normalize._vao, w, h
+                )
+                temp_resources.append((norm_fbo, norm_tex))
+                current_tex = norm_tex
+            else:
+                current_tex = self.input_texture
 
             any_enabled = any(
                 self._effect_enabled.get(name, False)
@@ -299,6 +344,9 @@ class GPURenderer:
                         )
                         temp_resources.append((fbo, out_tex))
                         current_tex = out_tex
+                        pass_count += 1
+
+            _t_chain = time.perf_counter()
 
             # Render final result to default framebuffer (the display)
             self.ctx.screen.use()
@@ -316,11 +364,19 @@ class GPURenderer:
             self.ctx.screen.viewport = (0, 0, dw, dh)
 
             current_tex.use(location=0)
-            if 'tex' in self._passthrough.program:
-                self._passthrough.program['tex'].value = 0
+            # 'tex' sampler bound to unit 0 once at init (see initialize()).
             self.quad_vao.render(moderngl.TRIANGLE_STRIP)
 
             pygame.display.flip()
+
+            _t_present = time.perf_counter()
+            self.last_timings = {
+                "upload": (_t_upload - _t0) * 1000.0,
+                "chain": (_t_chain - _t_upload) * 1000.0,
+                "present": (_t_present - _t_chain) * 1000.0,
+                "passes": pass_count,
+                "fast_upload": fast_upload,
+            }
 
             # Release temp FBOs back to pool
             for fbo, tex in temp_resources:
@@ -358,6 +414,8 @@ class GPURenderer:
             self._effects.clear()
             if self._passthrough:
                 self._passthrough.cleanup()
+            if self._normalize:
+                self._normalize.cleanup()
             if self.input_texture:
                 self.input_texture.release()
             if self.fbo_pool:

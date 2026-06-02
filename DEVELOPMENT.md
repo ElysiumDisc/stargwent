@@ -240,12 +240,13 @@ Hybrid rendering: Pygame draws to offscreen surface → uploaded to ModernGL for
 
 | File | Purpose |
 |------|---------|
+| `gpu_renderer_base.py` | `GpuRendererBase` — backend-agnostic effect registry, time uniform, upload format guard (shared by both renderers, v13.0.0) |
 | `gpu_renderer.py` | `GPURenderer`, `ShaderPass`, `FBOPool` — ModernGL backend (GLSL 330) |
 | `webgl_renderer.py` | PyOpenGL/raw GL ES backend for web (GLSL 300 es) |
 | `shaders/__init__.py` | Effect registry, `glsl_version_header()` for desktop/web |
 | `shaders/*.py` | 15 effects: bloom, vignette, CRT, distortion, event_horizon, kawoosh, hyperspace, shockwave, asgard_beam, zpm_surge, shield_bubble, black_hole, ascension, priors_plague, replicator_swarm |
 
-**Rendering flow:** Game → `display_manager.screen` → `gpu_flip()` → `tobytes()` → texture upload → shader chain → `ctx.screen` → `pygame.display.flip()`
+**Rendering flow (v13.0.0):** Game → `display_manager.screen` (32-bit) → `gpu_flip()` → **zero-copy `surface.get_buffer()`** → texture upload → **normalize pass (flip V + BGR→RGB)** → shader chain → `ctx.screen` → `pygame.display.flip()`. The old per-frame `pygame.image.tobytes(..., "RGBA", True)` conversion (~12.5 ms/frame at 2560×1440) is gone; it remains only as a fallback for non-32-bit-BGRA surfaces (in which case the normalize pass is skipped, since `tobytes` already yields RGBA + flipped). Run `verify_gpu_pipeline.py` to confirm the fast path stays pixel-identical to the old one.
 
 **Adding a shader:** Create `shaders/my_effect.py` with `ShaderPass` → register in `register_all_effects()` → if animation-driven, add `get_gpu_params()` to animation class + handle in `frame_renderer._apply_gpu_params()`. Use `display_manager.is_gpu_available()` for consistent GPU null checks.
 
@@ -304,7 +305,7 @@ If a 26.04 host has AppArmor's unprivileged userns restriction enabled
 still fail to mount its embedded squashfs. Fallback:
 
 ```bash
-./Stargwent-12.8.0-linux-x86_64.AppImage --appimage-extract-and-run
+./Stargwent-13.2.0-linux-x86_64.AppImage --appimage-extract-and-run
 ```
 
 ### Version bump procedure
@@ -374,9 +375,9 @@ methods:
 
 **Method 1 — Tag push (creates draft GitHub Release):**
 ```bash
-git tag v12.8.0
+git tag v13.2.0
 git push origin main
-git push origin v12.8.0
+git push origin v13.2.0
 ```
 Creates a **draft** GitHub Release with all 4 platform artifacts
 attached. Go to Releases to review and publish.
@@ -550,14 +551,14 @@ Vampire Survivors-style infinite survival. Package: `space_shooter/`
 
 | File | ~Lines | Description |
 |------|--------|-------------|
-| `__init__.py` | 330 | `run_space_shooter()`, `run_coop_space_shooter()`, disconnect handling |
-| `game.py` | 3700 | SpaceShooterGame — update, draw, collisions, upgrades, bosses, miniships |
-| `ship.py` | 1500 | Ship class, SHIP_VARIANTS, player + 9 AI behaviors + miniship AI |
-| `projectiles.py` | 800 | 13 projectile types |
-| `entities.py` | 1670 | Asteroid, PowerUp (33 types), XPOrb, Sun (5 phases), Supergate, Explosion |
-| `effects.py` | 270 | StarField, ScreenShake, ParticleTrail |
-| `upgrades.py` | 300 | 27 upgrades, 5 evolutions, 9 masteries, 15 enemy types |
-| `ui.py` | 500 | HUD, timer, radar, level-up cards, game over |
+| `__init__.py` | 400 | `run_space_shooter()`, `run_coop_space_shooter()`, disconnect handling |
+| `game.py` | 4400 | SpaceShooterGame — update, draw, collisions, upgrades, bosses, miniships |
+| `ship.py` | 2050 | Ship class, SHIP_VARIANTS, player + 9 AI behaviors + miniship AI |
+| `projectiles.py` | 1350 | 13 projectile types |
+| `entities.py` | 1890 | Asteroid, PowerUp (33 types), XPOrb, Sun (5 phases), Supergate, Explosion |
+| `effects.py` | 300 | StarField, ScreenShake, ParticleTrail |
+| `upgrades.py` | 310 | 27 upgrades, 5 evolutions, 9 masteries, 15 enemy types |
+| `ui.py` | 570 | HUD, timer, radar, level-up cards, game over |
 | `camera.py` | 140 | Smooth follow, culling, co-op spawn ring |
 | `spawner.py` | 280 | 10 tiers, paired/swarm spawning |
 | `ship_select.py` | 200 | Ship + variant selection |

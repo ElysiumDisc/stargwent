@@ -1,3 +1,404 @@
+### Version 13.2.0 — "Twelfth-Pass Audit: Combo State + Trail Budget" (June 2026)
+**Audit pass across the card-game core, the Space Shooter, and the
+transition/GPU layers. Three Explore agents produced ~30 candidate findings;
+each was re-verified against current source before any edit — roughly half were
+intentional design or outright misreads and are listed below so the next pass
+doesn't re-chase them. Two genuine correctness bugs fixed (a cross-player combo
+state leak and a session-long particle-budget leak) plus low-risk hardening and
+a per-frame allocation cleanup. No gameplay-rule changes.**
+
+**Card game — Lucian Network combo was shared between both players**
+- `game.py` — `LUCIAN_NETWORK_COMBO` was a module-level singleton, so its
+  per-round `triggered_this_round` flag was shared across both players. Once
+  player 1's 2nd spy triggered the bonus draw, player 2's identical 2-spy play
+  in the same round was silently blocked until the next round. The combo is now
+  a per-player instance (`Player.lucian_network_combo`), checked/applied against
+  the acting player and reset per player in `_cleanup_round()`. The unused
+  global was removed.
+
+**Space Shooter — trail-particle budget leak (trails faded out over a session)**
+- `space_shooter/projectiles.py` — the global `_trail_particle_count` budget was
+  decremented only when trail particles expired naturally. A projectile removed
+  mid-flight (off-screen cull, collision, point-defense) kept live particles
+  that were never refunded, so the counter drifted up until
+  `_can_add_particle()` permanently returned False and **all** projectile trails
+  stopped rendering. Added `Projectile.release_trail()` (refunds outstanding
+  particles, gated by a per-class `_trail_counted` flag so untracked trails like
+  RailgunShot aren't mis-counted) and call it at every removal site in
+  `space_shooter/game.py`.
+
+**Space Shooter — per-frame trail pruning allocation**
+- `space_shooter/projectiles.py` — `Laser`/`AncientDrone`/`Missile`/`PlasmaLance`
+  `update()` rebuilt the trail list twice per frame via two list comprehensions
+  (one to collect expired particles to refund, one to keep survivors). Folded
+  into a single in-place pass that fades, refunds, and keeps in one loop.
+
+**Space Shooter — degenerate beam direction hardening**
+- `space_shooter/projectiles.py` — `ContinuousBeam.__init__` now guards against a
+  zero/near-zero direction vector (defaults to straight up, a handled cardinal),
+  preventing a zero-length beam with a degenerate hitbox if a future caller ever
+  passes `(0, 0)`. (The live auto-aim path is already safe — the nearest-enemy
+  search rejects targets within 5px, so normalization can't divide by ~0.)
+
+**Transitions — per-frame full-screen surface allocation**
+- `transitions.py` — the "first player" transition allocated a fresh
+  2560×1440 SRCALPHA overlay every frame. Routed through a new cached
+  `_get_scratch_overlay()` (fill-then-blit, safe to reuse since only one
+  transition draws at a time).
+
+**Verified NOT bugs (re-checked against source; left unchanged)**
+- **O'Neill clone decrement "crash":** `Game.decrement_all_clone_tokens()` is a
+  real method that correctly iterates both players; no `AttributeError`.
+- **Faction `reset_round()` "never called":** it *is* called per player at the
+  end of every round (`game.py` ~3251 and the remote path ~3458).
+- **Cronus leader "off-by-one round bonus":** `round_number` is incremented
+  *before* `_cleanup_round()` copies it into `current_round_number`, so Cronus
+  correctly scales +1/+2/+3 across rounds 1/2/3.
+- **Rak'nor "can't play 2nd card":** the bonus play is delivered via the
+  `switch_turn()` bounce-back (which resets `plays_this_turn`); the in-`play_card`
+  `max_plays_this_turn=2` branch is redundant but harmless.
+- **Projectile removal "off-by-one leak":** reverse-sorted, de-duplicated `pop`
+  with a bounds check is the correct pattern; no accumulation.
+- **Scorch double `calculate_score`:** kept intentionally — it refreshes
+  `displayed_power` so the correct max-power targets are picked, and only runs on
+  a scorch event (not a hot path).
+
+### Version 13.1.1 — "Pass-Turn Deadlock Fix" (June 2026)
+**Bugfix release. Fixes a turn-flow deadlock where the AI opponent would
+loop forever after the human passed, plus two related latent infinite-loops
+in the AI turn pipeline. No new gameplay rules.**
+
+**Turn flow — the main fix (affected every opponent)**
+- `game.py` `switch_turn()` — when a player had passed, the per-turn play
+  counter `plays_this_turn` was reset only for the player the switch first
+  landed on. The passed-player skip then bounced the turn back to the
+  *active* player without resetting *their* counter, so once the opponent
+  passed the active player's `plays_this_turn` stuck at ≥1 and
+  `play_card()`'s limit guard (`plays_this_turn >= max_plays_this_turn`)
+  silently rejected every play after the first. For the AI this surfaced as
+  an infinite loop (it re-selected a card whose play was always rejected and
+  never reached the "out of cards → pass" exit); for a human it silently
+  capped you at one card per round after the AI passed. The bounce branch now
+  resets the active player's `plays_this_turn`.
+
+**AI turn pipeline — related latent loops hardened**
+- `ai_opponent.py` `choose_move()` (the animated path used in-game) didn't
+  handle the `'hathor_ability'` action that `decide_action()` can return, so
+  a Hathor-leader AI fell through to a no-op and looped. It now triggers the
+  steal (mirroring `take_turn()`), letting the existing auto-started
+  `HathorStealAnimation` own the turn switch.
+- `main.py` — the AI block now pauses while a Hathor steal animation is in
+  flight, and the no-card branch forces a pass on any genuinely empty
+  decision, so an unhandled future action type can never spin the AI's turn
+  forever.
+
+### Version 13.1.0 — "Eleventh-Pass Audit + Spatial Collisions" (June 2026)
+**Audit pass across all four subsystems (card-game core, GPU/shader
+pipeline, Space Shooter, frame loop), with the per-frame allocation hot
+paths and the remaining O(n²) space-shooter collision loops as the focus.
+Three Explore agents produced ~40 candidate findings; each was
+re-verified against current source before any edit — roughly a third
+were intentional design or outright misreads and are listed below so the
+next pass doesn't re-chase them. No gameplay-rule changes this release.**
+
+**Frame performance — kill per-frame allocations**
+- `render_engine.py` `draw_leader_column()` — the leader-column score box
+  was cached but then `.copy()`'d every frame to stamp the score text, so
+  each player burned a fresh SRCALPHA surface + text render per frame. The
+  cache key now includes `player.score`, so the fully composited box+score
+  is built once per distinct score and the hot path is a single blit.
+- `space_shooter/entities.py`, `projectiles.py` — `Explosion.draw` and
+  `EnergyBall.draw` allocated a new SRCALPHA surface **per particle per
+  frame** (40-60 particles/explosion). Both now route through the existing
+  bounded-LRU `effects._get_cached_circle` helper. `PopupNotification`
+  re-rendered its (static) text and allocated a surface every frame; text
+  is now pre-rendered once in `__init__`, mirroring `DamageNumber`.
+- `main.py` / `game_loop_state.py` — the card drag-trail rebuilt its whole
+  list via comprehension every frame. It's now a `deque(maxlen=50)`;
+  expired blobs (always the oldest, since all share a start alpha + uniform
+  decay) are popped from the front in place (O(1) each).
+
+**Space Shooter — spatial-grid collision queries (the real O(n²) win)**
+- `space_shooter/game.py` — 13.0.0 dropped the sqrt from the nearest-enemy
+  lookups but they still scanned **all** `ai_ships` per projectile. The two
+  homing paths (Targeting Computer / Ancient Tech, and built-in
+  `homing_strength` drone pulses) and the player beam's target gather now
+  query the per-frame `spatial_grid` for nearby candidates via a new
+  `_nearest_enemy()` helper, falling back to a full scan only when the
+  local query is empty — identical target selection, near-O(1) in dense
+  waves. A per-frame `_ai_ship_set` distinguishes ships from asteroids in
+  the shared grid in O(1). (`verify_gpu_pipeline.py`'s squared-distance
+  equivalence check still passes.)
+
+**Logic hardening — defensive, no behaviour change in the normal path**
+- `game.py` — `cards_played_this_round[...]` direct indexing (Rak'nor /
+  Hammond / Kiva / spy-convert paths) switched to `.get(player, 0)` and a
+  get-based increment, so a replaced player object can't `KeyError`.
+- `game.py` `trigger_muster()` — guards each hand/deck removal with a
+  membership check so a card pulled by a concurrent ability mid-muster
+  can't raise `ValueError`; the mustered-count reflects what was actually
+  moved.
+- `space_shooter/game.py` — the Prior Plague tracker was keyed by
+  `id(enemy)` and did an O(n) linear scan to re-resolve each id to its
+  object every tick. It's now keyed by the enemy object directly with an
+  `alive = set(self.ai_ships)` prune, removing the scan and the
+  (theoretical) id()-reuse aliasing risk.
+- `space_shooter/projectiles.py` — `_drone_rotated_cache` used arbitrary
+  FIFO-ish eviction; it's now a true `OrderedDict` LRU (`move_to_end` on
+  hit, `popitem(last=False)` on evict), matching the other sprite caches.
+
+**GPU / shader pipeline**
+- `gpu_renderer.py` — the silent fall back to the slow
+  `pygame.image.tobytes(...)` upload (when a surface isn't 32-bit BGRA) now
+  prints a one-time warning and exposes `fast_upload` in `last_timings`, so
+  a format regression surfaces in logs / the F3 overlay instead of
+  silently costing ~12.5 ms/frame. Deleted the dead `_make_vao_for` method
+  (unused; it leaked an orphan VBO). The final-composite passthrough's
+  `tex` sampler is now bound to unit 0 once at init rather than re-set every
+  `present()`.
+- `webgl_renderer.py` — the input-texture reallocation on a resize now
+  issues `glFinish()` first to drain in-flight GPU reads of the old store
+  before freeing it (guards against driver-specific garbage/leaks). Only
+  runs on the rare resize, not the hot path. (Web GPU path remains dormant
+  / unverified on real Emscripten.)
+
+**Audit candidates checked but not shipped** (verified false positives or
+intentional design — documented so the next pass skips them):
+- *Draw round awards both players a win → "ambiguous game-over"* —
+  intentional best-of-3 Gwent. A drawn round legitimately gives both
+  players a round; the double-≥2 mutual-draw branch is correct.
+- *Rak'nor `turn_count -= 1` drifts the turn counter* — it deliberately
+  cancels the `+= 1` at the top of `switch_turn()` so a granted bonus play
+  isn't counted as a new turn. Net-zero by design.
+- *Drone powerup clears `self.drones` instead of appending* — intentional
+  refresh-to-3 on re-pickup, not a stacking bug.
+- *`ancient_ascension` speed never restored* — false positive; speed is
+  restored in `_expire_powerup` alongside the damage multiplier.
+- *Disconnect-overlay fonts allocated per frame* — false positive; the
+  `SysFont` calls are above the overlay's render loop, run once.
+- *`TunnelVortex` pulls toward `enemy.y` (top) not centre* — false
+  positive; `Ship.get_rect` returns `y - height//2` as the top, so
+  `enemy.y` already **is** the vertical centre.
+- *Wraith/Ori boss glow surface allocated every frame* — false positive;
+  it's one-time boss-spawn setup baked into `boss.image`.
+
+**Deliberately deferred (maintainability-only, NOT shipped):** hoisting the
+near-duplicate effect-chain dispatch into `GpuRendererBase`, and replacing
+the hardcoded opaque-effect list in `shaders/__init__.py` with an
+`opaque=` registration flag. Both touch the dormant, hard-to-test WebGL
+path for a cleanliness-only gain; the regression risk outweighs it
+immediately before a release. The current code is centralised and
+documented.
+
+**Verification status:** `verify_gpu_pipeline.py` passes headlessly
+(pixel-identical normalize, clear-removal byte-identical, squared-distance
+equivalence). Headless import + functional smoke tests pass for the edited
+modules (card play / muster guard, space-shooter update ticks, the
+`_nearest_enemy` grid filter + fallback, the cached-circle and drone-LRU
+paths). The live in-game FPS A/B on a real display still wants a manual run.
+
+**File / version surface bumps**
+- `game_config.py` `GAME_VERSION` 13.0.0 → 13.1.0
+- `metadata.json` `version` 13.0.0 → 13.1.0
+- `README.md` version badge → 13.1.0
+- `DEVELOPMENT.md` build-instruction example version strings → 13.1.0
+
+---
+
+### Version 13.0.0 — "GPU Pipeline Refresh" (May 2026)
+**First feature-driven major release after a long run of audit-only 12.x
+passes. Anchored on the long-deferred render-pipeline bottleneck: every
+frame, the full 2560×1440 offscreen surface was run through
+`pygame.image.tobytes(surface, "RGBA", True)` — a pure-CPU pixel-format
+conversion measured at ~12.5 ms/frame, capping the game at ~80 fps from
+CPU work alone before any GPU rendering.**
+
+**The fix — zero-copy upload + GPU normalize:** The surface's native byte
+buffer is now handed straight to the GPU (`surface.get_buffer()` →
+`texture.write()` / `glTexSubImage2D`), eliminating the per-frame
+conversion (~12.5 ms → ~0 ms CPU on the upload step). The raw bytes are
+BGRA and top-row-first, so a tiny GPU "normalize" pass (flip V + BGR→RGB,
+forced opaque) restores the exact orientation and channel order the old
+`tobytes(..., "RGBA", True)` path produced. Verified **pixel-identical**
+(0 of 24,000 pixels differ on an asymmetric 4-corner test) so every
+downstream effect behaves unchanged. A format guard keeps the old
+conversion as a safe fallback for any non-32-bit-BGRA surface.
+
+**Also in this release:**
+- **Web parity** (`webgl_renderer.py`): stops reallocating the input
+  texture every frame (`glTexImage2D` → `glTexSubImage2D` on a persistent
+  texture) and applies the same guarded zero-copy + normalize. NOTE: the
+  web GPU path is currently dormant (web uses the Pygbag canvas), so these
+  changes are unverified on real Emscripten; the format guard keeps them
+  safe.
+- **Shared core** (`gpu_renderer_base.py`, new): the effect registry,
+  time-uniform advance, and upload format guard — previously duplicated
+  byte-for-byte between the desktop and web renderers — now live in a
+  `GpuRendererBase` both inherit, so the backends only carry what genuinely
+  differs (the GL API).
+- **Debug overlay**: the F3 debug overlay now shows a per-frame GPU timing
+  breakdown (upload / shader-chain / present ms + pass count), instrumented
+  in both renderers' `present()`.
+- **Per-pass cleanups**: fixed a GPU buffer leak (each `ShaderPass` leaked
+  its quad VBO on teardown) and added a value-based uniform write-cache so
+  static uniforms are pushed once, not every frame.
+- **Tooling**: `verify_gpu_pipeline.py` — a runnable correctness check
+  (normalize pass vs old path, pixel-exact) plus the upload micro-benchmark.
+
+**Round 2 — more CPU/GPU/algorithm wins (all pixel-identical / no gameplay change):**
+- **Adaptive frame pacing** (`main.py`): the card-game loop ran flat-out at
+  144 fps regardless of state. It now throttles genuinely idle/non-interactive
+  states — paused (30), waiting on a LAN opponent (30), single-player AI turn
+  (60), static game-over (30) — while keeping full fps for any animation and
+  the player's own turn. Competitive mode keeps full fps for precise timing
+  (paused excepted). Big CPU/GPU/battery saving with no visual or input-latency
+  change; the next frame snaps back to full fps the moment something moves.
+- **Space-shooter hot loops** (`space_shooter/game.py`): replaced per-frame
+  `math.hypot` (sqrt) with squared-distance in the 5 despawn culls, all
+  nearest-enemy `min`/`sorted` target lookups (homing, railgun, several
+  weapons), and the cluster-target threshold — same results, no sqrt, at
+  60 fps with many entities. (Distance values used for vector normalization
+  keep `hypot`.)
+- **Safe per-pass FBO-clear removal** (`gpu_renderer.py`, `shaders/__init__.py`):
+  the always-on chain passes (normalize, bloom×4, vignette, CRT) each draw a
+  fullscreen quad with opaque alpha, so the per-pass `fbo.clear()` is pure
+  waste — now skipped via an opt-in `ShaderPass.clears` flag (default `True`,
+  so unverified/animation passes are unchanged). Verified byte-identical with
+  blend enabled over a pre-dirtied FBO. Desktop-only (the WebGL backend never
+  cleared per pass). ~0.3-0.5 ms/frame.
+- The `verify_gpu_pipeline.py` harness gained checks for the clear-removal
+  (byte-identical, blend on) and the squared-distance equivalence (argmin /
+  sort-order / threshold).
+
+**Deliberately deferred (measure-first, NOT shipped):** double-buffered PBO
+streaming uploads (once the conversion is gone, the residual DMA is unlikely
+to be the bottleneck under vsync) and dirty-rect / partial uploads (the game
+redraws the full frame; region tracking across all renderers is a much larger
+effort). The pipeline is faster, not "fully optimized."
+
+**Verification status:** the automatable checks (pixel-identical correctness
++ CPU upload micro-benchmark) pass headlessly via `verify_gpu_pipeline.py`.
+The live in-game FPS A/B, fullscreen-toggle, and GPU-init-failure fallback
+still want a manual run on a real display.
+
+### Version 12.9.0 — "Tenth-Pass Audit + Layered Weather" (May 2026)
+**Audit pass plus one deliberate gameplay-rule change: weather now
+layers under bonuses (classic Gwent) instead of erasing them. ~25
+candidate findings triaged, 6 verified-real fixes shipped, ~7
+confirmed false positives or intentional design.**
+
+Three Explore agents covered card-game core, the rendering pipeline,
+the Space Shooter, and Galactic Conquest. As in every audit since
+12.7.0, each finding was re-verified against current source before any
+code change — the agent reports are a hint, not the diff. Most of this
+round's "high severity" agent findings were false positives (Ori
+shield init, a phantom dict-mutation crash, a docstring-correct
+single-copy removal); they are listed below so the next pass doesn't
+re-chase them.
+
+**Card game — weather no longer erases horn/bond/morale (rule change)**
+- `game.py` `calculate_score()` — 12.8.0 documented the weather-floor
+  clobber as design intent, but it diverged from classic Gwent and was
+  reconsidered: a weathered unit under a Command Network or in a
+  Tactical Formation bond previously collapsed to 1 regardless of any
+  buff. The 5-pass pipeline was restructured so the weather floor is
+  folded into each card's *base* in Pass 1 (non-Hero → 1, Survival
+  Instinct → base + 2), and the additive (Hammond/Ka'lel/Inspiring
+  Leadership), Tactical Formation, and Horn/ZPM passes then layer on
+  top of that floor. The Tactical Formation pass now multiplies the
+  stashed effective base (`_score_base`) rather than raw `power`, so
+  bond can't undo the weather floor. Pass 5 is now a pure summation.
+  Net effect: weather + horn = 2 (not 1), weather + Hammond +3 = 4,
+  weather + bond pair = 2 each. Heroes still ignore weather entirely.
+  Verified with a 10-case scoring matrix.
+- This intentionally reverses the 12.8.0 "design intent" note;
+  `docs/rules_menu_spec.md` updated to match.
+
+**Card game — drop transient displayed_power clobber**
+- `game.py` `trigger_life_force_drain` / `trigger_system_lords_curse`
+  — both reduced `card.power` (correct, persistent) and then forced
+  `displayed_power = min(displayed_power, new_power)`. Because Pass 1
+  of `calculate_score` resets `displayed_power = power` on every
+  recalc, that second line was dead except for a one-frame window
+  where the UI could show a bonus-stripped value between the trigger
+  and the next recalc. Removed; the persistent `power` change stands.
+
+**Transitions — cached vertical gradients**
+- `transitions.py` — three screens (game-over scoreboard, fallback
+  leader card, game-over panel) rebuilt a static vertical gradient
+  with a per-pixel `for y: pygame.draw.line()` loop *every frame*
+  (hundreds of draw calls/frame at the internal resolution). New
+  module-level `_get_vgradient(w, h, top, bottom, alpha)` bounded LRU
+  cache; each gradient is rasterised once and blitted thereafter. The
+  game-over panel's animated fade is reproduced exactly by caching at
+  full alpha and scaling only the alpha channel via a
+  `BLEND_RGBA_MULT` fill (avoids the premultiplied-colour darkening a
+  naive set_alpha RGB blit would introduce).
+
+**Transitions — font cache**
+- `transitions.py` — several transition draw functions ran
+  `pygame.font.SysFont(...)` at the top of a per-frame draw (and one
+  inside the animating title-scale block), rebuilding identical fonts
+  every frame. New bounded `_get_font(size, bold)` cache; per-frame
+  `SysFont` call sites routed through it.
+
+**Animations — drop redundant per-frame surface copy**
+- `animations.py` — two card-slide draws did
+  `self._cached_scaled_card.copy()` then `set_alpha()`. `set_alpha`
+  is a surface-level flag (no pixel mutation) and the cached surface
+  is used nowhere else, so the per-frame `.copy()` was pure waste.
+  Applied alpha directly to the cached surface.
+
+**Render engine — bound the last unbounded cache**
+- `render_engine.py` — `_surface_cache` (hand-background/overlay
+  surfaces) had no eviction. Its key space is tiny in practice
+  (resolution-dependent), but it's now bounded at 32 for consistency
+  with the module's other caches.
+
+**Audit candidates checked but not shipped**
+
+Re-verifying agent findings against current source caught these as
+either false positives, already-correct, or intentional. Documented
+for the next audit pass.
+
+- *Ori fighter `_shield_max` never initialised* — false positive.
+  `space_shooter/spawner.py:257` sets `_shield_max = _shield_hp` for
+  the shielded-charge behaviour, and `ship.py:370-371` zero-inits
+  both on every ship.
+- *`CampaignState.tick_cooldowns` "dictionary changed size during
+  iteration" crash* — false positive. The loop only mutates *values*
+  of existing keys (safe) and collects expired keys into a list,
+  deleting them *after* the loop. No `RuntimeError` is possible.
+- *`CampaignState.remove_card` only removes one copy of a duplicated
+  card* — intentional; the docstring is literally "Remove one copy."
+- *Enemy separation force capped at ~12 not the documented 8*
+  (`space_shooter/ship.py:1212,2030`) — false positive. The outer
+  `min(8.0, 120.0/max(sdist,10))` caps the force at exactly 8.0;
+  `max(sdist, 10)` is a redundant divide-by-zero guard inside an
+  `sdist > 1` branch.
+- *Co-op `_nearest_alive_ship` returns a dead ship as fallback*
+  (`space_shooter/coop_game.py`) — non-issue. Both-players-dead means
+  game-over; the fallback returns a non-None ship so callers never
+  hit a None deref. Adding a None guard would *introduce* a crash at
+  the `target.y` read.
+- *Matter-converter double-remove / stale reference* — not
+  reproduced; the cited lines are harmless concentric-circle draw
+  code in `entities.py`.
+- *Per-frame GPU uniform / effect-toggle churn*
+  (`frame_renderer.py`) — `set_uniform`, `set_effect_enabled`, and
+  `set_distortion_points` only write Python dicts; no GPU work happens
+  until an enabled effect's `apply()` runs. Change-detection would add
+  complexity for sub-microsecond savings.
+
+**File / version surface bumps**
+- `game_config.py` `GAME_VERSION` 12.8.0 → 12.9.0
+- `metadata.json` `version` 12.8.0 → 12.9.0
+- `README.md` version badge → 12.9.0
+- `DEVELOPMENT.md` build-instruction example version strings → 12.9.0
+- `docs/rules_menu_spec.md` weather rule updated to layered behaviour
+
+---
+
 ### Version 12.8.0 — "Ninth-Pass Audit + Living Galaxy II" (May 2026)
 **Audit pass plus three larger improvements pulled in from the
 deferred backlog: map-renderer label caching, AI-to-AI diplomatic

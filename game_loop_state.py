@@ -8,6 +8,7 @@ from main() accept ``state: GameLoopState`` instead of long parameter lists.
 from __future__ import annotations
 
 import pygame
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Optional
 from pygame.math import Vector2
@@ -46,7 +47,7 @@ class GameLoopState:
     drag_target_x: int = 0
     drag_target_y: int = 0
     drag_velocity: Vector2 = field(default_factory=Vector2)
-    drag_trail: list = field(default_factory=list)
+    drag_trail: deque = field(default_factory=lambda: deque(maxlen=50))
     drag_trail_emit_ms: int = 0
     drag_pickup_flash: float = 0.0
     drag_pulse: float = 0.0

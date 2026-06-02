@@ -719,8 +719,15 @@ def build_spec(ability_info: dict | None = None) -> str:
     for items in unlock_by_faction.values():
         items.sort(key=lambda c: (-c["power"], c["name"]))
 
+    # Count leaders dynamically from the catalog so the summary never goes
+    # stale when leaders are added (was hardcoded to 35).
+    leader_count = sum(
+        len(v.get("base", [])) + len(v.get("unlockable", []))
+        for v in leader_catalog.values()
+    )
+
     parts: list[str] = []
-    parts.append(f"# Stargwent Rule Menu UI Specification\n\nGenerated on {now} using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers {sum(len(v) for v in card_catalog.values())} core cards + {len(unlock_entries)} unlockables + 35 leaders.")
+    parts.append(f"# Stargwent Rule Menu UI Specification\n\nGenerated on {now} using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers {sum(len(v) for v in card_catalog.values())} core cards + {len(unlock_entries)} unlockables + {leader_count} leaders.")
 
     parts.append(dedent(
         """
@@ -735,13 +742,13 @@ def build_spec(ability_info: dict | None = None) -> str:
     ))
 
     parts.append(dedent(
-        """
+        f"""
         ## Tab Directory & Behaviors
         1. Basic Rules – onboarding, objectives, deck requirements, controls, DHD/Iris primer.
         2. Turn Structure – mulligan timing, action economy, scoring, pass/round logic.
         3. Card Types & Rarity – rows, specials, weather, hero tags, rarity color codes.
         4. Faction Abilities – passive traits, once-per-game Faction Powers, unique mechanics.
-        5. Leader Cards & Abilities – mechanical reference for all 35 leaders (base + unlock).
+        5. Leader Cards & Abilities – mechanical reference for all {leader_count} leaders (base + unlock).
         6. Unit Abilities A–Z – glossary of every keyword from Tactical Formation to Wormhole Stabilization.
         7. Special Cards – detailed behavior for weather, Command Network, Naquadah Overload, artifacts, combo systems.
         8. Status Effects – explanation of weather slots, horn slots, hand reveals, Ka'lel/Hammond flags, DHD state, Iris readiness.
@@ -786,7 +793,7 @@ def build_spec(ability_info: dict | None = None) -> str:
 
         - **Unit Rows:** Close (melee), Ranged, Siege, and Agile (may occupy close or ranged). Agile cards inherit row bonuses from whichever lane they occupy when scores are evaluated.
         - **Special Cards:** One-shot effects such as Command Network (horn), Naquadah Overload (Scorch), Medical Evac (revive), Ring Transport (recall). They occupy the special row in decks and resolve immediately.
-        - **Weather Cards:** Ice Planet Hazard (close), Nebula Interference (ranged), Asteroid Storm (siege), Electromagnetic Pulse (any row). Wormhole Stabilization clears all hazards. Weather reduces non-Hero units to 1 power unless they have Survival Instinct; Hermiod and Freyr modify targeting.
+        - **Weather Cards:** Ice Planet Hazard (close), Nebula Interference (ranged), Asteroid Storm (siege), Electromagnetic Pulse (any row). Wormhole Stabilization clears all hazards. Weather floors non-Hero units to 1 power (Survival Instinct units to their base + 2), but Command Network (horn), Tactical Formation bonds, and morale bonuses still apply *on top of* that floor — matching classic Gwent (as of v12.9.0; prior versions overwrote all bonuses). Hermiod and Freyr modify targeting.
         - **Legendary Commanders:** Immune to most removal, cannot be doubled by horns, ignore weather/scorch, and power leader synergy (Heimdall/Aegir). Identified by golden frames.
         - **Tokens:** Shield Maidens (2 power) and Asgard Avengers (5 power) spawned by Deploy Clones/Activate Combat Protocol inherit faction tags but are not part of your deck list.
         - **Rarity Palette:** Commons (silver), Rare (blue), Epic (purple), Legendary (gold). Base decks mostly common/rare, while unlockables include epics and legendaries like Atlantis City or Dakara Superweapon.

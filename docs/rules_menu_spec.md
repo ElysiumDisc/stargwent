@@ -1,6 +1,6 @@
 # Stargwent Rule Menu UI Specification
 
-Generated on 2026-03-16 20:06 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 287 core cards + 24 unlockables + 35 leaders.
+Generated on 2026-06-02 03:43 UTC using cards.py, content_registry.py, unlocks.py, game.py, and README.md. Covers 287 core cards + 24 unlockables + 40 leaders.
 
 ## UI Overview
 - Accessible from the Main Menu via the new `RULE MENU` option; loads instantly without blocking gameplay assets.
@@ -16,7 +16,7 @@ Generated on 2026-03-16 20:06 UTC using cards.py, content_registry.py, unlocks.p
 2. Turn Structure – mulligan timing, action economy, scoring, pass/round logic.
 3. Card Types & Rarity – rows, specials, weather, hero tags, rarity color codes.
 4. Faction Abilities – passive traits, once-per-game Faction Powers, unique mechanics.
-5. Leader Cards & Abilities – mechanical reference for all 35 leaders (base + unlock).
+5. Leader Cards & Abilities – mechanical reference for all 40 leaders (base + unlock).
 6. Unit Abilities A–Z – glossary of every keyword from Tactical Formation to Wormhole Stabilization.
 7. Special Cards – detailed behavior for weather, Command Network, Naquadah Overload, artifacts, combo systems.
 8. Status Effects – explanation of weather slots, horn slots, hand reveals, Ka'lel/Hammond flags, DHD state, Iris readiness.
@@ -52,7 +52,7 @@ Generated on 2026-03-16 20:06 UTC using cards.py, content_registry.py, unlocks.p
 
 - **Unit Rows:** Close (melee), Ranged, Siege, and Agile (may occupy close or ranged). Agile cards inherit row bonuses from whichever lane they occupy when scores are evaluated.
 - **Special Cards:** One-shot effects such as Command Network (horn), Naquadah Overload (Scorch), Medical Evac (revive), Ring Transport (recall). They occupy the special row in decks and resolve immediately.
-- **Weather Cards:** Ice Planet Hazard (close), Nebula Interference (ranged), Asteroid Storm (siege), Electromagnetic Pulse (any row). Wormhole Stabilization clears all hazards. Weather reduces non-Hero units to 1 power unless they have Survival Instinct; Hermiod and Freyr modify targeting.
+- **Weather Cards:** Ice Planet Hazard (close), Nebula Interference (ranged), Asteroid Storm (siege), Electromagnetic Pulse (any row). Wormhole Stabilization clears all hazards. Weather floors non-Hero units to 1 power (Survival Instinct units to their base + 2), but Command Network (horn), Tactical Formation bonds, and morale bonuses still apply *on top of* that floor — matching classic Gwent (as of v12.9.0; prior versions overwrote all bonuses). Hermiod and Freyr modify targeting.
 - **Legendary Commanders:** Immune to most removal, cannot be doubled by horns, ignore weather/scorch, and power leader synergy (Heimdall/Aegir). Identified by golden frames.
 - **Tokens:** Shield Maidens (2 power) and Asgard Avengers (5 power) spawned by Deploy Clones/Activate Combat Protocol inherit faction tags but are not part of your deck list.
 - **Rarity Palette:** Commons (silver), Rare (blue), Epic (purple), Legendary (gold). Base decks mostly common/rare, while unlockables include epics and legendaries like Atlantis City or Dakara Superweapon.

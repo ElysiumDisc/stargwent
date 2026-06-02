@@ -1181,6 +1181,14 @@ class AIController:
         
         if action_type == 'play' and card:
             return (card, row)
+        elif action_type == 'hathor_ability':
+            # Execute the steal here (like take_turn()), but do NOT switch the
+            # turn — the auto-started HathorStealAnimation (frame_renderer) owns
+            # switch_turn via its on_finish. Returning (None, None) without
+            # handling this previously left should_use_hathor_ability() True
+            # forever → infinite loop.
+            self.game.trigger_hathor_ability(self.ai_player)
+            return (None, None)
         elif action_type == 'pass':
             self.game.pass_turn()
             return (None, None)

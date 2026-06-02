@@ -159,3 +159,15 @@ def register_all_effects(gpu_renderer):
         print("[GPU] Prior's Plague effect registered")
     except Exception as e:
         print(f"[GPU] Failed to register Prior's Plague: {e}")
+
+    # Skip the redundant per-pass FBO clear on the always-on chain (v13.0.0).
+    # These passes each draw a fullscreen quad with opaque alpha (a=1.0), so
+    # the draw fully replaces the target — the clear is pure waste. Animation-
+    # driven effects keep clears=True (unverified, and only active transiently).
+    # Bloom self-configures its 4 sub-passes in BloomEffect.__init__ (its outer
+    # adapter isn't a ShaderPass). No-op on the WebGL backend (its ShaderPass
+    # never clears per pass).
+    for _name in ("vignette", "crt_hologram"):
+        for _sp in gpu_renderer._effects.get(_name, []):
+            if hasattr(_sp, "clears"):
+                _sp.clears = False

@@ -435,8 +435,11 @@ def _recreate_gpu_display(fullscreen_enabled, vsync_value):
         _revert_to_scaled()
         return
 
-    # Offscreen surface stays at internal render resolution
-    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    # Offscreen surface stays at internal render resolution. Forced to 32-bit
+    # so the GPU renderer's zero-copy upload (v13.0.0) gets a 4-byte-per-pixel
+    # buffer; the renderer falls back to a format-agnostic conversion if a
+    # surface ever isn't 32-bit BGRA.
+    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), depth=32)
 
     from gpu_renderer import GPURenderer
     renderer = GPURenderer(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -516,8 +519,9 @@ def initialize_gpu():
         _revert_to_scaled()
         return
 
-    # Offscreen surface — all game drawing targets this
-    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    # Offscreen surface — all game drawing targets this. Forced to 32-bit for
+    # the GPU renderer's zero-copy upload (v13.0.0); see _recreate_gpu_display.
+    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), depth=32)
 
     # --- Create GPU renderer ---
     renderer = None
